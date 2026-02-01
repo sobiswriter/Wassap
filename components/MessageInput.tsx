@@ -23,6 +23,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   const docInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
+  const emojiMenuRef = useRef<HTMLDivElement>(null);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
 
   // Auto-focus and clear state when chat changes
   useEffect(() => {
@@ -41,10 +43,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   // Click outside handlers
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (emojiRef.current && !emojiRef.current.contains(event.target as Node)) {
+      // Check emoji picker
+      const isEmojiToggleClick = emojiRef.current?.contains(event.target as Node);
+      const isEmojiMenuClick = emojiMenuRef.current?.contains(event.target as Node);
+      if (!isEmojiToggleClick && !isEmojiMenuClick) {
         setShowEmojiPicker(false);
       }
-      if (attachRef.current && !attachRef.current.contains(event.target as Node)) {
+
+      // Check attachment menu
+      const isAttachToggleClick = attachRef.current?.contains(event.target as Node);
+      const isAttachMenuClick = attachMenuRef.current?.contains(event.target as Node);
+      if (!isAttachToggleClick && !isAttachMenuClick) {
         setShowAttachmentMenu(false);
       }
     };
@@ -130,25 +139,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
           >
             <Plus size={28} strokeWidth={1.5} />
           </button>
-
-          {showAttachmentMenu && (
-            <div className="absolute bottom-14 left-0 w-[220px] app-panel shadow-2xl rounded-2xl p-2 mb-2 animate-in slide-in-from-bottom-4 duration-200 border app-border z-50">
-              <div className="space-y-1">
-                <button onClick={() => imageInputRef.current?.click()} className="w-full flex items-center gap-4 px-4 py-3 hover:bg-black/5 rounded-xl transition-colors group">
-                  <div className="w-10 h-10 rounded-full bg-[#bf59cf] flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
-                    <ImageIcon size={20} fill="currentColor" />
-                  </div>
-                  <span className="text-[14.5px] text-[#3b4a54] font-medium">Photos & Videos</span>
-                </button>
-                <button onClick={() => docInputRef.current?.click()} className="w-full flex items-center gap-4 px-4 py-3 hover:bg-black/5 rounded-xl transition-colors group">
-                  <div className="w-10 h-10 rounded-full bg-[#7f66ff] flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
-                    <FileText size={20} fill="currentColor" />
-                  </div>
-                  <span className="text-[14.5px] text-[#3b4a54] font-medium">Document</span>
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileSelection(e, 'image')} />
@@ -162,25 +152,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             >
               <Smile size={26} strokeWidth={1.5} />
             </button>
-
-            {showEmojiPicker && (
-              <div className="absolute bottom-14 left-[-20px] w-[320px] h-[340px] app-panel shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200 border app-border z-50">
-                <div className="p-3 bg-gray-50 dark:bg-[#202c33] text-[13px] font-medium text-[#00a884] border-b app-border">
-                  RECENTLY USED
-                </div>
-                <div className="flex-1 overflow-y-auto p-3 grid grid-cols-8 gap-1">
-                  {EMOJIS.map((emoji, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleEmojiClick(emoji)}
-                      className="text-2xl hover:bg-black/5 dark:hover:bg-white/5 p-1 rounded transition-colors"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           <input
@@ -208,6 +179,47 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             </button>
           )}
         </div>
+
+        {/* Attachment Menu (Absolute) */}
+        {showAttachmentMenu && (
+          <div ref={attachMenuRef} className="absolute bottom-full left-4 mb-2 w-[220px] app-panel shadow-2xl rounded-2xl p-2 animate-in slide-in-from-bottom-4 duration-200 border app-border z-[100]">
+            <div className="space-y-1">
+              <button onClick={() => imageInputRef.current?.click()} className="w-full flex items-center gap-4 px-4 py-3 hover:bg-black/5 rounded-xl transition-colors group">
+                <div className="w-10 h-10 rounded-full bg-[#bf59cf] flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
+                  <ImageIcon size={20} fill="currentColor" />
+                </div>
+                <span className="text-[14.5px] text-primary font-medium">Photos & Videos</span>
+              </button>
+              <button onClick={() => docInputRef.current?.click()} className="w-full flex items-center gap-4 px-4 py-3 hover:bg-black/5 rounded-xl transition-colors group">
+                <div className="w-10 h-10 rounded-full bg-[#7f66ff] flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
+                  <FileText size={20} fill="currentColor" />
+                </div>
+                <span className="text-[14.5px] text-primary font-medium">Document</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Emoji Picker (Absolute) */}
+        {showEmojiPicker && (
+          <div ref={emojiMenuRef} className="absolute bottom-full left-4 md:left-20 mb-2 w-[calc(100vw-32px)] md:w-[320px] h-[340px] app-panel shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200 border app-border z-[100]">
+            <div className="p-3 bg-gray-50 dark:bg-[#202c33] text-[13px] font-medium text-[#00a884] border-b app-border">
+              RECENTLY USED
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 grid grid-cols-7 sm:grid-cols-8 gap-1">
+              {EMOJIS.map((emoji, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleEmojiClick(emoji)}
+                  className="text-2xl hover:bg-black/5 dark:hover:bg-white/5 p-1 rounded transition-colors"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
