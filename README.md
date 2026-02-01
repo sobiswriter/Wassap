@@ -52,7 +52,6 @@ This project is a pixel-perfect reconstruction of the WhatsApp interface, repurp
 
 ### Prerequisites
 1.  Node.js (v18+)
-2.  A [Google Gemini API Key](https://aistudio.google.com/app/apikey).
 
 ### Setup Instructions
 
@@ -66,18 +65,15 @@ This project is a pixel-perfect reconstruction of the WhatsApp interface, repurp
     npm install
     ```
 
-3.  **Configure Environment**:
-    Create a `.env` file in the root directory and add your API key:
-    ```env
-    VITE_GEMINI_API_KEY=your_actual_api_key_here
-    ```
-
-4.  **Run Dev Server**:
+3.  **Run Dev Server**:
     ```bash
     npm run dev
     ```
 
-5.  **Access the App**:
+> [!NOTE]
+> **API Key Integrated**: For a seamless experience, a Gemini API key is already integrated into the application. No manual environment configuration or `.env` files are required for local development.
+
+4.  **Access the App**:
     Open `http://localhost:5173`.
 
 ---
