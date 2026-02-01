@@ -38,12 +38,10 @@ export const ChatList: React.FC<ChatListProps> = ({ chats, activeChatId, onChatS
   const filters: FilterType[] = ['All', 'Unread', 'Favourites', 'Groups'];
 
   return (
-    <div className="w-[410px] app-panel flex flex-col h-full border-r app-border relative z-20 transition-colors duration-300">
-      {/* Header */}
-      <div className="p-4 flex justify-between items-center">
+    <div className="flex-1 app-panel flex flex-col h-full border-r app-border relative z-20 transition-colors duration-300 overflow-hidden">
+      <div className="p-4 flex justify-between items-center shrink-0">
         <h1 className="text-[22px] font-bold text-primary">Chats</h1>
         <div className="flex gap-4 items-center relative" ref={menuRef}>
-          {/* Fix: Removed invalid 'title' prop from Plus icon which caused a TypeScript error */}
           <Plus
             className="text-secondary w-5 h-5 cursor-pointer hover:bg-black/5 rounded-full"
             onClick={() => setShowMenu(!showMenu)}
@@ -54,13 +52,13 @@ export const ChatList: React.FC<ChatListProps> = ({ chats, activeChatId, onChatS
             <div className="absolute right-0 top-8 w-[180px] app-panel shadow-xl rounded-md py-2 z-50 animate-in fade-in zoom-in duration-200 origin-top-right border app-border">
               <button
                 onClick={() => { onAddPersona(); setShowMenu(false); }}
-                className="w-full text-left px-4 py-3 text-[14.5px] text-[#3b4a54] hover:bg-black/5 flex items-center gap-3 transition-colors"
+                className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
               >
                 <UserPlus size={18} className="text-secondary" /> New Persona
               </button>
               <button
                 onClick={() => { onAddGroup(); setShowMenu(false); }}
-                className="w-full text-left px-4 py-3 text-[14.5px] text-[#3b4a54] hover:bg-black/5 flex items-center gap-3 transition-colors"
+                className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
               >
                 <Users size={18} className="text-secondary" /> New Group
               </button>
@@ -90,8 +88,8 @@ export const ChatList: React.FC<ChatListProps> = ({ chats, activeChatId, onChatS
             key={f}
             onClick={() => setFilter(f)}
             className={`px-3 py-1 rounded-full text-[13px] font-medium transition-colors ${filter === f
-                ? 'bg-[#e7fce3] text-[#008069]'
-                : 'app-header text-secondary hover:bg-black/5'
+              ? 'bg-[#e7fce3] text-[#008069]'
+              : 'app-header text-secondary hover:bg-black/5'
               }`}
           >
             {f}

@@ -1,7 +1,8 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { Search, MoreVertical, CheckCheck, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download } from 'lucide-react';
+import { Search, MoreVertical, CheckCheck, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User } from 'lucide-react';
 import { Chat, Message } from '../types';
+import { ConfirmationModal } from './ConfirmationModal';
 
 interface ChatWindowProps {
   chat: Chat | null;
@@ -11,43 +12,13 @@ interface ChatWindowProps {
   onClearChat: () => void;
   searchTerm: string;
   setSearchTerm: (val: string) => void;
+  onBack?: () => void;
+  onProfileClick?: () => void;
+  onMetaAIClick?: () => void;
   onAddContact?: () => void;
 }
 
 const MEMBER_COLORS = ['#35a62e', '#e542a3', '#9141ac', '#dfa633', '#1d88e5'];
-
-const ConfirmationModal: React.FC<{
-  onConfirm: () => void;
-  onCancel: () => void;
-  title: string;
-  message: string;
-  confirmLabel: string;
-  isDanger?: boolean;
-}> = ({ onConfirm, onCancel, title, message, confirmLabel, isDanger = true }) => {
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] animate-in fade-in duration-200 px-4">
-      <div className="app-panel rounded-md shadow-2xl max-w-sm w-full p-6 animate-in zoom-in duration-200 border app-border">
-        <h3 className="text-[19px] font-medium text-primary mb-4">{title}</h3>
-        <p className="text-[14.5px] text-secondary leading-relaxed mb-8">{message}</p>
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-6 py-2 rounded border app-border text-[#00a884] font-medium text-[14px] hover:bg-black/5 transition-colors uppercase"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className={`px-6 py-2 rounded text-white font-medium text-[14px] transition-colors shadow-sm uppercase ${isDanger ? 'bg-[#ea0038] hover:bg-[#c4002f]' : 'bg-[#00a884] hover:bg-[#008069]'
-              }`}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?: boolean }> = ({ message, highlight, isGroup }) => {
   const isMe = message.sender === 'me';
@@ -143,7 +114,7 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
   );
 };
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeaderClick, onDeleteChat, onClearChat, searchTerm, setSearchTerm, onAddContact }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeaderClick, onDeleteChat, onClearChat, searchTerm, setSearchTerm, onBack, onProfileClick, onMetaAIClick, onAddContact }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -171,12 +142,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
     return (
       <div className="flex-1 app-header flex flex-col items-center justify-center relative overflow-hidden transition-colors duration-300">
         <div className="flex gap-8 relative z-10 p-12 border rounded-xl app-border bg-[#f8f9fa] dark:bg-[#182229] shadow-sm">
-          {/* Send Document Shortcut */}
-          <div className="flex flex-col items-center gap-3 group cursor-pointer">
+          {/* Profile Shortcut */}
+          <div className="flex flex-col items-center gap-3 group cursor-pointer" onClick={onProfileClick}>
             <div className="w-20 h-20 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-[#54656f] group-hover:bg-black/10 dark:group-hover:bg-white/10 transition-all active:scale-95">
-              <FileText size={32} />
+              <User size={32} />
             </div>
-            <span className="text-[14px] text-secondary font-medium">Send document</span>
+            <span className="text-[14px] text-secondary font-medium">Your Profile</span>
           </div>
 
           {/* Add Contact Shortcut */}
@@ -188,7 +159,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
           </div>
 
           {/* Ask Meta AI Shortcut */}
-          <div className="flex flex-col items-center gap-3 group cursor-pointer">
+          <div className="flex flex-col items-center gap-3 group cursor-pointer" onClick={onMetaAIClick}>
             <div className="w-20 h-20 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center group-hover:bg-black/10 dark:group-hover:bg-white/10 transition-all active:scale-95">
               <div className="w-8 h-8 rounded-full border-[3px] p-[1px] bg-clip-border"
                 style={{
@@ -244,18 +215,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
       )}
 
       {/* Chat Window Header */}
-      <div className="h-[59px] app-header border-b app-border px-4 flex items-center justify-between z-20 shrink-0">
-        <div className="flex items-center cursor-pointer flex-1 min-w-0" onClick={onHeaderClick}>
-          <img src={chat.avatar} alt={chat.name} className="w-10 h-10 rounded-full mr-3 object-cover shadow-sm" />
-          <div className="flex flex-col min-w-0">
-            <h2 className="text-[16px] text-primary font-medium leading-none truncate">{chat.name}</h2>
-            <span className="text-[12.5px] text-secondary mt-1.5 truncate">
-              {getGroupMembersLabel()}
-            </span>
+      <div className="h-[59px] app-header border-b app-border px-2 md:px-4 flex items-center justify-between z-20 shrink-0">
+        <div className="flex items-center cursor-pointer flex-1 min-w-0">
+          {onBack && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onBack(); }}
+              className="p-2 mr-1 hover:bg-black/5 rounded-full text-secondary md:hidden"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <div className="flex items-center flex-1 min-w-0" onClick={onHeaderClick}>
+            <img src={chat.avatar} alt={chat.name} className="w-10 h-10 rounded-full mr-3 object-cover shadow-sm" />
+            <div className="flex flex-col min-w-0">
+              <h2 className="text-[16px] text-primary font-medium leading-none truncate">{chat.name}</h2>
+              <span className="text-[12.5px] text-secondary mt-1.5 truncate">
+                {getGroupMembersLabel()}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-6 text-secondary relative">
+        <div className="flex items-center gap-4 md:gap-6 text-secondary relative">
           <Search
             size={20}
             className={`cursor-pointer transition-colors ${showSearch ? 'text-[#00a884]' : 'hover:text-primary'}`}
@@ -264,23 +245,29 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
           <div className="relative" ref={menuRef}>
             < MoreVertical size={20} className="cursor-pointer hover:text-primary transition-colors" onClick={() => setShowMenu(!showMenu)} />
             {showMenu && (
-              <div className="absolute right-0 top-10 w-[200px] app-panel shadow-xl rounded-md py-2 z-50 animate-in fade-in zoom-in duration-200 origin-top-right border app-border">
+              <div className="absolute right-0 top-10 w-[210px] app-panel shadow-2xl rounded-lg py-2 z-50 animate-in fade-in zoom-in duration-200 origin-top-right border app-border overflow-hidden">
                 <button
                   onClick={() => { onHeaderClick(); setShowMenu(false); }}
-                  className="w-full text-left px-4 py-3 text-[14.5px] text-[#3b4a54] hover:bg-black/5 flex items-center gap-3 transition-colors"
+                  className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
                 >
-                  <Info size={18} className="text-[#667781]" /> {chat.isGroup ? 'Group info' : 'Contact info'}
+                  <Info size={18} className="text-secondary" /> {chat.isGroup ? 'Group info' : 'Contact info / Edit'}
                 </button>
+                <button
+                  onClick={() => { setShowSearch(true); setShowMenu(false); }}
+                  className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
+                >
+                  <Search size={18} className="text-secondary" /> Search messages
+                </button>
+                <div className="h-[1px] app-border bg-border mx-2 my-1 opacity-50" />
                 <button
                   onClick={() => { setShowClearModal(true); setShowMenu(false); }}
-                  className="w-full text-left px-4 py-3 text-[14.5px] text-[#3b4a54] hover:bg-black/5 flex items-center gap-3 transition-colors"
+                  className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
                 >
-                  <Eraser size={18} className="text-[#667781]" /> Clear chat
+                  <Eraser size={18} className="text-secondary" /> Clear chat
                 </button>
-                <div className="h-[1px] bg-black/5 my-1 mx-2" />
                 <button
                   onClick={() => { setShowDeleteModal(true); setShowMenu(false); }}
-                  className="w-full text-left px-4 py-3 text-[14.5px] text-red-500 hover:bg-red-500/5 flex items-center gap-3 transition-colors"
+                  className="w-full text-left px-4 py-3 text-[14.5px] text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-3 transition-colors font-medium"
                 >
                   <Trash2 size={18} /> {chat.isGroup ? 'Exit Group' : 'Delete persona'}
                 </button>

@@ -46,6 +46,7 @@ import { INITIAL_CHATS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment } from './types';
 import { getGeminiResponse } from './services/geminiService';
 import { saveMedia, getMedia } from './utils/storage';
+import { MobileActionFAB } from './components/MobileActionFAB';
 
 const App: React.FC = () => {
   const [chats, setChats] = useState<Chat[]>(() => {
@@ -61,6 +62,8 @@ const App: React.FC = () => {
   });
 
   const [activeChatId, setActiveChatId] = useState<string>('');
+  const [activeView, setActiveView] = useState<'list' | 'chat'>('list');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
   const [showNewChatPanel, setShowNewChatPanel] = useState(false);
   const [showNewGroupPanel, setShowNewGroupPanel] = useState(false);
@@ -75,6 +78,12 @@ const App: React.FC = () => {
     status: 'Available',
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop'
   });
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('whatsapp_settings');
@@ -344,6 +353,13 @@ const App: React.FC = () => {
     setShowNewChatPanel(false);
     setShowNewGroupPanel(false);
     setChatSearchTerm('');
+    if (isMobile) {
+      setActiveView('chat');
+    }
+  };
+
+  const handleBack = () => {
+    setActiveView('list');
   };
 
   const handleCreateGroup = (data: { name: string; avatar: string; memberIds: string[] }) => {
@@ -389,6 +405,10 @@ const App: React.FC = () => {
 
   const handleDeleteChat = () => {
     if (!activeChatId) return;
+    if (activeChatId === '6') {
+      alert("This is a permanent system chat and cannot be deleted.");
+      return;
+    }
     setChats(prev => prev.filter(c => c.id !== activeChatId));
     setActiveChatId('');
     setShowProfilePanel(false);
@@ -396,7 +416,12 @@ const App: React.FC = () => {
 
   const handleClearChat = () => {
     if (!activeChatId) return;
-    setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: [] } : c));
+    setChats(prev => prev.map(c => c.id === activeChatId ? {
+      ...c,
+      messages: [],
+      lastMessage: '',
+      lastMessageTime: ''
+    } : c));
   };
 
   return (
@@ -412,11 +437,13 @@ const App: React.FC = () => {
       </div>
 
       <div className="flex-1 flex overflow-hidden bg-white relative">
-        <Sidebar
-          userAvatar={user.avatar}
-          onUserProfileClick={() => setShowUserProfilePanel(!showUserProfilePanel)}
-          onSettingsClick={() => setShowSettingsPopover(!showSettingsPopover)}
-        />
+        <div className={`hidden md:block`}>
+          <Sidebar
+            userAvatar={user.avatar}
+            onUserProfileClick={() => setShowUserProfilePanel(!showUserProfilePanel)}
+            onSettingsClick={() => setShowSettingsPopover(!showSettingsPopover)}
+          />
+        </div>
 
         {showNewChatPanel && (
           <NewChatPanel onClose={() => setShowNewChatPanel(false)} onCreate={handleCreatePersona} />
@@ -438,15 +465,17 @@ const App: React.FC = () => {
           <SettingsPopover settings={settings} onUpdate={setSettings} onClose={() => setShowSettingsPopover(false)} />
         )}
 
-        <ChatList
-          chats={chats}
-          activeChatId={activeChatId}
-          onChatSelect={handleChatSelect}
-          onAddPersona={() => setShowNewChatPanel(true)}
-          onAddGroup={() => setShowNewGroupPanel(true)}
-        />
+        <div className={`${isMobile && activeView === 'chat' ? 'hidden' : 'flex'} w-full md:w-[410px] md:flex shrink-0`}>
+          <ChatList
+            chats={chats}
+            activeChatId={activeChatId}
+            onChatSelect={handleChatSelect}
+            onAddPersona={() => setShowNewChatPanel(true)}
+            onAddGroup={() => setShowNewGroupPanel(true)}
+          />
+        </div>
 
-        <div className="flex-1 flex flex-col min-w-0 bg-white">
+        <div className={`${isMobile && activeView === 'list' ? 'hidden' : 'flex'} flex-1 flex-col min-w-0 bg-white`}>
           <ChatWindow
             chat={activeChat}
             allChats={chats}
@@ -455,9 +484,14 @@ const App: React.FC = () => {
             onClearChat={handleClearChat}
             searchTerm={chatSearchTerm}
             setSearchTerm={setChatSearchTerm}
+            onBack={isMobile ? handleBack : undefined}
+            onProfileClick={() => setShowUserProfilePanel(true)}
+            onMetaAIClick={() => handleChatSelect('6')}
             onAddContact={() => setShowNewChatPanel(true)}
           />
-          {activeChat && <MessageInput activeChatId={activeChatId} onSendMessage={handleSendMessage} />}
+          {activeChat && (!isMobile || !showProfilePanel) && (
+            <MessageInput activeChatId={activeChatId} onSendMessage={handleSendMessage} />
+          )}
         </div>
 
         {showProfilePanel && activeChat && (
@@ -466,6 +500,17 @@ const App: React.FC = () => {
             allChats={chats}
             onClose={() => setShowProfilePanel(false)}
             onUpdate={updateActiveChat}
+            onDeleteChat={handleDeleteChat}
+            onClearChat={handleClearChat}
+          />
+        )}
+        {/* Mobile Floating Action Button Hub */}
+        {isMobile && activeView === 'list' && (
+          <MobileActionFAB
+            onAddPersona={() => setShowNewChatPanel(true)}
+            onAddGroup={() => setShowNewGroupPanel(true)}
+            onProfileClick={() => setShowUserProfilePanel(true)}
+            onSettingsClick={() => setShowSettingsPopover(true)}
           />
         )}
       </div>

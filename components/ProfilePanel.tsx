@@ -1,16 +1,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Camera, Link as LinkIcon, Save, Info, Globe, Check, Users } from 'lucide-react';
+import { X, Camera, Link as LinkIcon, Save, Info, Globe, Check, Users, Trash2, Eraser } from 'lucide-react';
 import { Chat } from '../types';
+import { ConfirmationModal } from './ConfirmationModal';
 
 interface ProfilePanelProps {
   chat: Chat;
   allChats: Chat[];
   onClose: () => void;
   onUpdate: (updates: Partial<Chat>) => void;
+  onDeleteChat?: () => void;
+  onClearChat?: () => void;
 }
 
-export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onClose, onUpdate }) => {
+export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onClose, onUpdate, onDeleteChat, onClearChat }) => {
   const [formData, setFormData] = useState({
     name: chat.name,
     about: chat.about || (chat.isGroup ? 'Group Description' : 'Hey there! I am using WhatsApp.'),
@@ -22,6 +25,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
 
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlValue, setUrlValue] = useState(chat.avatar);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -69,7 +74,32 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
     : [];
 
   return (
-    <div className="w-[400px] h-full app-header border-l app-border flex flex-col animate-in slide-in-from-right duration-300">
+    <div className="w-full md:w-[400px] h-full app-header border-l app-border flex flex-col animate-in slide-in-from-right duration-300 relative">
+      {showDeleteModal && (
+        <ConfirmationModal
+          title={chat.isGroup ? "Exit group?" : "Delete this persona?"}
+          message={chat.isGroup ? `Are you sure you want to exit and delete "${chat.name}"?` : `Are you sure you want to delete "${chat.name}"? This will remove the contact and all associated message history.`}
+          confirmLabel={chat.isGroup ? "Exit" : "Delete"}
+          onCancel={() => setShowDeleteModal(false)}
+          onConfirm={() => {
+            onDeleteChat?.();
+            setShowDeleteModal(false);
+          }}
+        />
+      )}
+
+      {showClearModal && (
+        <ConfirmationModal
+          title="Clear messages?"
+          message={`Are you sure you want to clear all messages in "${chat.name}"? This action cannot be undone.`}
+          confirmLabel="Clear Chat"
+          onCancel={() => setShowClearModal(false)}
+          onConfirm={() => {
+            onClearChat?.();
+            setShowClearModal(false);
+          }}
+        />
+      )}
       <div className="h-[60px] app-panel flex items-center p-5 shrink-0 border-b app-border">
         <div className="flex items-center gap-6">
           <X className="text-secondary cursor-pointer hover:bg-black/5 rounded-full p-1" onClick={onClose} />
@@ -200,13 +230,31 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
           </div>
         )}
 
-        <div className="p-6 app-header">
+        <div className="p-6 app-header space-y-3">
           <button
             onClick={handleSave}
             className="w-full bg-[#00a884] text-white py-3 rounded-md flex items-center justify-center gap-2 font-medium hover:bg-[#005c4b] transition-colors shadow-sm active:scale-95 uppercase text-[14px]"
           >
             <Save size={18} />
             Save Changes
+          </button>
+
+          <div className="h-[1px] app-border bg-border my-2 opacity-50" />
+
+          <button
+            onClick={() => setShowClearModal(true)}
+            className="w-full text-primary py-3 rounded-md flex items-center justify-center gap-2 font-medium hover:bg-black/5 transition-colors active:scale-95 text-[14px]"
+          >
+            <Eraser size={18} className="text-secondary" />
+            Clear Chat History
+          </button>
+
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="w-full text-red-500 py-3 rounded-md flex items-center justify-center gap-2 font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors active:scale-95 text-[14px]"
+          >
+            <Trash2 size={18} />
+            {chat.isGroup ? 'Exit & Delete Group' : 'Delete Persona & Chat'}
           </button>
         </div>
       </div>

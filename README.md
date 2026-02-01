@@ -1,8 +1,8 @@
-# WhatsApp Persona Simulation Environment (v0.7)
+# WhatsApp Persona Simulation Environment (v1.0)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-0.7.0-brightgreen)
+![Version](https://img.shields.io/badge/version-1.0.0-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -13,11 +13,15 @@ A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Ta
 
 This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini LLM.
 
-### Recent Enhancements (v0.7)
-*   **Theme Engine Overhaul**: Fixed invisible text issues in Dark Mode by implementing a robust CSS variable system.
-*   **Premium Wallpapers**: Integrated high-fidelity WhatsApp-style doodle wallpapers for both light and dark themes.
-*   **Bubble Polish**: Chat bubbles now dynamically adjust contrast and colors (Deep Green/Grey) in Dark Mode for a native feel.
-*   **Layout Fixes**: Resolved overlaps in the Settings Popover and improved Sidebar responsiveness.
+### 🌟 Key Features (v1.0)
+*   **Gemini AI Personalities**: Each contact has a unique role, speech style, and system instructions.
+*   **Deep Memory Reset**: "Clear Chat" now wipes both the UI and the AI's contextual memory, providing a true fresh start.
+*   **Mobile-First Action Hub**: A dedicated Floating Action Button (FAB) provides quick access to all management features on mobile devices.
+*   **Safety Confirmations**: Integrated confirmation dialogs for all destructive actions to prevent accidental data loss.
+*   **Persistent Meta AI**: A permanent AI assistant chat (Meta AI) is always available and undeletable, linked via landing page shortcuts.
+*   **IndexedDB Media Persistence**: Images and documents are stored locally using IndexedDB for robust persistence across sessions.
+*   **Cyber-Noir Aesthetic**: Premium dark/light mode support with animated transitions and native-style wallpapers.
+*   **Natural Message Splitting**: AI responses are split into human-like chunks based on sentence structure for a more realistic chat feel.
 
 ---
 
@@ -28,14 +32,16 @@ This project is a pixel-perfect reconstruction of the WhatsApp interface, repurp
 *   **Styling**: [Tailwind CSS v3](https://tailwindcss.com/)
 *   **Icons**: [Lucide React](https://lucide.dev/)
 *   **AI SDK**: [@google/genai](https://www.npmjs.com/package/@google/genai)
+*   **Storage**: [Dexie.js / IndexedDB](https://dexie.org/)
 
 ---
 
 ## 📦 Architecture
 
--   **/components**: Pure UI components (Sidebar, ChatList, ChatWindow).
--   **/public/images**: High-fidelity wallpapers and assets.
--   **/services**: Core logic for Gemini API interactions.
+-   **/components**: UI components (Sidebar, ChatList, ChatWindow, ProfilePanel, MobileActionFAB).
+-   **/services**: Core logic for Gemini API interactions and message handling.
+-   **/utils**: Storage utilities for IndexedDB media management.
+-   **/constants.ts**: Initial state and theme configuration.
 -   **App.tsx**: Main state orchestration and AI turn-taking logic.
 
 ---
@@ -50,9 +56,8 @@ This project is a pixel-perfect reconstruction of the WhatsApp interface, repurp
 
 1.  **Clone the Repository**:
     ```bash
-    git clone https://github.com/your-username/whatsapp-ai-replica.git
-    cd whatsapp-ai-replica
     ```
+    (Note: Replace with your repository link)
 
 2.  **Install Dependencies**:
     ```bash
@@ -71,14 +76,7 @@ This project is a pixel-perfect reconstruction of the WhatsApp interface, repurp
     ```
 
 5.  **Access the App**:
-    Open `http://localhost:5173` (or the port shown in your terminal).
-
----
-
-## 🛑 Current Known Issues & Roadmap
--   **Context Sharing**: The "Share AI Context" toggle is functional but requires more granular persona memory persistence.
--   **Media Uploads**: While images and docs are supported, large file handling (over 4MB) may encounter API limits.
--   **Dark Mode Contrast**: While largely fixed, some 3rd-party library icons may still use fixed hex colors.
+    Open `http://localhost:5173`.
 
 ---
 
