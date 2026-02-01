@@ -1,0 +1,8 @@
+{
+  "name": "Whatsapp v0.7",
+  "description": "A high-fidelity WhatsApp replica repurposed as an AI persona simulation environment.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
