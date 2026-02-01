@@ -7,6 +7,8 @@ A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Ta
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
 
+![App Screenshot](public/images/screenshot.png)
+
 ---
 
 ## 🚀 Overview
