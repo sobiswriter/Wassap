@@ -52,7 +52,26 @@ const ConfirmationModal: React.FC<{
 const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?: boolean }> = ({ message, highlight, isGroup }) => {
   const isMe = message.sender === 'me';
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
-  const hasAttachment = !!message.attachment || !!message.image;
+  const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
+  const [mediaData, setMediaData] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadMedia = async () => {
+      const mediaId = message.mediaId || message.attachment?.mediaId;
+      if (mediaId) {
+        try {
+          const { getMedia } = await import('../utils/storage');
+          const data = await getMedia(mediaId);
+          if (data) setMediaData(data);
+        } catch (err) {
+          console.error("Error loading media from IndexedDB", err);
+        }
+      }
+    };
+    loadMedia();
+  }, [message.mediaId, message.attachment?.mediaId]);
+
+  const imageSrc = mediaData || message.image || (message.attachment?.type === 'image' ? message.attachment.data : null);
 
   return (
     <div className={`flex w-full mb-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -67,10 +86,10 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
         )}
 
         {/* Render Image Attachment with Intelligent Scaling */}
-        {(message.image || (message.attachment?.type === 'image')) && (
+        {imageSrc && (
           <div className="p-0.5 overflow-hidden">
             <img
-              src={message.image || message.attachment?.data}
+              src={imageSrc}
               alt="Sent content"
               className="rounded-md w-full max-h-[450px] object-contain block shadow-sm bg-black/5 dark:bg-white/5"
               loading="lazy"

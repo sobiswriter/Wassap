@@ -45,9 +45,21 @@ import { SettingsPopover } from './components/SettingsPopover';
 import { INITIAL_CHATS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment } from './types';
 import { getGeminiResponse } from './services/geminiService';
+import { saveMedia, getMedia } from './utils/storage';
 
 const App: React.FC = () => {
-  const [chats, setChats] = useState<Chat[]>(INITIAL_CHATS);
+  const [chats, setChats] = useState<Chat[]>(() => {
+    const saved = localStorage.getItem('whatsapp_chats');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse chats", e);
+      }
+    }
+    return INITIAL_CHATS;
+  });
+
   const [activeChatId, setActiveChatId] = useState<string>('');
   const [showProfilePanel, setShowProfilePanel] = useState(false);
   const [showNewChatPanel, setShowNewChatPanel] = useState(false);
@@ -83,6 +95,10 @@ const App: React.FC = () => {
     localStorage.setItem('whatsapp_settings', JSON.stringify(settings));
   }, [settings]);
 
+  useEffect(() => {
+    localStorage.setItem('whatsapp_chats', JSON.stringify(chats));
+  }, [chats]);
+
   const activeChat = chats.find(c => c.id === activeChatId) || null;
 
   useEffect(() => {
@@ -102,11 +118,26 @@ const App: React.FC = () => {
 
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
 
+    let mediaId = '';
+    if (attachment && attachment.type === 'image') {
+      mediaId = `media-${Date.now()}`;
+      try {
+        await saveMedia(mediaId, attachment.data);
+      } catch (err) {
+        console.error("Failed to save media to IndexedDB", err);
+      }
+    }
+
     const userMsg: Message = {
       id: Date.now().toString(),
       text,
-      attachment,
-      image: attachment?.type === 'image' ? attachment.data : undefined,
+      attachment: attachment ? {
+        ...attachment,
+        data: attachment.type === 'image' ? '' : attachment.data, // Strip image data for storage
+        mediaId
+      } : undefined,
+      image: undefined, // No longer storing full Base64 in message object
+      mediaId,
       sender: 'me',
       timestamp,
       status: 'read'
@@ -141,9 +172,20 @@ const App: React.FC = () => {
     try {
       setChatStatus(chatId, 'typing...');
 
+      // Hydrate history with image data from IndexedDB so AI can see it
+      const hydratedHistory = await Promise.all(updatedHistory.map(async m => {
+        const mediaId = m.mediaId || m.attachment?.mediaId;
+        const image = mediaId ? await getMedia(mediaId) : (m.image || m.attachment?.data);
+        return {
+          text: m.text,
+          sender: m.sender,
+          image: image || undefined
+        };
+      }));
+
       const response = await getGeminiResponse(
         { ...chat },
-        updatedHistory.map(m => ({ text: m.text, sender: m.sender, image: m.image || m.attachment?.data })),
+        hydratedHistory,
         settings.shareUserInfo ? user : undefined,
         undefined,
         settings.apiKey
@@ -221,14 +263,22 @@ const App: React.FC = () => {
         await new Promise(resolve => setTimeout(resolve, delay));
 
         setChatStatus(group.id, 'typing...'); // Status set by trigger check
-        const responseText = await getGeminiResponse(
-          { ...persona },
-          currentHistory.map(m => ({
+
+        // Hydrate group history with image data from IndexedDB
+        const hydratedGroupHistory = await Promise.all(currentHistory.map(async m => {
+          const mediaId = m.mediaId || m.attachment?.mediaId;
+          const image = mediaId ? await getMedia(mediaId) : (m.image || m.attachment?.data);
+          return {
             text: m.text,
             sender: m.sender,
             senderName: m.senderName,
-            image: m.image || m.attachment?.data
-          })),
+            image: image || undefined
+          };
+        }));
+
+        const responseText = await getGeminiResponse(
+          { ...persona },
+          hydratedGroupHistory,
           settings.shareUserInfo ? user : undefined,
           {
             groupName: group.name,
