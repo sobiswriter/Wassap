@@ -9,9 +9,10 @@ interface ChatListProps {
   onChatSelect: (id: string) => void;
   onAddPersona: () => void;
   onAddGroup: () => void;
+  onMetaAIClick?: () => void;
 }
 
-export const ChatList: React.FC<ChatListProps> = ({ chats, activeChatId, onChatSelect, onAddPersona, onAddGroup }) => {
+export const ChatList: React.FC<ChatListProps> = ({ chats, activeChatId, onChatSelect, onAddPersona, onAddGroup, onMetaAIClick }) => {
   const [filter, setFilter] = useState<FilterType>('All');
   const [search, setSearch] = useState('');
   const [showMenu, setShowMenu] = useState(false);
@@ -41,7 +42,7 @@ export const ChatList: React.FC<ChatListProps> = ({ chats, activeChatId, onChatS
     <div className="flex-1 app-panel flex flex-col h-full border-r app-border relative z-20 transition-colors duration-300 overflow-hidden">
       <div className="p-4 flex justify-between items-center shrink-0">
         <h1 className="text-[22px] font-bold text-primary">Chats</h1>
-        <div className="flex gap-4 items-center relative" ref={menuRef}>
+        <div className="hidden md:flex gap-4 items-center relative" ref={menuRef}>
           <Plus
             className="text-secondary w-5 h-5 cursor-pointer hover:bg-black/5 rounded-full"
             onClick={() => setShowMenu(!showMenu)}
@@ -64,6 +65,20 @@ export const ChatList: React.FC<ChatListProps> = ({ chats, activeChatId, onChatS
               </button>
             </div>
           )}
+        </div>
+
+        {/* Mobile Meta AI Shortcut */}
+        <div
+          className="md:hidden p-1.5 cursor-pointer hover:bg-black/5 rounded-full transition-colors flex items-center justify-center active:scale-95"
+          onClick={onMetaAIClick}
+        >
+          <div className="w-6 h-6 rounded-full border-[2.5px] p-[1px] bg-clip-border"
+            style={{
+              background: 'linear-gradient(45deg, #00d2ff 0%, #3a7bd5 50%, #8e2de2 100%)',
+              borderColor: 'transparent'
+            }}>
+            <div className="w-full h-full rounded-full bg-white dark:bg-[#111b21]"></div>
+          </div>
         </div>
       </div>
 

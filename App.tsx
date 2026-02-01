@@ -472,6 +472,7 @@ const App: React.FC = () => {
             onChatSelect={handleChatSelect}
             onAddPersona={() => setShowNewChatPanel(true)}
             onAddGroup={() => setShowNewGroupPanel(true)}
+            onMetaAIClick={() => handleChatSelect('6')}
           />
         </div>
 
