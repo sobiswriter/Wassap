@@ -57,7 +57,7 @@ This project is a pixel-perfect reconstruction of the WhatsApp interface, repurp
 
 1.  **Clone the Repository**:
     ```bash
-   git clone https://github.com/sobiswriter/Wassap.git
+    git clone https://github.com/sobiswriter/Wassap.git
     ```
     
 
