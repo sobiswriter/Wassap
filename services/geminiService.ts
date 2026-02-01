@@ -1,21 +1,25 @@
-
 import { GoogleGenAI } from "@google/genai";
-import { UserProfile, Chat } from "../types";
-
-// Fix: Initializing GoogleGenAI using the process.env.API_KEY directly without fallbacks
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import { UserProfile } from "../types";
 
 export const getGeminiResponse = async (
-  responder: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string }, 
+  responder: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string },
   messageHistory: { text: string; sender: string; senderName?: string; image?: string }[],
   userProfile?: UserProfile,
-  groupContext?: { groupName: string; otherMembers: string[] }
+  groupContext?: { groupName: string; otherMembers: string[] },
+  apiKey?: string
 ) => {
+  const finalKey = apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+
+  if (!finalKey) {
+    return "API Key not configured. Please add it in Settings.";
+  }
+
+  const ai = new GoogleGenAI({ apiKey: finalKey });
+
   try {
     const historyString = messageHistory
       .map(m => {
         const name = m.sender === 'me' ? (userProfile?.name || 'User') : (m.senderName || responder.name);
-        // If an image is sent, we mark it. If there's text, it's the caption/message.
         const imgTag = m.image ? "[IMAGE ATTACHED]" : "";
         return `${name}: ${imgTag} ${m.text || ''}`.trim();
       })
@@ -38,7 +42,7 @@ You should interact naturally with BOTH the User and the other AI personas in th
 Subtly acknowledge what others have said. Keep the conversation flowing.
 ` : '';
 
-    const userContext = userProfile ? `
+    const userContext = (userProfile && userProfile.name !== 'You') ? `
 USER INFORMATION (The person you are chatting with):
 Name: ${userProfile.name}
 About: ${userProfile.about}
@@ -62,15 +66,13 @@ Conversation History:
 ${historyString}
 
 Response as ${responder.name}:`;
-    
-    // Check for images in the recent history to support multimodal vision
+
     const recentMessagesWithImages = messageHistory.slice(-3).filter(m => m.image);
     const parts: any[] = [{ text: systemPrompt }];
 
     if (recentMessagesWithImages.length > 0) {
       const lastImageMsg = recentMessagesWithImages[recentMessagesWithImages.length - 1];
       if (lastImageMsg.image) {
-        // Extract base64 data correctly (remove prefix if present)
         const base64Data = lastImageMsg.image.split(',')[1] || lastImageMsg.image;
         parts.push({
           inlineData: {
@@ -81,16 +83,17 @@ Response as ${responder.name}:`;
       }
     }
 
-    // Using generateContent with recommended model name
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: { parts },
     });
 
-    // Access the text property directly
     return response.text || "...";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Connection error:", error);
-    return "Connection issues...";
+    if (error.status === 401 || error.status === 403) {
+      return "Invalid API Key. Please check your settings.";
+    }
+    return "Connection issues... please try again.";
   }
 };

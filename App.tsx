@@ -31,10 +31,24 @@ const App: React.FC = () => {
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop'
   });
 
-  const [settings, setSettings] = useState<AppSettings>({
-    theme: 'light',
-    shareUserInfo: true
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const saved = localStorage.getItem('whatsapp_settings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse settings", e);
+      }
+    }
+    return {
+      theme: 'light',
+      shareUserInfo: true
+    };
   });
+
+  useEffect(() => {
+    localStorage.setItem('whatsapp_settings', JSON.stringify(settings));
+  }, [settings]);
 
   const activeChat = chats.find(c => c.id === activeChatId) || null;
 
@@ -92,7 +106,9 @@ const App: React.FC = () => {
       const response = await getGeminiResponse(
         { ...chat },
         updatedHistory.map(m => ({ text: m.text, sender: m.sender, image: m.image || m.attachment?.data })),
-        settings.shareUserInfo ? user : undefined
+        settings.shareUserInfo ? user : undefined,
+        undefined,
+        settings.apiKey
       );
 
       const aiMsg: Message = {
@@ -147,8 +163,9 @@ const App: React.FC = () => {
         settings.shareUserInfo ? user : undefined,
         {
           groupName: group.name,
-          otherMembers: group.memberIds?.filter(id => id !== responderId).map(id => chats.find(c => id === id)?.name || '') || []
-        }
+          otherMembers: group.memberIds?.filter(id => id !== responderId).map(id => chats.find(c => c.id === id)?.name || '') || []
+        },
+        settings.apiKey
       );
 
       const aiMsg: Message = {

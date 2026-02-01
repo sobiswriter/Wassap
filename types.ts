@@ -48,6 +48,7 @@ export interface UserProfile {
 export interface AppSettings {
   theme: 'light' | 'dark';
   shareUserInfo: boolean;
+  apiKey?: string;
 }
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';
