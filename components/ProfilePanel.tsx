@@ -62,9 +62,9 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
   };
 
   const labelClass = "text-[14px] text-[#008069] font-medium block mb-2 uppercase tracking-tight";
-  const inputClass = "w-full outline-none text-[16px] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-[#111b21] py-1";
+  const inputClass = "w-full outline-none text-[16px] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1";
 
-  const groupMembers = chat.isGroup 
+  const groupMembers = chat.isGroup
     ? chat.memberIds?.map(id => allChats.find(c => c.id === id)).filter(Boolean) as Chat[]
     : [];
 
@@ -72,8 +72,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
     <div className="w-[400px] h-full app-header border-l app-border flex flex-col animate-in slide-in-from-right duration-300">
       <div className="h-[60px] app-panel flex items-center p-5 shrink-0 border-b app-border">
         <div className="flex items-center gap-6">
-          <X className="text-[#54656f] cursor-pointer hover:bg-black/5 rounded-full p-1" onClick={onClose} />
-          <h2 className="text-[16px] font-medium text-[#111b21]">{chat.isGroup ? 'Group info' : 'Contact info'}</h2>
+          <X className="text-secondary cursor-pointer hover:bg-black/5 rounded-full p-1" onClick={onClose} />
+          <h2 className="text-[16px] font-medium text-primary">{chat.isGroup ? 'Group info' : 'Contact info'}</h2>
         </div>
       </div>
 
@@ -95,14 +95,14 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
             </div>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
           </div>
-          
+
           {showUrlInput && (
             <div className="w-full px-10 mb-5">
               <div className="flex items-center gap-2 border-b border-[#00a884] pb-1">
                 <Globe size={16} className="text-[#00a884] shrink-0" />
-                <input 
-                  type="text" 
-                  className="flex-1 outline-none text-[14px] bg-transparent text-[#111b21] px-1 font-medium"
+                <input
+                  type="text"
+                  className="flex-1 outline-none text-[14px] bg-transparent text-primary px-1 font-medium"
                   placeholder="Paste image URL here..."
                   value={urlValue}
                   onChange={(e) => setUrlValue(e.target.value)}
@@ -113,27 +113,27 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
             </div>
           )}
 
-          <h3 className="text-[20px] text-[#111b21] font-normal">{formData.name}</h3>
-          <p className="text-[#667781] text-[14px] mt-1">{chat.isGroup ? `Group · ${groupMembers.length + 1} participants` : (chat.status || 'online')}</p>
+          <h3 className="text-[20px] text-primary font-normal">{formData.name}</h3>
+          <p className="text-secondary text-[14px] mt-1">{chat.isGroup ? `Group · ${groupMembers.length + 1} participants` : (chat.status || 'online')}</p>
         </div>
 
         <div className="mt-2 app-panel px-6 py-6 shadow-sm space-y-7 border-b app-border">
           <div className="relative">
             <label className={labelClass}>{chat.isGroup ? 'Group Name' : 'Name'}</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={formData.name}
-              onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               className={inputClass}
             />
           </div>
 
           <div className="relative">
             <label className={labelClass}>{chat.isGroup ? 'Group Description' : 'About'}</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={formData.about}
-              onChange={(e) => setFormData(prev => ({...prev, about: e.target.value}))}
+              onChange={(e) => setFormData(prev => ({ ...prev, about: e.target.value }))}
               className={inputClass}
             />
           </div>
@@ -145,22 +145,22 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
               <h4 className="text-[14px] text-[#008069] font-medium uppercase tracking-tight">
                 {groupMembers.length + 1} Participants
               </h4>
-              <Users size={16} className="text-[#667781]" />
+              <Users size={16} className="text-secondary" />
             </div>
             <div className="divide-y app-border">
               <div className="px-6 py-3 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#202c33] flex items-center justify-center text-[#00a884] font-bold shrink-0">You</div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[15px] text-[#111b21]">You</p>
-                  <p className="text-[12px] text-[#667781]">Group Admin</p>
+                  <p className="text-[15px] text-primary">You</p>
+                  <p className="text-[12px] text-secondary">Group Admin</p>
                 </div>
               </div>
               {groupMembers.map(member => (
                 <div key={member.id} className="px-6 py-3 flex items-center gap-4">
                   <img src={member.avatar} className="w-10 h-10 rounded-full object-cover shrink-0" alt="" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[15px] text-[#111b21]">{member.name}</p>
-                    <p className="text-[12px] text-[#667781] truncate">{member.about || 'Available'}</p>
+                    <p className="text-[15px] text-primary">{member.name}</p>
+                    <p className="text-[12px] text-secondary truncate">{member.about || 'Available'}</p>
                   </div>
                 </div>
               ))}
@@ -170,30 +170,30 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
           <div className="mt-2 app-panel px-6 py-6 shadow-sm space-y-7 border-b app-border">
             <div className="relative">
               <label className={labelClass}>Role / Title</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="e.g. CEO, Big Brother, Chef"
                 value={formData.role}
-                onChange={(e) => setFormData(prev => ({...prev, role: e.target.value}))}
+                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
                 className={inputClass}
               />
             </div>
             <div className="relative">
               <label className={labelClass}>Speech Style</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="e.g. Slang, Formal, Poetic"
                 value={formData.speechStyle}
-                onChange={(e) => setFormData(prev => ({...prev, speechStyle: e.target.value}))}
+                onChange={(e) => setFormData(prev => ({ ...prev, speechStyle: e.target.value }))}
                 className={inputClass}
               />
             </div>
             <div className="relative">
               <label className={labelClass}>Persona Notes</label>
-              <textarea 
+              <textarea
                 value={formData.systemInstruction}
-                onChange={(e) => setFormData(prev => ({...prev, systemInstruction: e.target.value}))}
-                className="w-full min-h-[140px] outline-none text-[15px] resize-none bg-[#f9f9f9] dark:bg-[#2a3942] p-3 rounded border app-border focus:border-[#00a884] transition-all text-[#111b21] leading-relaxed shadow-sm"
+                onChange={(e) => setFormData(prev => ({ ...prev, systemInstruction: e.target.value }))}
+                className="w-full min-h-[140px] outline-none text-[15px] resize-none bg-[#f9f9f9] dark:bg-[#2a3942] p-3 rounded border app-border focus:border-[#00a884] transition-all text-primary leading-relaxed shadow-sm"
                 placeholder="Detailed instructions for the AI behavior..."
               />
             </div>
@@ -201,7 +201,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
         )}
 
         <div className="p-6 app-header">
-          <button 
+          <button
             onClick={handleSave}
             className="w-full bg-[#00a884] text-white py-3 rounded-md flex items-center justify-center gap-2 font-medium hover:bg-[#005c4b] transition-colors shadow-sm active:scale-95 uppercase text-[14px]"
           >

@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom global styles from index.html if any needed to be preserved */
+:root {
+    --chat-bg: #efeae2;
+    --chat-wallpaper: url('/images/light.png');
+    --chat-wallpaper-opacity: 0.4;
+    --border-color: #e9edef;
+    --panel-bg: #ffffff;
+    --header-bg: #f0f2f5;
+    --text-primary: #111b21;
+    --text-secondary: #667781;
+    --bg-secondary: #ffffff;
+    --encryption-bg: #fff9c2;
+    --encryption-text: #54656f;
+    --bubble-me: #d9fdd3;
+    --bubble-other: #ffffff;
+}
+
+/* Base Styles */
+.text-primary {
+    color: var(--text-primary);
+}
+
+.text-secondary {
+    color: var(--text-secondary);
+}
+
+.placeholder-secondary::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #eae6df;
+    transition: background-color 0.3s ease;
+    color: var(--text-primary);
+}
+
+.dark {
+    --chat-bg: #0b141a;
+    --chat-wallpaper: url('/images/dark.png');
+    --chat-wallpaper-opacity: 0.06;
+    --border-color: #222d34;
+    --panel-bg: #111b21;
+    --header-bg: #202c33;
+    --text-primary: #e9edef;
+    --text-secondary: #8696a0;
+    --bg-secondary: #111b21;
+    --encryption-bg: #182229;
+    --encryption-text: #8696a0;
+    --bubble-me: #005c4b;
+    --bubble-other: #202c33;
+    background-color: #0c1317;
+    color: var(--text-primary);
+}
+
+/* Utilities */
+.app-panel {
+    background-color: var(--panel-bg);
+}
+
+.app-header {
+    background-color: var(--header-bg);
+}
+
+.app-border {
+    border-color: var(--border-color);
+}
+
+.app-chat-bg {
+    background-color: var(--chat-bg);
+}
+
+.chat-wallpaper {
+    background-image: var(--chat-wallpaper);
+    opacity: var(--chat-wallpaper-opacity);
+    background-repeat: repeat;
+    background-size: 400px;
+}
+
+.encryption-box {
+    background-color: var(--encryption-bg);
+    color: var(--encryption-text);
+}

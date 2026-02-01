@@ -39,7 +39,7 @@ export const UserProfilePanel: React.FC<UserProfilePanelProps> = ({ user, onClos
   };
 
   const labelClass = "text-[14px] text-[#008069] font-medium block mb-1 uppercase tracking-tight";
-  const inputClass = "w-full outline-none text-[16px] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-[#111b21] py-1 font-normal";
+  const inputClass = "w-full outline-none text-[16px] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1 font-normal";
 
   return (
     <div className="w-[410px] h-full app-header border-r app-border flex flex-col animate-in slide-in-from-left duration-300 absolute left-[64px] z-50 shadow-xl">
@@ -73,9 +73,9 @@ export const UserProfilePanel: React.FC<UserProfilePanelProps> = ({ user, onClos
             <div className="w-full px-10 mb-5">
               <div className="flex items-center gap-2 border-b border-[#00a884] pb-1">
                 <Globe size={16} className="text-[#00a884] shrink-0" />
-                <input 
-                  type="text" 
-                  className="flex-1 outline-none text-[14px] bg-transparent text-[#111b21] px-1"
+                <input
+                  type="text"
+                  className="flex-1 outline-none text-[14px] bg-transparent text-primary px-1"
                   placeholder="Image URL..."
                   value={urlValue}
                   onChange={(e) => setUrlValue(e.target.value)}
@@ -90,38 +90,38 @@ export const UserProfilePanel: React.FC<UserProfilePanelProps> = ({ user, onClos
         <div className="mt-2 app-panel px-6 py-6 shadow-sm space-y-6 border-b app-border">
           <div>
             <label className={labelClass}>Your Name</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={formData.name}
-              onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               className={inputClass}
             />
           </div>
 
           <div>
             <label className={labelClass}>About</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={formData.about}
-              onChange={(e) => setFormData(prev => ({...prev, about: e.target.value}))}
+              onChange={(e) => setFormData(prev => ({ ...prev, about: e.target.value }))}
               className={inputClass}
             />
           </div>
 
           <div>
             <label className={labelClass}>Status</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="e.g. Busy, At the gym, Available"
               value={formData.status}
-              onChange={(e) => setFormData(prev => ({...prev, status: e.target.value}))}
+              onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
               className={inputClass}
             />
           </div>
         </div>
 
         <div className="p-6 app-header">
-          <button 
+          <button
             onClick={handleSave}
             className="w-full py-3 rounded-lg flex items-center justify-center gap-2 font-medium bg-[#00a884] text-white hover:bg-[#005c4b] active:scale-95 shadow-sm transition-all uppercase text-[14px]"
           >

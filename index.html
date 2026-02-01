@@ -1,128 +1,16 @@
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WhatsApp</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class'
-      }
-    </script>
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --chat-bg: #efeae2;
-            --chat-wallpaper: url('/images/light.jpg');
-            --chat-wallpaper-opacity: 0.4;
-            --border-color: #e9edef;
-            --panel-bg: #ffffff;
-            --header-bg: #f0f2f5;
-            --text-primary: #111b21;
-            --text-secondary: #667781;
-            --bg-secondary: #ffffff;
-            --encryption-bg: #fff9c2;
-            --encryption-text: #54656f;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #eae6df;
-            transition: background-color 0.3s ease;
-            color: var(--text-primary);
-        }
-
-        /* Dark Mode Palette Overrides - WhatsApp high-fidelity colors */
-        body.dark {
-            --chat-bg: #0b141a;
-            --chat-wallpaper: url('/images/dark.jpg');
-            --chat-wallpaper-opacity: 0.06;
-            --border-color: #222d34;
-            --panel-bg: #111b21;
-            --header-bg: #202c33;
-            --text-primary: #e9edef;
-            --text-secondary: #8696a0;
-            --bg-secondary: #111b21;
-            --encryption-bg: #182229;
-            --encryption-text: #8696a0;
-            background-color: #0c1317;
-            color: #e9edef;
-        }
-
-        /* Catch-all for standard Tailwind classes in Dark Mode */
-        body.dark .bg-white { background-color: var(--panel-bg) !important; }
-        body.dark .bg-\[\#f0f2f5\] { background-color: var(--header-bg) !important; }
-        body.dark .bg-gray-50 { background-color: var(--header-bg) !important; }
-        
-        /* Eliminate white borders in dark mode */
-        body.dark .border-gray-300,
-        body.dark .border-gray-200,
-        body.dark .border-gray-100,
-        body.dark .border-gray-50,
-        body.dark .border-white {
-            border-color: var(--border-color) !important;
-        }
-
-        body.dark .divide-gray-50 > * + *, 
-        body.dark .divide-gray-100 > * + *,
-        body.dark .divide-app-border > * + * { 
-            border-color: var(--border-color) !important; 
-        }
-
-        /* Text color corrections */
-        body.dark .text-\[\#111b21\], body.dark .text-black { color: var(--text-primary) !important; }
-        body.dark .text-\[\#667781\], body.dark .text-gray-500 { color: var(--text-secondary) !important; }
-        body.dark .text-\[\#54656f\] { color: #aebac1 !important; }
-
-        /* Utilities that respect variables */
-        .app-border { border-color: var(--border-color) !important; }
-        .app-panel { background-color: var(--panel-bg) !important; }
-        .app-header { background-color: var(--header-bg) !important; }
-        .app-chat-bg { background-color: var(--chat-bg) !important; }
-        .encryption-box { background-color: var(--encryption-bg) !important; color: var(--encryption-text) !important; }
-
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.1); border-radius: 10px; }
-        body.dark ::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.1); }
-
-        /* Bubble Overrides */
-        body.dark .bg-\[\#d9fdd3\] { background-color: #005c4b !important; color: #e9edef !important; }
-        body.dark .bg-\[\#d9fdd3\] .border-l-\[\#d9fdd3\] { border-left-color: #005c4b !important; }
-        body.dark .bg-white.rounded-tl-none { background-color: #202c33 !important; color: #e9edef !important; }
-        body.dark .bg-white.rounded-tl-none .border-r-white { border-right-color: #202c33 !important; }
-
-        /* Filter buttons - WhatsApp Dark styles */
-        body.dark .bg-\[\#e7fce3\] { background-color: #054739 !important; color: #00a884 !important; }
-        body.dark .bg-\[\#f0f2f5\]:hover { background-color: #2a3942 !important; }
-        
-        /* Modal backgrounds */
-        body.dark .bg-black\/50 { background-color: rgba(11, 20, 26, 0.8) !important; }
-
-        .chat-wallpaper {
-            background-image: var(--chat-wallpaper);
-            opacity: var(--chat-wallpaper-opacity);
-            background-size: cover;
-            background-position: center;
-        }
-    </style>
-<script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.38.0"
-  }
-}
-</script>
+    <script type="module" src="/index.tsx"></script>
 </head>
+
 <body>
     <div id="root"></div>
 </body>
+
 </html>

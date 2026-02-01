@@ -47,11 +47,11 @@ export const NewGroupPanel: React.FC<NewGroupPanelProps> = ({ personas, onClose,
       {step === 1 ? (
         <div className="flex-1 flex flex-col overflow-hidden app-panel">
           <div className="p-4 flex flex-wrap gap-2 border-b app-border">
-            {selectedIds.length === 0 && <span className="text-[#667781] text-[14px] italic">Select at least one member</span>}
+            {selectedIds.length === 0 && <span className="text-secondary text-[14px] italic">Select at least one member</span>}
             {selectedIds.map(id => {
               const p = personas.find(x => x.id === id);
               return (
-                <div key={id} className="app-header rounded-full pl-1 pr-3 py-1 flex items-center gap-2 text-[13px] text-[#111b21] border app-border">
+                <div key={id} className="app-header rounded-full pl-1 pr-3 py-1 flex items-center gap-2 text-[13px] text-primary border app-border">
                   <img src={p?.avatar} className="w-6 h-6 rounded-full" />
                   <span>{p?.name}</span>
                   <X size={14} className="cursor-pointer hover:text-red-500" onClick={() => toggleSelect(id)} />
@@ -59,11 +59,11 @@ export const NewGroupPanel: React.FC<NewGroupPanelProps> = ({ personas, onClose,
               );
             })}
           </div>
-          
+
           <div className="flex-1 overflow-y-auto">
             {personas.filter(p => !p.isGroup).map(p => (
-              <div 
-                key={p.id} 
+              <div
+                key={p.id}
                 className="flex items-center px-4 py-3 cursor-pointer hover:bg-black/5 border-b app-border transition-colors"
                 onClick={() => toggleSelect(p.id)}
               >
@@ -71,13 +71,13 @@ export const NewGroupPanel: React.FC<NewGroupPanelProps> = ({ personas, onClose,
                   {selectedIds.includes(p.id) && <Check size={12} className="text-white" />}
                 </div>
                 <img src={p.avatar} className="w-10 h-10 rounded-full mr-3" />
-                <span className="text-[16px] text-[#111b21]">{p.name}</span>
+                <span className="text-[16px] text-primary">{p.name}</span>
               </div>
             ))}
           </div>
 
           <div className="p-6 flex justify-center app-header">
-            <button 
+            <button
               onClick={handleNext}
               disabled={selectedIds.length === 0}
               className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all ${selectedIds.length > 0 ? 'bg-[#00a884] text-white hover:scale-105 active:scale-95' : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'}`}
@@ -89,26 +89,26 @@ export const NewGroupPanel: React.FC<NewGroupPanelProps> = ({ personas, onClose,
       ) : (
         <div className="flex-1 flex flex-col app-panel">
           <div className="flex flex-col items-center py-10">
-             <div className="relative group cursor-pointer mb-5">
-                <img src={avatar} className="w-48 h-48 rounded-full object-cover shadow-md border-4 border-white dark:border-[#222d34] bg-gray-50" />
-                <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                   <Camera size={32} />
-                </div>
-             </div>
-             <div className="w-full px-10">
-                <input 
-                  type="text" 
-                  placeholder="Group Subject" 
-                  className="w-full text-center outline-none border-b-2 border-[#00a884] pb-2 text-[18px] text-[#111b21] bg-transparent"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  autoFocus
-                />
-             </div>
+            <div className="relative group cursor-pointer mb-5">
+              <img src={avatar} className="w-48 h-48 rounded-full object-cover shadow-md border-4 border-white dark:border-[#222d34] bg-gray-50" />
+              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                <Camera size={32} />
+              </div>
+            </div>
+            <div className="w-full px-10">
+              <input
+                type="text"
+                placeholder="Group Subject"
+                className="w-full text-center outline-none border-b-2 border-[#00a884] pb-2 text-[18px] text-primary bg-transparent"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                autoFocus
+              />
+            </div>
           </div>
-          
+
           <div className="flex-1 app-header p-10 flex items-end justify-center">
-            <button 
+            <button
               onClick={handleCreate}
               disabled={!groupName.trim()}
               className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all ${groupName.trim() ? 'bg-[#00a884] text-white hover:scale-105 active:scale-95' : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'}`}

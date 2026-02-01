@@ -53,7 +53,7 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
   };
 
   const labelClass = "text-[14px] text-[#008069] font-medium block mb-1 uppercase tracking-tight";
-  const inputClass = "w-full outline-none text-[16px] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-[#111b21] py-1 font-normal";
+  const inputClass = "w-full outline-none text-[16px] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1 font-normal";
 
   return (
     <div className="w-[410px] h-full app-header border-r app-border flex flex-col animate-in slide-in-from-left duration-300 absolute left-[64px] z-50 shadow-xl">
@@ -81,12 +81,12 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
                 </div>
               </div>
             </div>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              accept="image/*" 
-              onChange={handleFileChange} 
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*"
+              onChange={handleFileChange}
             />
           </div>
 
@@ -94,9 +94,9 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
             <div className="w-full px-10 mb-5 animate-in slide-in-from-top duration-200">
               <div className="flex items-center gap-2 border-b border-[#00a884] pb-1">
                 <Globe size={16} className="text-[#00a884] shrink-0" />
-                <input 
-                  type="text" 
-                  className="flex-1 outline-none text-[14px] bg-transparent text-[#111b21] px-1 font-medium"
+                <input
+                  type="text"
+                  className="flex-1 outline-none text-[14px] bg-transparent text-primary px-1 font-medium"
                   placeholder="Paste image URL..."
                   value={urlValue}
                   onChange={(e) => setUrlValue(e.target.value)}
@@ -114,21 +114,21 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
         <div className="mt-2 app-panel px-6 py-6 shadow-sm space-y-6">
           <div>
             <label className={labelClass}>Name</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Contact Name"
               value={formData.name}
-              onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               className={inputClass}
             />
           </div>
 
           <div>
             <label className={labelClass}>About</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={formData.about}
-              onChange={(e) => setFormData(prev => ({...prev, about: e.target.value}))}
+              onChange={(e) => setFormData(prev => ({ ...prev, about: e.target.value }))}
               className={inputClass}
             />
           </div>
@@ -137,46 +137,45 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
         <div className="mt-2 app-panel px-6 py-6 shadow-sm space-y-6 border-b app-border">
           <div>
             <label className={labelClass}>Role / Title</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="e.g. Mom, Big Brother, CEO"
               value={formData.role}
-              onChange={(e) => setFormData(prev => ({...prev, role: e.target.value}))}
+              onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
               className={inputClass}
             />
           </div>
 
           <div>
             <label className={labelClass}>Speech Style</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="e.g. Sarcastic, Casual, Enthusiastic"
               value={formData.speechStyle}
-              onChange={(e) => setFormData(prev => ({...prev, speechStyle: e.target.value}))}
+              onChange={(e) => setFormData(prev => ({ ...prev, speechStyle: e.target.value }))}
               className={inputClass}
             />
           </div>
 
           <div>
             <label className={labelClass}>Personality Details</label>
-            <textarea 
+            <textarea
               value={formData.systemInstruction}
-              onChange={(e) => setFormData(prev => ({...prev, systemInstruction: e.target.value}))}
-              className="w-full min-h-[120px] outline-none text-[15px] resize-none bg-[#f9f9f9] dark:bg-[#2a3942] p-3 rounded border app-border focus:border-[#00a884] transition-all text-[#111b21] shadow-sm leading-relaxed"
+              onChange={(e) => setFormData(prev => ({ ...prev, systemInstruction: e.target.value }))}
+              className="w-full min-h-[120px] outline-none text-[15px] resize-none bg-[#f9f9f9] dark:bg-[#2a3942] p-3 rounded border app-border focus:border-[#00a884] transition-all text-primary shadow-sm leading-relaxed"
               placeholder="Describe their backstory and how they should behave..."
             />
           </div>
         </div>
 
         <div className="p-6 pb-20 app-header">
-          <button 
+          <button
             onClick={handleCreate}
             disabled={!formData.name.trim()}
-            className={`w-full py-3 rounded-lg flex items-center justify-center gap-2 font-medium shadow-sm transition-all uppercase text-[14px] ${
-              formData.name.trim() 
-              ? 'bg-[#00a884] text-white hover:bg-[#005c4b] active:scale-95' 
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
-            }`}
+            className={`w-full py-3 rounded-lg flex items-center justify-center gap-2 font-medium shadow-sm transition-all uppercase text-[14px] ${formData.name.trim()
+                ? 'bg-[#00a884] text-white hover:bg-[#005c4b] active:scale-95'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
+              }`}
           >
             <Save size={18} />
             Create Contact
