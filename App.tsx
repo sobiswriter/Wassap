@@ -8,6 +8,39 @@ import { ProfilePanel } from './components/ProfilePanel';
 import { NewChatPanel } from './components/NewChatPanel';
 import { NewGroupPanel } from './components/NewGroupPanel';
 import { UserProfilePanel } from './components/UserProfilePanel';
+
+// Utility to split AI responses into human-like chunks
+const splitMessage = (text: string): string[] => {
+  if (!text) return [];
+
+  // 1. Split by multiple newlines (paragraphs)
+  const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
+  let chunks: string[] = [];
+
+  for (const p of paragraphs) {
+    if (p.length < 100) {
+      chunks.push(p.trim());
+    } else {
+      // 2. Split long paragraphs into sentences
+      // Looking for . ! ? followed by space or newline
+      const sentences = p.split(/(?<=[.!?])[\s\n]+/).filter(s => s.trim());
+      let currentChunk = "";
+
+      for (const s of sentences) {
+        // If adding this sentence stays within a reasonable "chat message" size
+        if ((currentChunk + s).length < 120) {
+          currentChunk += (currentChunk ? " " : "") + s;
+        } else {
+          if (currentChunk) chunks.push(currentChunk.trim());
+          currentChunk = s;
+        }
+      }
+      if (currentChunk) chunks.push(currentChunk.trim());
+    }
+  }
+
+  return chunks.length > 0 ? chunks : [text];
+};
 import { SettingsPopover } from './components/SettingsPopover';
 import { INITIAL_CHATS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment } from './types';
@@ -60,6 +93,10 @@ const App: React.FC = () => {
     }
   }, [settings.theme]);
 
+  const setChatStatus = (chatId: string, status: string) => {
+    setChats(prev => prev.map(c => c.id === chatId ? { ...c, status } : c));
+  };
+
   const handleSendMessage = async (text: string, attachment?: FileAttachment) => {
     if (!activeChat) return;
 
@@ -100,8 +137,9 @@ const App: React.FC = () => {
   };
 
   const handleSingleResponse = async (chat: Chat, updatedHistory: Message[]) => {
-    setTimeout(async () => {
-      setChats(prev => prev.map(c => c.id === chat.id ? { ...c, status: 'typing...' } : c));
+    const chatId = chat.id;
+    try {
+      setChatStatus(chatId, 'typing...');
 
       const response = await getGeminiResponse(
         { ...chat },
@@ -111,21 +149,52 @@ const App: React.FC = () => {
         settings.apiKey
       );
 
-      const aiMsg: Message = {
-        id: Date.now().toString(),
-        text: response,
-        sender: 'other',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(),
-      };
+      // Split responses into multiple messages if they are long or have distinct thoughts
+      const chunks = splitMessage(response);
 
-      setChats(prev => prev.map(c => c.id === chat.id ? {
-        ...c,
-        status: 'online',
-        lastMessage: response,
-        lastMessageTime: aiMsg.timestamp,
-        messages: [...c.messages, aiMsg]
-      } : c));
-    }, 1500);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+
+        // Realistic typing speed simulation (roughly 30-50ms per character)
+        const typingDuration = Math.min(Math.max(chunk.length * 25, 600), 2000);
+
+        // Ensure status is typing...
+        setChatStatus(chatId, 'typing...');
+        await new Promise(resolve => setTimeout(resolve, typingDuration));
+
+        const aiMsg: Message = {
+          id: `${Date.now()}-${i}`, // Unique ID per chunk
+          text: chunk,
+          sender: 'other',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          status: 'delivered'
+        };
+
+        setChats(prev => prev.map(c => {
+          if (c.id === chatId) {
+            return {
+              ...c,
+              messages: [...c.messages, aiMsg],
+              lastMessage: chunk,
+              lastMessageTime: aiMsg.timestamp,
+              unreadCount: (c.unreadCount || 0) + 1
+            };
+          }
+          return c;
+        }));
+
+        // Small pause between messages to feel like the user is "hitting send"
+        if (i < chunks.length - 1) {
+          setChatStatus(chatId, 'online');
+          await new Promise(resolve => setTimeout(resolve, 800));
+        }
+      }
+
+      setChatStatus(chatId, 'online');
+    } catch (error) {
+      console.error("Error getting AI response for single chat:", error);
+      setChatStatus(chatId, 'online'); // Revert status even on error
+    }
   };
 
   const handleGroupResponse = async (group: Chat, updatedHistory: Message[]) => {
@@ -147,45 +216,74 @@ const App: React.FC = () => {
       const persona = chats.find(c => c.id === responderId);
       if (!persona) continue;
 
-      const delay = 1500 + (Math.random() * 2500);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      try {
+        const delay = 1500 + (Math.random() * 2500);
+        await new Promise(resolve => setTimeout(resolve, delay));
 
-      setChats(prev => prev.map(c => c.id === group.id ? { ...c, status: 'typing...' } : c));
+        setChatStatus(group.id, 'typing...'); // Status set by trigger check
+        const responseText = await getGeminiResponse(
+          { ...persona },
+          currentHistory.map(m => ({
+            text: m.text,
+            sender: m.sender,
+            senderName: m.senderName,
+            image: m.image || m.attachment?.data
+          })),
+          settings.shareUserInfo ? user : undefined,
+          {
+            groupName: group.name,
+            otherMembers: group.memberIds?.filter(id => id !== responderId).map(id => chats.find(c => c.id === id)?.name || '') || []
+          },
+          settings.apiKey
+        );
 
-      const responseText = await getGeminiResponse(
-        { ...persona },
-        currentHistory.map(m => ({
-          text: m.text,
-          sender: m.sender,
-          senderName: m.senderName,
-          image: m.image || m.attachment?.data
-        })),
-        settings.shareUserInfo ? user : undefined,
-        {
-          groupName: group.name,
-          otherMembers: group.memberIds?.filter(id => id !== responderId).map(id => chats.find(c => c.id === id)?.name || '') || []
-        },
-        settings.apiKey
-      );
+        const chunks = splitMessage(responseText);
 
-      const aiMsg: Message = {
-        id: `${Date.now()}-${i}`,
-        text: responseText,
-        sender: 'other',
-        senderName: persona.name,
-        senderId: persona.id,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(),
-      };
+        for (let j = 0; j < chunks.length; j++) {
+          const chunk = chunks[j];
 
-      currentHistory.push(aiMsg);
+          // Typing duration for group personas
+          const typingDuration = Math.min(Math.max(chunk.length * 20, 500), 1500);
 
-      setChats(prev => prev.map(c => c.id === group.id ? {
-        ...c,
-        status: 'online',
-        lastMessage: `${persona.name}: ${responseText}`,
-        lastMessageTime: aiMsg.timestamp,
-        messages: [...c.messages, aiMsg]
-      } : c));
+          setChatStatus(group.id, 'typing...');
+          await new Promise(resolve => setTimeout(resolve, typingDuration));
+
+          const aiMsg: Message = {
+            id: `${Date.now()}-${i}-${j}`, // Unique ID per chunk
+            text: chunk,
+            sender: 'other',
+            senderName: persona.name,
+            senderId: persona.id,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: 'delivered'
+          };
+
+          currentHistory.push(aiMsg); // Add to history for subsequent responses
+
+          setChats(prev => prev.map(c => {
+            if (c.id === group.id) {
+              return {
+                ...c,
+                messages: [...c.messages, aiMsg],
+                lastMessage: `${persona.name}: ${chunk}`,
+                lastMessageTime: aiMsg.timestamp,
+                unreadCount: (c.unreadCount || 0) + 1
+              };
+            }
+            return c;
+          }));
+
+          if (j < chunks.length - 1) {
+            setChatStatus(group.id, 'online');
+            await new Promise(resolve => setTimeout(resolve, 600));
+          }
+        }
+
+        setChatStatus(group.id, 'online');
+      } catch (error) {
+        console.error(`Error getting AI response for group member ${responderId}:`, error);
+        setChatStatus(group.id, 'online'); // Revert status even on error
+      }
     }
   };
 
