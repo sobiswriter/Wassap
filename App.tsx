@@ -507,7 +507,7 @@ const App: React.FC = () => {
           />
         </div>
 
-        <div className={`${isMobile && activeView === 'list' ? 'hidden' : 'flex'} flex-1 flex-col min-w-0 bg-white`}>
+        <div className={`${isMobile && activeView === 'list' ? 'hidden' : 'flex'} flex-1 flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b141a]`}>
           <ChatWindow
             chat={activeChat}
             allChats={chats}
