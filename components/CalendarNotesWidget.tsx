@@ -55,7 +55,7 @@ export const CalendarNotesWidget: React.FC<CalendarNotesWidgetProps> = ({ notes,
             </div>
 
             {/* Footer */}
-            <div className="p-3 border-t app-border bg-white dark:bg-[#202c33] flex justify-between items-center shrink-0">
+            <div className="p-3 pb-20 md:pb-3 border-t app-border bg-white dark:bg-[#202c33] flex justify-between items-center shrink-0">
                 <span className="text-[11px] text-secondary italic">
                     AI will use these notes if enabled in Settings.
                 </span>
