@@ -51,6 +51,10 @@ export interface AppSettings {
   theme: 'light' | 'dark';
   shareUserInfo: boolean;
   apiKey?: string;
+  shareTimeContext?: boolean;
+  shareCalendarNotes?: boolean;
+  selectedModel?: string;
+  calendarNotes?: string;
 }
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';

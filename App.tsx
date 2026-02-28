@@ -8,6 +8,7 @@ import { ProfilePanel } from './components/ProfilePanel';
 import { NewChatPanel } from './components/NewChatPanel';
 import { NewGroupPanel } from './components/NewGroupPanel';
 import { UserProfilePanel } from './components/UserProfilePanel';
+import { CalendarNotesWidget } from './components/CalendarNotesWidget';
 
 // Utility to split AI responses into human-like chunks
 const splitMessage = (text: string): string[] => {
@@ -69,6 +70,7 @@ const App: React.FC = () => {
   const [showNewGroupPanel, setShowNewGroupPanel] = useState(false);
   const [showUserProfilePanel, setShowUserProfilePanel] = useState(false);
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
+  const [showCalendarWidget, setShowCalendarWidget] = useState(false);
   const [chatSearchTerm, setChatSearchTerm] = useState('');
 
   // User and Settings State
@@ -117,6 +119,24 @@ const App: React.FC = () => {
       document.documentElement.classList.remove('dark');
     }
   }, [settings.theme]);
+
+  // Handle native back button on mobile
+  useEffect(() => {
+    const handlePopState = () => {
+      if (activeView === 'chat') {
+        setActiveView('list');
+      } else {
+        setShowProfilePanel(false);
+        setShowNewChatPanel(false);
+        setShowNewGroupPanel(false);
+        setShowUserProfilePanel(false);
+        setShowSettingsPopover(false);
+        setShowCalendarWidget(false);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeView]);
 
   const setChatStatus = (chatId: string, status: string) => {
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, status } : c));
@@ -197,7 +217,7 @@ const App: React.FC = () => {
         hydratedHistory,
         settings.shareUserInfo ? user : undefined,
         undefined,
-        settings.apiKey
+        settings
       );
 
       // Split responses into multiple messages if they are long or have distinct thoughts
@@ -293,7 +313,7 @@ const App: React.FC = () => {
             groupName: group.name,
             otherMembers: group.memberIds?.filter(id => id !== responderId).map(id => chats.find(c => c.id === id)?.name || '') || []
           },
-          settings.apiKey
+          settings
         );
 
         const chunks = splitMessage(responseText);
@@ -354,12 +374,14 @@ const App: React.FC = () => {
     setShowNewGroupPanel(false);
     setChatSearchTerm('');
     if (isMobile) {
+      window.history.pushState({ view: 'chat' }, '');
       setActiveView('chat');
     }
   };
 
   const handleBack = () => {
-    setActiveView('list');
+    // Instead of setActiveView, use history back to trigger popstate
+    window.history.back();
   };
 
   const handleCreateGroup = (data: { name: string; avatar: string; memberIds: string[] }) => {
@@ -442,6 +464,7 @@ const App: React.FC = () => {
             userAvatar={user.avatar}
             onUserProfileClick={() => setShowUserProfilePanel(!showUserProfilePanel)}
             onSettingsClick={() => setShowSettingsPopover(!showSettingsPopover)}
+            onCalendarClick={() => setShowCalendarWidget(!showCalendarWidget)}
           />
         </div>
 
@@ -463,6 +486,14 @@ const App: React.FC = () => {
 
         {showSettingsPopover && (
           <SettingsPopover settings={settings} onUpdate={setSettings} onClose={() => setShowSettingsPopover(false)} />
+        )}
+
+        {showCalendarWidget && (
+          <CalendarNotesWidget
+            notes={settings.calendarNotes || ''}
+            onUpdateNotes={(notes) => setSettings({ ...settings, calendarNotes: notes })}
+            onClose={() => setShowCalendarWidget(false)}
+          />
         )}
 
         <div className={`${isMobile && activeView === 'chat' ? 'hidden' : 'flex'} w-full md:w-[410px] md:flex shrink-0`}>
@@ -512,6 +543,7 @@ const App: React.FC = () => {
             onAddGroup={() => setShowNewGroupPanel(true)}
             onProfileClick={() => setShowUserProfilePanel(true)}
             onSettingsClick={() => setShowSettingsPopover(true)}
+            onCalendarClick={() => setShowCalendarWidget(true)}
           />
         )}
       </div>

@@ -1,19 +1,21 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, UserPlus, Users, Settings, User, MessageSquarePlus } from 'lucide-react';
+import { Plus, UserPlus, Users, Settings, User, MessageSquarePlus, CalendarDays } from 'lucide-react';
 
 interface MobileActionFABProps {
     onAddPersona: () => void;
     onAddGroup: () => void;
     onProfileClick: () => void;
     onSettingsClick: () => void;
+    onCalendarClick: () => void;
 }
 
 export const MobileActionFAB: React.FC<MobileActionFABProps> = ({
     onAddPersona,
     onAddGroup,
     onProfileClick,
-    onSettingsClick
+    onSettingsClick,
+    onCalendarClick
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -40,6 +42,16 @@ export const MobileActionFAB: React.FC<MobileActionFABProps> = ({
                             className="w-12 h-12 rounded-full bg-white dark:bg-[#202c33] shadow-lg flex items-center justify-center text-secondary hover:text-[#00a884] transition-colors border app-border"
                         >
                             <User size={20} />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <span className="bg-white dark:bg-[#202c33] px-3 py-1 rounded shadow-md text-sm font-medium text-primary border app-border">Calendar Notes</span>
+                        <button
+                            onClick={() => { onCalendarClick(); setIsOpen(false); }}
+                            className="w-12 h-12 rounded-full bg-white dark:bg-[#202c33] shadow-lg flex items-center justify-center text-secondary hover:text-[#00a884] transition-colors border app-border"
+                        >
+                            <CalendarDays size={20} />
                         </button>
                     </div>
 

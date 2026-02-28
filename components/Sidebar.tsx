@@ -8,16 +8,18 @@ import {
   CircleDashed,
   Radio,
   Archive,
-  Images
+  Images,
+  CalendarDays
 } from 'lucide-react';
 
 interface SidebarProps {
   userAvatar: string;
   onUserProfileClick: () => void;
   onSettingsClick: () => void;
+  onCalendarClick: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick, onSettingsClick }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick, onSettingsClick, onCalendarClick }) => {
   return (
     <div className="w-[64px] app-header border-r app-border flex flex-col justify-between py-3 items-center h-full transition-colors duration-300">
       {/* Top Section */}
@@ -59,6 +61,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick
         <div className="p-2 relative cursor-pointer group hover:bg-black/5 rounded-lg transition-colors">
           <Archive className="text-secondary w-6 h-6" />
           <div className="absolute top-1 right-1 bg-[#25d366] text-white text-[10px] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#202c33]">12</div>
+        </div>
+
+        {/* Calendar & Notes */}
+        <div className="p-2 cursor-pointer group hover:bg-black/5 rounded-lg transition-colors" onClick={onCalendarClick}>
+          <CalendarDays className="text-secondary w-6 h-6" />
         </div>
 
         {/* Meta AI Ring */}

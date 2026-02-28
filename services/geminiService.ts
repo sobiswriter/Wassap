@@ -1,14 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
-import { UserProfile } from "../types";
+import { UserProfile, AppSettings } from "../types";
 
 export const getGeminiResponse = async (
   responder: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string },
   messageHistory: { text: string; sender: string; senderName?: string; image?: string }[],
   userProfile?: UserProfile,
   groupContext?: { groupName: string; otherMembers: string[] },
-  apiKey?: string
+  settings?: AppSettings
 ) => {
-  const finalKey = apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
 
   if (!finalKey) {
     return "API Key not configured. Please add it in Settings.";
@@ -49,10 +49,22 @@ About: ${userProfile.about}
 Current Status: ${userProfile.status}
 ` : '';
 
+    const timeContext = settings?.shareTimeContext !== false ? `
+CURRENT SYSTEM DATE AND TIME:
+${new Date().toLocaleString()}
+` : '';
+
+    const notesContext = (settings?.shareCalendarNotes && settings?.calendarNotes) ? `
+USER'S IMPORTANT DATES / NOTES FOR YOU:
+${settings.calendarNotes}
+` : '';
+
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}
 ${groupPrompt}
 ${userContext}
+${timeContext}
+${notesContext}
 
 Instructions:
 1. Respond naturally to the last few messages.
@@ -84,7 +96,7 @@ Response as ${responder.name}:`;
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: settings?.selectedModel || 'gemini-3-flash-preview',
       contents: { parts },
     });
 

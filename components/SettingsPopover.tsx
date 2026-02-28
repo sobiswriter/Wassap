@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff } from 'lucide-react';
+import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles } from 'lucide-react';
 import { AppSettings } from '../types';
+import { AVAILABLE_MODELS } from '../constants';
 
 interface SettingsPopoverProps {
   settings: AppSettings;
@@ -66,6 +67,28 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
           </button>
         </div>
 
+        {/* Model Selection */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <Sparkles size={20} className="text-[#00a884]" />
+            <div>
+              <p className="text-[14.5px] font-medium">AI Model</p>
+              <p className="text-[12px] text-secondary">Select the Gemini engine</p>
+            </div>
+          </div>
+          <div className="ml-[32px]">
+            <select
+              value={settings.selectedModel || 'gemini-3-flash-preview'}
+              onChange={(e) => onUpdate({ ...settings, selectedModel: e.target.value })}
+              className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[13px] outline-none focus:border-[#00a884] transition-all cursor-pointer appearance-none"
+            >
+              {AVAILABLE_MODELS.map(model => (
+                <option key={model.id} value={model.id}>{model.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {settings.shareUserInfo ? <ShieldCheck size={20} className="text-[#00a884]" /> : <ShieldAlert size={20} className="text-red-400" />}
@@ -78,7 +101,39 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
             onClick={() => onUpdate({ ...settings, shareUserInfo: !settings.shareUserInfo })}
             className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${settings.shareUserInfo ? 'bg-[#00a884]' : 'bg-gray-400'}`}
           >
-            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${settings.shareUserInfo ? 'left-5.5' : 'left-0.5'}`} />
+            <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${settings.shareUserInfo ? 'left-[22px]' : 'left-[2px]'}`} />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Clock size={20} className={settings.shareTimeContext !== false ? "text-[#00a884]" : "text-gray-400"} />
+            <div>
+              <p className="text-[14.5px] font-medium">Share Time & Date</p>
+              <p className="text-[12px] text-secondary">AI knows current system time</p>
+            </div>
+          </div>
+          <div
+            onClick={() => onUpdate({ ...settings, shareTimeContext: settings.shareTimeContext === false ? true : false })}
+            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${settings.shareTimeContext !== false ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+          >
+            <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${settings.shareTimeContext !== false ? 'left-[22px]' : 'left-[2px]'}`} />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CalendarDays size={20} className={settings.shareCalendarNotes ? "text-[#00a884]" : "text-gray-400"} />
+            <div>
+              <p className="text-[14.5px] font-medium">Share Calendar Notes</p>
+              <p className="text-[12px] text-secondary">AI accesses your custom notes</p>
+            </div>
+          </div>
+          <div
+            onClick={() => onUpdate({ ...settings, shareCalendarNotes: !settings.shareCalendarNotes })}
+            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${settings.shareCalendarNotes ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+          >
+            <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${settings.shareCalendarNotes ? 'left-[22px]' : 'left-[2px]'}`} />
           </div>
         </div>
       </div>
