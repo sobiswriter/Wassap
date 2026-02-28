@@ -18,7 +18,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [stagedAttachment, setStagedAttachment] = useState<FileAttachment | null>(null);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
@@ -36,6 +36,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     setShowAttachmentMenu(false);
     setStagedAttachment(null);
     setText('');
+
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
 
     return () => clearTimeout(focusTimer);
   }, [activeChatId]);
@@ -67,7 +71,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
       setText('');
       setStagedAttachment(null);
       setShowEmojiPicker(false);
-      inputRef.current?.focus();
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+        inputRef.current.focus();
+      }
     }
   };
 
@@ -145,14 +152,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             </button>
           </div>
 
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
             placeholder={stagedAttachment ? (stagedAttachment.type === 'image' ? "Add a caption..." : "Message about this document...") : "Message"}
-            className="flex-1 bg-transparent outline-none text-[16px] text-primary py-[10px] min-w-0"
+            className="flex-1 bg-transparent outline-none text-[16px] text-primary py-[10px] min-w-0 resize-none max-h-[140px] leading-relaxed custom-scrollbar"
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            rows={1}
+            onChange={(e) => {
+              setText(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = `${e.target.scrollHeight}px`;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
           />
 
           <div className="relative p-[10px] pr-3 shrink-0 flex items-center justify-center" ref={attachRef}>
