@@ -17,7 +17,10 @@ This project is a pixel-perfect reconstruction of the WhatsApp interface, repurp
 
 ### 🌟 Key Features (v1.0)
 *   **Gemini AI Personalities**: Each contact has a unique role, speech style, and system instructions.
-*   **Deep Memory Reset**: "Clear Chat" now wipes both the UI and the AI's contextual memory, providing a true fresh start.
+*   **Model Selection & Privacy**: Switch between different Gemini engines (Flash, Pro, Lite) and toggle context-sharing (date/time/calendar) in the Settings menu.
+*   **Calendar & Notes Integration**: Provide real-time date context and custom notes to the AI via a dedicated Calendar widget.
+*   **Authentic Mobile UX**: True-to-life mobile UI with an auto-expanding input area, real WhatsApp grid attachment menu, and hardware back-button support to prevent accidental app exits.
+*   **Deep Memory Reset**: "Clear Chat" wipes both the UI and the AI's contextual memory, providing a true fresh start.
 *   **Mobile-First Action Hub**: A dedicated Floating Action Button (FAB) provides quick access to all management features on mobile devices.
 *   **Safety Confirmations**: Integrated confirmation dialogs for all destructive actions to prevent accidental data loss.
 *   **Persistent Meta AI**: A permanent AI assistant chat (Meta AI) is always available and undeletable, linked via landing page shortcuts.
