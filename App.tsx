@@ -447,7 +447,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-white overflow-hidden p-0">
+    <div className="h-screen w-full flex flex-col bg-white overflow-hidden p-0">
       {/* Top Title Bar */}
       <div className="h-[30px] app-panel flex items-center px-3 gap-2 shrink-0 border-b app-border select-none">
         <div className="bg-[#25d366] p-[2px] rounded flex items-center justify-center">

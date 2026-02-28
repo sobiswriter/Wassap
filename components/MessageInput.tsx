@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Smile, Mic, SendHorizontal, Image as ImageIcon, FileText, X } from 'lucide-react';
+import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Camera, MapPin, User, Headphones, BarChart, Calendar, Sparkles } from 'lucide-react';
 import { FileAttachment } from '../types';
 
 interface MessageInputProps {
@@ -131,78 +131,116 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
       )}
 
       {/* Main Input Bar */}
-      <div className="app-chat-bg px-3 py-2 flex items-center gap-2 relative transition-colors duration-300">
-        <div className="relative" ref={attachRef}>
-          <button
-            onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-            className={`p-2 hover:bg-black/5 rounded-full transition-all shrink-0 ${showAttachmentMenu ? 'bg-black/10 rotate-45 text-[#00a884]' : 'text-secondary'}`}
-          >
-            <Plus size={28} strokeWidth={1.5} />
-          </button>
-        </div>
-
+      <div className="bg-transparent px-2 py-2 flex items-end gap-2 relative transition-colors duration-300 w-full z-40">
         <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileSelection(e, 'image')} />
         <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.doc,.docx,.txt,.md" onChange={(e) => handleFileSelection(e, 'document')} />
 
-        <div className="flex-1 bg-white dark:bg-[#2a3942] rounded-full px-4 py-1.5 flex items-center gap-3 shadow-sm border border-transparent focus-within:border-gray-100 dark:focus-within:border-gray-700">
-          <div className="relative" ref={emojiRef}>
+        <div className="flex-1 bg-white dark:bg-[#2a3942] rounded-[24px] flex items-end shadow-[0_1px_0.5px_rgba(11,20,26,.13)] overflow-hidden min-h-[44px]">
+          <div className="relative p-[10px] pl-3 shrink-0" ref={emojiRef}>
             <button
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className={`transition-colors shrink-0 ${showEmojiPicker ? 'text-[#00a884]' : 'text-secondary hover:text-[#00a884]'}`}
+              className={`transition-colors flex items-center justify-center ${showEmojiPicker ? 'text-[#00a884]' : 'text-[#8696a0] hover:text-[#00a884]'}`}
             >
-              <Smile size={26} strokeWidth={1.5} />
+              <Smile size={24} strokeWidth={1.5} />
             </button>
           </div>
 
           <input
             ref={inputRef}
             type="text"
-            placeholder={stagedAttachment ? (stagedAttachment.type === 'image' ? "Add a caption..." : "Message about this document...") : "Type a message"}
-            className="flex-1 bg-transparent outline-none text-[16px] text-primary py-1 placeholder-secondary"
+            placeholder={stagedAttachment ? (stagedAttachment.type === 'image' ? "Add a caption..." : "Message about this document...") : "Message"}
+            className="flex-1 bg-transparent outline-none text-[16px] text-primary py-[10px] min-w-0"
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           />
+
+          <div className="relative p-[10px] pr-3 shrink-0 flex items-center justify-center" ref={attachRef}>
+            <button
+              onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+              className={`transition-transform duration-200 ${showAttachmentMenu ? 'text-[#00a884] -rotate-45' : 'text-[#8696a0] hover:text-[#00a884]'}`}
+            >
+              <Paperclip size={22} strokeWidth={1.5} />
+            </button>
+          </div>
         </div>
 
-        <div className="w-12 flex justify-center shrink-0">
-          {(text.trim() || stagedAttachment) ? (
-            <button
-              onClick={handleSend}
-              className="p-2.5 text-[#00a884] hover:bg-black/5 rounded-full transition-all active:scale-90"
-            >
-              <SendHorizontal size={26} fill="currentColor" className="fill-[#00a884]" />
-            </button>
-          ) : (
-            <button className="p-2.5 text-secondary hover:bg-black/5 rounded-full transition-colors">
-              <Mic size={26} strokeWidth={1.5} />
-            </button>
-          )}
+        <div className="w-[44px] h-[44px] shrink-0 mb-[1px]">
+          <button
+            onClick={handleSend}
+            className="w-full h-full bg-[#00a884] hover:bg-[#008f6f] rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-sm"
+          >
+            <SendHorizontal size={20} fill="currentColor" strokeWidth={1} className="ml-0.5" />
+          </button>
         </div>
 
         {/* Attachment Menu (Absolute) */}
         {showAttachmentMenu && (
-          <div ref={attachMenuRef} className="absolute bottom-full left-4 mb-2 w-[220px] app-panel shadow-2xl rounded-2xl p-2 animate-in slide-in-from-bottom-4 duration-200 border app-border z-[100]">
-            <div className="space-y-1">
-              <button onClick={() => imageInputRef.current?.click()} className="w-full flex items-center gap-4 px-4 py-3 hover:bg-black/5 rounded-xl transition-colors group">
-                <div className="w-10 h-10 rounded-full bg-[#bf59cf] flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
-                  <ImageIcon size={20} fill="currentColor" />
+          <div ref={attachMenuRef} className="absolute bottom-[60px] left-[10px] md:left-auto md:right-14 w-[calc(100vw-20px)] md:w-[360px] app-panel shadow-2xl rounded-[30px] p-6 px-4 animate-in zoom-in-95 duration-200 border app-border z-[100] origin-bottom sm:origin-bottom-right">
+            <div className="grid grid-cols-4 gap-y-6 gap-x-2">
+              <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => imageInputRef.current?.click()}>
+                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <ImageIcon size={26} className="text-[#007bfc]" fill="currentColor" />
                 </div>
-                <span className="text-[14.5px] text-primary font-medium">Photos & Videos</span>
-              </button>
-              <button onClick={() => docInputRef.current?.click()} className="w-full flex items-center gap-4 px-4 py-3 hover:bg-black/5 rounded-xl transition-colors group">
-                <div className="w-10 h-10 rounded-full bg-[#7f66ff] flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
-                  <FileText size={20} fill="currentColor" />
+                <span className="text-[13px] text-primary">Gallery</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => imageInputRef.current?.click()}>
+                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Camera size={26} className="text-[#d3396d]" fill="currentColor" />
                 </div>
-                <span className="text-[14.5px] text-primary font-medium">Document</span>
-              </button>
+                <span className="text-[13px] text-primary">Camera</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer group">
+                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <MapPin size={26} className="text-[#21bfa6]" fill="currentColor" />
+                </div>
+                <span className="text-[13px] text-primary">Location</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer group">
+                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <User size={26} className="text-[#00a4d4]" fill="currentColor" />
+                </div>
+                <span className="text-[13px] text-primary">Contact</span>
+              </div>
+
+              <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => docInputRef.current?.click()}>
+                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <FileText size={26} className="text-[#7f66ff]" fill="currentColor" />
+                </div>
+                <span className="text-[13px] text-primary">Document</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer group">
+                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Headphones size={26} className="text-[#f0643b]" fill="currentColor" />
+                </div>
+                <span className="text-[13px] text-primary">Audio</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer group">
+                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <BarChart size={26} className="text-[#ffbc38]" strokeWidth={3} />
+                </div>
+                <span className="text-[13px] text-primary">Poll</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer group">
+                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Calendar size={26} className="text-[#ff3b7c]" fill="currentColor" />
+                </div>
+                <span className="text-[13px] text-primary">Event</span>
+              </div>
+
+              <div className="flex flex-col items-center gap-2 cursor-pointer group">
+                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Sparkles size={26} className="text-[#007bfc]" fill="currentColor" />
+                </div>
+                <span className="text-[13px] text-primary">AI Images</span>
+              </div>
             </div>
           </div>
         )}
 
         {/* Emoji Picker (Absolute) */}
         {showEmojiPicker && (
-          <div ref={emojiMenuRef} className="absolute bottom-full left-4 md:left-20 mb-2 w-[calc(100vw-32px)] md:w-[320px] h-[340px] app-panel shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200 border app-border z-[100]">
+          <div ref={emojiMenuRef} className="absolute bottom-[60px] left-2 md:left-4 w-[calc(100vw-16px)] md:w-[320px] h-[340px] app-panel shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200 border app-border z-[100]">
             <div className="p-3 bg-gray-50 dark:bg-[#202c33] text-[13px] font-medium text-[#00a884] border-b app-border">
               RECENTLY USED
             </div>
