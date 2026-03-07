@@ -135,5 +135,6 @@ export const AVAILABLE_MODELS = [
   { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
   { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
   { id: 'gemini-3.1-flash', label: 'Gemini 3.1 Flash' },
+  { id: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash Lite Preview' },
   { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro' },
 ];
