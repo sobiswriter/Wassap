@@ -1,8 +1,8 @@
-# WhatsApp Persona Simulation Environment (v1.1)
+# WhatsApp Persona Simulation Environment (v1.1.2)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.1.0-brightgreen)
+![Version](https://img.shields.io/badge/version-1.1.2-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -15,25 +15,25 @@ A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Ta
 
 This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini LLM. Now I can always use WhatsApp when my friends are using it as well. Hehehe...
 
-### 🌟 What's New in v1.1 (The "Immersion" Update)
-*   **Dynamic "Last Seen" Emulation**: Personas realistically transition between "online", "typing...", and "last seen today at [time]" states, giving the illusion of true presence.
-*   **Flawless Mobile PWA Experience**: Added Android/iOS hardware back-button interception (`history.pushState` logic) so swiping back out of Settings doesn't exit your app.
-*   **Native Long-Press Replies**: Replicated true mobile app behavior! Just long-press (500ms) any message bubble on your phone to natively trigger the reply UI—no clunky buttons required.
-*   **Live Google Search Grounding**: AI can now be permitted to search the live web for up-to-date facts by toggling Google Search grounding in Settings.
-*   **Audio Voice Notes**: Hold the mic icon to record real microphone audio directly into the chat stream via robust `MediaRecorder` logic.
-*   **Pixel-Perfect Responsive Panels**: All side-menus (Settings, Profiles, Calendars) have been overhauled to flawlessly scale into full-screen sliding views on mobile, devoid of awkward overlaps or FAB blockages.
-*   **Global Temporal Sync**: Implemented strict 12-hour timezone synchronization (`05:38 PM` instead of `17:38`) across AI generators and the UI so chat timestamps always match reality.
+### 🌟 What's New in v1.1.2 (The "Professional" Update)
+*   **Contextual Selection Mode**: WhatsApp-style long-press selection! Highlight messages, select multiple items, and use the new **Contextual Action Header** to Copy or Reply.
+*   **Omni-Markdown Engine**: Broad-spectrum parsing for both `*WhatsApp*` and `**Standard Markdown**` syntaxes. AI-generated code blocks and bolding now render perfectly every time.
+*   **Dynamic "Last Seen" Emulation**: Personas realistically transition between "online", "typing...", and time-calculated "last seen today at..." states.
+*   **Flawless PWA Navigation**: Added Android/iOS hardware back-button interception (`history.pushState` logic) preventing accidental app closures.
+*   **Live Google Search Grounding**: AI can now search the live web for facts by toggling Grounding in Settings.
+*   **Audio Voice Notes**: Record and send real microphone audio directly into the chat stream via `MediaRecorder`.
+*   **Responsive Scaling Fixes**: Overhauled all side-menus (Settings, Profiles, Calendars) to flawlessly map to full-screen sliding views on mobile devices.
+*   **Global Temporal Sync**: Mandatory 12-hour timezone synchronization (`05:38 PM`) for a consistent experience across all chat bubbles.
 
 ### ✨ Core Features
-*   **Gemini AI Personalities**: Each contact has a unique role, speech style, and system instructions.
-*   **Natural Message Splitting**: AI responses automatically fracture into consecutive human-like text chunks based on sentence structure.
-*   **Model Selection & Privacy**: Switch between different Gemini engines (Flash, Pro, Lite) and toggle context-sharing (date/time/calendar).
-*   **Calendar & Notes Integration**: Provide real-time date context and custom notes to the AI via a dedicated Calendar widget.
-*   **Deep Memory Reset**: "Clear Chat" wipes both the UI and the AI's contextual memory, providing a true fresh start.
-*   **Mobile-First Action Hub**: A dedicated Floating Action Button (FAB) provides quick access to all management features on mobile devices.
-*   **Persistent Meta AI**: A permanent AI assistant chat (Meta AI) is always available and undeletable, linked via landing page shortcuts.
-*   **IndexedDB Media Persistence**: Images and audio are stored securely offline using IndexedDB for robust persistence across sessions.
-*   **Cyber-Noir Aesthetic**: Premium dark/light mode support with animated transitions and native-style wallpapers.
+*   **Gemini AI Personalities**: Unique roles, speech styles, and backstories per contact.
+*   **Natural Message Splitting**: Delayed, human-like message chunking for AI responses.
+*   **Model Selection & Privacy**: Switch engines (Flash/Pro) and toggle context-sharing settings.
+*   **Calendar & Notes Integration**: Provide real-time context to the AI via a custom notes widget.
+*   **Deep Memory Reset**: Clear chat wipes both UI and AI context for a fresh start.
+*   **Persistent Meta AI**: A permanent AI companion chat integrated into landing page workflows.
+*   **IndexedDB Media Persistence**: Robust local storage for images and audio files.
+*   **Premium Aesthetics**: Dark/Light mode support with animated transitions and brand-native wallpapers.
 
 ---
 
@@ -45,16 +45,6 @@ This project is a pixel-perfect reconstruction of the WhatsApp interface, repurp
 *   **Icons**: [Lucide React](https://lucide.dev/)
 *   **AI SDK**: [@google/genai](https://www.npmjs.com/package/@google/genai)
 *   **Storage**: [Dexie.js / IndexedDB](https://dexie.org/)
-
----
-
-## 📦 Architecture
-
--   **/components**: Interactive UI layers (Sidebar, ChatWindow, MessageInput, Slide-over Panels, MobileActionFAB).
--   **/services**: Core logic for the Gemini API framework and LLM orchestrations.
--   **/utils**: Storage utilities for IndexedDB Blob management.
--   **/constants.ts**: Initial persona configurations and dynamic theme dictionaries.
--   **App.tsx**: Main state machine routing the PWA navigation stack and AI turn-taking mechanics.
 
 ---
 
@@ -81,7 +71,7 @@ This project is a pixel-perfect reconstruction of the WhatsApp interface, repurp
     ```
 
 > [!NOTE]
-> **API Key Integrated**: For a seamless, out-of-the-box experience, a Gemini API setup logic is heavily integrated into the UI. You can plug your keys right into the frontend Settings menu without wrestling with `.env` files.
+> **API Key Setup**: Gemini API keys are integrated into the frontend Settings menu. No `.env` configuration is required for local setup.
 
 4.  **Access the App**:
     Open `http://localhost:5173`.
