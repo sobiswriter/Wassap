@@ -3,7 +3,7 @@ import { UserProfile, AppSettings } from "../types";
 
 export const getGeminiResponse = async (
   responder: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string },
-  messageHistory: { text: string; sender: string; senderName?: string; image?: string }[],
+  messageHistory: { text: string; sender: string; senderName?: string; image?: string; audio?: string }[],
   userProfile?: UserProfile,
   groupContext?: { groupName: string; otherMembers: string[] },
   settings?: AppSettings
@@ -69,31 +69,34 @@ ${notesContext}
 Instructions:
 1. Respond naturally to the last few messages.
 2. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
-3. If in a group, you don't always have to talk to the user; you can reply to another member's comment.
-4. Keep it short (1-3 sentences), typical for chat apps.
-5. Maintain your unique personality and speech style at all times.
-6. Do not use AI clichés or reveal you are an AI.
+3. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear! If it's silent or unclear, politely ask them to repeat.
+4. If in a group, you don't always have to talk to the user; you can reply to another member's comment.
+5. Keep it short (1-3 sentences), typical for chat apps.
+6. Maintain your unique personality and speech style at all times.
+7. Do not use AI clichés or reveal you are an AI.
 
 Conversation History:
 ${historyString}
 
 Response as ${responder.name}:`;
 
-    const recentMessagesWithImages = messageHistory.slice(-3).filter(m => m.image);
+    const recentMessagesWithMedia = messageHistory.slice(-5).filter(m => m.image || m.audio);
     const parts: any[] = [{ text: systemPrompt }];
 
-    if (recentMessagesWithImages.length > 0) {
-      const lastImageMsg = recentMessagesWithImages[recentMessagesWithImages.length - 1];
-      if (lastImageMsg.image) {
-        const base64Data = lastImageMsg.image.split(',')[1] || lastImageMsg.image;
+    recentMessagesWithMedia.slice(-2).forEach(msg => {
+      if (msg.image) {
+        const base64Data = msg.image.split(',')[1] || msg.image;
         parts.push({
-          inlineData: {
-            mimeType: "image/jpeg",
-            data: base64Data
-          }
+          inlineData: { mimeType: "image/jpeg", data: base64Data }
         });
       }
-    }
+      if (msg.audio) {
+        const base64Data = msg.audio.split(',')[1] || msg.audio;
+        parts.push({
+          inlineData: { mimeType: "audio/webm", data: base64Data }
+        });
+      }
+    });
 
     const config: any = {};
     if (settings?.useSearchGrounding) {

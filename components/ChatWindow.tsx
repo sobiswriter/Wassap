@@ -1,6 +1,5 @@
-
 import React, { useRef, useEffect, useState } from 'react';
-import { Search, MoreVertical, CheckCheck, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User } from 'lucide-react';
+import { Search, MoreVertical, CheckCheck, Check, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft } from 'lucide-react';
 import { Chat, Message } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -16,11 +15,12 @@ interface ChatWindowProps {
   onProfileClick?: () => void;
   onMetaAIClick?: () => void;
   onAddContact?: () => void;
+  onReply?: (message: Message) => void;
 }
 
 const MEMBER_COLORS = ['#35a62e', '#e542a3', '#9141ac', '#dfa633', '#1d88e5'];
 
-const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?: boolean }> = ({ message, highlight, isGroup }) => {
+const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?: boolean; onReply?: (message: Message) => void }> = ({ message, highlight, isGroup, onReply }) => {
   const isMe = message.sender === 'me';
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
@@ -42,14 +42,29 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
     loadMedia();
   }, [message.mediaId, message.attachment?.mediaId]);
 
-  const imageSrc = mediaData || message.image || (message.attachment?.type === 'image' ? message.attachment.data : null);
+  const mediaSrc = mediaData || message.image || message.attachment?.data || null;
 
   return (
-    <div className={`flex w-full mb-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex w-full mb-1 group/bubble ${isMe ? 'justify-end' : 'justify-start'}`}>
+      {!isMe && onReply && (
+        <button onClick={() => onReply(message)} className="opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity mr-1 self-center scale-x-[-1]">
+          <CornerDownLeft size={18} />
+        </button>
+      )}
       <div
         className={`max-w-[85%] sm:max-w-[75%] p-1 rounded-lg shadow-sm relative transition-all duration-300 ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${isMe ? 'rounded-tr-none' : 'rounded-tl-none'}`}
         style={{ backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)' }}
       >
+        {message.replyToMessage && (
+          <div className="p-2 rounded-md mb-1 border-l-4 text-[13px] bg-black/5 dark:bg-black/20 overflow-hidden cursor-pointer"
+               style={{ borderLeftColor: message.replyToMessage.sender === 'me' ? '#53bdeb' : (nameColor || '#35a62e') }}>
+             <div className="font-bold mb-0.5" style={{ color: message.replyToMessage.sender === 'me' ? '#53bdeb' : (nameColor || '#35a62e') }}>
+                {message.replyToMessage.sender === 'me' ? 'You' : (message.replyToMessage.senderName || 'Contact')}
+             </div>
+             <div className="text-secondary truncate">{message.replyToMessage.text || (message.replyToMessage.attachment ? 'Attachment' : 'Message')}</div>
+          </div>
+        )}
+
         {isGroup && !isMe && message.senderName && (
           <div className="text-[13px] font-bold mb-1 px-2 pt-1" style={{ color: nameColor }}>
             {message.senderName}
@@ -57,10 +72,10 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
         )}
 
         {/* Render Image Attachment with Intelligent Scaling */}
-        {imageSrc && (
+        {mediaSrc && message.attachment?.type !== 'audio' && (
           <div className="p-0.5 overflow-hidden">
             <img
-              src={imageSrc}
+              src={mediaSrc}
               alt="Sent content"
               className="rounded-md w-full max-h-[450px] object-contain block shadow-sm bg-black/5 dark:bg-white/5"
               loading="lazy"
@@ -82,6 +97,16 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
           </div>
         )}
 
+        {/* Render Audio Attachment */}
+        {message.attachment?.type === 'audio' && (
+          <div className="p-2 flex items-center justify-between min-w-[200px] gap-2">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: isMe ? '#eaffe4' : 'rgba(0,0,0,0.05)' }}>
+               {isMe ? <User size={20} className="text-[#00a884]" /> : <User size={20} className="text-secondary" />}
+            </div>
+            {mediaSrc && <audio controls src={mediaSrc} className="w-[200px] h-10 outline-none" />}
+          </div>
+        )}
+
         {/* Text Content (Caption or Message) */}
         <div className="px-2 py-1 flex flex-col relative">
           {message.text && (
@@ -94,8 +119,8 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
           <div className={`flex items-center gap-1 self-end ${message.text ? 'absolute bottom-1 right-2' : 'mt-1 mb-0.5 mr-1'}`}>
             <span className="text-[10px] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
             {isMe && (
-              <span className="text-[#53bdeb]">
-                <CheckCheck size={16} />
+              <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
+                {message.status === 'sent' ? <Check size={16} /> : <CheckCheck size={16} />}
               </span>
             )}
           </div>
@@ -110,11 +135,17 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
           }}
         />
       </div>
+
+      {isMe && onReply && (
+        <button onClick={() => onReply(message)} className="opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity ml-1 self-center">
+          <CornerDownLeft size={18} />
+        </button>
+      )}
     </div >
   );
 };
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeaderClick, onDeleteChat, onClearChat, searchTerm, setSearchTerm, onBack, onProfileClick, onMetaAIClick, onAddContact }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeaderClick, onDeleteChat, onClearChat, searchTerm, setSearchTerm, onBack, onProfileClick, onMetaAIClick, onAddContact, onReply }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -181,6 +212,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
   );
 
   const getGroupMembersLabel = () => {
+    if (chat.status === 'typing...') return <span className="text-[#00a884] font-medium italic animate-pulse">typing...</span>;
     if (!chat.isGroup || !chat.memberIds) return chat.status || 'online';
     const names = chat.memberIds.map(id => allChats.find(c => id === c.id)?.name).filter(Boolean);
     return [...names, 'You'].join(', ');
@@ -320,7 +352,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
         )}
 
         {filteredMessages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} highlight={!!searchTerm} isGroup={chat.isGroup} />
+          <MessageBubble key={msg.id} message={msg} highlight={!!searchTerm} isGroup={chat.isGroup} onReply={onReply} />
         ))}
       </div>
 

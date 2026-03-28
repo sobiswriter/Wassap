@@ -4,7 +4,7 @@ export type MessageStatus = 'sent' | 'delivered' | 'read' | 'failed';
 export interface FileAttachment {
   name: string;
   data: string; // Base64 (original or preview)
-  type: 'image' | 'document';
+  type: 'image' | 'document' | 'audio';
   size?: number;
   mediaId?: string; // ID for IndexedDB storage
 }
@@ -21,6 +21,7 @@ export interface Message {
   image?: string; // Base64 image data (fall back or small previews)
   mediaId?: string; // ID for IndexedDB storage
   attachment?: FileAttachment;
+  replyToMessage?: Message;
 }
 
 export interface Chat {

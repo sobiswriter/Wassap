@@ -72,6 +72,7 @@ const App: React.FC = () => {
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
   const [showCalendarWidget, setShowCalendarWidget] = useState(false);
   const [chatSearchTerm, setChatSearchTerm] = useState('');
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   // User and Settings State
   const [user, setUser] = useState<UserProfile>({
@@ -142,13 +143,13 @@ const App: React.FC = () => {
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, status } : c));
   };
 
-  const handleSendMessage = async (text: string, attachment?: FileAttachment) => {
+  const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message) => {
     if (!activeChat) return;
 
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
 
     let mediaId = '';
-    if (attachment && attachment.type === 'image') {
+    if (attachment && (attachment.type === 'image' || attachment.type === 'audio')) {
       mediaId = `media-${Date.now()}`;
       try {
         await saveMedia(mediaId, attachment.data);
@@ -162,15 +163,18 @@ const App: React.FC = () => {
       text,
       attachment: attachment ? {
         ...attachment,
-        data: attachment.type === 'image' ? '' : attachment.data, // Strip image data for storage
+        data: (attachment.type === 'image' || attachment.type === 'audio') ? '' : attachment.data, // Strip media data for storage
         mediaId
       } : undefined,
       image: undefined, // No longer storing full Base64 in message object
       mediaId,
       sender: 'me',
       timestamp,
-      status: 'read'
+      status: 'sent',
+      replyToMessage: replyTo
     };
+
+    setReplyingTo(null);
 
     setChats(prev => prev.map(chat => {
       if (chat.id === activeChat.id) {
@@ -199,16 +203,30 @@ const App: React.FC = () => {
   const handleSingleResponse = async (chat: Chat, updatedHistory: Message[]) => {
     const chatId = chat.id;
     try {
+      // Mark user message as delivered immediately before AI processes
+      setChats(prev => prev.map(c => {
+        if (c.id === chatId) {
+          const newMsgs = [...c.messages];
+          const lastMsg = newMsgs[newMsgs.length - 1];
+          if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'delivered';
+          return { ...c, messages: newMsgs };
+        }
+        return c;
+      }));
+
       setChatStatus(chatId, 'typing...');
 
       // Hydrate history with image data from IndexedDB so AI can see it
       const hydratedHistory = await Promise.all(updatedHistory.map(async m => {
         const mediaId = m.mediaId || m.attachment?.mediaId;
-        const image = mediaId ? await getMedia(mediaId) : (m.image || m.attachment?.data);
+        const mediaData = mediaId ? await getMedia(mediaId) : undefined;
+        let text = m.text;
+        if (m.replyToMessage) text = `[Replying to: "${m.replyToMessage.text}"] ` + text;
         return {
-          text: m.text,
+          text,
           sender: m.sender,
-          image: image || undefined
+          image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
+          audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
         };
       }));
 
@@ -226,8 +244,21 @@ const App: React.FC = () => {
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
 
-        // Realistic typing speed simulation (roughly 30-50ms per character)
-        const typingDuration = Math.min(Math.max(chunk.length * 25, 600), 2000);
+        // Mark previous messages as read as soon as AI "starts typing"
+        if (i === 0) {
+          setChats(prev => prev.map(c => {
+            if (c.id === chatId) {
+              const newMsgs = [...c.messages];
+              const lastMsg = newMsgs[updatedHistory.length - 1];
+              if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'read';
+              return { ...c, messages: newMsgs };
+            }
+            return c;
+          }));
+        }
+
+        // Realistic typing speed simulation
+        const typingDuration = Math.min(Math.max(chunk.length * 40, 1500), 4000);
 
         // Ensure status is typing...
         setChatStatus(chatId, 'typing...');
@@ -292,16 +323,32 @@ const App: React.FC = () => {
         await new Promise(resolve => setTimeout(resolve, delay));
 
         setChatStatus(group.id, 'typing...'); // Status set by trigger check
+        
+        // Mark user message as read
+        if (i === 0) {
+           setChats(prev => prev.map(c => {
+            if (c.id === group.id) {
+              const newMsgs = [...c.messages];
+              const lastMsg = newMsgs[updatedHistory.length - 1];
+              if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'read';
+              return { ...c, messages: newMsgs };
+            }
+            return c;
+          }));
+        }
 
-        // Hydrate group history with image data from IndexedDB
+        // Hydrate group history with media data from IndexedDB
         const hydratedGroupHistory = await Promise.all(currentHistory.map(async m => {
           const mediaId = m.mediaId || m.attachment?.mediaId;
-          const image = mediaId ? await getMedia(mediaId) : (m.image || m.attachment?.data);
+          const mediaData = mediaId ? await getMedia(mediaId) : undefined;
+          let text = m.text;
+          if (m.replyToMessage) text = `[Replying to: "${m.replyToMessage.text}"] ` + text;
           return {
-            text: m.text,
+            text,
             sender: m.sender,
             senderName: m.senderName,
-            image: image || undefined
+            image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
+            audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
           };
         }));
 
@@ -322,7 +369,7 @@ const App: React.FC = () => {
           const chunk = chunks[j];
 
           // Typing duration for group personas
-          const typingDuration = Math.min(Math.max(chunk.length * 20, 500), 1500);
+          const typingDuration = Math.min(Math.max(chunk.length * 40, 1500), 4000);
 
           setChatStatus(group.id, 'typing...');
           await new Promise(resolve => setTimeout(resolve, typingDuration));
@@ -373,6 +420,7 @@ const App: React.FC = () => {
     setShowNewChatPanel(false);
     setShowNewGroupPanel(false);
     setChatSearchTerm('');
+    setReplyingTo(null);
     if (isMobile) {
       window.history.pushState({ view: 'chat' }, '');
       setActiveView('chat');
@@ -520,9 +568,15 @@ const App: React.FC = () => {
             onProfileClick={() => setShowUserProfilePanel(true)}
             onMetaAIClick={() => handleChatSelect('6')}
             onAddContact={() => setShowNewChatPanel(true)}
+            onReply={setReplyingTo}
           />
           {activeChat && (!isMobile || !showProfilePanel) && (
-            <MessageInput activeChatId={activeChatId} onSendMessage={handleSendMessage} />
+            <MessageInput 
+              activeChatId={activeChatId} 
+              onSendMessage={handleSendMessage} 
+              replyingTo={replyingTo} 
+              onCancelReply={() => setReplyingTo(null)} 
+            />
           )}
         </div>
 

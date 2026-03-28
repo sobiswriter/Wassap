@@ -1,22 +1,28 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Camera, MapPin, User, Headphones, BarChart, Calendar, Sparkles } from 'lucide-react';
-import { FileAttachment } from '../types';
+import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Camera, MapPin, User, Headphones, BarChart, Calendar, Sparkles, Mic, Square } from 'lucide-react';
+import { FileAttachment, Message } from '../types';
 
 interface MessageInputProps {
-  onSendMessage: (text: string, attachment?: FileAttachment) => void;
+  onSendMessage: (text: string, attachment?: FileAttachment, replyTo?: Message) => void;
   activeChatId: string;
+  replyingTo?: Message | null;
+  onCancelReply?: () => void;
 }
 
 const EMOJIS = [
   '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '🤡', '👻', '💀', '☠️', '👽', '👾', '🤖', '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾'
 ];
 
-export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activeChatId }) => {
+export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activeChatId, replyingTo, onCancelReply }) => {
   const [text, setText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [stagedAttachment, setStagedAttachment] = useState<FileAttachment | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +41,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     setShowEmojiPicker(false);
     setShowAttachmentMenu(false);
     setStagedAttachment(null);
+    if (isRecording) {
+      stopRecording();
+    }
     setText('');
 
     if (inputRef.current) {
@@ -67,9 +76,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
   const handleSend = () => {
     if (text.trim() || stagedAttachment) {
-      onSendMessage(text, stagedAttachment || undefined);
+      onSendMessage(text, stagedAttachment || undefined, replyingTo || undefined);
       setText('');
       setStagedAttachment(null);
+      if (onCancelReply) onCancelReply();
       setShowEmojiPicker(false);
       if (inputRef.current) {
         inputRef.current.style.height = 'auto';
@@ -103,6 +113,48 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     }
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          setStagedAttachment({
+            name: 'Voice Note',
+            data: reader.result as string,
+            type: 'audio',
+            size: audioBlob.size
+          });
+        };
+        stream.getTracks().forEach(track => track.stop());
+        setIsRecording(false);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Microphone access denied or error:", err);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
   return (
     <div className="flex flex-col shrink-0 z-30 transition-all duration-300">
       {/* Attachment Preview Area (Staged) */}
@@ -125,15 +177,32 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                 <span className="text-[11px] text-[#667781] text-center line-clamp-2 w-full leading-tight">{stagedAttachment.name}</span>
               </div>
             )}
+            {stagedAttachment.type === 'audio' && (
+              <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#111b21] rounded-lg border app-border p-2">
+                <Mic className="text-[#00a884] mb-2" size={40} />
+                <span className="text-[11px] text-[#667781] text-center w-full leading-tight">Audio Note recorded</span>
+              </div>
+            )}
           </div>
           <div className="ml-5 mb-2 flex flex-col">
             <span className="text-[15px] text-primary font-semibold">
-              {stagedAttachment.type === 'image' ? 'Send Image' : 'Send Document'}
+              {stagedAttachment.type === 'image' ? 'Send Image' : stagedAttachment.type === 'audio' ? 'Send Voice Note' : 'Send Document'}
             </span>
             <span className="text-[12px] text-secondary italic">
               {stagedAttachment.type === 'image' ? 'Add a caption below' : stagedAttachment.name}
             </span>
           </div>
+        </div>
+      )}
+
+      {/* Reply Banner Area */}
+      {replyingTo && (
+        <div className="bg-[#f0f2f5] dark:bg-[#202c33] border-t app-border px-3 py-2 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-300">
+           <div className="flex-1 bg-black/5 dark:bg-black/20 border-l-4 border-[#00a884] rounded p-2 relative pr-8 overflow-hidden">
+             <button onClick={onCancelReply} className="absolute right-2 top-2 text-secondary hover:text-primary"><X size={16}/></button>
+             <p className="text-[13px] text-[#00a884] font-medium mb-0.5 truncate">{replyingTo.sender === 'me' ? 'You' : (replyingTo.senderName || 'Contact')}</p>
+             <p className="text-[12px] text-secondary truncate">{replyingTo.text || (replyingTo.attachment ? 'Attachment' : 'Message')}</p>
+           </div>
         </div>
       )}
 
@@ -154,8 +223,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
           <textarea
             ref={inputRef}
-            placeholder={stagedAttachment ? (stagedAttachment.type === 'image' ? "Add a caption..." : "Message about this document...") : "Message"}
-            className="flex-1 bg-transparent outline-none text-[16px] text-primary py-[10px] min-w-0 resize-none max-h-[140px] leading-relaxed custom-scrollbar"
+            placeholder={isRecording ? "Recording audio..." : (stagedAttachment ? (stagedAttachment.type === 'image' ? "Add a caption..." : "Message about this attachment...") : "Message")}
+            disabled={isRecording}
+            className="flex-1 bg-transparent outline-none text-[16px] text-primary py-[10px] min-w-0 resize-none max-h-[140px] leading-relaxed custom-scrollbar disabled:opacity-70"
             value={text}
             rows={1}
             onChange={(e) => {
@@ -182,12 +252,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         </div>
 
         <div className="w-[44px] h-[44px] shrink-0 mb-[1px]">
-          <button
-            onClick={handleSend}
-            className="w-full h-full bg-[#00a884] hover:bg-[#008f6f] rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-sm"
-          >
-            <SendHorizontal size={20} fill="currentColor" strokeWidth={1} className="ml-0.5" />
-          </button>
+          {text.trim() || stagedAttachment ? (
+            <button
+              onClick={handleSend}
+              className="w-full h-full bg-[#00a884] hover:bg-[#008f6f] rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-sm"
+            >
+              <SendHorizontal size={20} fill="currentColor" strokeWidth={1} className="ml-0.5" />
+            </button>
+          ) : (
+            <button
+              onClick={isRecording ? stopRecording : startRecording}
+              className={`w-full h-full rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-sm ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-[#00a884] hover:bg-[#008f6f]'}`}
+            >
+              {isRecording ? <Square size={16} fill="currentColor" /> : <Mic size={20} fill="currentColor" strokeWidth={1} />}
+            </button>
+          )}
         </div>
 
         {/* Attachment Menu (Absolute) */}
