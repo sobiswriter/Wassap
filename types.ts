@@ -53,6 +53,7 @@ export interface AppSettings {
   apiKey?: string;
   shareTimeContext?: boolean;
   shareCalendarNotes?: boolean;
+  useSearchGrounding?: boolean;
   selectedModel?: string;
   calendarNotes?: string;
 }

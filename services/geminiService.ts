@@ -95,9 +95,15 @@ Response as ${responder.name}:`;
       }
     }
 
+    const config: any = {};
+    if (settings?.useSearchGrounding) {
+      config.tools = [{ googleSearch: {} }];
+    }
+
     const response = await ai.models.generateContent({
       model: settings?.selectedModel || 'gemini-3-flash-preview',
       contents: { parts },
+      config,
     });
 
     return response.text || "...";

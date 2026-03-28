@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles } from 'lucide-react';
+import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe } from 'lucide-react';
 import { AppSettings } from '../types';
 import { AVAILABLE_MODELS } from '../constants';
 
@@ -134,6 +134,22 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
             className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${settings.shareCalendarNotes ? 'bg-[#00a884]' : 'bg-gray-400'}`}
           >
             <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${settings.shareCalendarNotes ? 'left-[22px]' : 'left-[2px]'}`} />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Globe size={20} className={settings.useSearchGrounding ? "text-[#00a884]" : "text-gray-400"} />
+            <div>
+              <p className="text-[14.5px] font-medium">Google Search</p>
+              <p className="text-[12px] text-secondary">AI grounds itself with live web access</p>
+            </div>
+          </div>
+          <div
+            onClick={() => onUpdate({ ...settings, useSearchGrounding: !settings.useSearchGrounding })}
+            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${settings.useSearchGrounding ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+          >
+            <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${settings.useSearchGrounding ? 'left-[22px]' : 'left-[2px]'}`} />
           </div>
         </div>
       </div>
