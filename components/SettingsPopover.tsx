@@ -13,8 +13,8 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
   const [showKey, setShowKey] = useState(false);
 
   return (
-    <div className="absolute left-[80px] bottom-20 w-[320px] app-panel rounded-lg shadow-2xl border app-border z-[1000] animate-in slide-in-from-bottom-2 duration-200 overflow-hidden text-primary">
-      <div className="p-4 border-b app-border flex justify-between items-center app-header">
+    <div className="absolute left-0 md:left-[80px] bottom-0 md:bottom-20 w-full md:w-[320px] h-full md:h-auto app-panel md:rounded-lg shadow-2xl border app-border z-[1000] animate-in slide-in-from-bottom-2 duration-200 overflow-y-auto text-primary">
+      <div className="p-4 border-b app-border flex justify-between items-center app-header sticky top-0 z-10">
         <h3 className="font-medium text-[16px]">Settings</h3>
         <X size={18} className="text-secondary cursor-pointer hover:bg-black/5 rounded-full" onClick={onClose} />
       </div>

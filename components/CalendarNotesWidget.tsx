@@ -21,7 +21,7 @@ export const CalendarNotesWidget: React.FC<CalendarNotesWidgetProps> = ({ notes,
     const dateStr = today.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     return (
-        <div className="absolute left-[80px] bottom-10 md:bottom-20 w-[340px] md:w-[400px] app-panel rounded-lg shadow-2xl border app-border z-[1000] animate-in slide-in-from-bottom-2 duration-200 overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="absolute left-0 md:left-[80px] bottom-0 md:bottom-20 w-full md:w-[400px] h-full md:h-auto app-panel md:rounded-lg shadow-2xl border app-border z-[1000] animate-in slide-in-from-bottom-2 duration-200 overflow-hidden flex flex-col max-h-screen md:max-h-[80vh]">
             {/* Header */}
             <div className="p-4 border-b app-border bg-[#00a884] text-white flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-2">

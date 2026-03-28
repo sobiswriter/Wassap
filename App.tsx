@@ -125,23 +125,29 @@ const App: React.FC = () => {
     }
   }, [settings.theme]);
 
-  // Handle native back button on mobile
+  // Handle native hardware back button safely
   useEffect(() => {
+    const isPanelOpen = showSettingsPopover || showNewChatPanel || showNewGroupPanel || showUserProfilePanel || showCalendarWidget || showProfilePanel;
+
+    if (isMobile && isPanelOpen) {
+      window.history.pushState({ panelOpen: true }, '');
+    }
+
     const handlePopState = () => {
-      if (activeView === 'chat') {
-        setActiveView('list');
-      } else {
+      if (isPanelOpen) {
         setShowProfilePanel(false);
         setShowNewChatPanel(false);
         setShowNewGroupPanel(false);
         setShowUserProfilePanel(false);
         setShowSettingsPopover(false);
         setShowCalendarWidget(false);
+      } else if (activeView === 'chat') {
+        setActiveView('list');
       }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeView]);
+  }, [activeView, isMobile, showSettingsPopover, showNewChatPanel, showNewGroupPanel, showUserProfilePanel, showCalendarWidget, showProfilePanel]);
 
   const setChatStatus = (chatId: string, status: string) => {
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, status } : c));
@@ -599,7 +605,7 @@ const App: React.FC = () => {
           />
         )}
         {/* Mobile Floating Action Button Hub */}
-        {isMobile && activeView === 'list' && (
+        {isMobile && activeView === 'list' && !showSettingsPopover && !showNewChatPanel && !showNewGroupPanel && !showUserProfilePanel && !showCalendarWidget && !showProfilePanel && (
           <MobileActionFAB
             onAddPersona={() => setShowNewChatPanel(true)}
             onAddGroup={() => setShowNewGroupPanel(true)}

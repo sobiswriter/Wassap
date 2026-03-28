@@ -56,7 +56,7 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
   const inputClass = "w-full outline-none text-[16px] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1 font-normal";
 
   return (
-    <div className="w-[410px] h-full app-header border-r app-border flex flex-col animate-in slide-in-from-left duration-300 absolute left-[64px] z-50 shadow-xl">
+    <div className="w-full md:w-[410px] h-full app-header border-r app-border flex flex-col animate-in md:slide-in-from-left duration-300 absolute left-0 md:left-[64px] z-50 shadow-xl">
       <div className="h-[108px] bg-[#008069] flex items-end p-5 text-white">
         <div className="flex items-center gap-6">
           <ArrowLeft className="cursor-pointer hover:bg-[#005c4b] rounded-full p-1" onClick={onClose} />

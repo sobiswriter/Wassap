@@ -36,8 +36,8 @@ export const NewGroupPanel: React.FC<NewGroupPanelProps> = ({ personas, onClose,
   };
 
   return (
-    <div className="w-[410px] h-full app-header border-r app-border flex flex-col animate-in slide-in-from-left duration-300 absolute left-[64px] z-50 shadow-xl">
-      <div className="h-[108px] bg-[#008069] flex items-end p-5 text-white">
+    <div className="w-full md:w-[410px] h-full app-header border-r app-border flex flex-col animate-in md:slide-in-from-left duration-300 absolute left-0 md:left-[64px] z-50 shadow-xl">
+      <div className="h-[108px] bg-[#008069] flex items-end p-5 text-white shrink-0">
         <div className="flex items-center gap-6">
           <ArrowLeft className="cursor-pointer hover:bg-[#005c4b] rounded-full p-1" onClick={() => step === 1 ? onClose() : setStep(1)} />
           <h2 className="text-[19px] font-medium">{step === 1 ? 'Add group members' : 'New Group'}</h2>
