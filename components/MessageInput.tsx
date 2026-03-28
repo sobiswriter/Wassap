@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Camera, MapPin, User, Headphones, BarChart, Calendar, Sparkles, Mic, Square } from 'lucide-react';
+import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Camera, MapPin, User, Headphones, BarChart, Calendar, Sparkles, Mic, Square, Sticker } from 'lucide-react';
 import { FileAttachment, Message } from '../types';
 
 interface MessageInputProps {
@@ -13,6 +13,13 @@ interface MessageInputProps {
 const EMOJIS = [
   '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '🤡', '👻', '💀', '☠️', '👽', '👾', '🤖', '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾'
 ];
+
+const WhatsAppMicIcon = ({ size = 20, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none" className={className}>
+    <path d="M11.999 14.942c2.001 0 3.531-1.53 3.531-3.531V4.35c0-2.001-1.53-3.531-3.531-3.531-2.001 0-3.531 1.53-3.531 3.531v7.061c0 2.001 1.53 3.531 3.531 3.531z" />
+    <path d="M17.653 11.411v-1.127h-1.611v1.127c0 2.228-1.802 4.031-4.043 4.031-2.241 0-4.043-1.803-4.043-4.031v-1.127H6.345v1.127c0 2.85 2.148 5.215 4.848 5.626v2.333h1.611v-2.333c2.7-.411 4.849-2.776 4.849-5.626z" />
+  </svg>
+);
 
 export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activeChatId, replyingTo, onCancelReply }) => {
   const [text, setText] = useState('');
@@ -179,7 +186,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             )}
             {stagedAttachment.type === 'audio' && (
               <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#111b21] rounded-lg border app-border p-2">
-                <Mic className="text-[#00a884] mb-2" size={40} />
+                <WhatsAppMicIcon className="text-[#00a884] mb-2" size={40} />
                 <span className="text-[11px] text-[#667781] text-center w-full leading-tight">Audio Note recorded</span>
               </div>
             )}
@@ -207,17 +214,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
       )}
 
       {/* Main Input Bar */}
-      <div className="bg-transparent px-2 py-2 flex items-end gap-2 relative transition-colors duration-300 w-full z-40">
+      <div className="bg-transparent px-2 py-2 pb-3 flex items-end gap-[10px] relative transition-colors duration-300 w-full z-40">
         <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileSelection(e, 'image')} />
         <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.doc,.docx,.txt,.md" onChange={(e) => handleFileSelection(e, 'document')} />
 
-        <div className="flex-1 bg-white dark:bg-[#2a3942] rounded-[24px] flex items-end shadow-[0_1px_0.5px_rgba(11,20,26,.13)] overflow-hidden min-h-[44px]">
-          <div className="relative p-[10px] pl-3 shrink-0" ref={emojiRef}>
+        <div className="flex-1 bg-white dark:bg-[#2a3942] rounded-[24px] flex items-end shadow-[0_1px_2px_rgba(11,20,26,.1)] overflow-hidden min-h-[48px]">
+          <div className="relative p-[12px] pl-[14px] shrink-0" ref={emojiRef}>
             <button
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
               className={`transition-colors flex items-center justify-center ${showEmojiPicker ? 'text-[#00a884]' : 'text-[#8696a0] hover:text-[#00a884]'}`}
             >
-              <Smile size={24} strokeWidth={1.5} />
+              <Smile size={26} strokeWidth={2} />
             </button>
           </div>
 
@@ -225,7 +232,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             ref={inputRef}
             placeholder={isRecording ? "Recording audio..." : (stagedAttachment ? (stagedAttachment.type === 'image' ? "Add a caption..." : "Message about this attachment...") : "Message")}
             disabled={isRecording}
-            className="flex-1 bg-transparent outline-none text-[16px] text-primary py-[10px] min-w-0 resize-none max-h-[140px] leading-relaxed custom-scrollbar disabled:opacity-70"
+            className="flex-1 bg-transparent outline-none text-[17px] text-primary py-[12px] min-w-0 resize-none max-h-[140px] leading-relaxed custom-scrollbar disabled:opacity-70"
             value={text}
             rows={1}
             onChange={(e) => {
@@ -241,30 +248,36 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             }}
           />
 
-          <div className="relative p-[10px] pr-3 shrink-0 flex items-center justify-center" ref={attachRef}>
+          <div className="relative p-[12px] pr-4 shrink-0 flex items-center gap-[18px] text-[#8696a0]" ref={attachRef}>
             <button
               onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-              className={`transition-transform duration-200 ${showAttachmentMenu ? 'text-[#00a884] -rotate-45' : 'text-[#8696a0] hover:text-[#00a884]'}`}
+              className={`transition-transform duration-200 hover:text-black/60 dark:hover:text-white/80 ${showAttachmentMenu ? 'text-[#00a884] -rotate-45' : ''}`}
             >
-              <Paperclip size={22} strokeWidth={1.5} />
+              <Paperclip size={24} strokeWidth={2} className="rotate-[135deg]" />
+            </button>
+            <button
+              onClick={() => imageInputRef.current?.click()}
+              className="transition-colors hover:text-black/60 dark:hover:text-white/80"
+            >
+              <Camera size={24} strokeWidth={2} />
             </button>
           </div>
         </div>
 
-        <div className="w-[44px] h-[44px] shrink-0 mb-[1px]">
+        <div className="w-[48px] h-[48px] shrink-0 mb-[0.5px]">
           {text.trim() || stagedAttachment ? (
             <button
               onClick={handleSend}
-              className="w-full h-full bg-[#00a884] hover:bg-[#008f6f] rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-sm"
+              className="w-full h-full bg-[#25d366] dark:bg-[#00a884] hover:bg-[#00a884] dark:hover:bg-[#008f6f] rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-[0_1px_3px_rgba(0,0,0,0.1)]"
             >
-              <SendHorizontal size={20} fill="currentColor" strokeWidth={1} className="ml-0.5" />
+              <SendHorizontal size={24} fill="currentColor" strokeWidth={1} className="ml-1" />
             </button>
           ) : (
             <button
               onClick={isRecording ? stopRecording : startRecording}
-              className={`w-full h-full rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-sm ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-[#00a884] hover:bg-[#008f6f]'}`}
+              className={`w-full h-full rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-[0_1px_3px_rgba(0,0,0,0.1)] ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-[#25d366] dark:bg-[#00a884] hover:bg-[#00a884] dark:hover:bg-[#008f6f]'}`}
             >
-              {isRecording ? <Square size={16} fill="currentColor" /> : <Mic size={20} fill="currentColor" strokeWidth={1} />}
+              {isRecording ? <Square size={18} fill="currentColor" /> : <WhatsAppMicIcon size={24} className="ml-[1px]" />}
             </button>
           )}
         </div>
