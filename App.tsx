@@ -16,6 +16,9 @@ import { getGeminiResponse } from './services/geminiService';
 import { saveMedia, getMedia } from './utils/storage';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
+// Helper for consistent 12-hour AM/PM time global formatting
+const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+
 // Utility to split AI responses into human-like chunks
 const splitMessage = (text: string): string[] => {
   if (!text) return [];
@@ -147,7 +150,7 @@ const App: React.FC = () => {
   const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message) => {
     if (!activeChat) return;
 
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+    const timestamp = getFormattedTime();
 
     let mediaId = '';
     if (attachment && (attachment.type === 'image' || attachment.type === 'audio')) {
@@ -269,7 +272,7 @@ const App: React.FC = () => {
           id: `${Date.now()}-${i}`, // Unique ID per chunk
           text: chunk,
           sender: 'other',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: getFormattedTime(),
           status: 'delivered'
         };
 
@@ -294,9 +297,10 @@ const App: React.FC = () => {
       }
 
       setChatStatus(chatId, 'online');
+      setTimeout(() => setChatStatus(chatId, 'offline'), 15000); // realistic drop off
     } catch (error) {
       console.error("Error getting AI response for single chat:", error);
-      setChatStatus(chatId, 'online'); // Revert status even on error
+      setChatStatus(chatId, 'offline'); // Revert status even on error
     }
   };
 
@@ -381,7 +385,7 @@ const App: React.FC = () => {
             sender: 'other',
             senderName: persona.name,
             senderId: persona.id,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestamp: getFormattedTime(),
             status: 'delivered'
           };
 
@@ -407,9 +411,10 @@ const App: React.FC = () => {
         }
 
         setChatStatus(group.id, 'online');
+        setTimeout(() => setChatStatus(group.id, 'offline'), 15000);
       } catch (error) {
         console.error(`Error getting AI response for group member ${responderId}:`, error);
-        setChatStatus(group.id, 'online'); // Revert status even on error
+        setChatStatus(group.id, 'offline'); // Revert status even on error
       }
     }
   };
@@ -441,7 +446,7 @@ const App: React.FC = () => {
       memberIds: data.memberIds,
       isGroup: true,
       lastMessage: 'Group created',
-      lastMessageTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(),
+      lastMessageTime: getFormattedTime(),
       messages: [{
         id: 'init',
         text: `Welcome to ${data.name}! Members: ${data.memberIds.map(id => chats.find(c => c.id === id)?.name).join(', ')}`,
@@ -462,7 +467,7 @@ const App: React.FC = () => {
       lastMessage: '',
       lastMessageTime: '',
       messages: [],
-      status: 'online',
+      status: 'offline',
     };
     setChats([newPersona, ...chats]);
     setActiveChatId(newPersona.id);

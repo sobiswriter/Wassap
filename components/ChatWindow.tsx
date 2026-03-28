@@ -25,6 +25,18 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
   const [mediaData, setMediaData] = useState<string | null>(null);
+  const touchTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const handleTouchStart = () => {
+    if (!onReply || isMe) return;
+    touchTimer.current = setTimeout(() => {
+      onReply(message);
+    }, 500);
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+  };
 
   useEffect(() => {
     const loadMedia = async () => {
@@ -45,14 +57,25 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
   const mediaSrc = mediaData || message.image || message.attachment?.data || null;
 
   return (
-    <div className={`flex w-full mb-1 group/bubble ${isMe ? 'justify-end' : 'justify-start'}`}>
+    <div 
+      className={`flex w-full mb-1 group/bubble ${isMe ? 'justify-end' : 'justify-start'}`}
+    >
       {!isMe && onReply && (
-        <button onClick={() => onReply(message)} className="opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity mr-1 self-center scale-x-[-1]">
+        <button onClick={() => onReply(message)} className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity mr-1 self-center scale-x-[-1]">
           <CornerDownLeft size={18} />
         </button>
       )}
       <div
-        className={`max-w-[85%] sm:max-w-[75%] p-1 rounded-lg shadow-sm relative transition-all duration-300 ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${isMe ? 'rounded-tr-none' : 'rounded-tl-none'}`}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchEnd}
+        onTouchEnd={handleTouchEnd}
+        onContextMenu={(e) => {
+           if (!isMe && onReply) {
+             e.preventDefault(); 
+             onReply(message);
+           }
+        }}
+        className={`max-w-[85%] sm:max-w-[75%] p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${isMe ? 'rounded-tr-none' : 'rounded-tl-none'}`}
         style={{ backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)' }}
       >
         {message.replyToMessage && (
@@ -137,7 +160,7 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
       </div>
 
       {isMe && onReply && (
-        <button onClick={() => onReply(message)} className="opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity ml-1 self-center">
+        <button onClick={() => onReply(message)} className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity ml-1 self-center">
           <CornerDownLeft size={18} />
         </button>
       )}
@@ -213,7 +236,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
 
   const getGroupMembersLabel = () => {
     if (chat.status === 'typing...') return <span className="text-[#00a884] font-medium italic animate-pulse">typing...</span>;
-    if (!chat.isGroup || !chat.memberIds) return chat.status || 'online';
+    if (!chat.isGroup || !chat.memberIds) {
+      if (chat.status === 'offline') {
+        const lastMsgTime = chat.messages.filter(m => m.sender === 'other').pop()?.timestamp || chat.lastMessageTime || '12:00 PM';
+        return `last seen today at ${lastMsgTime}`.toLowerCase();
+      }
+      return chat.status || 'offline';
+    }
     const names = chat.memberIds.map(id => allChats.find(c => id === c.id)?.name).filter(Boolean);
     return [...names, 'You'].join(', ');
   };
