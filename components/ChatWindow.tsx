@@ -65,11 +65,14 @@ const MessageBubble: React.FC<{
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
   const [mediaData, setMediaData] = useState<string | null>(null);
   const touchTimer = useRef<NodeJS.Timeout | null>(null);
+  const longPressed = useRef(false);
 
   const handleTouchStart = () => {
     if (!onToggleSelect) return;
     if (selectionMode) return; 
+    longPressed.current = false;
     touchTimer.current = setTimeout(() => {
+      longPressed.current = true;
       onToggleSelect(message);
     }, 500);
   };
@@ -98,8 +101,9 @@ const MessageBubble: React.FC<{
 
   return (
     <div 
-      className={`flex w-full group/bubble p-1 transition-colors duration-200 ${selected ? 'bg-[#00a884]/20 dark:bg-white/10' : ''} ${isMe ? 'justify-end' : 'justify-start'}`}
+      className={`flex w-full group/bubble px-1 py-[2px] transition-colors duration-200 ${selected ? 'bg-[#00a884]/25 dark:bg-white/10 selection-highlight' : ''} ${isMe ? 'justify-end' : 'justify-start'}`}
       onClick={() => {
+        if (longPressed.current) return;
         if (selectionMode && onToggleSelect) {
           onToggleSelect(message);
         }
@@ -117,7 +121,10 @@ const MessageBubble: React.FC<{
         onContextMenu={(e) => {
            if (onToggleSelect) {
              e.preventDefault(); 
-             if (!selectionMode) onToggleSelect(message);
+             if (!selectionMode) {
+               longPressed.current = true;
+               onToggleSelect(message);
+             }
            }
         }}
         className={`max-w-[85%] sm:max-w-[75%] p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto my-[2px] ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${isMe ? 'rounded-tr-none' : 'rounded-tl-none'}`}
@@ -361,11 +368,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                 <ArrowLeft size={20} />
               </button>
             )}
-            <div className="flex items-center flex-1 min-w-0" onClick={onHeaderClick}>
-              <img src={chat.avatar} alt={chat.name} className="w-10 h-10 rounded-full mr-3 object-cover shadow-sm" />
+            <div className="flex items-center flex-1 min-w-0 ml-1" onClick={onHeaderClick}>
+              <img src={chat.avatar} alt={chat.name} className="w-9 h-9 md:w-10 md:h-10 rounded-full mr-3 object-cover shadow-sm" />
               <div className="flex flex-col min-w-0">
-                <h2 className="text-[16px] text-primary font-medium leading-none truncate">{chat.name}</h2>
-                <span className="text-[12.5px] text-secondary mt-1.5 truncate">
+                <h2 className="text-[15px] md:text-[16px] text-primary font-medium leading-none truncate">{chat.name}</h2>
+                <span className="text-[12px] md:text-[12.5px] text-secondary mt-1 truncate">
                   {getGroupMembersLabel()}
                 </span>
               </div>
