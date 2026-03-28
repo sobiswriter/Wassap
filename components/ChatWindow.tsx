@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Search, MoreVertical, CheckCheck, Check, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft } from 'lucide-react';
+import { Search, MoreVertical, CheckCheck, Check, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy } from 'lucide-react';
 import { Chat, Message } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -20,7 +20,46 @@ interface ChatWindowProps {
 
 const MEMBER_COLORS = ['#35a62e', '#e542a3', '#9141ac', '#dfa633', '#1d88e5'];
 
-const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?: boolean; onReply?: (message: Message) => void }> = ({ message, highlight, isGroup, onReply }) => {
+const formatMessageText = (text: string) => {
+  if (!text) return null;
+  // Match WhatsApp & Standard Markdown: ```code```, `code`, **bold**, *bold*, _italics_, ~~strikethrough~~, ~strikethrough~
+  const parts = text.split(/(```[\s\S]*?```|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|~~[^~]+~~|~[^~]+~)/g);
+  
+  return parts.map((part, index) => {
+    if (part.startsWith('```') && part.endsWith('```')) {
+      return <code key={index} className="font-mono bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-[13px] text-[#00a884] block my-1 whitespace-pre-wrap">{part.slice(3, -3)}</code>;
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return <code key={index} className="font-mono bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded text-[13px] text-[#00a884]">{part.slice(1, -1)}</code>;
+    }
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index} className="font-bold">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <strong key={index} className="font-bold">{part.slice(1, -1)}</strong>;
+    }
+    if (part.startsWith('_') && part.endsWith('_')) {
+      return <em key={index} className="italic">{part.slice(1, -1)}</em>;
+    }
+    if (part.startsWith('~~') && part.endsWith('~~')) {
+      return <del key={index} className="line-through text-secondary">{part.slice(2, -2)}</del>;
+    }
+    if (part.startsWith('~') && part.endsWith('~')) {
+      return <del key={index} className="line-through text-secondary">{part.slice(1, -1)}</del>;
+    }
+    return <span key={index}>{part}</span>;
+  });
+};
+
+const MessageBubble: React.FC<{ 
+  message: Message; 
+  highlight?: boolean; 
+  isGroup?: boolean; 
+  onReply?: (message: Message) => void;
+  selected?: boolean;
+  onToggleSelect?: (message: Message) => void;
+  selectionMode?: boolean;
+}> = ({ message, highlight, isGroup, onReply, selected, onToggleSelect, selectionMode }) => {
   const isMe = message.sender === 'me';
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
@@ -28,9 +67,10 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
   const touchTimer = useRef<NodeJS.Timeout | null>(null);
 
   const handleTouchStart = () => {
-    if (!onReply || isMe) return;
+    if (!onToggleSelect) return;
+    if (selectionMode) return; 
     touchTimer.current = setTimeout(() => {
-      onReply(message);
+      onToggleSelect(message);
     }, 500);
   };
 
@@ -58,9 +98,14 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
 
   return (
     <div 
-      className={`flex w-full mb-1 group/bubble ${isMe ? 'justify-end' : 'justify-start'}`}
+      className={`flex w-full group/bubble p-1 transition-colors duration-200 ${selected ? 'bg-[#00a884]/20 dark:bg-white/10' : ''} ${isMe ? 'justify-end' : 'justify-start'}`}
+      onClick={() => {
+        if (selectionMode && onToggleSelect) {
+          onToggleSelect(message);
+        }
+      }}
     >
-      {!isMe && onReply && (
+      {!isMe && onReply && !selectionMode && (
         <button onClick={() => onReply(message)} className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity mr-1 self-center scale-x-[-1]">
           <CornerDownLeft size={18} />
         </button>
@@ -70,12 +115,12 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
         onTouchMove={handleTouchEnd}
         onTouchEnd={handleTouchEnd}
         onContextMenu={(e) => {
-           if (!isMe && onReply) {
+           if (onToggleSelect) {
              e.preventDefault(); 
-             onReply(message);
+             if (!selectionMode) onToggleSelect(message);
            }
         }}
-        className={`max-w-[85%] sm:max-w-[75%] p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${isMe ? 'rounded-tr-none' : 'rounded-tl-none'}`}
+        className={`max-w-[85%] sm:max-w-[75%] p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto my-[2px] ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${isMe ? 'rounded-tr-none' : 'rounded-tl-none'}`}
         style={{ backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)' }}
       >
         {message.replyToMessage && (
@@ -94,7 +139,6 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
           </div>
         )}
 
-        {/* Render Image Attachment with Intelligent Scaling */}
         {mediaSrc && message.attachment?.type !== 'audio' && (
           <div className="p-0.5 overflow-hidden">
             <img
@@ -106,7 +150,6 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
           </div>
         )}
 
-        {/* Render Document Attachment */}
         {message.attachment?.type === 'document' && (
           <div className="p-2 flex items-center gap-3 bg-black/5 dark:bg-black/20 rounded-md mb-1 border border-black/5 hover:bg-black/10 transition-colors cursor-pointer group">
             <div className="w-12 h-12 bg-[#00a884] rounded flex items-center justify-center text-white shadow-sm shrink-0 group-hover:scale-105 transition-transform">
@@ -120,7 +163,6 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
           </div>
         )}
 
-        {/* Render Audio Attachment */}
         {message.attachment?.type === 'audio' && (
           <div className="p-2 flex items-center justify-between min-w-[200px] gap-2">
             <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: isMe ? '#eaffe4' : 'rgba(0,0,0,0.05)' }}>
@@ -130,15 +172,13 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
           </div>
         )}
 
-        {/* Text Content (Caption or Message) */}
         <div className="px-2 py-1 flex flex-col relative">
           {message.text && (
             <p className={`text-[14.5px] text-primary whitespace-pre-wrap break-words pr-12 ${hasAttachment ? 'pt-1 pb-4' : 'pb-3'}`}>
-              {message.text}
+              {formatMessageText(message.text)}
             </p>
           )}
 
-          {/* Timestamp and Status */}
           <div className={`flex items-center gap-1 self-end ${message.text ? 'absolute bottom-1 right-2' : 'mt-1 mb-0.5 mr-1'}`}>
             <span className="text-[10px] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
             {isMe && (
@@ -149,7 +189,6 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
           </div>
         </div>
 
-        {/* Bubble Tail */}
         <div
           className={`absolute top-0 ${isMe ? '-right-2 border-l-[10px]' : '-left-2 border-r-[10px]'} border-t-[10px] border-t-transparent`}
           style={{
@@ -159,12 +198,12 @@ const MessageBubble: React.FC<{ message: Message; highlight?: boolean; isGroup?:
         />
       </div>
 
-      {isMe && onReply && (
+      {isMe && onReply && !selectionMode && (
         <button onClick={() => onReply(message)} className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity ml-1 self-center">
           <CornerDownLeft size={18} />
         </button>
       )}
-    </div >
+    </div>
   );
 };
 
@@ -174,7 +213,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setSelectedMessageIds([]);
+  }, [chat?.id]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -196,7 +240,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
     return (
       <div className="flex-1 app-header flex flex-col items-center justify-center relative overflow-hidden transition-colors duration-300">
         <div className="flex gap-8 relative z-10 p-12 border rounded-xl app-border bg-[#f8f9fa] dark:bg-[#182229] shadow-sm">
-          {/* Profile Shortcut */}
           <div className="flex flex-col items-center gap-3 group cursor-pointer" onClick={onProfileClick}>
             <div className="w-20 h-20 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-[#54656f] group-hover:bg-black/10 dark:group-hover:bg-white/10 transition-all active:scale-95">
               <User size={32} />
@@ -204,7 +247,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
             <span className="text-[14px] text-secondary font-medium">Your Profile</span>
           </div>
 
-          {/* Add Contact Shortcut */}
           <div className="flex flex-col items-center gap-3 group cursor-pointer" onClick={onAddContact}>
             <div className="w-20 h-20 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-[#54656f] group-hover:bg-black/10 dark:group-hover:bg-white/10 transition-all active:scale-95">
               <UserPlus size={32} />
@@ -212,7 +254,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
             <span className="text-[14px] text-secondary font-medium">Add contact</span>
           </div>
 
-          {/* Ask Meta AI Shortcut */}
           <div className="flex flex-col items-center gap-3 group cursor-pointer" onClick={onMetaAIClick}>
             <div className="w-20 h-20 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center group-hover:bg-black/10 dark:group-hover:bg-white/10 transition-all active:scale-95">
               <div className="w-8 h-8 rounded-full border-[3px] p-[1px] bg-clip-border"
@@ -275,70 +316,105 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
         />
       )}
 
-      {/* Chat Window Header */}
-      <div className="h-[59px] app-header border-b app-border px-2 md:px-4 flex items-center justify-between z-20 shrink-0">
-        <div className="flex items-center cursor-pointer flex-1 min-w-0">
-          {onBack && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onBack(); }}
-              className="p-2 mr-1 hover:bg-black/5 rounded-full text-secondary md:hidden"
-            >
-              <ArrowLeft size={20} />
+      {selectedMessageIds.length > 0 ? (
+        <div className="h-[59px] bg-[#f0f2f5] dark:bg-[#202c33] border-b app-border px-4 flex items-center justify-between z-20 shrink-0">
+          <div className="flex items-center">
+            <button onClick={() => setSelectedMessageIds([])} className="p-2 mr-2 hover:bg-black/5 rounded-full text-secondary transition-colors">
+              <X size={20} />
             </button>
-          )}
-          <div className="flex items-center flex-1 min-w-0" onClick={onHeaderClick}>
-            <img src={chat.avatar} alt={chat.name} className="w-10 h-10 rounded-full mr-3 object-cover shadow-sm" />
-            <div className="flex flex-col min-w-0">
-              <h2 className="text-[16px] text-primary font-medium leading-none truncate">{chat.name}</h2>
-              <span className="text-[12.5px] text-secondary mt-1.5 truncate">
-                {getGroupMembersLabel()}
-              </span>
+            <span className="text-[19px] ml-4 text-primary font-medium">{selectedMessageIds.length}</span>
+          </div>
+          <div className="flex items-center gap-4 text-secondary">
+             {selectedMessageIds.length === 1 && onReply && (
+                <button 
+                  onClick={() => {
+                     const msg = chat.messages.find(m => m.id === selectedMessageIds[0]);
+                     if(msg) onReply(msg);
+                     setSelectedMessageIds([]);
+                  }} 
+                  className="p-2 hover:bg-black/5 rounded-full transition-colors scale-x-[-1]"
+                >
+                  <CornerDownLeft size={20} />
+                </button>
+             )}
+             <button 
+               onClick={() => {
+                  const texts = chat.messages.filter(m => selectedMessageIds.includes(m.id)).map(m => m.text).join('\n\n');
+                  if (texts) {
+                      navigator.clipboard.writeText(texts).then(() => setSelectedMessageIds([]));
+                  }
+               }} 
+               className="p-2 hover:bg-black/5 rounded-full transition-colors"
+             >
+               <Copy size={20} />
+             </button>
+          </div>
+        </div>
+      ) : (
+        <div className="h-[59px] app-header border-b app-border px-2 md:px-4 flex items-center justify-between z-20 shrink-0">
+          <div className="flex items-center cursor-pointer flex-1 min-w-0">
+            {onBack && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onBack(); }}
+                className="p-2 mr-1 hover:bg-black/5 rounded-full text-secondary md:hidden"
+              >
+                <ArrowLeft size={20} />
+              </button>
+            )}
+            <div className="flex items-center flex-1 min-w-0" onClick={onHeaderClick}>
+              <img src={chat.avatar} alt={chat.name} className="w-10 h-10 rounded-full mr-3 object-cover shadow-sm" />
+              <div className="flex flex-col min-w-0">
+                <h2 className="text-[16px] text-primary font-medium leading-none truncate">{chat.name}</h2>
+                <span className="text-[12.5px] text-secondary mt-1.5 truncate">
+                  {getGroupMembersLabel()}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 md:gap-6 text-secondary relative">
+            <Search
+              size={20}
+              className={`cursor-pointer transition-colors ${showSearch ? 'text-[#00a884]' : 'hover:text-primary'}`}
+              onClick={() => setShowSearch(!showSearch)}
+            />
+            <div className="relative" ref={menuRef}>
+              <MoreVertical size={20} className="cursor-pointer hover:text-primary transition-colors" onClick={() => setShowMenu(!showMenu)} />
+              {showMenu && (
+                <div className="absolute right-0 top-10 w-[210px] app-panel shadow-2xl rounded-lg py-2 z-50 animate-in fade-in zoom-in duration-200 origin-top-right border app-border overflow-hidden">
+                  <button
+                    onClick={() => { onHeaderClick(); setShowMenu(false); }}
+                    className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
+                  >
+                    <Info size={18} className="text-secondary" /> {chat.isGroup ? 'Group info' : 'Contact info / Edit'}
+                  </button>
+                  <button
+                    onClick={() => { setShowSearch(true); setShowMenu(false); }}
+                    className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
+                  >
+                    <Search size={18} className="text-secondary" /> Search messages
+                  </button>
+                  <div className="h-[1px] app-border bg-border mx-2 my-1 opacity-50" />
+                  <button
+                    onClick={() => { setShowClearModal(true); setShowMenu(false); }}
+                    className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
+                  >
+                    <Eraser size={18} className="text-secondary" /> Clear chat
+                  </button>
+                  <div className="h-[1px] app-border bg-border mx-2 my-1 opacity-50" />
+                  <button
+                    onClick={() => { onDeleteChat(); setShowMenu(false); }}
+                    className="w-full text-left px-4 py-3 text-[14.5px] text-[#ea0038] hover:bg-black/5 flex items-center gap-3 transition-colors"
+                  >
+                    <Trash2 size={18} /> {chat.isGroup ? 'Exit group' : 'Delete chat'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
+      )}
 
-        <div className="flex items-center gap-4 md:gap-6 text-secondary relative">
-          <Search
-            size={20}
-            className={`cursor-pointer transition-colors ${showSearch ? 'text-[#00a884]' : 'hover:text-primary'}`}
-            onClick={() => setShowSearch(!showSearch)}
-          />
-          <div className="relative" ref={menuRef}>
-            < MoreVertical size={20} className="cursor-pointer hover:text-primary transition-colors" onClick={() => setShowMenu(!showMenu)} />
-            {showMenu && (
-              <div className="absolute right-0 top-10 w-[210px] app-panel shadow-2xl rounded-lg py-2 z-50 animate-in fade-in zoom-in duration-200 origin-top-right border app-border overflow-hidden">
-                <button
-                  onClick={() => { onHeaderClick(); setShowMenu(false); }}
-                  className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
-                >
-                  <Info size={18} className="text-secondary" /> {chat.isGroup ? 'Group info' : 'Contact info / Edit'}
-                </button>
-                <button
-                  onClick={() => { setShowSearch(true); setShowMenu(false); }}
-                  className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
-                >
-                  <Search size={18} className="text-secondary" /> Search messages
-                </button>
-                <div className="h-[1px] app-border bg-border mx-2 my-1 opacity-50" />
-                <button
-                  onClick={() => { setShowClearModal(true); setShowMenu(false); }}
-                  className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
-                >
-                  <Eraser size={18} className="text-secondary" /> Clear chat
-                </button>
-                <button
-                  onClick={() => { setShowDeleteModal(true); setShowMenu(false); }}
-                  className="w-full text-left px-4 py-3 text-[14.5px] text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-3 transition-colors font-medium"
-                >
-                  <Trash2 size={18} /> {chat.isGroup ? 'Exit Group' : 'Delete persona'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Chat Search Bar Overlay */}
       {showSearch && (
         <div className="app-header border-b app-border px-4 py-2 flex items-center gap-3 animate-in slide-in-from-top duration-200 shadow-sm z-20 shrink-0">
           <div className="flex-1 app-panel rounded-lg px-3 py-1.5 flex items-center gap-3 border app-border focus-within:ring-1 focus-within:ring-[#00a884]/20">
@@ -360,11 +436,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
         </div>
       )}
 
-      {/* Main Chat Scroll Area */}
-      <div
-        className="absolute inset-0 flex flex-col p-4 sm:p-10 space-y-1 overflow-y-auto pointer-events-auto z-10"
-        ref={scrollRef}
-      >
+      <div className="absolute inset-0 flex flex-col p-4 sm:p-10 space-y-1 overflow-y-auto pointer-events-auto z-10">
         <div className="flex justify-center my-4">
           <div className="encryption-box text-[12.5px] px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 max-w-[500px] text-center border app-border">
             <Lock size={12} className="shrink-0 opacity-60" />
@@ -381,11 +453,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
         )}
 
         {filteredMessages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} highlight={!!searchTerm} isGroup={chat.isGroup} onReply={onReply} />
+          <MessageBubble
+            key={msg.id}
+            message={msg}
+            highlight={!!searchTerm}
+            isGroup={chat.isGroup}
+            onReply={onReply}
+            selected={selectedMessageIds.includes(msg.id)}
+            onToggleSelect={(m) => {
+               setSelectedMessageIds(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]);
+            }}
+            selectionMode={selectedMessageIds.length > 0}
+          />
         ))}
+        <div ref={scrollRef} />
       </div>
 
-      {/* Theme-Aware Wallpaper Layer */}
       <div className="absolute inset-0 pointer-events-none chat-wallpaper transition-all duration-500" />
     </div>
   );
