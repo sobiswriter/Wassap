@@ -59,12 +59,18 @@ USER'S IMPORTANT DATES / NOTES FOR YOU:
 ${settings.calendarNotes}
 ` : '';
 
+    const groundingPrompt = settings?.useSearchGrounding ? `
+CRITICAL INSTRUCTION: Google Search Grounding is ENABLED. If the user asks for current events, facts, or tells you to check the web, you MUST use your Google Search tool to find the answer.
+IMPORTANT RULE: NEVER use formal citations (like [1], URLs, or "according to..."). Weave the facts you find naturally into your chat response as if you just looked it up on your phone. Keep your persona intact!
+` : '';
+
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}
 ${groupPrompt}
 ${userContext}
 ${timeContext}
 ${notesContext}
+${groundingPrompt}
 
 Instructions:
 1. Respond naturally to the last few messages.

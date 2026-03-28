@@ -22,8 +22,8 @@ const MEMBER_COLORS = ['#35a62e', '#e542a3', '#9141ac', '#dfa633', '#1d88e5'];
 
 const formatMessageText = (text: string) => {
   if (!text) return null;
-  // Match WhatsApp & Standard Markdown: ```code```, `code`, **bold**, *bold*, _italics_, ~~strikethrough~~, ~strikethrough~
-  const parts = text.split(/(```[\s\S]*?```|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|~~[^~]+~~|~[^~]+~)/g);
+  // Match WhatsApp & Standard Markdown: ```code```, `code`, **bold**, *bold*, _italics_, ~~strikethrough~~, ~strikethrough~, [text](url)
+  const parts = text.split(/(```[\s\S]*?```|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|~~[^~]+~~|~[^~]+~|\[[^\]]+\]\([^)]+\))/g);
   
   return parts.map((part, index) => {
     if (part.startsWith('```') && part.endsWith('```')) {
@@ -46,6 +46,10 @@ const formatMessageText = (text: string) => {
     }
     if (part.startsWith('~') && part.endsWith('~')) {
       return <del key={index} className="line-through text-secondary">{part.slice(1, -1)}</del>;
+    }
+    const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (linkMatch) {
+      return <a key={index} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" className="text-[#53bdeb] hover:underline cursor-pointer" onClick={(e) => e.stopPropagation()}>{linkMatch[1]}</a>;
     }
     return <span key={index}>{part}</span>;
   });
