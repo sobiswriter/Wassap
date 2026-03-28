@@ -64,22 +64,7 @@ const MessageBubble: React.FC<{
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
   const [mediaData, setMediaData] = useState<string | null>(null);
-  const touchTimer = useRef<NodeJS.Timeout | null>(null);
-  const longPressed = useRef(false);
-
-  const handleTouchStart = () => {
-    if (!onToggleSelect) return;
-    if (selectionMode) return; 
-    longPressed.current = false;
-    touchTimer.current = setTimeout(() => {
-      longPressed.current = true;
-      onToggleSelect(message);
-    }, 500);
-  };
-
-  const handleTouchEnd = () => {
-    if (touchTimer.current) clearTimeout(touchTimer.current);
-  };
+  const lastTap = useRef(0);
 
   useEffect(() => {
     const loadMedia = async () => {
@@ -103,9 +88,18 @@ const MessageBubble: React.FC<{
     <div 
       className={`flex w-full group/bubble px-1 py-[2px] transition-colors duration-200 ${selected ? 'bg-[#00a884]/25 dark:bg-white/10 selection-highlight' : ''} ${isMe ? 'justify-end' : 'justify-start'}`}
       onClick={() => {
-        if (longPressed.current) return;
-        if (selectionMode && onToggleSelect) {
+        if (!onToggleSelect) return;
+        const now = Date.now();
+        if (now - lastTap.current < 300) {
+          // Double Tap Detected
           onToggleSelect(message);
+          lastTap.current = 0; // Prevent triple-tap loops
+        } else {
+          lastTap.current = now;
+          // Normal Tap in Selection Mode
+          if (selectionMode) {
+             onToggleSelect(message);
+          }
         }
       }}
     >
@@ -115,18 +109,6 @@ const MessageBubble: React.FC<{
         </button>
       )}
       <div
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchEnd}
-        onTouchEnd={handleTouchEnd}
-        onContextMenu={(e) => {
-           if (onToggleSelect) {
-             e.preventDefault(); 
-             if (!selectionMode) {
-               longPressed.current = true;
-               onToggleSelect(message);
-             }
-           }
-        }}
         className={`max-w-[85%] sm:max-w-[75%] p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto my-[2px] ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${isMe ? 'rounded-tr-none' : 'rounded-tl-none'}`}
         style={{ backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)' }}
       >
