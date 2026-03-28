@@ -215,9 +215,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
     }
-  }, [chat?.messages]);
+  }, [chat?.id, chat?.messages]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
