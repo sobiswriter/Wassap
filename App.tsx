@@ -19,29 +19,6 @@ import { MobileActionFAB } from './components/MobileActionFAB';
 // Helper for consistent 12-hour AM/PM time global formatting
 const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
 
-// Helper to play notification sound
-const playNotificationSound = () => {
-  try {
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.05);
-    
-    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.02);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-    
-    oscillator.start(audioCtx.currentTime);
-    oscillator.stop(audioCtx.currentTime + 0.2);
-  } catch (e) { console.error("Audio playback failed", e); }
-};
-
 // Robust Notification Helper for Desktop & Mobile Tray
 const showNotification = async (title: string, options: NotificationOptions) => {
   // 1. Try Service Worker (Required for mobile drawer)
@@ -249,7 +226,6 @@ const App: React.FC = () => {
         const isFocusingChat = !document.hidden && activeChatId === chatId;
 
         if (settings.enableNotifications && !isFocusingChat) {
-          playNotificationSound();
           if (document.hidden) {
             document.title = `(1) New Message - ${targetChat.name}`;
             showNotification(targetChat.name, { body: chunk, icon: targetChat.avatar, tag: chatId });
@@ -519,7 +495,6 @@ const App: React.FC = () => {
         const isFocusingChat = !document.hidden && activeChatId === chatId;
 
         if (settings.enableNotifications && !isFocusingChat) {
-          playNotificationSound();
           if (document.hidden) {
             document.title = `(1) New Message - ${chat.name}`;
             showNotification(chat.name, { body: chunk, icon: chat.avatar, tag: chat.id });
@@ -644,7 +619,6 @@ const App: React.FC = () => {
           const isFocusingChat = !document.hidden && activeChatId === group.id;
 
           if (settings.enableNotifications && !isFocusingChat) {
-            playNotificationSound();
             if (document.hidden) {
               document.title = `(1) New Message - ${group.name}`;
               const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
