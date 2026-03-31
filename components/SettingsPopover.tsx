@@ -153,37 +153,54 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Bell size={20} className={settings.enableNotifications ? "text-[#00a884]" : "text-gray-400"} />
-            <div>
-              <p className="text-[14.5px] font-medium">Desktop Notifications</p>
-              <p className="text-[12px] text-secondary">Get notified of background messages</p>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Bell size={20} className={settings.enableNotifications ? "text-[#00a884]" : "text-gray-400"} />
+              <div>
+                <p className="text-[14.5px] font-medium">Desktop Notifications</p>
+                <p className="text-[12px] text-secondary">Get notified of background messages</p>
+              </div>
             </div>
-          </div>
-          <div
-            onClick={async () => {
-              if (!settings.enableNotifications) {
-                if (Notification.permission === 'default') {
-                  const perm = await Notification.requestPermission();
-                  if (perm === 'granted') {
+            <div
+              onClick={async () => {
+                if (!settings.enableNotifications) {
+                  if (Notification.permission === 'default') {
+                    const perm = await Notification.requestPermission();
+                    if (perm === 'granted') {
+                      onUpdate({ ...settings, enableNotifications: true });
+                    } else {
+                      alert('Notifications have been blocked by your browser settings.');
+                    }
+                  } else if (Notification.permission === 'granted') {
                     onUpdate({ ...settings, enableNotifications: true });
                   } else {
                     alert('Notifications have been blocked by your browser settings.');
                   }
-                } else if (Notification.permission === 'granted') {
-                  onUpdate({ ...settings, enableNotifications: true });
                 } else {
-                  alert('Notifications have been blocked by your browser settings.');
+                  onUpdate({ ...settings, enableNotifications: false });
                 }
-              } else {
-                onUpdate({ ...settings, enableNotifications: false });
-              }
-            }}
-            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${settings.enableNotifications ? 'bg-[#00a884]' : 'bg-gray-400'}`}
-          >
-            <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${settings.enableNotifications ? 'left-[22px]' : 'left-[2px]'}`} />
+              }}
+              className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${settings.enableNotifications ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+            >
+              <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${settings.enableNotifications ? 'left-[22px]' : 'left-[2px]'}`} />
+            </div>
           </div>
+          {settings.enableNotifications && (
+            <button
+              onClick={() => {
+                if ('Notification' in window && Notification.permission === 'granted') {
+                  const n = new Notification('Browser Settings Verified', { body: 'This is a test notification from your Wassap client. Desktop notifications are fully working!' });
+                  setTimeout(() => n.close(), 6000);
+                } else {
+                  alert('Your browser is currently blocking notifications from this site. Please click the lock icon in the URL bar and allow notifications.');
+                }
+              }}
+              className="w-full text-[12px] py-1.5 bg-[#00a884]/10 text-[#00a884] font-medium rounded mt-1 hover:bg-[#00a884]/20 transition-colors uppercase tracking-tight"
+            >
+              Send Test Notification
+            </button>
+          )}
         </div>
       </div>
 

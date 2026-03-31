@@ -19,6 +19,29 @@ import { MobileActionFAB } from './components/MobileActionFAB';
 // Helper for consistent 12-hour AM/PM time global formatting
 const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
 
+// Helper to play notification sound
+const playNotificationSound = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.05);
+    
+    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    
+    oscillator.start(audioCtx.currentTime);
+    oscillator.stop(audioCtx.currentTime + 0.2);
+  } catch (e) { console.error("Audio playback failed", e); }
+};
+
 // Utility to split AI responses into human-like chunks
 const splitMessage = (text: string): string[] => {
   if (!text) return [];
@@ -89,6 +112,17 @@ const App: React.FC = () => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Clear title notification when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        document.title = 'Wassap';
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -190,12 +224,17 @@ const App: React.FC = () => {
           return c;
         }));
 
-        if (settings.enableNotifications) {
-          try {
-            const n = new Notification(targetChat.name, { body: chunk, icon: targetChat.avatar });
-            // For testing purposes, force the notification to close after 5s if it doesn't automatically
-            setTimeout(() => n.close(), 5000);
-          } catch(e) { console.error("Notification failed", e); }
+        const isFocusingChat = !document.hidden && activeChatId === chatId;
+
+        if (settings.enableNotifications && !isFocusingChat) {
+          playNotificationSound();
+          if (document.hidden) {
+            document.title = `(1) New Message - ${targetChat.name}`;
+            try {
+              const n = new Notification(targetChat.name, { body: chunk, icon: targetChat.avatar });
+              setTimeout(() => n.close(), 5000);
+            } catch(e) { console.error("Notification failed", e); }
+          }
         }
 
         if (i < chunks.length - 1) {
@@ -458,10 +497,17 @@ const App: React.FC = () => {
           return c;
         }));
 
-        if (settings.enableNotifications) {
-          try {
-            new Notification(chat.name, { body: chunk, icon: chat.avatar });
-          } catch(e) {}
+        const isFocusingChat = !document.hidden && activeChatId === chatId;
+
+        if (settings.enableNotifications && !isFocusingChat) {
+          playNotificationSound();
+          if (document.hidden) {
+            document.title = `(1) New Message - ${chat.name}`;
+            try {
+              const n = new Notification(chat.name, { body: chunk, icon: chat.avatar });
+              setTimeout(() => n.close(), 5000);
+            } catch(e) {}
+          }
         }
 
         // Small pause between messages to feel like the user is "hitting send"
@@ -579,12 +625,19 @@ const App: React.FC = () => {
             return c;
           }));
 
-          if (settings.enableNotifications) {
-            const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
-            const personaAvatar = chats.find(c => c.id === responderId)?.avatar;
-            try {
-               new Notification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar });
-            } catch(e) {}
+          const isFocusingChat = !document.hidden && activeChatId === group.id;
+
+          if (settings.enableNotifications && !isFocusingChat) {
+            playNotificationSound();
+            if (document.hidden) {
+              document.title = `(1) New Message - ${group.name}`;
+              const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
+              const personaAvatar = chats.find(c => c.id === responderId)?.avatar;
+              try {
+                 const n = new Notification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar });
+                 setTimeout(() => n.close(), 5000);
+              } catch(e) {}
+            }
           }
 
           if (j < chunks.length - 1) {
