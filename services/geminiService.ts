@@ -6,7 +6,8 @@ export const getGeminiResponse = async (
   messageHistory: { text: string; sender: string; senderName?: string; image?: string; audio?: string }[],
   userProfile?: UserProfile,
   groupContext?: { groupName: string; otherMembers: string[] },
-  settings?: AppSettings
+  settings?: AppSettings,
+  initiationContext?: string
 ) => {
   const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
 
@@ -64,6 +65,12 @@ CRITICAL INSTRUCTION: Google Search Grounding is ENABLED. If the user asks for c
 IMPORTANT RULE: NEVER use formal citations (like [1], URLs, or "according to..."). Weave the facts you find naturally into your chat response as if you just looked it up on your phone. Keep your persona intact!
 ` : '';
 
+    const initiationPrompt = initiationContext ? `
+CRITICAL INSTRUCTION: You are initiating this conversation right now. Do not wait for the user to speak.
+Reason/Context for this message: ${initiationContext}
+Start the conversation naturally based on this specific context.
+` : '';
+
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}
 ${groupPrompt}
@@ -71,9 +78,10 @@ ${userContext}
 ${timeContext}
 ${notesContext}
 ${groundingPrompt}
+${initiationPrompt}
 
 Instructions:
-1. Respond naturally to the last few messages.
+1. Respond naturally to the last few messages (or initiate if instructed above).
 2. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
 3. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear! If it's silent or unclear, politely ask them to repeat.
 4. If in a group, you don't always have to talk to the user; you can reply to another member's comment.

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Camera, Link as LinkIcon, Save, Info, Globe, Check, Users, Trash2, Eraser } from 'lucide-react';
+import { X, Camera, Link as LinkIcon, Save, Info, Globe, Check, Users, Trash2, Eraser, Settings, ChevronDown, ChevronRight, Plus, Clock } from 'lucide-react';
 import { Chat } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -11,17 +11,25 @@ interface ProfilePanelProps {
   onUpdate: (updates: Partial<Chat>) => void;
   onDeleteChat?: () => void;
   onClearChat?: () => void;
+  onTestAutomation?: (chatId: string, testType: 'inactivity' | 'time', contextOverride?: string) => void;
 }
 
-export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onClose, onUpdate, onDeleteChat, onClearChat }) => {
+export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onClose, onUpdate, onDeleteChat, onClearChat, onTestAutomation }) => {
   const [formData, setFormData] = useState({
     name: chat.name,
     about: chat.about || (chat.isGroup ? 'Group Description' : 'Hey there! I am using WhatsApp.'),
     role: chat.role || '',
     speechStyle: chat.speechStyle || '',
     systemInstruction: chat.systemInstruction || '',
-    avatar: chat.avatar
+    avatar: chat.avatar,
+    automation: chat.automation || {
+      enabled: false,
+      timeTriggers: [],
+      inactivity: { enabled: false, minHours: 6, maxHours: 8 }
+    }
   });
+
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlValue, setUrlValue] = useState(chat.avatar);
@@ -36,7 +44,12 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
       role: chat.role || '',
       speechStyle: chat.speechStyle || '',
       systemInstruction: chat.systemInstruction || '',
-      avatar: chat.avatar
+      avatar: chat.avatar,
+      automation: chat.automation || {
+        enabled: false,
+        timeTriggers: [],
+        inactivity: { enabled: false, minHours: 6, maxHours: 8 }
+      }
     });
     setUrlValue(chat.avatar);
   }, [chat]);
@@ -227,6 +240,175 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
                 placeholder="Detailed instructions for the AI behavior..."
               />
             </div>
+          </div>
+        )}
+
+        {!chat.isGroup && (
+          <div className="mt-2 app-panel shadow-sm border-b app-border">
+            <div 
+              className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-black/5 transition-colors"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+            >
+              <div className="flex items-center gap-3">
+                <Settings size={20} className="text-secondary" />
+                <h4 className="text-[15px] text-primary font-medium">Advanced Features: Automation</h4>
+              </div>
+              {showAdvanced ? <ChevronDown size={20} className="text-secondary" /> : <ChevronRight size={20} className="text-secondary" />}
+            </div>
+            
+            {showAdvanced && (
+              <div className="px-6 py-6 space-y-6 border-t app-border bg-gray-50/50 dark:bg-black/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[14.5px] font-medium text-primary">Enable Automation</p>
+                    <p className="text-[12px] text-secondary">Allow AI to initiate conversations</p>
+                  </div>
+                  <div
+                    onClick={() => setFormData(p => ({ ...p, automation: { ...p.automation, enabled: !p.automation.enabled } }))}
+                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.automation.enabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                  >
+                    <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${formData.automation.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
+                  </div>
+                </div>
+
+                <div className={`space-y-6 transition-opacity ${formData.automation.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                  {/* Inactivity Section */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Clock size={16} className="text-secondary" />
+                        <h5 className="text-[14px] font-medium text-primary">Inactivity Check-ins</h5>
+                      </div>
+                      <div
+                        onClick={() => setFormData(p => ({ ...p, automation: { ...p.automation, inactivity: { ...p.automation.inactivity, enabled: !p.automation.inactivity.enabled } } }))}
+                        className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.automation.inactivity.enabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                      >
+                        <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.automation.inactivity.enabled ? 'left-[18px]' : 'left-[2px]'}`} />
+                      </div>
+                    </div>
+                    {formData.automation.inactivity.enabled && (
+                      <div className="flex items-center gap-2 text-[13px] text-secondary bg-white dark:bg-[#202c33] p-3 rounded border app-border">
+                        <span>Trigger randomly between</span>
+                        <input 
+                          type="number" 
+                          min="1" 
+                          max="72"
+                          value={formData.automation.inactivity.minHours}
+                          onChange={e => setFormData(p => ({ ...p, automation: { ...p.automation, inactivity: { ...p.automation.inactivity, minHours: Number(e.target.value) } } }))}
+                          className="w-12 outline-none border-b app-border text-center bg-transparent text-primary"
+                        />
+                        <span>and</span>
+                        <input 
+                          type="number" 
+                          min="1" 
+                          max="72"
+                          value={formData.automation.inactivity.maxHours}
+                          onChange={e => setFormData(p => ({ ...p, automation: { ...p.automation, inactivity: { ...p.automation.inactivity, maxHours: Number(e.target.value) } } }))}
+                          className="w-12 outline-none border-b app-border text-center bg-transparent text-primary"  
+                        />
+                        <span>hours</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Time Triggers Section */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-[14px] font-medium text-primary">Time-Based Greetings</h5>
+                    </div>
+                    <div className="space-y-3">
+                      {formData.automation.timeTriggers.map((t, i) => {
+                        const hasTriggeredToday = t.lastTriggered === new Date().toLocaleDateString('en-CA');
+                        
+                        return (
+                          <div key={t.id} className={`flex flex-col gap-2 p-3 bg-white dark:bg-[#202c33] border rounded relative transition-all ${hasTriggeredToday ? 'border-[#00a884]/50 shadow-sm shadow-[#00a884]/10 bg-[#00a884]/5 dark:bg-[#00a884]/10' : 'app-border'}`}>
+                            {hasTriggeredToday && (
+                               <div className="absolute top-0 right-0 -mt-2.5 -mr-2 bg-[#00a884] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1 border-2 border-white dark:border-[#202c33]">
+                                 <Check size={10} strokeWidth={3} /> Done for today
+                               </div>
+                            )}
+                            <div className="flex items-center justify-between">
+                              <input 
+                                type="text" 
+                                value={t.context}
+                              onChange={e => {
+                                const trigs = [...formData.automation.timeTriggers];
+                                trigs[i].context = e.target.value;
+                                delete trigs[i].lastTriggered;
+                                setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
+                              }}
+                              className="outline-none text-[13px] font-medium bg-transparent text-primary w-full"
+                              placeholder="e.g. Morning Greeting"
+                            />
+                            <div className="flex items-center gap-3 ml-2 shrink-0">
+                              <Globe 
+                                size={14} 
+                                className="text-blue-500 cursor-pointer hover:scale-110 transition-transform" 
+                                onClick={() => onTestAutomation?.(chat.id, 'time', t.context)} 
+                                title="Test this specific greeting context" 
+                              />
+                              <Trash2 size={16} className="text-red-400 cursor-pointer hover:scale-110 transition-transform" onClick={() => {
+                                const trigs = formData.automation.timeTriggers.filter((_, idx) => idx !== i);
+                                setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
+                              }} />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-[12px] text-secondary">
+                            <span>Randomly between:</span>
+                            <input 
+                              type="time" 
+                              value={t.startTime}
+                              onChange={e => {
+                                const trigs = [...formData.automation.timeTriggers];
+                                trigs[i].startTime = e.target.value;
+                                delete trigs[i].lastTriggered;
+                                setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
+                              }}
+                              className="outline-none tracking-wider bg-[#f0f2f5] dark:bg-[#111b21] p-1 rounded border app-border text-primary"
+                            />
+                            <span>and</span>
+                            <input 
+                              type="time" 
+                              value={t.endTime}
+                              onChange={e => {
+                                const trigs = [...formData.automation.timeTriggers];
+                                trigs[i].endTime = e.target.value;
+                                delete trigs[i].lastTriggered;
+                                setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
+                              }}
+                              className="outline-none tracking-wider bg-[#f0f2f5] dark:bg-[#111b21] p-1 rounded border app-border text-primary"
+                            />
+                          </div>
+                        </div>
+                        );
+                      })}
+                      <button 
+                        onClick={() => {
+                          const newTrig = { id: Date.now().toString(), context: 'New Greeting', startTime: '08:00', endTime: '09:00' };
+                          setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: [...p.automation.timeTriggers, newTrig] } }));
+                        }}
+                        className="w-full flex items-center justify-center gap-2 text-[13px] text-[#00a884] font-medium py-2 hover:bg-black/5 rounded transition-colors"
+                      >
+                        <Plus size={16} /> Add Trigger
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Test Buttons */}
+                  <div className="pt-4 border-t app-border space-y-2">
+                    <button
+                      onClick={() => onTestAutomation?.(chat.id, 'inactivity')}
+                      className="w-full flex items-center justify-center gap-2 text-[13px] bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium py-2.5 rounded hover:bg-blue-500/20 transition-colors uppercase tracking-tight"
+                    >
+                      <Clock size={16} /> Force Test Inactivity
+                    </button>
+                    <p className="text-[11px] text-secondary text-center leading-tight">
+                      Instantly triggers the background engine with an inactivity bypass. For time triggers, use the blue icon next to individual greetings.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

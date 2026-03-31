@@ -125,6 +125,169 @@ const App: React.FC = () => {
     }
   }, [settings.theme]);
 
+  const handleAutomationTrigger = async (chatId: string, context: string) => {
+    // We use the functional form of setChats to get the latest chat
+    let targetChat: Chat | undefined;
+    setChats(prev => {
+      targetChat = prev.find(c => c.id === chatId);
+      return prev;
+    });
+    if (!targetChat) return;
+
+    try {
+      // Look online while waiting for the API to formulate the response (prevents infinite "typing...")
+      setChatStatus(chatId, 'online');
+
+      const hydratedHistory = await Promise.all(targetChat.messages.map(async m => {
+        const mediaId = m.mediaId || m.attachment?.mediaId;
+        const mediaData = mediaId ? await getMedia(mediaId) : undefined;
+        let text = m.text;
+        if (m.replyToMessage) text = `[Replying to: "${m.replyToMessage.text}"] ` + text;
+        return {
+          text,
+          sender: m.sender,
+          image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
+          audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
+        };
+      }));
+
+      const response = await getGeminiResponse(
+        { ...targetChat },
+        hydratedHistory,
+        settings.shareUserInfo ? user : undefined,
+        undefined,
+        settings,
+        context
+      );
+
+      const chunks = splitMessage(response);
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const typingDuration = Math.min(Math.max(chunk.length * 40, 1500), 4000);
+
+        setChatStatus(chatId, 'typing...');
+        await new Promise(resolve => setTimeout(resolve, typingDuration));
+
+        const aiMsg: Message = {
+          id: `${Date.now()}-${i}`,
+          text: chunk,
+          sender: 'other',
+          timestamp: getFormattedTime(),
+          status: 'delivered'
+        };
+
+        setChats(prev => prev.map(c => {
+          if (c.id === chatId) {
+            return {
+              ...c,
+              messages: [...c.messages, aiMsg],
+              lastMessage: chunk,
+              lastMessageTime: aiMsg.timestamp,
+              unreadCount: (c.unreadCount || 0) + 1
+            };
+          }
+          return c;
+        }));
+
+        if (settings.enableNotifications) {
+          try {
+            const n = new Notification(targetChat.name, { body: chunk, icon: targetChat.avatar });
+            // For testing purposes, force the notification to close after 5s if it doesn't automatically
+            setTimeout(() => n.close(), 5000);
+          } catch(e) { console.error("Notification failed", e); }
+        }
+
+        if (i < chunks.length - 1) {
+          setChatStatus(chatId, 'online');
+          await new Promise(resolve => setTimeout(resolve, 800));
+        }
+      }
+
+      setChatStatus(chatId, 'online');
+      setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
+    } catch (error) {
+      console.error("Error in automation check:", error);
+      setChatStatus(chatId, 'offline');
+    }
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      // Use local date string instead of UTC
+      const todayDateStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD format
+      const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+
+      setChats(prevChats => {
+        let chatUpdated = false;
+        const updatedChats = [...prevChats];
+
+        for (let i = 0; i < updatedChats.length; i++) {
+          const chat = updatedChats[i];
+          if (chat.isGroup || !chat.automation?.enabled) continue;
+
+          const automation = chat.automation;
+          let triggeredContext = null;
+
+          // Process time triggers
+          for (let j = 0; j < automation.timeTriggers.length; j++) {
+            const trigger = automation.timeTriggers[j];
+            if (trigger.lastTriggered === todayDateStr) continue;
+
+            if (currentTimeStr >= trigger.startTime && currentTimeStr <= trigger.endTime) {
+              // High chance per tick to ensure it runs during the window
+              if (Math.random() < 0.6) {
+                trigger.lastTriggered = todayDateStr;
+                triggeredContext = trigger.context;
+                chatUpdated = true;
+                break; 
+              }
+            }
+          }
+
+          // Process inactivity check-ins
+          if (!triggeredContext && automation.inactivity.enabled) {
+             const lastMsgMe = [...chat.messages].reverse().find(m => m.sender === 'me');
+             if (lastMsgMe) {
+               let msgTime = parseInt(lastMsgMe.id, 10);
+               if (isNaN(msgTime)) {
+                 // For hardcoded mock messages that don't use timestamp IDs, pretend it was 24 hours ago
+                 msgTime = Date.now() - (24 * 60 * 60 * 1000);
+               }
+               
+               if (msgTime > 0) {
+                 const hoursSinceLastOurs = (Date.now() - msgTime) / (1000 * 60 * 60);
+
+                 if (hoursSinceLastOurs >= automation.inactivity.minHours) {
+                    const lastInactivityTrig = automation.lastInactivityTriggered || 0;
+                    if (lastInactivityTrig < msgTime) {
+                      // 100% chance if max hours passed, 30% chance per tick otherwise
+                      if (hoursSinceLastOurs >= automation.inactivity.maxHours || Math.random() < 0.3) {
+                        automation.lastInactivityTriggered = Date.now();
+                        triggeredContext = "The user has been inactive for several hours. Send a friendly natural check-in message based on the last conversation context.";
+                        chatUpdated = true;
+                      }
+                    }
+                 }
+               }
+             }
+          }
+
+          if (triggeredContext) {
+            console.log("Running automation for", chat.name, ":", triggeredContext);
+            // Run async out of loop
+            setTimeout(() => handleAutomationTrigger(chat.id, triggeredContext as string), 500);
+          }
+        }
+
+        return chatUpdated ? updatedChats : prevChats;
+      });
+    }, 15000); // Check every 15 seconds so testing feels responsive
+
+    return () => clearInterval(interval);
+  }, [settings.enableNotifications]);
+
   // Handle native hardware back button safely
   useEffect(() => {
     const isPanelOpen = showSettingsPopover || showNewChatPanel || showNewGroupPanel || showUserProfilePanel || showCalendarWidget || showProfilePanel;
@@ -295,6 +458,12 @@ const App: React.FC = () => {
           return c;
         }));
 
+        if (settings.enableNotifications) {
+          try {
+            new Notification(chat.name, { body: chunk, icon: chat.avatar });
+          } catch(e) {}
+        }
+
         // Small pause between messages to feel like the user is "hitting send"
         if (i < chunks.length - 1) {
           setChatStatus(chatId, 'online');
@@ -409,6 +578,14 @@ const App: React.FC = () => {
             }
             return c;
           }));
+
+          if (settings.enableNotifications) {
+            const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
+            const personaAvatar = chats.find(c => c.id === responderId)?.avatar;
+            try {
+               new Notification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar });
+            } catch(e) {}
+          }
 
           if (j < chunks.length - 1) {
             setChatStatus(group.id, 'online');
@@ -602,6 +779,15 @@ const App: React.FC = () => {
             onUpdate={updateActiveChat}
             onDeleteChat={handleDeleteChat}
             onClearChat={handleClearChat}
+            onTestAutomation={(chatId, type, contextOverride) => {
+              setShowProfilePanel(false);
+              const customContext = type === 'inactivity'
+                ? "This is a system test override. The user has been inactive. Send a friendly natural check-in message checking up on them."
+                : `This is a system test override. The user triggered a specific time-based test. The context/instruction for this greeting is: "${contextOverride}". Send a natural, contextual message following this instruction perfectly based on your persona.`;
+              setTimeout(() => {
+                handleAutomationTrigger(chatId, customContext);
+              }, 300);
+            }}
           />
         )}
         {/* Mobile Floating Action Button Hub */}

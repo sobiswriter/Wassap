@@ -24,6 +24,27 @@ export interface Message {
   replyToMessage?: Message;
 }
 
+export interface TimeTrigger {
+  id: string;
+  context: string; // e.g. "Morning greeting"
+  startTime: string; // e.g. "08:00"
+  endTime: string;   // e.g. "09:00"
+  lastTriggered?: string; // Date string (YYYY-MM-DD)
+}
+
+export interface InactivityTrigger {
+  enabled: boolean;
+  minHours: number;
+  maxHours: number;
+}
+
+export interface PersonaAutomation {
+  enabled: boolean;
+  timeTriggers: TimeTrigger[];
+  inactivity: InactivityTrigger;
+  lastInactivityTriggered?: number; // Timestamp
+}
+
 export interface Chat {
   id: string;
   name: string;
@@ -39,6 +60,7 @@ export interface Chat {
   systemInstruction?: string;
   isGroup?: boolean;
   memberIds?: string[]; // IDs of personas in the group
+  automation?: PersonaAutomation;
 }
 
 export interface UserProfile {
@@ -57,6 +79,7 @@ export interface AppSettings {
   useSearchGrounding?: boolean;
   selectedModel?: string;
   calendarNotes?: string;
+  enableNotifications?: boolean;
 }
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';

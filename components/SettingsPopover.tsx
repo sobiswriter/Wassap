@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe } from 'lucide-react';
+import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell } from 'lucide-react';
 import { AppSettings } from '../types';
 import { AVAILABLE_MODELS } from '../constants';
 
@@ -150,6 +150,39 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
             className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${settings.useSearchGrounding ? 'bg-[#00a884]' : 'bg-gray-400'}`}
           >
             <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${settings.useSearchGrounding ? 'left-[22px]' : 'left-[2px]'}`} />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Bell size={20} className={settings.enableNotifications ? "text-[#00a884]" : "text-gray-400"} />
+            <div>
+              <p className="text-[14.5px] font-medium">Desktop Notifications</p>
+              <p className="text-[12px] text-secondary">Get notified of background messages</p>
+            </div>
+          </div>
+          <div
+            onClick={async () => {
+              if (!settings.enableNotifications) {
+                if (Notification.permission === 'default') {
+                  const perm = await Notification.requestPermission();
+                  if (perm === 'granted') {
+                    onUpdate({ ...settings, enableNotifications: true });
+                  } else {
+                    alert('Notifications have been blocked by your browser settings.');
+                  }
+                } else if (Notification.permission === 'granted') {
+                  onUpdate({ ...settings, enableNotifications: true });
+                } else {
+                  alert('Notifications have been blocked by your browser settings.');
+                }
+              } else {
+                onUpdate({ ...settings, enableNotifications: false });
+              }
+            }}
+            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${settings.enableNotifications ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+          >
+            <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${settings.enableNotifications ? 'left-[22px]' : 'left-[2px]'}`} />
           </div>
         </div>
       </div>
