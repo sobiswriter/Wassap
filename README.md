@@ -1,8 +1,8 @@
-# WhatsApp Persona Simulation Environment (v1.1.5)
+# Wassap Persona Simulation (v1.2.0)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.1.5-brightgreen)
+![Version](https://img.shields.io/badge/version-1.2.0-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -13,17 +13,22 @@ A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Ta
 
 ## 🚀 Overview
 
-This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini LLM. Now I can always use WhatsApp when my friends are using it as well. Hehehe...
+This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini LLM.
 
-### 🌟 What's New in v1.1.5 (The "Immersion & UX" Update)
-*   **Quick Double-Tap Selection**: Say goodbye to finicky long-presses. Quickly tap a message twice to enter **Selection Mode**. Highlight multiple messages and use the new **Contextual Action Header** to Copy or Reply natively.
-*   **Omni-Markdown Engine**: Advanced parsing for both `*WhatsApp*` and `**Standard Markdown**` syntaxes. AI-generated code blocks and bolding now render perfectly every time.
-*   **Dynamic "Last Seen" Emulation**: Personas realistically transition between "online", "typing...", and time-calculated "last seen today at..." states.
-*   **Flawless PWA Navigation**: Added Android/iOS hardware back-button interception (`history.pushState` logic) preventing accidental app closures during menu navigation.
-*   **Live Google Search Grounding**: AI can now search the live web for facts by toggling Grounding in the Chat Settings.
-*   **Audio Voice Notes**: Record and send real microphone audio directly into the chat stream via `MediaRecorder`.
-*   **Responsive Scaling Fixes**: Overhauled all side-menus (Settings, Profiles, Calendars) to flawlessly map to full-screen sliding views on mobile devices.
-*   **Global Temporal Sync**: Mandatory 12-hour timezone synchronization (`05:38 PM`) for a consistent experience across all platforms.
+### 🌟 What's New in v1.2.0 (The "Persona Proactivity" Update)
+*   **AI Automation Engine**: Personas are no longer passive. They now monitor background context and can independently initiate conversations through randomized probability checks.
+*   **Time-Gate Triggers**: Create custom "Daily Greetings" (e.g., Morning, Lunch, Dinner). The AI will automatically reach out during these windows with a unique "Done for today" visual tracker in the UI.
+*   **Inactivity Check-ins**: If you haven't messaged a persona for a user-defined number of hours (e.g., 6-24 hrs), the AI will proactively check in on you with context-aware concern.
+*   **Mobile Notification Drawer Support**: Full **PWA (Progressive Web App)** implementation including `manifest.json` and basic Service Worker. "Install" the app on Android/iOS to receive background notifications directly in your system tray.
+*   **Advanced Testing Suite**: Explicit "Force Test" buttons for every automation type, allowing you to verify AI behavior and notification delivery instantly without waiting for timers.
+*   **Intelligent Suppression**: Notifications and pings are automatically silenced if you are actively focusing on the relevant chat window, ensuring a frictionless UX.
+*   **Tab-Focus Feedback**: Browser tab titles now dynamically flash `(1) New Message` when activity occurs in the background.
+
+### 🌟 Previous Updates (v1.1.5)
+*   **Quick Double-Tap Selection**: Say goodbye to finicky long-presses. Quickly tap a message twice to enter **Selection Mode**.
+*   **Omni-Markdown Engine**: Advanced parsing for both `*WhatsApp*` and `**Standard Markdown**` syntaxes.
+*   **Dynamic "Last Seen" Emulation**: Personas realistically transition between "online", "typing...", and time-calculated "last seen" states.
+*   **Audio Voice Notes**: Record and send real microphone audio directly into the chat stream.
 
 ### ✨ Core Features
 *   **Gemini AI Personalities**: Unique roles, speech styles, and backstories for every persona.
