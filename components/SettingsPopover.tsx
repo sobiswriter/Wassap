@@ -188,9 +188,29 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
           </div>
           {settings.enableNotifications && (
             <button
-              onClick={() => {
+              onClick={async () => {
+                const title = 'Wassap Verified';
+                const options = { 
+                  body: 'Desktop and Mobile Drawer notifications are fully working!',
+                  icon: '/logo192.png',
+                  badge: '/logo192.png',
+                  tag: 'test-notification'
+                };
+
+                // Try Service Worker first
+                if ('serviceWorker' in navigator) {
+                  try {
+                    const reg = await navigator.serviceWorker.ready;
+                    if (reg && reg.showNotification) {
+                      reg.showNotification(title, options);
+                      return;
+                    }
+                  } catch (e) { console.error("SW test failed", e); }
+                }
+
+                // Fallback to standard
                 if ('Notification' in window && Notification.permission === 'granted') {
-                  const n = new Notification('Browser Settings Verified', { body: 'This is a test notification from your Wassap client. Desktop notifications are fully working!' });
+                  const n = new Notification(title, options);
                   setTimeout(() => n.close(), 6000);
                 } else {
                   alert('Your browser is currently blocking notifications from this site. Please click the lock icon in the URL bar and allow notifications.');

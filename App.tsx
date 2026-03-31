@@ -42,6 +42,28 @@ const playNotificationSound = () => {
   } catch (e) { console.error("Audio playback failed", e); }
 };
 
+// Robust Notification Helper for Desktop & Mobile Tray
+const showNotification = async (title: string, options: NotificationOptions) => {
+  // 1. Try Service Worker (Required for mobile drawer)
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg && reg.showNotification) {
+        return reg.showNotification(title, options);
+      }
+    }
+  } catch (e) { console.warn("SW notification failed, falling back", e); }
+
+  // 2. Fallback to standard Notification API (Desktop)
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const n = new Notification(title, options);
+      setTimeout(() => n.close(), 5000);
+      return n;
+    }
+  } catch (e) { console.error("Standard notification failed", e); }
+};
+
 // Utility to split AI responses into human-like chunks
 const splitMessage = (text: string): string[] => {
   if (!text) return [];
@@ -230,10 +252,7 @@ const App: React.FC = () => {
           playNotificationSound();
           if (document.hidden) {
             document.title = `(1) New Message - ${targetChat.name}`;
-            try {
-              const n = new Notification(targetChat.name, { body: chunk, icon: targetChat.avatar });
-              setTimeout(() => n.close(), 5000);
-            } catch(e) { console.error("Notification failed", e); }
+            showNotification(targetChat.name, { body: chunk, icon: targetChat.avatar, tag: chatId });
           }
         }
 
@@ -503,10 +522,7 @@ const App: React.FC = () => {
           playNotificationSound();
           if (document.hidden) {
             document.title = `(1) New Message - ${chat.name}`;
-            try {
-              const n = new Notification(chat.name, { body: chunk, icon: chat.avatar });
-              setTimeout(() => n.close(), 5000);
-            } catch(e) {}
+            showNotification(chat.name, { body: chunk, icon: chat.avatar, tag: chat.id });
           }
         }
 
@@ -633,10 +649,7 @@ const App: React.FC = () => {
               document.title = `(1) New Message - ${group.name}`;
               const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
               const personaAvatar = chats.find(c => c.id === responderId)?.avatar;
-              try {
-                 const n = new Notification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar });
-                 setTimeout(() => n.close(), 5000);
-              } catch(e) {}
+              showNotification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar, tag: group.id });
             }
           }
 
