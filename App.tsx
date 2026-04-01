@@ -120,41 +120,45 @@ const App: React.FC = () => {
   useEffect(() => {
     const initializeCloud = async () => {
       const isMigrated = localStorage.getItem('supabase_migrated');
-      const savedChats = JSON.parse(localStorage.getItem('whatsapp_chats') || '[]');
+      const savedChatsRaw = localStorage.getItem('whatsapp_chats');
+      const savedChats = JSON.parse(savedChatsRaw || '[]');
       
-      if (!isMigrated && savedChats.length > 0) {
-        console.log("Starting cloud migration...");
-        try {
-          for (const chat of savedChats) {
-            await supabase.from('chats').upsert({
-              id: chat.id,
-              name: chat.name,
-              avatar: chat.avatar,
-              is_group: chat.isGroup,
-              automation: chat.automation,
-              last_message: chat.lastMessage,
-              last_message_time: chat.lastMessageTime
-            });
-
-            const formattedMsgs = chat.messages.map((m: any) => ({
-              id: m.id,
-              chat_id: chat.id,
-              text: m.text,
-              sender: m.sender,
-              sender_name: m.senderName,
-              sender_id: m.senderId,
-              timestamp: m.timestamp,
-              status: m.status,
-              reply_to_json: m.replyToMessage
-            }));
-
-            if (formattedMsgs.length > 0) {
-              await supabase.from('messages').upsert(formattedMsgs);
-            }
-          }
-          localStorage.setItem('supabase_migrated', 'true');
-          console.log("Migration complete!");
-        } catch (err) { console.error("Migration failed:", err); }
+      // Safety Check: If cloud is empty, perform a rescue migration
+      if (!isMigrated || savedChats.length > 0) {
+        const { count } = await supabase.from('chats').select('*', { count: 'exact', head: true });
+        if (!count || count === 0) {
+           console.log("Cloud is empty. Performing safety migration...");
+           try {
+             for (const chat of savedChats) {
+                await supabase.from('chats').upsert({
+                    id: chat.id,
+                    name: chat.name,
+                    avatar: chat.avatar,
+                    is_group: !!chat.isGroup,
+                    member_ids: chat.memberIds,
+                    automation: chat.automation,
+                    last_message: chat.lastMessage,
+                    last_message_time: chat.lastMessageTime
+                });
+                
+                if (chat.messages?.length > 0) {
+                    const msgsToMigrate = chat.messages.map((m: any) => ({
+                        id: m.id,
+                        chat_id: chat.id,
+                        text: m.text,
+                        sender: m.sender,
+                        sender_name: m.senderName,
+                        sender_id: m.senderId,
+                        timestamp: m.timestamp,
+                        status: m.status,
+                        reply_to_json: m.replyToMessage
+                    }));
+                    await supabase.from('messages').upsert(msgsToMigrate);
+                }
+             }
+             localStorage.setItem('supabase_migrated', 'true');
+           } catch (e) { console.error("Rescue migration failed", e); }
+        }
       }
 
       // Sync local state with Cloud (initial load)
@@ -162,13 +166,14 @@ const App: React.FC = () => {
       if (cloudChats && cloudChats.length > 0) {
         const fullChats = await Promise.all(cloudChats.map(async c => {
           const { data: msgs } = await supabase.from('messages').select('*').eq('chat_id', c.id).order('created_at', { ascending: true });
+          const localChat = savedChats.find((lc: any) => lc.id === c.id);
           return {
             id: c.id,
             name: c.name,
             avatar: c.avatar,
             isGroup: c.is_group,
             memberIds: c.member_ids,
-            automation: c.automation,
+            automation: c.automation || localChat?.automation,
             lastMessage: c.last_message,
             lastMessageTime: c.last_message_time,
             unreadCount: c.unread_count,
@@ -206,8 +211,9 @@ const App: React.FC = () => {
                   status: newMsg.status,
                   replyToMessage: newMsg.reply_to_json
                 }],
-                lastMessage: newMsg.text,
-                lastMessageTime: newMsg.timestamp
+                lastMessage: newMsg.sender === 'other' ? `${newMsg.sender_name || 'AI'}: ${newMsg.text}` : newMsg.text,
+                lastMessageTime: newMsg.timestamp,
+                unreadCount: (activeChatId !== c.id && newMsg.sender === 'other') ? (c.unreadCount || 0) + 1 : c.unreadCount
               };
             }
             return c;
@@ -382,7 +388,8 @@ const App: React.FC = () => {
       await supabase.from('chats').update({ last_message: lastMsgStr, last_message_time: timestamp }).eq('id', activeChat.id);
     } catch (err) { console.error("Cloud send failed:", err); }
 
-    setChats(prev => prev.map(chat => chat.id === activeChat.id ? { ...chat, lastMessage: lastMsgStr, lastMessageTime: timestamp, messages: [...chat.messages, userMsg] } : chat));
+    // Local state update silenced here - relying on Supabase Realtime for display
+    // setChats(prev => prev.map(chat => chat.id === activeChat.id ? { ...chat, lastMessage: lastMsgStr, lastMessageTime: timestamp, messages: [...chat.messages, userMsg] } : chat));
 
     if (activeChat.isGroup) {
       handleGroupResponse(activeChat, [...activeChat.messages, userMsg]);
@@ -424,7 +431,8 @@ const App: React.FC = () => {
         await supabase.from('messages').insert({ id: aiMsg.id, chat_id: chatId, text: aiMsg.text, sender: aiMsg.sender, timestamp: aiMsg.timestamp, status: aiMsg.status });
         await supabase.from('chats').update({ last_message: chunk, last_message_time: aiMsg.timestamp }).eq('id', chatId);
 
-        setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...c.messages, aiMsg], lastMessage: chunk, lastMessageTime: aiMsg.timestamp, unreadCount: (c.unreadCount || 0) + 1 } : c));
+        // Local state update silenced here - relying on Supabase Realtime for display
+        // setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...c.messages, aiMsg], lastMessage: chunk, lastMessageTime: aiMsg.timestamp, unreadCount: (c.unreadCount || 0) + 1 } : c));
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
         if (settings.enableNotifications && !isFocusingChat && document.hidden) {
@@ -482,7 +490,8 @@ const App: React.FC = () => {
           await supabase.from('messages').insert({ id: aiMsg.id, chat_id: group.id, text: aiMsg.text, sender: aiMsg.sender, sender_name: persona.name, sender_id: persona.id, timestamp: aiMsg.timestamp });
           await supabase.from('chats').update({ last_message: `${persona.name}: ${chunk}`, last_message_time: aiMsg.timestamp }).eq('id', group.id);
 
-          setChats(prev => prev.map(c => c.id === group.id ? { ...c, messages: [...c.messages, aiMsg], lastMessage: `${persona.name}: ${chunk}`, lastMessageTime: aiMsg.timestamp, unreadCount: (c.unreadCount || 0) + 1 } : c));
+          // Local state update silenced here - relying on Supabase Realtime for display
+          // setChats(prev => prev.map(c => c.id === group.id ? { ...c, messages: [...c.messages, aiMsg], lastMessage: `${persona.name}: ${chunk}`, lastMessageTime: aiMsg.timestamp, unreadCount: (c.unreadCount || 0) + 1 } : c));
 
           const isFocusingChat = !document.hidden && activeChatId === group.id;
           if (settings.enableNotifications && !isFocusingChat && document.hidden) {
