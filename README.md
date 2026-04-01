@@ -1,12 +1,11 @@
-# Wassap Persona Simulation (v1.3.0)
+# Wassap Persona Simulation (v1.2.0)
 
-A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini** and **Supabase Cloud** to provide a 24/7 proactive AI persona experience.
+A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.3.0-blueviolet)
+![Version](https://img.shields.io/badge/version-1.2.0-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
-![Supabase](https://img.shields.io/badge/Supabase-Cloud-green)
-![Gemini](https://img.shields.io/badge/Gemini-1.5%20Flash-orange)
+![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
 
 ![App Screenshot](public/images/screenshot.png)
 
@@ -16,60 +15,78 @@ A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Ta
 
 This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini LLM.
 
-### 🌟 What's New in v1.3.0 (The "Alive 24/7" Cloud Update)
-*   **Supabase Cloud Backend**: Full migration from `localStorage` to a professional PostgreSQL cloud database. Your chats are now securely synced across all your devices in real-time.
-*   **24/7 Independent Brain**: A dedicated **GitHub Action** heartbeat that wakes up your personas every 15 minutes, allowing them to initiate conversations even when your browser is closed.
-*   **Native Real-Time Push Notifications**: Integrated with the **Web Push API** and VAPID protocol. Receive native mobile/desktop notifications from your AI personas directly in your system drawer.
-*   **Smart Cloud-Sync Settings**: Your Gemini API key is automatically "tunneled" from your browser to your private cloud database, enabling the background brain to function without manual secret management.
-*   **Automated Storage Maintenance**: Integrated Postgres Cron job that automatically purges messages older than 14 days to keep your cloud storage lean and free.
+### 🌟 What's New in v1.2.0 (The "Persona Proactivity" Update)
+*   **AI Automation Engine**: Personas are no longer passive. They now monitor background context and can independently initiate conversations through randomized probability checks.
+*   **Time-Gate Triggers**: Create custom "Daily Greetings" (e.g., Morning, Lunch, Dinner). The AI will automatically reach out during these windows with a unique "Done for today" visual tracker in the UI.
+*   **Inactivity Check-ins**: If you haven't messaged a persona for a user-defined number of hours (e.g., 6-24 hrs), the AI will proactively check in on you with context-aware concern.
+*   **Mobile Notification Drawer Support**: Full **PWA (Progressive Web App)** implementation including `manifest.json` and basic Service Worker. "Install" the app on Android/iOS to receive background notifications directly in your system tray.
+*   **Advanced Testing Suite**: Explicit "Force Test" buttons for every automation type, allowing you to verify AI behavior and notification delivery instantly without waiting for timers.
+*   **Intelligent Suppression**: Notifications and pings are automatically silenced if you are actively focusing on the relevant chat window, ensuring a frictionless UX.
+*   **Tab-Focus Feedback**: Browser tab titles now dynamically flash `(1) New Message` when activity occurs in the background.
 
----
-
-## ✨ AI Persona Features
-
-*   **Proactive Automation**: Personas monitor background context and independently initiate conversations based on randomized probability checks.
-*   **Time-Gate & Inactivity Triggers**: AI-driven "Daily Greetings" and context-aware inactivity check-ins.
-*   **Natural Message Splitting**: Delayed, human-like message chunking based on sentence structure.
+### 🌟 Previous Updates (v1.1.5)
+*   **Quick Double-Tap Selection**: Say goodbye to finicky long-presses. Quickly tap a message twice to enter **Selection Mode**.
 *   **Omni-Markdown Engine**: Advanced parsing for both `*WhatsApp*` and `**Standard Markdown**` syntaxes.
-*   **Dynamic Status Emulation**: Real-time "online", "typing...", and time-calculated "last seen" states.
+*   **Dynamic "Last Seen" Emulation**: Personas realistically transition between "online", "typing...", and time-calculated "last seen" states.
+*   **Audio Voice Notes**: Record and send real microphone audio directly into the chat stream.
+
+### ✨ Core Features
+*   **Gemini AI Personalities**: Unique roles, speech styles, and backstories for every persona.
+*   **Natural Message Splitting**: Delayed, human-like message chunking based on sentence structure.
+*   **Model Selection & Privacy**: Switch engines (Flash/Pro) and toggle context-sharing settings.
+*   **Calendar & Notes Integration**: Provide real-time context to the AI via a custom notes widget.
+*   **Deep Memory Reset**: Clear chat wipes both UI and AI context for a truly fresh start.
+*   **Persistent Meta AI**: A permanent AI companion chat integrated into landing page workflows.
+*   **IndexedDB Media Persistence**: Robust local storage for images and audio files.
+*   **Premium Aesthetics**: Dark/Light mode support with animated transitions and brand-native wallpapers.
 
 ---
 
 ## 🛠 Tech Stack
 
-*   **Frontend**: [React 19](https://react.dev/), [Vite 6](https://vitejs.dev/)
+*   **Framework**: [React 19](https://react.dev/)
+*   **Build Tool**: [Vite 6](https://vitejs.dev/)
 *   **Styling**: [Tailwind CSS v3](https://tailwindcss.com/)
-*   **Cloud Backend**: [Supabase](https://supabase.com/) (PostgreSQL & Realtime)
-*   **Automation**: [GitHub Actions](https://github.com/features/actions)
-*   **AI Engine**: [Google Gemini 1.5 Flash](https://ai.google.dev/)
-*   **Notifications**: [Web Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)
+*   **Icons**: [Lucide React](https://lucide.dev/)
+*   **AI SDK**: [@google/genai](https://www.npmjs.com/package/@google/genai)
+*   **Storage**: [Dexie.js / IndexedDB](https://dexie.org/)
 
 ---
 
-## 🚦 Cloud Setup & Deployment
+## 🚦 Local Development
 
-### 1. Supabase Configuration
-Execute the following SQL in your Supabase SQL Editor:
-```sql
--- Create the Config table for secure settings sync
-CREATE TABLE config ( id TEXT PRIMARY KEY, value JSONB, updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() );
-ALTER TABLE config ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all access to config" ON config FOR ALL USING (true) WITH CHECK (true);
-```
+### Prerequisites
+1.  Node.js (v18+)
 
-### 2. GitHub Secrets
-To enable the 24/7 Heartbeat, add these secrets to your Repository:
-- `SUPABASE_URL`: Your Supabase Project URL.
-- `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase `service_role` secret.
+### Setup Instructions
 
-### 3. Usage
-1. Push your code to GitHub to trigger the automation.
-2. Enter your **Gemini API Key** once in the app's Settings UI to sync it to the cloud.
-3. Toggle **Desktop Notifications** to "On" and follow the browser prompt.
+1.  **Clone the Repository**:
+    ```bash
+    git clone https://github.com/sobiswriter/Wassap.git
+    ```
+    
+2.  **Install Dependencies**:
+    ```bash
+    npm install
+    ```
+
+3.  **Run Dev Server**:
+    ```bash
+    npm run dev
+    ```
+
+> [!NOTE]
+> **API Key Setup**: Gemini API keys are integrated into the frontend Settings menu. No `.env` configuration is required for local setup.
+
+4.  **Access the App**:
+    Open `http://localhost:5173`.
 
 ---
 
 ## 📜 License
+
 This project is intended for educational and simulation purposes. WhatsApp is a trademark of Meta Platforms, Inc.
+
+---
 
 *Developed with ❤️ by sobiswriter*

@@ -15,8 +15,6 @@ import { Chat, Message, UserProfile, AppSettings, FileAttachment } from './types
 import { getGeminiResponse } from './services/geminiService';
 import { saveMedia, getMedia } from './utils/storage';
 import { MobileActionFAB } from './components/MobileActionFAB';
-import { supabase } from './services/supabaseClient';
-import { PostgrestError } from '@supabase/supabase-js';
 
 // Helper for consistent 12-hour AM/PM time global formatting
 const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
@@ -46,15 +44,22 @@ const showNotification = async (title: string, options: NotificationOptions) => 
 // Utility to split AI responses into human-like chunks
 const splitMessage = (text: string): string[] => {
   if (!text) return [];
+
+  // 1. Split by multiple newlines (paragraphs)
   const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
   let chunks: string[] = [];
+
   for (const p of paragraphs) {
     if (p.length < 100) {
       chunks.push(p.trim());
     } else {
+      // 2. Split long paragraphs into sentences
+      // Looking for . ! ? followed by space or newline
       const sentences = p.split(/(?<=[.!?])[\s\n]+/).filter(s => s.trim());
       let currentChunk = "";
+
       for (const s of sentences) {
+        // If adding this sentence stays within a reasonable "chat message" size
         if ((currentChunk + s).length < 120) {
           currentChunk += (currentChunk ? " " : "") + s;
         } else {
@@ -65,6 +70,7 @@ const splitMessage = (text: string): string[] => {
       if (currentChunk) chunks.push(currentChunk.trim());
     }
   }
+
   return chunks.length > 0 ? chunks : [text];
 };
 
@@ -84,7 +90,6 @@ const App: React.FC = () => {
   const [activeChatId, setActiveChatId] = useState<string>('');
   const [activeView, setActiveView] = useState<'list' | 'chat'>('list');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [isSyncing, setIsSyncing] = useState(true);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
   const [showNewChatPanel, setShowNewChatPanel] = useState(false);
   const [showNewGroupPanel, setShowNewGroupPanel] = useState(false);
@@ -94,12 +99,30 @@ const App: React.FC = () => {
   const [chatSearchTerm, setChatSearchTerm] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
+  // User and Settings State
   const [user, setUser] = useState<UserProfile>({
     name: 'You',
     about: 'Hey there! I am using WhatsApp.',
     status: 'Available',
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop'
   });
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Clear title notification when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        document.title = 'Wassap';
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('whatsapp_settings');
@@ -116,174 +139,13 @@ const App: React.FC = () => {
     };
   });
 
-  // --- SUPABASE MIGRATION & REALTIME LOGIC ---
-  useEffect(() => {
-    const initializeCloud = async () => {
-      try {
-        const isMigrated = localStorage.getItem('supabase_migrated');
-        const savedChatsRaw = localStorage.getItem('whatsapp_chats');
-        const savedChats = JSON.parse(savedChatsRaw || '[]');
-        
-        // 1. Safety Check/Rescue Migration
-        if (!isMigrated || savedChats.length > 0) {
-          const { count } = await supabase.from('chats').select('*', { count: 'exact', head: true });
-          if (!count || count === 0) {
-            console.log("Cloud is empty. Performing safety migration...");
-            for (const chat of savedChats) {
-              await supabase.from('chats').upsert({
-                id: chat.id,
-                name: chat.name,
-                avatar: chat.avatar,
-                is_group: !!chat.isGroup,
-                member_ids: chat.memberIds || [],
-                automation: chat.automation,
-                last_message: chat.lastMessage,
-                last_message_time: chat.lastMessageTime
-              });
-              if (chat.messages?.length > 0) {
-                const msgsToMigrate = chat.messages.map((m: any) => ({
-                  id: m.id,
-                  chat_id: chat.id,
-                  text: m.text,
-                  sender: m.sender,
-                  sender_name: m.senderName,
-                  sender_id: m.senderId,
-                  timestamp: m.timestamp,
-                  status: m.status,
-                  reply_to_json: m.replyToMessage
-                }));
-                await supabase.from('messages').upsert(msgsToMigrate);
-              }
-            }
-            localStorage.setItem('supabase_migrated', 'true');
-          }
-        }
-
-        // 2. Fetch & Merge Logic
-        const { data: cloudChats } = await supabase.from('chats').select('*');
-        
-        let finalChats = [...savedChats]; // Start with what we have locally
-
-        if (cloudChats && cloudChats.length > 0) {
-          const syncedChats = await Promise.all(cloudChats.map(async c => {
-            const { data: msgs } = await supabase.from('messages').select('*').eq('chat_id', c.id).order('created_at', { ascending: true });
-            const localChat = savedChats.find((lc: any) => lc.id === c.id);
-            
-            return {
-              id: c.id,
-              name: c.name,
-              avatar: c.avatar,
-              isGroup: c.is_group,
-              memberIds: c.member_ids || [],
-              automation: c.automation || localChat?.automation,
-              lastMessage: c.last_message,
-              lastMessageTime: c.last_message_time,
-              unreadCount: c.unread_count || 0,
-              messages: (msgs || []).map(m => ({
-                id: m.id,
-                text: m.text,
-                sender: m.sender,
-                senderName: m.sender_name,
-                senderId: m.sender_id,
-                timestamp: m.timestamp,
-                status: m.status,
-                replyToMessage: m.reply_to_json
-              }))
-            };
-          }));
-          
-          // Merge Strategy: Prefer synced chats, but keep local-only ones
-          finalChats = syncedChats as Chat[];
-          savedChats.forEach((lc: any) => {
-            if (!finalChats.find(fc => fc.id === lc.id)) {
-                finalChats.push(lc);
-            }
-          });
-        }
-        
-        if (finalChats.length > 0) {
-            setChats(finalChats);
-        }
-
-        const channel = supabase
-          .channel('schema-db-changes')
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-            const newMsg = payload.new as any;
-            setChats(current => current.map(c => {
-              if (c.id === newMsg.chat_id) {
-                if (c.messages.some(m => m.id === newMsg.id)) return c;
-                return {
-                  ...c,
-                  messages: [...c.messages, {
-                    id: newMsg.id,
-                    text: newMsg.text,
-                    sender: newMsg.sender,
-                    senderName: newMsg.sender_name,
-                    senderId: newMsg.sender_id,
-                    timestamp: newMsg.timestamp,
-                    status: newMsg.status,
-                    replyToMessage: newMsg.reply_to_json
-                  }],
-                  lastMessage: newMsg.sender === 'other' ? `${newMsg.sender_name || 'AI'}: ${newMsg.text}` : newMsg.text,
-                  lastMessageTime: newMsg.timestamp,
-                  // Use functional state for unread to avoid stale closures
-                  unreadCount: (newMsg.sender === 'other') ? (c.unreadCount || 0) + 1 : c.unreadCount
-                };
-              }
-              return c;
-            }));
-          })
-          .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
-      } catch (err) {
-        console.error("Critical Cloud Init Error:", err);
-      } finally {
-        setIsSyncing(false);
-      }
-    };
-    initializeCloud();
-  }, []);
-
   useEffect(() => {
     localStorage.setItem('whatsapp_settings', JSON.stringify(settings));
-    
-    // Sync Gemini Key to Cloud for 24/7 Heartbeat
-    if (settings.apiKey) {
-      supabase.from('config').upsert({
-        id: 'gemini_api_key',
-        value: { key: settings.apiKey }
-      }).then();
-    }
   }, [settings]);
 
   useEffect(() => {
     localStorage.setItem('whatsapp_chats', JSON.stringify(chats));
   }, [chats]);
-
-  // --- WEB PUSH REGISTRATION ---
-  useEffect(() => {
-    if (settings.enableNotifications && 'serviceWorker' in navigator && 'PushManager' in window) {
-      const registerPush = async () => {
-        try {
-          const registration = await navigator.serviceWorker.ready;
-          const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: 'BFOAoBwVZcK6EosPk4JLzDvT9g8bxmWQi9zdWsA075NzDIHT79bR5qfQXcNTjymmqdWvNIcZUc-sGbSnyX--Dl4'
-          });
-          
-          await supabase.from('config').upsert({
-            id: 'push_subscription',
-            value: subscription
-          });
-          console.log("Push registered:", subscription);
-        } catch (err) {
-          console.error("Push registration failed:", err);
-        }
-      };
-      registerPush();
-    }
-  }, [settings.enableNotifications]);
 
   const activeChat = chats.find(c => c.id === activeChatId) || null;
   const unreadTotal = chats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
@@ -296,16 +158,19 @@ const App: React.FC = () => {
     }
   }, [settings.theme]);
 
-  const setChatStatus = (chatId: string, status: string) => {
-    setChats(prev => prev.map(c => c.id === chatId ? { ...c, status } : c));
-  };
-
   const handleAutomationTrigger = async (chatId: string, context: string) => {
-    const targetChat = chats.find(c => c.id === chatId);
+    // We use the functional form of setChats to get the latest chat
+    let targetChat: Chat | undefined;
+    setChats(prev => {
+      targetChat = prev.find(c => c.id === chatId);
+      return prev;
+    });
     if (!targetChat) return;
 
     try {
+      // Look online while waiting for the API to formulate the response (prevents infinite "typing...")
       setChatStatus(chatId, 'online');
+
       const hydratedHistory = await Promise.all(targetChat.messages.map(async m => {
         const mediaId = m.mediaId || m.attachment?.mediaId;
         const mediaData = mediaId ? await getMedia(mediaId) : undefined;
@@ -319,12 +184,21 @@ const App: React.FC = () => {
         };
       }));
 
-      const response = await getGeminiResponse({ ...targetChat }, hydratedHistory, settings.shareUserInfo ? user : undefined, undefined, settings, context);
+      const response = await getGeminiResponse(
+        { ...targetChat },
+        hydratedHistory,
+        settings.shareUserInfo ? user : undefined,
+        undefined,
+        settings,
+        context
+      );
+
       const chunks = splitMessage(response);
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         const typingDuration = Math.min(Math.max(chunk.length * 40, 1500), 4000);
+
         setChatStatus(chatId, 'typing...');
         await new Promise(resolve => setTimeout(resolve, typingDuration));
 
@@ -336,49 +210,170 @@ const App: React.FC = () => {
           status: 'delivered'
         };
 
-        // Cloud Write
-        await supabase.from('messages').insert({
-          id: aiMsg.id,
-          chat_id: chatId,
-          text: aiMsg.text,
-          sender: aiMsg.sender,
-          timestamp: aiMsg.timestamp,
-          status: aiMsg.status
-        });
-        await supabase.from('chats').update({ last_message: chunk, last_message_time: aiMsg.timestamp }).eq('id', chatId);
-
-        setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...c.messages, aiMsg], lastMessage: chunk, lastMessageTime: aiMsg.timestamp, unreadCount: (c.unreadCount || 0) + 1 } : c));
+        setChats(prev => prev.map(c => {
+          if (c.id === chatId) {
+            return {
+              ...c,
+              messages: [...c.messages, aiMsg],
+              lastMessage: chunk,
+              lastMessageTime: aiMsg.timestamp,
+              unreadCount: (c.unreadCount || 0) + 1
+            };
+          }
+          return c;
+        }));
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
-        if (settings.enableNotifications && !isFocusingChat && document.hidden) {
-          document.title = `(1) New Message - ${targetChat.name}`;
-          showNotification(targetChat.name, { body: chunk, icon: targetChat.avatar, tag: chatId });
+
+        if (settings.enableNotifications && !isFocusingChat) {
+          if (document.hidden) {
+            document.title = `(1) New Message - ${targetChat.name}`;
+            showNotification(targetChat.name, { body: chunk, icon: targetChat.avatar, tag: chatId });
+          }
         }
+
         if (i < chunks.length - 1) {
           setChatStatus(chatId, 'online');
           await new Promise(resolve => setTimeout(resolve, 800));
         }
       }
-      setChatStatus(chatId, 'offline');
+
+      setChatStatus(chatId, 'online');
+      setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
     } catch (error) {
-      console.error("Error in automation:", error);
+      console.error("Error in automation check:", error);
       setChatStatus(chatId, 'offline');
     }
   };
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      // Use local date string instead of UTC
+      const todayDateStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD format
+      const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+
+      setChats(prevChats => {
+        let chatUpdated = false;
+        const updatedChats = [...prevChats];
+
+        for (let i = 0; i < updatedChats.length; i++) {
+          const chat = updatedChats[i];
+          if (chat.isGroup || !chat.automation?.enabled) continue;
+
+          const automation = chat.automation;
+          let triggeredContext = null;
+
+          // Process time triggers
+          for (let j = 0; j < automation.timeTriggers.length; j++) {
+            const trigger = automation.timeTriggers[j];
+            if (trigger.lastTriggered === todayDateStr) continue;
+
+            if (currentTimeStr >= trigger.startTime && currentTimeStr <= trigger.endTime) {
+              // High chance per tick to ensure it runs during the window
+              if (Math.random() < 0.6) {
+                trigger.lastTriggered = todayDateStr;
+                triggeredContext = trigger.context;
+                chatUpdated = true;
+                break;
+              }
+            }
+          }
+
+          // Process inactivity check-ins
+          if (!triggeredContext && automation.inactivity.enabled) {
+            const lastMsgMe = [...chat.messages].reverse().find(m => m.sender === 'me');
+            if (lastMsgMe) {
+              let msgTime = parseInt(lastMsgMe.id, 10);
+              if (isNaN(msgTime)) {
+                // For hardcoded mock messages that don't use timestamp IDs, pretend it was 24 hours ago
+                msgTime = Date.now() - (24 * 60 * 60 * 1000);
+              }
+
+              if (msgTime > 0) {
+                const hoursSinceLastOurs = (Date.now() - msgTime) / (1000 * 60 * 60);
+
+                if (hoursSinceLastOurs >= automation.inactivity.minHours) {
+                  const lastInactivityTrig = automation.lastInactivityTriggered || 0;
+                  if (lastInactivityTrig < msgTime) {
+                    // 100% chance if max hours passed, 30% chance per tick otherwise
+                    if (hoursSinceLastOurs >= automation.inactivity.maxHours || Math.random() < 0.3) {
+                      automation.lastInactivityTriggered = Date.now();
+                      triggeredContext = "The user has been inactive for several hours. Send a friendly natural check-in message based on the last conversation context.";
+                      chatUpdated = true;
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          if (triggeredContext) {
+            console.log("Running automation for", chat.name, ":", triggeredContext);
+            // Run async out of loop
+            setTimeout(() => handleAutomationTrigger(chat.id, triggeredContext as string), 500);
+          }
+        }
+
+        return chatUpdated ? updatedChats : prevChats;
+      });
+    }, 15000); // Check every 15 seconds so testing feels responsive
+
+    return () => clearInterval(interval);
+  }, [settings.enableNotifications]);
+
+  // Handle native hardware back button safely
+  useEffect(() => {
+    const isPanelOpen = showSettingsPopover || showNewChatPanel || showNewGroupPanel || showUserProfilePanel || showCalendarWidget || showProfilePanel;
+
+    if (isMobile && isPanelOpen) {
+      window.history.pushState({ panelOpen: true }, '');
+    }
+
+    const handlePopState = () => {
+      if (isPanelOpen) {
+        setShowProfilePanel(false);
+        setShowNewChatPanel(false);
+        setShowNewGroupPanel(false);
+        setShowUserProfilePanel(false);
+        setShowSettingsPopover(false);
+        setShowCalendarWidget(false);
+      } else if (activeView === 'chat') {
+        setActiveView('list');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeView, isMobile, showSettingsPopover, showNewChatPanel, showNewGroupPanel, showUserProfilePanel, showCalendarWidget, showProfilePanel]);
+
+  const setChatStatus = (chatId: string, status: string) => {
+    setChats(prev => prev.map(c => c.id === chatId ? { ...c, status } : c));
+  };
+
   const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message) => {
     if (!activeChat) return;
+
     const timestamp = getFormattedTime();
+
     let mediaId = '';
     if (attachment && (attachment.type === 'image' || attachment.type === 'audio')) {
       mediaId = `media-${Date.now()}`;
-      try { await saveMedia(mediaId, attachment.data); } catch (err) { console.error(err); }
+      try {
+        await saveMedia(mediaId, attachment.data);
+      } catch (err) {
+        console.error("Failed to save media to IndexedDB", err);
+      }
     }
 
     const userMsg: Message = {
       id: Date.now().toString(),
       text,
-      attachment: attachment ? { ...attachment, data: (attachment.type === 'image' || attachment.type === 'audio') ? '' : attachment.data, mediaId } : undefined,
+      attachment: attachment ? {
+        ...attachment,
+        data: (attachment.type === 'image' || attachment.type === 'audio') ? '' : attachment.data, // Strip media data for storage
+        mediaId
+      } : undefined,
+      image: undefined, // No longer storing full Base64 in message object
       mediaId,
       sender: 'me',
       timestamp,
@@ -388,26 +383,23 @@ const App: React.FC = () => {
 
     setReplyingTo(null);
 
-    // Cloud Write
-    let lastMsgStr = text || 'Attachment';
-    if (attachment?.type === 'image') lastMsgStr = '📷 Photo' + (text ? `: ${text}` : '');
-    if (attachment?.type === 'document') lastMsgStr = '📄 Document' + (text ? `: ${text}` : '');
+    setChats(prev => prev.map(chat => {
+      if (chat.id === activeChat.id) {
+        let lastMsg = text || 'Attachment';
+        if (attachment?.type === 'image') lastMsg = '📷 Photo' + (text ? `: ${text}` : '');
+        if (attachment?.type === 'document') lastMsg = '📄 Document' + (text ? `: ${text}` : '');
 
-    try {
-      await supabase.from('messages').insert({
-        id: userMsg.id,
-        chat_id: activeChat.id,
-        text: userMsg.text,
-        sender: userMsg.sender,
-        timestamp: userMsg.timestamp,
-        status: userMsg.status,
-        reply_to_json: userMsg.replyToMessage
-      });
-      await supabase.from('chats').update({ last_message: lastMsgStr, last_message_time: timestamp }).eq('id', activeChat.id);
-    } catch (err) { console.error("Cloud send failed:", err); }
+        return {
+          ...chat,
+          lastMessage: lastMsg,
+          lastMessageTime: timestamp,
+          messages: [...chat.messages, userMsg]
+        };
+      }
+      return chat;
+    }));
 
-    setChats(prev => prev.map(chat => chat.id === (activeChat?.id) ? { ...chat, lastMessage: lastMsgStr, lastMessageTime: timestamp, messages: [...chat.messages, userMsg] } : chat));
-
+    // Trigger AI response(s)
     if (activeChat.isGroup) {
       handleGroupResponse(activeChat, [...activeChat.messages, userMsg]);
     } else {
@@ -418,104 +410,235 @@ const App: React.FC = () => {
   const handleSingleResponse = async (chat: Chat, updatedHistory: Message[]) => {
     const chatId = chat.id;
     try {
+      // Mark user message as delivered immediately before AI processes
+      setChats(prev => prev.map(c => {
+        if (c.id === chatId) {
+          const newMsgs = [...c.messages];
+          const lastMsg = newMsgs[newMsgs.length - 1];
+          if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'delivered';
+          return { ...c, messages: newMsgs };
+        }
+        return c;
+      }));
+
       setChatStatus(chatId, 'typing...');
+
+      // Hydrate history with image data from IndexedDB so AI can see it
       const hydratedHistory = await Promise.all(updatedHistory.map(async m => {
         const mediaId = m.mediaId || m.attachment?.mediaId;
         const mediaData = mediaId ? await getMedia(mediaId) : undefined;
         let text = m.text;
         if (m.replyToMessage) text = `[Replying to: "${m.replyToMessage.text}"] ` + text;
-        return { text, sender: m.sender, image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined, audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined };
+        return {
+          text,
+          sender: m.sender,
+          image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
+          audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
+        };
       }));
 
-      const response = await getGeminiResponse({ ...chat }, hydratedHistory, settings.shareUserInfo ? user : undefined, undefined, settings);
+      const response = await getGeminiResponse(
+        { ...chat },
+        hydratedHistory,
+        settings.shareUserInfo ? user : undefined,
+        undefined,
+        settings
+      );
+
+      // Split responses into multiple messages if they are long or have distinct thoughts
       const chunks = splitMessage(response);
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
+
+        // Mark previous messages as read as soon as AI "starts typing"
+        if (i === 0) {
+          setChats(prev => prev.map(c => {
+            if (c.id === chatId) {
+              const newMsgs = [...c.messages];
+              const lastMsg = newMsgs[updatedHistory.length - 1];
+              if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'read';
+              return { ...c, messages: newMsgs };
+            }
+            return c;
+          }));
+        }
+
+        // Realistic typing speed simulation
         const typingDuration = Math.min(Math.max(chunk.length * 40, 1500), 4000);
+
+        // Ensure status is typing...
         setChatStatus(chatId, 'typing...');
         await new Promise(resolve => setTimeout(resolve, typingDuration));
 
         const aiMsg: Message = {
-          id: `${Date.now()}-${i}`,
+          id: `${Date.now()}-${i}`, // Unique ID per chunk
           text: chunk,
           sender: 'other',
           timestamp: getFormattedTime(),
           status: 'delivered'
         };
 
-        // Cloud Write
-        await supabase.from('messages').insert({ id: aiMsg.id, chat_id: chatId, text: aiMsg.text, sender: aiMsg.sender, timestamp: aiMsg.timestamp, status: aiMsg.status });
-        await supabase.from('chats').update({ last_message: chunk, last_message_time: aiMsg.timestamp }).eq('id', chatId);
-
-        setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...c.messages, aiMsg], lastMessage: chunk, lastMessageTime: aiMsg.timestamp, unreadCount: 0 } : c));
+        setChats(prev => prev.map(c => {
+          if (c.id === chatId) {
+            return {
+              ...c,
+              messages: [...c.messages, aiMsg],
+              lastMessage: chunk,
+              lastMessageTime: aiMsg.timestamp,
+              unreadCount: (c.unreadCount || 0) + 1
+            };
+          }
+          return c;
+        }));
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
-        if (settings.enableNotifications && !isFocusingChat && document.hidden) {
-          document.title = `(1) New Message - ${chat.name}`;
-          showNotification(chat.name, { body: chunk, icon: chat.avatar, tag: chat.id });
+
+        if (settings.enableNotifications && !isFocusingChat) {
+          if (document.hidden) {
+            document.title = `(1) New Message - ${chat.name}`;
+            showNotification(chat.name, { body: chunk, icon: chat.avatar, tag: chat.id });
+          }
         }
+
+        // Small pause between messages to feel like the user is "hitting send"
         if (i < chunks.length - 1) {
           setChatStatus(chatId, 'online');
           await new Promise(resolve => setTimeout(resolve, 800));
         }
       }
-      setChatStatus(chatId, 'offline');
+
+      setChatStatus(chatId, 'online');
+      setTimeout(() => setChatStatus(chatId, 'offline'), 15000); // realistic drop off
     } catch (error) {
-      console.error(error);
-      setChatStatus(chatId, 'offline');
+      console.error("Error getting AI response for single chat:", error);
+      setChatStatus(chatId, 'offline'); // Revert status even on error
     }
   };
 
   const handleGroupResponse = async (group: Chat, updatedHistory: Message[]) => {
-    const memberIds = group.memberIds || [];
+    const memberIds = [...(group.memberIds || [])];
     if (memberIds.length === 0) return;
+
     let responseSequence = [...memberIds].sort(() => Math.random() - 0.5);
+
+    if (Math.random() < 0.2) {
+      const extraResponderId = memberIds[Math.floor(Math.random() * memberIds.length)];
+      const insertIdx = Math.floor(Math.random() * (responseSequence.length + 1));
+      responseSequence.splice(insertIdx, 0, extraResponderId);
+    }
+
     let currentHistory = [...updatedHistory];
 
     for (let i = 0; i < responseSequence.length; i++) {
       const responderId = responseSequence[i];
       const persona = chats.find(c => c.id === responderId);
       if (!persona) continue;
+
       try {
         const delay = 1500 + (Math.random() * 2500);
         await new Promise(resolve => setTimeout(resolve, delay));
-        setChatStatus(group.id, 'typing...');
 
+        setChatStatus(group.id, 'typing...'); // Status set by trigger check
+
+        // Mark user message as read
+        if (i === 0) {
+          setChats(prev => prev.map(c => {
+            if (c.id === group.id) {
+              const newMsgs = [...c.messages];
+              const lastMsg = newMsgs[updatedHistory.length - 1];
+              if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'read';
+              return { ...c, messages: newMsgs };
+            }
+            return c;
+          }));
+        }
+
+        // Hydrate group history with media data from IndexedDB
         const hydratedGroupHistory = await Promise.all(currentHistory.map(async m => {
           const mediaId = m.mediaId || m.attachment?.mediaId;
           const mediaData = mediaId ? await getMedia(mediaId) : undefined;
           let text = m.text;
           if (m.replyToMessage) text = `[Replying to: "${m.replyToMessage.text}"] ` + text;
-          return { text, sender: m.sender, senderName: m.senderName, image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined, audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined };
+          return {
+            text,
+            sender: m.sender,
+            senderName: m.senderName,
+            image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
+            audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
+          };
         }));
 
-        const responseText = await getGeminiResponse({ ...persona }, hydratedGroupHistory, settings.shareUserInfo ? user : undefined, { groupName: group.name, otherMembers: group.memberIds?.filter(id => id !== responderId).map(id => chats.find(c => c.id === id)?.name || '') || [] }, settings);
+        const responseText = await getGeminiResponse(
+          { ...persona },
+          hydratedGroupHistory,
+          settings.shareUserInfo ? user : undefined,
+          {
+            groupName: group.name,
+            otherMembers: group.memberIds?.filter(id => id !== responderId).map(id => chats.find(c => c.id === id)?.name || '') || []
+          },
+          settings
+        );
+
         const chunks = splitMessage(responseText);
 
         for (let j = 0; j < chunks.length; j++) {
           const chunk = chunks[j];
+
+          // Typing duration for group personas
           const typingDuration = Math.min(Math.max(chunk.length * 40, 1500), 4000);
+
           setChatStatus(group.id, 'typing...');
           await new Promise(resolve => setTimeout(resolve, typingDuration));
 
-          const aiMsg: Message = { id: `${Date.now()}-${i}-${j}`, text: chunk, sender: 'other', senderName: persona.name, senderId: persona.id, timestamp: getFormattedTime(), status: 'delivered' };
-          currentHistory.push(aiMsg);
+          const aiMsg: Message = {
+            id: `${Date.now()}-${i}-${j}`, // Unique ID per chunk
+            text: chunk,
+            sender: 'other',
+            senderName: persona.name,
+            senderId: persona.id,
+            timestamp: getFormattedTime(),
+            status: 'delivered'
+          };
 
-          // Cloud Write
-          await supabase.from('messages').insert({ id: aiMsg.id, chat_id: group.id, text: aiMsg.text, sender: aiMsg.sender, sender_name: persona.name, sender_id: persona.id, timestamp: aiMsg.timestamp });
-          await supabase.from('chats').update({ last_message: `${persona.name}: ${chunk}`, last_message_time: aiMsg.timestamp }).eq('id', group.id);
+          currentHistory.push(aiMsg); // Add to history for subsequent responses
 
-          setChats(prev => prev.map(c => c.id === group.id ? { ...c, messages: [...c.messages, aiMsg], lastMessage: `${persona.name}: ${chunk}`, lastMessageTime: aiMsg.timestamp, unreadCount: 0 } : c));
+          setChats(prev => prev.map(c => {
+            if (c.id === group.id) {
+              return {
+                ...c,
+                messages: [...c.messages, aiMsg],
+                lastMessage: `${persona.name}: ${chunk}`,
+                lastMessageTime: aiMsg.timestamp,
+                unreadCount: (c.unreadCount || 0) + 1
+              };
+            }
+            return c;
+          }));
 
           const isFocusingChat = !document.hidden && activeChatId === group.id;
-          if (settings.enableNotifications && !isFocusingChat && document.hidden) {
-            document.title = `(1) New Message - ${group.name}`;
-            showNotification(`${group.name} - ${persona.name}`, { body: chunk, icon: persona.avatar, tag: group.id });
+
+          if (settings.enableNotifications && !isFocusingChat) {
+            if (document.hidden) {
+              document.title = `(1) New Message - ${group.name}`;
+              const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
+              const personaAvatar = chats.find(c => c.id === responderId)?.avatar;
+              showNotification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar, tag: group.id });
+            }
+          }
+
+          if (j < chunks.length - 1) {
+            setChatStatus(group.id, 'online');
+            await new Promise(resolve => setTimeout(resolve, 600));
           }
         }
-        setChatStatus(group.id, 'offline');
-      } catch (error) { console.error(error); setChatStatus(group.id, 'offline'); }
+
+        setChatStatus(group.id, 'online');
+        setTimeout(() => setChatStatus(group.id, 'offline'), 15000);
+      } catch (error) {
+        console.error(`Error getting AI response for group member ${responderId}:`, error);
+        setChatStatus(group.id, 'offline'); // Revert status even on error
+      }
     }
   };
 
@@ -533,9 +656,12 @@ const App: React.FC = () => {
     }
   };
 
-  const handleBack = () => window.history.back();
+  const handleBack = () => {
+    // Instead of setActiveView, use history back to trigger popstate
+    window.history.back();
+  };
 
-  const handleCreateGroup = async (data: { name: string; avatar: string; memberIds: string[] }) => {
+  const handleCreateGroup = (data: { name: string; avatar: string; memberIds: string[] }) => {
     const newGroup: Chat = {
       id: `group-${Date.now()}`,
       name: data.name,
@@ -544,152 +670,176 @@ const App: React.FC = () => {
       isGroup: true,
       lastMessage: 'Group created',
       lastMessageTime: getFormattedTime(),
-      messages: [{ id: 'init', text: `Welcome to ${data.name}!`, sender: 'other', senderName: 'System', timestamp: '--' }]
+      messages: [{
+        id: 'init',
+        text: `Welcome to ${data.name}! Members: ${data.memberIds.map(id => chats.find(c => c.id === id)?.name).join(', ')}`,
+        sender: 'other',
+        senderName: 'System',
+        timestamp: '--'
+      }]
     };
-    
-    await supabase.from('chats').insert({ id: newGroup.id, name: newGroup.name, avatar: newGroup.avatar, is_group: true, member_ids: newGroup.memberIds });
-    await supabase.from('messages').insert({ id: 'init', chat_id: newGroup.id, text: newGroup.messages[0].text, sender: 'other', sender_name: 'System', timestamp: '--' });
-
     setChats([newGroup, ...chats]);
     setActiveChatId(newGroup.id);
     setShowNewGroupPanel(false);
   };
 
-  const handleCreatePersona = async (personaData: any) => {
-    const newPersona: Chat = { ...personaData, id: Date.now().toString(), lastMessage: '', lastMessageTime: '', messages: [], status: 'offline' };
-    await supabase.from('chats').insert({ id: newPersona.id, name: newPersona.name, avatar: newPersona.avatar, automation: newPersona.automation });
+  const handleCreatePersona = (personaData: any) => {
+    const newPersona: Chat = {
+      ...personaData,
+      id: Date.now().toString(),
+      lastMessage: '',
+      lastMessageTime: '',
+      messages: [],
+      status: 'offline',
+    };
     setChats([newPersona, ...chats]);
     setActiveChatId(newPersona.id);
     setShowNewChatPanel(false);
   };
 
-  const updateActiveChat = async (updates: Partial<Chat>) => {
+  const updateActiveChat = (updates: Partial<Chat>) => {
     if (!activeChatId) return;
-    await supabase.from('chats').update({ name: updates.name, avatar: updates.avatar, automation: updates.automation }).eq('id', activeChatId);
     setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, ...updates } : c));
   };
 
-  const handleDeleteChat = async () => {
+  const handleDeleteChat = () => {
     if (!activeChatId) return;
-    await supabase.from('chats').delete().eq('id', activeChatId);
+    if (activeChatId === '6') {
+      alert("This is a permanent system chat and cannot be deleted.");
+      return;
+    }
     setChats(prev => prev.filter(c => c.id !== activeChatId));
     setActiveChatId('');
     setShowProfilePanel(false);
   };
 
-  const handleClearChat = async () => {
+  const handleClearChat = () => {
     if (!activeChatId) return;
-    await supabase.from('messages').delete().eq('chat_id', activeChatId);
-    setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: [], lastMessage: '', lastMessageTime: '' } : c));
+    setChats(prev => prev.map(c => c.id === activeChatId ? {
+      ...c,
+      messages: [],
+      lastMessage: '',
+      lastMessageTime: ''
+    } : c));
   };
-
-  // Local Automation Loop (Fallback)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      const todayDateStr = now.toLocaleDateString('en-CA');
-      const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
-
-      setChats(prevChats => {
-        let chatUpdated = false;
-        const updatedChats = [...prevChats];
-        for (let i = 0; i < updatedChats.length; i++) {
-          const chat = updatedChats[i];
-          if (chat.isGroup || !chat.automation?.enabled) continue;
-          const automation = chat.automation;
-          let triggeredContext = null;
-
-          for (let j = 0; j < automation.timeTriggers.length; j++) {
-            const trigger = automation.timeTriggers[j];
-            if (trigger.lastTriggered === todayDateStr) continue;
-            if (currentTimeStr >= trigger.startTime && currentTimeStr <= trigger.endTime) {
-              if (Math.random() < 0.6) { trigger.lastTriggered = todayDateStr; triggeredContext = trigger.context; chatUpdated = true; break; }
-            }
-          }
-          if (!triggeredContext && automation.inactivity.enabled) {
-             const lastMsgMe = [...chat.messages].reverse().find(m => m.sender === 'me');
-             if (lastMsgMe) {
-               let msgTime = parseInt(lastMsgMe.id, 10);
-               if (isNaN(msgTime) || msgTime <= 0) msgTime = Date.now() - (24 * 60 * 60 * 1000);
-               const hoursSinceLastOurs = (Date.now() - msgTime) / (1000 * 60 * 60);
-               if (hoursSinceLastOurs >= automation.inactivity.minHours) {
-                  if ((automation.lastInactivityTriggered || 0) < msgTime) {
-                    if (hoursSinceLastOurs >= automation.inactivity.maxHours || Math.random() < 0.3) {
-                      automation.lastInactivityTriggered = Date.now();
-                      triggeredContext = "The user has been inactive for several hours. Send a friendly natural check-in message based on the last conversation context.";
-                      chatUpdated = true;
-                    }
-                  }
-               }
-             }
-          }
-          if (triggeredContext) {
-            const idToTrig = chat.id;
-            const ctxToTrig = triggeredContext;
-            setTimeout(() => handleAutomationTrigger(idToTrig, ctxToTrig), 500);
-          }
-        }
-        return chatUpdated ? updatedChats : prevChats;
-      });
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [settings.enableNotifications]);
-
-  // Handle mobile navigation back safely
-  useEffect(() => {
-    const isPanelOpen = showSettingsPopover || showNewChatPanel || showNewGroupPanel || showUserProfilePanel || showCalendarWidget || showProfilePanel;
-    if (isMobile && isPanelOpen) window.history.pushState({ panelOpen: true }, '');
-    const handlePopState = () => {
-      if (isPanelOpen) {
-        setShowProfilePanel(false); setShowNewChatPanel(false); setShowNewGroupPanel(false); setShowUserProfilePanel(false); setShowSettingsPopover(false); setShowCalendarWidget(false);
-      } else if (activeView === 'chat') { setActiveView('list'); }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeView, isMobile, showSettingsPopover, showNewChatPanel, showNewGroupPanel, showUserProfilePanel, showCalendarWidget, showProfilePanel]);
 
   return (
     <div className="h-screen w-full flex flex-col bg-white overflow-hidden p-0">
-      <div className="hidden md:flex h-[30px] app-panel items-center px-3 gap-2 shrink-0 border-b app-border select-none bg-[#f0f2f5] dark:bg-[#202c33]">
+      {/* Top Title Bar */}
+      <div className="hidden md:flex h-[30px] app-panel items-center px-3 gap-2 shrink-0 border-b app-border select-none">
         <div className="bg-[#25d366] p-[2px] rounded flex items-center justify-center">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="white"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.767 5.767 0 1.267.405 2.436 1.096 3.389l-.711 2.597 2.659-.697a5.733 5.733 0 0 0 2.723.678c3.181 0 5.767-2.586 5.767-5.767 0-3.181-2.586-5.767-5.767-5.767zm3.39 8.136c-.147.414-.733.754-1.011.802-.278.048-.543.085-1.545-.303-1.002-.387-1.649-1.398-1.698-1.464-.048-.066-.401-.532-.401-1.022 0-.49.255-.731.345-.83.09-.099.198-.122.264-.122.066 0 .132.001.189.004.057.002.132-.023.208.156.075.18.255.621.28.669.024.047.04.103.01.16-.03.057-.045.094-.09.146-.045.052-.094.113-.137.151-.047.042-.094.085-.042.174.052.09.231.382.495.617.34.303.623.396.711.439.088.042.141.033.193-.028.052-.061.222-.259.283-.349.061-.088.122-.075.208-.042.085.033.543.255.637.302.094.047.156.071.18.113.023.042.023.245-.124.659zM12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" /></svg>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
+            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.767 5.767 0 1.267.405 2.436 1.096 3.389l-.711 2.597 2.659-.697a5.733 5.733 0 0 0 2.723.678c3.181 0 5.767-2.586 5.767-5.767 0-3.181-2.586-5.767-5.767-5.767zm3.39 8.136c-.147.414-.733.754-1.011.802-.278.048-.543.085-1.545-.303-1.002-.387-1.649-1.398-1.698-1.464-.048-.066-.401-.532-.401-1.022 0-.49.255-.731.345-.83.09-.099.198-.122.264-.122.066 0 .132.001.189.004.057.002.132-.023.208.156.075.18.255.621.28.669.024.047.04.103.01.16-.03.057-.045.094-.09.146-.045.052-.094.113-.137.151-.047.042-.094.085-.042.174.052.09.231.382.495.617.34.303.623.396.711.439.088.042.141.033.193-.028.052-.061.222-.259.283-.349.061-.088.122-.075.208-.042.085.033.543.255.637.302.094.047.156.071.18.113.023.042.023.245-.124.659zM12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
+          </svg>
         </div>
         <span className="text-[12px] font-semibold text-secondary">WhatsApp</span>
       </div>
 
       <div className="flex-1 flex overflow-hidden bg-white relative">
         <div className={`hidden md:block`}>
-          <Sidebar userAvatar={user.avatar} onUserProfileClick={() => setShowUserProfilePanel(!showUserProfilePanel)} onSettingsClick={() => setShowSettingsPopover(!showSettingsPopover)} onCalendarClick={() => setShowCalendarWidget(!showCalendarWidget)} />
+          <Sidebar
+            userAvatar={user.avatar}
+            onUserProfileClick={() => setShowUserProfilePanel(!showUserProfilePanel)}
+            onSettingsClick={() => setShowSettingsPopover(!showSettingsPopover)}
+            onCalendarClick={() => setShowCalendarWidget(!showCalendarWidget)}
+          />
         </div>
 
-        {showNewChatPanel && <NewChatPanel onClose={() => setShowNewChatPanel(false)} onCreate={handleCreatePersona} />}
-        {showNewGroupPanel && <NewGroupPanel personas={chats.filter(c => !c.isGroup)} onClose={() => setShowNewGroupPanel(false)} onCreate={handleCreateGroup} />}
-        {showUserProfilePanel && <UserProfilePanel user={user} onClose={() => setShowUserProfilePanel(false)} onUpdate={setUser} />}
-        {showSettingsPopover && <SettingsPopover settings={settings} onUpdate={setSettings} onClose={() => setShowSettingsPopover(false)} />}
-        {showCalendarWidget && <CalendarNotesWidget notes={settings.calendarNotes || ''} onUpdateNotes={(notes) => setSettings({ ...settings, calendarNotes: notes })} onClose={() => setShowCalendarWidget(false)} />}
+        {showNewChatPanel && (
+          <NewChatPanel onClose={() => setShowNewChatPanel(false)} onCreate={handleCreatePersona} />
+        )}
 
-        <div className={`${isMobile && activeView === 'chat' ? 'hidden' : 'flex'} w-full md:w-[410px] md:flex shrink-0 flex-col h-full border-r app-border`}>
-          <ChatList chats={chats} activeChatId={activeChatId} onChatSelect={handleChatSelect} onAddPersona={() => setShowNewChatPanel(true)} onAddGroup={() => setShowNewGroupPanel(true)} onMetaAIClick={() => handleChatSelect('6')} isMobile={isMobile} />
+        {showNewGroupPanel && (
+          <NewGroupPanel
+            personas={chats.filter(c => !c.isGroup)}
+            onClose={() => setShowNewGroupPanel(false)}
+            onCreate={handleCreateGroup}
+          />
+        )}
+
+        {showUserProfilePanel && (
+          <UserProfilePanel user={user} onClose={() => setShowUserProfilePanel(false)} onUpdate={setUser} />
+        )}
+
+        {showSettingsPopover && (
+          <SettingsPopover settings={settings} onUpdate={setSettings} onClose={() => setShowSettingsPopover(false)} />
+        )}
+
+        {showCalendarWidget && (
+          <CalendarNotesWidget
+            notes={settings.calendarNotes || ''}
+            onUpdateNotes={(notes) => setSettings({ ...settings, calendarNotes: notes })}
+            onClose={() => setShowCalendarWidget(false)}
+          />
+        )}
+
+        <div className={`${isMobile && activeView === 'chat' ? 'hidden' : 'flex'} w-full md:w-[410px] md:flex shrink-0 flex-col h-full`}>
+          <ChatList
+            chats={chats}
+            activeChatId={activeChatId}
+            onChatSelect={handleChatSelect}
+            onAddPersona={() => setShowNewChatPanel(true)}
+            onAddGroup={() => setShowNewGroupPanel(true)}
+            onMetaAIClick={() => handleChatSelect('6')}
+            isMobile={isMobile}
+          />
           {isMobile && <MobileNavigation unreadCount={unreadTotal} />}
         </div>
 
         <div className={`${isMobile && activeView === 'list' ? 'hidden' : 'flex'} flex-1 flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b141a]`}>
-          <ChatWindow chat={activeChat} allChats={chats} onHeaderClick={() => setShowProfilePanel(!showProfilePanel)} onDeleteChat={handleDeleteChat} onClearChat={handleClearChat} searchTerm={chatSearchTerm} setSearchTerm={setChatSearchTerm} onBack={isMobile ? handleBack : undefined} onProfileClick={() => setShowUserProfilePanel(true)} onMetaAIClick={() => handleChatSelect('6')} onAddContact={() => setShowNewChatPanel(true)} onReply={setReplyingTo} />
+          <ChatWindow
+            chat={activeChat}
+            allChats={chats}
+            onHeaderClick={() => setShowProfilePanel(!showProfilePanel)}
+            onDeleteChat={handleDeleteChat}
+            onClearChat={handleClearChat}
+            searchTerm={chatSearchTerm}
+            setSearchTerm={setChatSearchTerm}
+            onBack={isMobile ? handleBack : undefined}
+            onProfileClick={() => setShowUserProfilePanel(true)}
+            onMetaAIClick={() => handleChatSelect('6')}
+            onAddContact={() => setShowNewChatPanel(true)}
+            onReply={setReplyingTo}
+          />
           {activeChat && (!isMobile || !showProfilePanel) && (
-            <MessageInput activeChatId={activeChatId} onSendMessage={handleSendMessage} replyingTo={replyingTo} onCancelReply={() => setReplyingTo(null)} />
+            <MessageInput
+              activeChatId={activeChatId}
+              onSendMessage={handleSendMessage}
+              replyingTo={replyingTo}
+              onCancelReply={() => setReplyingTo(null)}
+            />
           )}
         </div>
 
         {showProfilePanel && activeChat && (
-          <ProfilePanel chat={activeChat} allChats={chats} onClose={() => setShowProfilePanel(false)} onUpdate={updateActiveChat} onDeleteChat={handleDeleteChat} onClearChat={handleClearChat} onTestAutomation={(chatId, type, contextOverride) => {
+          <ProfilePanel
+            chat={activeChat}
+            allChats={chats}
+            onClose={() => setShowProfilePanel(false)}
+            onUpdate={updateActiveChat}
+            onDeleteChat={handleDeleteChat}
+            onClearChat={handleClearChat}
+            onTestAutomation={(chatId, type, contextOverride) => {
               setShowProfilePanel(false);
-              const customContext = type === 'inactivity' ? "Sent check-in." : `Trigger unique greeting: "${contextOverride}"`;
-              handleAutomationTrigger(chatId, customContext);
+              const customContext = type === 'inactivity'
+                ? "This is a system test override. The user has been inactive. Send a friendly natural check-in message checking up on them."
+                : `This is a system test override. The user triggered a specific time-based test. The context/instruction for this greeting is: "${contextOverride}". Send a natural, contextual message following this instruction perfectly based on your persona.`;
+              setTimeout(() => {
+                handleAutomationTrigger(chatId, customContext);
+              }, 300);
             }}
           />
         )}
+        {/* Mobile Floating Action Button Hub */}
         {isMobile && activeView === 'list' && !showSettingsPopover && !showNewChatPanel && !showNewGroupPanel && !showUserProfilePanel && !showCalendarWidget && !showProfilePanel && (
-          <MobileActionFAB onAddPersona={() => setShowNewChatPanel(true)} onAddGroup={() => setShowNewGroupPanel(true)} onProfileClick={() => setShowUserProfilePanel(true)} onSettingsClick={() => setShowSettingsPopover(true)} onCalendarClick={() => setShowCalendarWidget(true)} onMetaAIClick={() => handleChatSelect('6')} />
+          <MobileActionFAB
+            onAddPersona={() => setShowNewChatPanel(true)}
+            onAddGroup={() => setShowNewGroupPanel(true)}
+            onProfileClick={() => setShowUserProfilePanel(true)}
+            onSettingsClick={() => setShowSettingsPopover(true)}
+            onCalendarClick={() => setShowCalendarWidget(true)}
+            onMetaAIClick={() => handleChatSelect('6')}
+          />
         )}
       </div>
     </div>
