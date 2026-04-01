@@ -406,8 +406,7 @@ const App: React.FC = () => {
       await supabase.from('chats').update({ last_message: lastMsgStr, last_message_time: timestamp }).eq('id', activeChat.id);
     } catch (err) { console.error("Cloud send failed:", err); }
 
-    // Local state update silenced here - relying on Supabase Realtime for display
-    // setChats(prev => prev.map(chat => chat.id === activeChat.id ? { ...chat, lastMessage: lastMsgStr, lastMessageTime: timestamp, messages: [...chat.messages, userMsg] } : chat));
+    setChats(prev => prev.map(chat => chat.id === (activeChat?.id) ? { ...chat, lastMessage: lastMsgStr, lastMessageTime: timestamp, messages: [...chat.messages, userMsg] } : chat));
 
     if (activeChat.isGroup) {
       handleGroupResponse(activeChat, [...activeChat.messages, userMsg]);
@@ -449,8 +448,7 @@ const App: React.FC = () => {
         await supabase.from('messages').insert({ id: aiMsg.id, chat_id: chatId, text: aiMsg.text, sender: aiMsg.sender, timestamp: aiMsg.timestamp, status: aiMsg.status });
         await supabase.from('chats').update({ last_message: chunk, last_message_time: aiMsg.timestamp }).eq('id', chatId);
 
-        // Local state update silenced here - relying on Supabase Realtime for display
-        // setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...c.messages, aiMsg], lastMessage: chunk, lastMessageTime: aiMsg.timestamp, unreadCount: (c.unreadCount || 0) + 1 } : c));
+        setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...c.messages, aiMsg], lastMessage: chunk, lastMessageTime: aiMsg.timestamp, unreadCount: 0 } : c));
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
         if (settings.enableNotifications && !isFocusingChat && document.hidden) {
@@ -508,8 +506,7 @@ const App: React.FC = () => {
           await supabase.from('messages').insert({ id: aiMsg.id, chat_id: group.id, text: aiMsg.text, sender: aiMsg.sender, sender_name: persona.name, sender_id: persona.id, timestamp: aiMsg.timestamp });
           await supabase.from('chats').update({ last_message: `${persona.name}: ${chunk}`, last_message_time: aiMsg.timestamp }).eq('id', group.id);
 
-          // Local state update silenced here - relying on Supabase Realtime for display
-          // setChats(prev => prev.map(c => c.id === group.id ? { ...c, messages: [...c.messages, aiMsg], lastMessage: `${persona.name}: ${chunk}`, lastMessageTime: aiMsg.timestamp, unreadCount: (c.unreadCount || 0) + 1 } : c));
+          setChats(prev => prev.map(c => c.id === group.id ? { ...c, messages: [...c.messages, aiMsg], lastMessage: `${persona.name}: ${chunk}`, lastMessageTime: aiMsg.timestamp, unreadCount: 0 } : c));
 
           const isFocusingChat = !document.hidden && activeChatId === group.id;
           if (settings.enableNotifications && !isFocusingChat && document.hidden) {
