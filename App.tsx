@@ -119,110 +119,128 @@ const App: React.FC = () => {
   // --- SUPABASE MIGRATION & REALTIME LOGIC ---
   useEffect(() => {
     const initializeCloud = async () => {
-      const isMigrated = localStorage.getItem('supabase_migrated');
-      const savedChatsRaw = localStorage.getItem('whatsapp_chats');
-      const savedChats = JSON.parse(savedChatsRaw || '[]');
-      
-      // Safety Check: If cloud is empty, perform a rescue migration
-      if (!isMigrated || savedChats.length > 0) {
-        const { count } = await supabase.from('chats').select('*', { count: 'exact', head: true });
-        if (!count || count === 0) {
-           console.log("Cloud is empty. Performing safety migration...");
-           try {
-             for (const chat of savedChats) {
-                await supabase.from('chats').upsert({
-                    id: chat.id,
-                    name: chat.name,
-                    avatar: chat.avatar,
-                    is_group: !!chat.isGroup,
-                    member_ids: chat.memberIds,
-                    automation: chat.automation,
-                    last_message: chat.lastMessage,
-                    last_message_time: chat.lastMessageTime
-                });
-                
-                if (chat.messages?.length > 0) {
-                    const msgsToMigrate = chat.messages.map((m: any) => ({
-                        id: m.id,
-                        chat_id: chat.id,
-                        text: m.text,
-                        sender: m.sender,
-                        sender_name: m.senderName,
-                        sender_id: m.senderId,
-                        timestamp: m.timestamp,
-                        status: m.status,
-                        reply_to_json: m.replyToMessage
-                    }));
-                    await supabase.from('messages').upsert(msgsToMigrate);
-                }
-             }
-             localStorage.setItem('supabase_migrated', 'true');
-           } catch (e) { console.error("Rescue migration failed", e); }
-        }
-      }
-
-      // Sync local state with Cloud (initial load)
-      const { data: cloudChats } = await supabase.from('chats').select('*');
-      if (cloudChats && cloudChats.length > 0) {
-        const fullChats = await Promise.all(cloudChats.map(async c => {
-          const { data: msgs } = await supabase.from('messages').select('*').eq('chat_id', c.id).order('created_at', { ascending: true });
-          const localChat = savedChats.find((lc: any) => lc.id === c.id);
-          return {
-            id: c.id,
-            name: c.name,
-            avatar: c.avatar,
-            isGroup: c.is_group,
-            memberIds: c.member_ids,
-            automation: c.automation || localChat?.automation,
-            lastMessage: c.last_message,
-            lastMessageTime: c.last_message_time,
-            unreadCount: c.unread_count,
-            messages: (msgs || []).map(m => ({
-              id: m.id,
-              text: m.text,
-              sender: m.sender,
-              senderName: m.sender_name,
-              senderId: m.sender_id,
-              timestamp: m.timestamp,
-              status: m.status,
-              replyToMessage: m.reply_to_json
-            }))
-          };
-        }));
-        setChats(fullChats as Chat[]);
-      }
-
-      const channel = supabase
-        .channel('schema-db-changes')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-          const newMsg = payload.new as any;
-          setChats(current => current.map(c => {
-            if (c.id === newMsg.chat_id) {
-              if (c.messages.some(m => m.id === newMsg.id)) return c;
-              return {
-                ...c,
-                messages: [...c.messages, {
-                  id: newMsg.id,
-                  text: newMsg.text,
-                  sender: newMsg.sender,
-                  senderName: newMsg.sender_name,
-                  senderId: newMsg.sender_id,
-                  timestamp: newMsg.timestamp,
-                  status: newMsg.status,
-                  replyToMessage: newMsg.reply_to_json
-                }],
-                lastMessage: newMsg.sender === 'other' ? `${newMsg.sender_name || 'AI'}: ${newMsg.text}` : newMsg.text,
-                lastMessageTime: newMsg.timestamp,
-                unreadCount: (activeChatId !== c.id && newMsg.sender === 'other') ? (c.unreadCount || 0) + 1 : c.unreadCount
-              };
+      try {
+        const isMigrated = localStorage.getItem('supabase_migrated');
+        const savedChatsRaw = localStorage.getItem('whatsapp_chats');
+        const savedChats = JSON.parse(savedChatsRaw || '[]');
+        
+        // 1. Safety Check/Rescue Migration
+        if (!isMigrated || savedChats.length > 0) {
+          const { count } = await supabase.from('chats').select('*', { count: 'exact', head: true });
+          if (!count || count === 0) {
+            console.log("Cloud is empty. Performing safety migration...");
+            for (const chat of savedChats) {
+              await supabase.from('chats').upsert({
+                id: chat.id,
+                name: chat.name,
+                avatar: chat.avatar,
+                is_group: !!chat.isGroup,
+                member_ids: chat.memberIds || [],
+                automation: chat.automation,
+                last_message: chat.lastMessage,
+                last_message_time: chat.lastMessageTime
+              });
+              if (chat.messages?.length > 0) {
+                const msgsToMigrate = chat.messages.map((m: any) => ({
+                  id: m.id,
+                  chat_id: chat.id,
+                  text: m.text,
+                  sender: m.sender,
+                  sender_name: m.senderName,
+                  sender_id: m.senderId,
+                  timestamp: m.timestamp,
+                  status: m.status,
+                  reply_to_json: m.replyToMessage
+                }));
+                await supabase.from('messages').upsert(msgsToMigrate);
+              }
             }
-            return c;
-          }));
-        })
-        .subscribe();
+            localStorage.setItem('supabase_migrated', 'true');
+          }
+        }
 
-      setIsSyncing(false);
-      return () => { supabase.removeChannel(channel); };
+        // 2. Fetch & Merge Logic
+        const { data: cloudChats } = await supabase.from('chats').select('*');
+        
+        let finalChats = [...savedChats]; // Start with what we have locally
+
+        if (cloudChats && cloudChats.length > 0) {
+          const syncedChats = await Promise.all(cloudChats.map(async c => {
+            const { data: msgs } = await supabase.from('messages').select('*').eq('chat_id', c.id).order('created_at', { ascending: true });
+            const localChat = savedChats.find((lc: any) => lc.id === c.id);
+            
+            return {
+              id: c.id,
+              name: c.name,
+              avatar: c.avatar,
+              isGroup: c.is_group,
+              memberIds: c.member_ids || [],
+              automation: c.automation || localChat?.automation,
+              lastMessage: c.last_message,
+              lastMessageTime: c.last_message_time,
+              unreadCount: c.unread_count || 0,
+              messages: (msgs || []).map(m => ({
+                id: m.id,
+                text: m.text,
+                sender: m.sender,
+                senderName: m.sender_name,
+                senderId: m.sender_id,
+                timestamp: m.timestamp,
+                status: m.status,
+                replyToMessage: m.reply_to_json
+              }))
+            };
+          }));
+          
+          // Merge Strategy: Prefer synced chats, but keep local-only ones
+          finalChats = syncedChats as Chat[];
+          savedChats.forEach((lc: any) => {
+            if (!finalChats.find(fc => fc.id === lc.id)) {
+                finalChats.push(lc);
+            }
+          });
+        }
+        
+        if (finalChats.length > 0) {
+            setChats(finalChats);
+        }
+
+        const channel = supabase
+          .channel('schema-db-changes')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+            const newMsg = payload.new as any;
+            setChats(current => current.map(c => {
+              if (c.id === newMsg.chat_id) {
+                if (c.messages.some(m => m.id === newMsg.id)) return c;
+                return {
+                  ...c,
+                  messages: [...c.messages, {
+                    id: newMsg.id,
+                    text: newMsg.text,
+                    sender: newMsg.sender,
+                    senderName: newMsg.sender_name,
+                    senderId: newMsg.sender_id,
+                    timestamp: newMsg.timestamp,
+                    status: newMsg.status,
+                    replyToMessage: newMsg.reply_to_json
+                  }],
+                  lastMessage: newMsg.sender === 'other' ? `${newMsg.sender_name || 'AI'}: ${newMsg.text}` : newMsg.text,
+                  lastMessageTime: newMsg.timestamp,
+                  // Use functional state for unread to avoid stale closures
+                  unreadCount: (newMsg.sender === 'other') ? (c.unreadCount || 0) + 1 : c.unreadCount
+                };
+              }
+              return c;
+            }));
+          })
+          .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+      } catch (err) {
+        console.error("Critical Cloud Init Error:", err);
+      } finally {
+        setIsSyncing(false);
+      }
     };
     initializeCloud();
   }, []);
