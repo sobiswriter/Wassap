@@ -24,3 +24,24 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+
+// Handle push notifications from the cloud brain
+self.addEventListener('push', (event) => {
+  if (event.data) {
+    const data = event.data.json();
+    const options = {
+      body: data.body,
+      icon: data.icon || '/logo192.png',
+      badge: '/badge.png',
+      tag: data.tag || 'wassap-msg',
+      renotify: true,
+      data: {
+        url: data.url || '/'
+      }
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(data.title, options)
+    );
+  }
+});
