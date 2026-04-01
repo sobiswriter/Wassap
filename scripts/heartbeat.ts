@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import webpush from 'web-push';
 
 // --- CONFIGURATION ---
@@ -34,8 +34,7 @@ async function runHeartbeat() {
     return;
   }
 
-  const genAI = new GoogleGenerativeAI(geminiConfig.value.key);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const ai = new GoogleGenAI({ apiKey: geminiConfig.value.key });
 
   // 2. Fetch all chats
   const { data: chats, error: chatsError } = await supabase
@@ -97,8 +96,11 @@ async function runHeartbeat() {
         
         Generate 1 short WhatsApp message.`;
 
-        const result = await model.generateContent(systemPrompt);
-        const responseText = result.response.text().trim();
+        const result = await ai.models.generateContent({
+          model: "gemini-1.5-flash",
+          contents: [{ role: 'user', parts: [{ text: systemPrompt }] }]
+        });
+        const responseText = result.text.trim();
 
         if (responseText) {
             const aiMsg = { id: `${Date.now()}-cloud`, chat_id: chat.id, text: responseText, sender: 'other', timestamp: getFormattedTime(), status: 'delivered' };
