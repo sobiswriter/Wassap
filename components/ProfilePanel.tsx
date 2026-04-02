@@ -318,15 +318,46 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
                     </div>
                     <div className="space-y-3">
                       {formData.automation.timeTriggers.map((t, i) => {
-                        const hasTriggeredToday = t.lastTriggered === new Date().toLocaleDateString('en-CA');
+                        const now = new Date();
+                        const todayDateStr = now.toLocaleDateString('en-CA');
+                        const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
                         
+                        const isTriggeredToday = t.lastTriggered === todayDateStr;
+                        const isNormal = t.lastTriggerType === 'normal';
+                        const isCatchup = t.lastTriggerType === 'catchup';
+                        const isMissed = !isTriggeredToday && currentTimeStr > t.endTime;
+                        
+                        let stateLabel = "Awaiting window";
+                        let stateColor = "text-secondary border-app-border";
+                        let badgeColor = "bg-secondary";
+                        let Icon = Clock;
+
+                        if (isTriggeredToday) {
+                          if (isNormal) {
+                            stateLabel = "Completed on time";
+                            stateColor = "border-[#00a884]/50 bg-[#00a884]/5 shadow-[#00a884]/10";
+                            badgeColor = "bg-[#00a884]";
+                            Icon = Check;
+                          } else if (isCatchup) {
+                            stateLabel = "Caught up (was missed)";
+                            stateColor = "border-orange-500/50 bg-orange-500/5 shadow-orange-500/10";
+                            badgeColor = "bg-orange-500";
+                            Icon = Clock;
+                          }
+                        } else if (isMissed) {
+                          stateLabel = "Missed (waiting for engine)";
+                          stateColor = "border-red-500/30 bg-red-500/5";
+                          badgeColor = "bg-red-500";
+                          Icon = X;
+                        }
+
                         return (
-                          <div key={t.id} className={`flex flex-col gap-2 p-3 bg-white dark:bg-[#202c33] border rounded relative transition-all ${hasTriggeredToday ? 'border-[#00a884]/50 shadow-sm shadow-[#00a884]/10 bg-[#00a884]/5 dark:bg-[#00a884]/10' : 'app-border'}`}>
-                            {hasTriggeredToday && (
-                               <div className="absolute top-0 right-0 -mt-2.5 -mr-2 bg-[#00a884] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1 border-2 border-white dark:border-[#202c33]">
-                                 <Check size={10} strokeWidth={3} /> Done for today
+                          <div key={t.id} className={`flex flex-col gap-2 p-3 bg-white dark:bg-[#202c33] border rounded relative transition-all ${stateColor}`}>
+                            {isTriggeredToday || isMissed ? (
+                               <div className={`absolute top-0 right-0 -mt-2.5 -mr-2 ${badgeColor} text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1 border-2 border-white dark:border-[#202c33]`}>
+                                 <Icon size={10} strokeWidth={3} /> {stateLabel}
                                </div>
-                            )}
+                            ) : null}
                             <div className="flex items-center justify-between">
                               <input 
                                 type="text" 

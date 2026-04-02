@@ -35,7 +35,14 @@ export const INITIAL_CHATS: Chat[] = [
       { id: 'mom1', text: 'Beta, did you eat? Call me when you are free.', sender: 'other', timestamp: '01:20 pm' },
       { id: 'mom2', text: 'Yes mom, just finished lunch.', sender: 'me', timestamp: '01:45 pm', status: 'read' },
       { id: 'mom3', text: 'Okay, take care. Wear your sweater, it\'s cold.', sender: 'other', timestamp: '04:15 pm' },
-    ]
+    ],
+    automation: {
+      enabled: true,
+      timeTriggers: [
+        { id: 'mom-morning', context: 'Good morning beta, did you sleep well?', startTime: '08:00', endTime: '09:30' }
+      ],
+      inactivity: { enabled: false, minHours: 6, maxHours: 12 }
+    }
   },
   {
     id: '3',
@@ -50,7 +57,14 @@ export const INITIAL_CHATS: Chat[] = [
       { id: 'sis1', text: 'You stole my hoodie again!! I am telling Mom.', sender: 'other', timestamp: '02:00 pm' },
       { id: 'sis2', text: 'I didn\'t steal it, I borrowed it lol.', sender: 'me', timestamp: '02:30 pm', status: 'read' },
       { id: 'sis3', text: 'Give it back by tonight or you\'re dead.', sender: 'other', timestamp: '03:20 pm' },
-    ]
+    ],
+    automation: {
+      enabled: true,
+      timeTriggers: [
+        { id: 'sis-homework', context: 'Hey!! You promised to help with my math homework, where are you??', startTime: '16:00', endTime: '18:00' }
+      ],
+      inactivity: { enabled: false, minHours: 6, maxHours: 12 }
+    }
   },
   {
     id: 'family-1',
@@ -81,7 +95,12 @@ export const INITIAL_CHATS: Chat[] = [
       { id: 'mg1', text: 'Miss you! Can\'t wait for dinner tonight ❤️', sender: 'other', timestamp: '11:00 am' },
       { id: 'mg2', text: 'Me too babe! 7pm?', sender: 'me', timestamp: '11:30 am', status: 'read' },
       { id: 'mg3', text: 'Yes! See you then. ❤️', sender: 'other', timestamp: '02:05 pm' },
-    ]
+    ],
+    automation: {
+      enabled: true,
+      timeTriggers: [],
+      inactivity: { enabled: true, minHours: 4, maxHours: 8 }
+    }
   },
   {
     id: '5',

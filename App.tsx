@@ -98,6 +98,9 @@ const App: React.FC = () => {
   const [showCalendarWidget, setShowCalendarWidget] = useState(false);
   const [chatSearchTerm, setChatSearchTerm] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const chatsRef = React.useRef<Chat[]>(chats);
+  const handledTriggersRef = React.useRef<Set<string>>(new Set());
+  useEffect(() => { chatsRef.current = chats; }, [chats]);
 
   // User and Settings State
   const [user, setUser] = useState<UserProfile>({
@@ -158,17 +161,15 @@ const App: React.FC = () => {
     }
   }, [settings.theme]);
 
-  const handleAutomationTrigger = async (chatId: string, context: string) => {
-    // We use the functional form of setChats to get the latest chat
-    let targetChat: Chat | undefined;
-    setChats(prev => {
-      targetChat = prev.find(c => c.id === chatId);
-      return prev;
-    });
+  const setChatStatus = (chatId: string, status: string) => {
+    setChats(prev => prev.map(c => c.id === chatId ? { ...c, status } : c));
+  };
+
+  const handleAutomationTrigger = async (chatId: string, context: string, triggerId?: string, type?: 'normal' | 'catchup' | 'inactivity') => {
+    const targetChat = chatsRef.current.find(c => c.id === chatId);
     if (!targetChat) return;
 
     try {
-      // Look online while waiting for the API to formulate the response (prevents infinite "typing...")
       setChatStatus(chatId, 'online');
 
       const hydratedHistory = await Promise.all(targetChat.messages.map(async m => {
@@ -183,6 +184,26 @@ const App: React.FC = () => {
           audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
         };
       }));
+
+      // Update trigger metadata in state if applicable
+      if (triggerId) {
+        setChats(prev => prev.map(c => {
+          if (c.id === chatId && c.automation) {
+            const trigs = c.automation.timeTriggers.map(t => 
+              t.id === triggerId ? { ...t, lastTriggered: new Date().toLocaleDateString('en-CA'), lastTriggerType: type as any } : t
+            );
+            return { ...c, automation: { ...c.automation, timeTriggers: trigs } };
+          }
+          return c;
+        }));
+      } else if (type === 'inactivity') {
+        setChats(prev => prev.map(c => {
+          if (c.id === chatId && c.automation) {
+            return { ...c, automation: { ...c.automation, lastInactivityTriggered: Date.now(), lastInactivityType: 'inactivity' } };
+          }
+          return c;
+        }));
+      }
 
       const response = await getGeminiResponse(
         { ...targetChat },
@@ -241,54 +262,79 @@ const App: React.FC = () => {
       setChatStatus(chatId, 'online');
       setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
     } catch (error) {
-      console.error("Error in automation check:", error);
+      console.error("Error in automation trigger:", error);
       setChatStatus(chatId, 'offline');
     }
   };
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      // Use local date string instead of UTC
-      const todayDateStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD format
-      const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+  const runAutomationChecks = (isInitialMount: boolean = false) => {
+    const now = new Date();
+    const todayDateStr = now.toLocaleDateString('en-CA'); 
+    const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
 
-      setChats(prevChats => {
-        let chatUpdated = false;
-        const updatedChats = [...prevChats];
+    setChats(prevChats => {
+      let chatUpdated = false;
+      const updatedChats = [...prevChats];
 
-        for (let i = 0; i < updatedChats.length; i++) {
-          const chat = updatedChats[i];
-          if (chat.isGroup || !chat.automation?.enabled) continue;
+      for (let i = 0; i < updatedChats.length; i++) {
+        const chat = updatedChats[i];
+        if (chat.isGroup || !chat.automation?.enabled) continue;
 
-          const automation = chat.automation;
-          let triggeredContext = null;
+        const automation = chat.automation;
+        let triggeredContext = null;
+        let triggerId = undefined;
+        let triggerType: 'normal' | 'catchup' | 'inactivity' | undefined = undefined;
 
-          // Process time triggers
-          for (let j = 0; j < automation.timeTriggers.length; j++) {
-            const trigger = automation.timeTriggers[j];
-            if (trigger.lastTriggered === todayDateStr) continue;
+        // 1. PRIORITY: Current Timely Greetings
+        const activeTrig = automation.timeTriggers.find(t => 
+          t.lastTriggered !== todayDateStr && 
+          !handledTriggersRef.current.has(`${chat.id}-${t.id}-${todayDateStr}`) &&
+          currentTimeStr >= t.startTime && currentTimeStr <= t.endTime
+        );
 
-            if (currentTimeStr >= trigger.startTime && currentTimeStr <= trigger.endTime) {
-              // High chance per tick to ensure it runs during the window
-              if (Math.random() < 0.6) {
-                trigger.lastTriggered = todayDateStr;
-                triggeredContext = trigger.context;
-                chatUpdated = true;
-                break;
-              }
-            }
+        if (activeTrig) {
+          // If app just opened, trigger immediately. Otherwise, use a probability check to feel natural.
+          if (isInitialMount || Math.random() < 0.6) {
+            triggeredContext = activeTrig.context;
+            triggerId = activeTrig.id;
+            triggerType = 'normal';
           }
+        }
 
-          // Process inactivity check-ins
-          if (!triggeredContext && automation.inactivity.enabled) {
+        // 2. PRIORITY: Latest Catch-Up (if no active trigger)
+        if (!triggeredContext) {
+          const missedTriggers = automation.timeTriggers
+            .filter(t => 
+              t.lastTriggered !== todayDateStr && 
+              !handledTriggersRef.current.has(`${chat.id}-${t.id}-${todayDateStr}`) &&
+              currentTimeStr > t.endTime
+            )
+            .sort((a, b) => b.endTime.localeCompare(a.endTime)); // Sort to find the MOST RECENT missed one
+
+          if (missedTriggers.length > 0) {
+            const latestMissed = missedTriggers[0];
+            triggeredContext = `[STATUS: CATCH-UP REQUIRED]
+[MISSES WINDOW: ${latestMissed.startTime} - ${latestMissed.endTime}]
+[CURRENT TIME: ${currentTimeStr}]
+[INTENDED INTERACTION: "${latestMissed.context}"]
+
+INSTRUCTION: You missed your scheduled window to message the user because the app was closed. The user has just opened the app. 
+Acknowledge the delay naturally according to your persona (e.g., just getting to your phone, busy earlier, etc.) and then deliver the intended interaction seamlessly.`;
+            triggerId = latestMissed.id;
+            triggerType = 'catchup';
+          }
+        }
+
+        // 3. PRIORITY: Inactivity Pulse (if no timely or catch-up trigger)
+        if (!triggeredContext && automation.inactivity.enabled) {
+          // Use a special key for inactivity to prevent double-firing in a single "dead-zone" session
+          const inactivityKey = `${chat.id}-inactivity-${Math.floor(Date.now() / (1000 * 60 * 60))}`; // Hourly bucket
+          
+          if (!handledTriggersRef.current.has(inactivityKey)) {
             const lastMsgMe = [...chat.messages].reverse().find(m => m.sender === 'me');
             if (lastMsgMe) {
               let msgTime = parseInt(lastMsgMe.id, 10);
-              if (isNaN(msgTime)) {
-                // For hardcoded mock messages that don't use timestamp IDs, pretend it was 24 hours ago
-                msgTime = Date.now() - (24 * 60 * 60 * 1000);
-              }
+              if (isNaN(msgTime)) msgTime = Date.now() - (24 * 60 * 60 * 1000);
 
               if (msgTime > 0) {
                 const hoursSinceLastOurs = (Date.now() - msgTime) / (1000 * 60 * 60);
@@ -296,28 +342,52 @@ const App: React.FC = () => {
                 if (hoursSinceLastOurs >= automation.inactivity.minHours) {
                   const lastInactivityTrig = automation.lastInactivityTriggered || 0;
                   if (lastInactivityTrig < msgTime) {
-                    // 100% chance if max hours passed, 30% chance per tick otherwise
-                    if (hoursSinceLastOurs >= automation.inactivity.maxHours || Math.random() < 0.3) {
-                      automation.lastInactivityTriggered = Date.now();
-                      triggeredContext = "The user has been inactive for several hours. Send a friendly natural check-in message based on the last conversation context.";
-                      chatUpdated = true;
+                    // On launch, if minHours met, trigger immediately. Otherwise use probability.
+                    if (isInitialMount || hoursSinceLastOurs >= automation.inactivity.maxHours || Math.random() < 0.3) {
+                      triggeredContext = `[STATUS: INACTIVITY CHECK-IN]
+[HOURS SINCE LAST USER MESSAGE: ${hoursSinceLastOurs.toFixed(1)}]
+
+INSTRUCTION: The user hasn't messaged you in a while. Send a friendly, natural check-in message based on your persona and the last conversation context.`;
+                      triggerType = 'inactivity';
+                      triggerId = inactivityKey; // Use key for tracking
                     }
                   }
                 }
               }
             }
           }
-
-          if (triggeredContext) {
-            console.log("Running automation for", chat.name, ":", triggeredContext);
-            // Run async out of loop
-            setTimeout(() => handleAutomationTrigger(chat.id, triggeredContext as string), 500);
-          }
         }
 
-        return chatUpdated ? updatedChats : prevChats;
-      });
-    }, 15000); // Check every 15 seconds so testing feels responsive
+        if (triggeredContext) {
+          chatUpdated = true;
+          const context = triggeredContext;
+          const tid = triggerType === 'inactivity' ? undefined : triggerId;
+          const ttype = triggerType;
+          
+          // Mark as handled immediately in the ref to block concurrent triggers
+          const handleKey = triggerType === 'inactivity' ? triggerId! : `${chat.id}-${triggerId}-${todayDateStr}`;
+          handledTriggersRef.current.add(handleKey);
+          
+          setTimeout(() => handleAutomationTrigger(chat.id, context, tid, ttype), isInitialMount ? 1500 : 500);
+          break; // Only one automation per chat per cycle to keep it clean
+        }
+      }
+
+      return updatedChats; // triggerId/lastTriggered is handled inside handleAutomationTrigger to avoid loop sync issues
+    });
+  };
+
+  // Initial Startup Catch-Up
+  useEffect(() => {
+    const timer = setTimeout(() => runAutomationChecks(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Ongoing Background monitor
+  useEffect(() => {
+    const interval = setInterval(() => {
+      runAutomationChecks(false);
+    }, 20000); // 20 seconds for background checks
 
     return () => clearInterval(interval);
   }, [settings.enableNotifications]);
@@ -346,9 +416,7 @@ const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [activeView, isMobile, showSettingsPopover, showNewChatPanel, showNewGroupPanel, showUserProfilePanel, showCalendarWidget, showProfilePanel]);
 
-  const setChatStatus = (chatId: string, status: string) => {
-    setChats(prev => prev.map(c => c.id === chatId ? { ...c, status } : c));
-  };
+
 
   const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message) => {
     if (!activeChat) return;

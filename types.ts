@@ -30,6 +30,7 @@ export interface TimeTrigger {
   startTime: string; // e.g. "08:00"
   endTime: string;   // e.g. "09:00"
   lastTriggered?: string; // Date string (YYYY-MM-DD)
+  lastTriggerType?: 'normal' | 'catchup';
 }
 
 export interface InactivityTrigger {
@@ -43,6 +44,7 @@ export interface PersonaAutomation {
   timeTriggers: TimeTrigger[];
   inactivity: InactivityTrigger;
   lastInactivityTriggered?: number; // Timestamp
+  lastInactivityType?: 'inactivity';
 }
 
 export interface Chat {
