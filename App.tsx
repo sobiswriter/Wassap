@@ -261,10 +261,29 @@ const App: React.FC = () => {
 
       setChatStatus(chatId, 'online');
       setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
-    } catch (error) {
-      console.error("Error in automation trigger:", error);
-      setChatStatus(chatId, 'offline');
+    } finally {
+      const isStillTyping = chatsRef.current.find(c => c.id === chatId)?.status === 'typing...';
+      if (isStillTyping) setChatStatus(chatId, 'online');
+      setTimeout(() => {
+        const current = chatsRef.current.find(c => c.id === chatId);
+        if (current?.status === 'online') setChatStatus(chatId, 'offline');
+      }, 15000);
     }
+  };
+
+  const handleRefreshPersona = (chatId: string) => {
+    // 1. Force state to offline
+    setChatStatus(chatId, 'offline');
+    
+    // 2. Clear any session locks in handledTriggersRef
+    const todayDateStr = new Date().toLocaleDateString('en-CA');
+    const keysToRemove: string[] = [];
+    handledTriggersRef.current.forEach(key => {
+      if (key.startsWith(`${chatId}-`)) keysToRemove.push(key);
+    });
+    keysToRemove.forEach(key => handledTriggersRef.current.delete(key));
+    
+    console.log(`[DEBUG] Persona ${chatId} refreshed and locks cleared.`);
   };
 
   const runAutomationChecks = (isInitialMount: boolean = false) => {
@@ -303,25 +322,31 @@ const App: React.FC = () => {
 
         // 2. PRIORITY: Latest Catch-Up (if no active trigger)
         if (!triggeredContext) {
-          const missedTriggers = automation.timeTriggers
-            .filter(t => 
-              t.lastTriggered !== todayDateStr && 
-              !handledTriggersRef.current.has(`${chat.id}-${t.id}-${todayDateStr}`) &&
-              currentTimeStr > t.endTime
-            )
-            .sort((a, b) => b.endTime.localeCompare(a.endTime)); // Sort to find the MOST RECENT missed one
+          // GUARD: If any trigger has already fired today (normal or catchup), stop all further catch-ups.
+          // This ensures we catch up ONCE for the latest missed window and don't spam apologies.
+          const hasAlreadyTalkedToday = automation.timeTriggers.some(t => t.lastTriggered === todayDateStr);
+          
+          if (!hasAlreadyTalkedToday) {
+            const missedTriggers = automation.timeTriggers
+              .filter(t => 
+                t.lastTriggered !== todayDateStr && 
+                !handledTriggersRef.current.has(`${chat.id}-${t.id}-${todayDateStr}`) &&
+                currentTimeStr > t.endTime
+              )
+              .sort((a, b) => b.endTime.localeCompare(a.endTime)); // Sort to find the MOST RECENT missed one
 
-          if (missedTriggers.length > 0) {
-            const latestMissed = missedTriggers[0];
-            triggeredContext = `[STATUS: CATCH-UP REQUIRED]
+            if (missedTriggers.length > 0) {
+              const latestMissed = missedTriggers[0];
+              triggeredContext = `[STATUS: CATCH-UP REQUIRED]
 [MISSES WINDOW: ${latestMissed.startTime} - ${latestMissed.endTime}]
 [CURRENT TIME: ${currentTimeStr}]
 [INTENDED INTERACTION: "${latestMissed.context}"]
 
 INSTRUCTION: You missed your scheduled window to message the user because the app was closed. The user has just opened the app. 
 Acknowledge the delay naturally according to your persona (e.g., just getting to your phone, busy earlier, etc.) and then deliver the intended interaction seamlessly.`;
-            triggerId = latestMissed.id;
-            triggerType = 'catchup';
+              triggerId = latestMissed.id;
+              triggerType = 'catchup';
+            }
           }
         }
 
@@ -580,7 +605,13 @@ INSTRUCTION: The user hasn't messaged you in a while. Send a friendly, natural c
       setTimeout(() => setChatStatus(chatId, 'offline'), 15000); // realistic drop off
     } catch (error) {
       console.error("Error getting AI response for single chat:", error);
-      setChatStatus(chatId, 'offline'); // Revert status even on error
+    } finally {
+      const isStillTyping = chatsRef.current.find(c => c.id === chatId)?.status === 'typing...';
+      if (isStillTyping) setChatStatus(chatId, 'online');
+      setTimeout(() => {
+        const current = chatsRef.current.find(c => c.id === chatId);
+        if (current?.status === 'online') setChatStatus(chatId, 'offline');
+      }, 15000);
     }
   };
 
@@ -705,9 +736,16 @@ INSTRUCTION: The user hasn't messaged you in a while. Send a friendly, natural c
         setTimeout(() => setChatStatus(group.id, 'offline'), 15000);
       } catch (error) {
         console.error(`Error getting AI response for group member ${responderId}:`, error);
-        setChatStatus(group.id, 'offline'); // Revert status even on error
+      } finally {
+        const isStillTyping = chatsRef.current.find(c => c.id === group.id)?.status === 'typing...';
+        if (isStillTyping) setChatStatus(group.id, 'online');
       }
     }
+    
+    setTimeout(() => {
+      const current = chatsRef.current.find(c => c.id === group.id);
+      if (current?.status === 'online') setChatStatus(group.id, 'offline');
+    }, 15000);
   };
 
   const handleChatSelect = (id: string) => {
@@ -881,20 +919,19 @@ INSTRUCTION: The user hasn't messaged you in a while. Send a friendly, natural c
 
         {showProfilePanel && activeChat && (
           <ProfilePanel
-            chat={activeChat}
+            chat={chats.find(c => c.id === activeChatId)!}
             allChats={chats}
             onClose={() => setShowProfilePanel(false)}
             onUpdate={updateActiveChat}
             onDeleteChat={handleDeleteChat}
             onClearChat={handleClearChat}
+            onRefreshPersona={handleRefreshPersona}
             onTestAutomation={(chatId, type, contextOverride) => {
               setShowProfilePanel(false);
               const customContext = type === 'inactivity'
-                ? "This is a system test override. The user has been inactive. Send a friendly natural check-in message checking up on them."
-                : `This is a system test override. The user triggered a specific time-based test. The context/instruction for this greeting is: "${contextOverride}". Send a natural, contextual message following this instruction perfectly based on your persona.`;
-              setTimeout(() => {
-                handleAutomationTrigger(chatId, customContext);
-              }, 300);
+                ? `[MANUAL TEST] Perform an inactivity check-in now.`
+                : `[MANUAL TEST] Deliver this greeting context: "${contextOverride}"`;
+              handleAutomationTrigger(chatId, customContext, undefined, type);
             }}
           />
         )}

@@ -1,7 +1,10 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Camera, Link as LinkIcon, Save, Info, Globe, Check, Users, Trash2, Eraser, Settings, ChevronDown, ChevronRight, Plus, Clock } from 'lucide-react';
-import { Chat } from '../types';
+import { 
+  X, Camera, Link as LinkIcon, Save, Info, Globe, Check, 
+  Users, Trash2, Eraser, Settings, ChevronDown, ChevronRight, 
+  Plus, Clock, RefreshCw, UserX 
+} from 'lucide-react';
+import { Chat, Message } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface ProfilePanelProps {
@@ -11,10 +14,13 @@ interface ProfilePanelProps {
   onUpdate: (updates: Partial<Chat>) => void;
   onDeleteChat?: () => void;
   onClearChat?: () => void;
+  onRefreshPersona: (chatId: string) => void;
   onTestAutomation?: (chatId: string, testType: 'inactivity' | 'time', contextOverride?: string) => void;
 }
 
-export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onClose, onUpdate, onDeleteChat, onClearChat, onTestAutomation }) => {
+export const ProfilePanel: React.FC<ProfilePanelProps> = ({ 
+  chat, allChats, onClose, onUpdate, onDeleteChat, onClearChat, onRefreshPersona, onTestAutomation 
+}) => {
   const [formData, setFormData] = useState({
     name: chat.name,
     about: chat.about || (chat.isGroup ? 'Group Description' : 'Hey there! I am using WhatsApp.'),
@@ -30,7 +36,6 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
   });
 
   const [showAdvanced, setShowAdvanced] = useState(false);
-
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlValue, setUrlValue] = useState(chat.avatar);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -113,6 +118,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
           }}
         />
       )}
+
+      {/* Header */}
       <div className="h-[60px] app-panel flex items-center p-5 shrink-0 border-b app-border">
         <div className="flex items-center gap-6">
           <X className="text-secondary cursor-pointer hover:bg-black/5 rounded-full p-1" onClick={onClose} />
@@ -121,6 +128,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {/* Avatar Section */}
         <div className="app-panel flex flex-col items-center py-7 shadow-sm border-b app-border relative overflow-hidden">
           <div className="relative group cursor-pointer mb-5">
             <img src={formData.avatar} alt={formData.name} className="w-48 h-48 rounded-full object-cover shadow-md border-4 border-white dark:border-[#222d34]" />
@@ -160,6 +168,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
           <p className="text-secondary text-[14px] mt-1">{chat.isGroup ? `Group · ${groupMembers.length + 1} participants` : (chat.status || 'online')}</p>
         </div>
 
+        {/* Basic Info Section */}
         <div className="mt-2 app-panel px-6 py-6 shadow-sm space-y-7 border-b app-border">
           <div className="relative">
             <label className={labelClass}>{chat.isGroup ? 'Group Name' : 'Name'}</label>
@@ -182,34 +191,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
           </div>
         </div>
 
-        {chat.isGroup ? (
-          <div className="mt-2 app-panel shadow-sm overflow-hidden border-b app-border">
-            <div className="px-6 py-4 border-b app-border flex items-center justify-between">
-              <h4 className="text-[14px] text-[#008069] font-medium uppercase tracking-tight">
-                {groupMembers.length + 1} Participants
-              </h4>
-              <Users size={16} className="text-secondary" />
-            </div>
-            <div className="divide-y app-border">
-              <div className="px-6 py-3 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#202c33] flex items-center justify-center text-[#00a884] font-bold shrink-0">You</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[15px] text-primary">You</p>
-                  <p className="text-[12px] text-secondary">Group Admin</p>
-                </div>
-              </div>
-              {groupMembers.map(member => (
-                <div key={member.id} className="px-6 py-3 flex items-center gap-4">
-                  <img src={member.avatar} className="w-10 h-10 rounded-full object-cover shrink-0" alt="" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[15px] text-primary">{member.name}</p>
-                    <p className="text-[12px] text-secondary truncate">{member.about || 'Available'}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
+        {/* Persona Details Section */}
+        {!chat.isGroup && (
           <div className="mt-2 app-panel px-6 py-6 shadow-sm space-y-7 border-b app-border">
             <div className="relative">
               <label className={labelClass}>Role / Title</label>
@@ -243,6 +226,35 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
           </div>
         )}
 
+        {/* Participants for Group */}
+        {chat.isGroup && (
+           <div className="mt-2 app-panel shadow-sm overflow-hidden border-b app-border">
+            <div className="px-6 py-4 border-b app-border flex items-center justify-between">
+              <h4 className="text-[14px] text-[#008069] font-medium uppercase tracking-tight">
+                {groupMembers.length + 1} Participants
+              </h4>
+              <Users size={16} className="text-secondary" />
+            </div>
+            <div className="divide-y app-border">
+              <div className="px-6 py-3 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#202c33] flex items-center justify-center text-[#00a884] font-bold shrink-0">You</div>
+                <span className="text-[15px] text-primary">You</span>
+                <span className="text-[12px] text-secondary ml-auto">Group Admin</span>
+              </div>
+              {groupMembers.map(member => (
+                <div key={member.id} className="px-6 py-3 flex items-center gap-4">
+                  <img src={member.avatar} className="w-10 h-10 rounded-full object-cover shrink-0" alt="" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] text-primary">{member.name}</p>
+                    <p className="text-[12px] text-secondary truncate">{member.about || 'Available'}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Advanced / Automation Section */}
         {!chat.isGroup && (
           <div className="mt-2 app-panel shadow-sm border-b app-border">
             <div 
@@ -272,7 +284,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
                 </div>
 
                 <div className={`space-y-6 transition-opacity ${formData.automation.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-                  {/* Inactivity Section */}
+                  {/* Inactivity Pulse */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -286,133 +298,146 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
                         <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.automation.inactivity.enabled ? 'left-[18px]' : 'left-[2px]'}`} />
                       </div>
                     </div>
-                    {formData.automation.inactivity.enabled && (
-                      <div className="flex items-center gap-2 text-[13px] text-secondary bg-white dark:bg-[#202c33] p-3 rounded border app-border">
-                        <span>Trigger randomly between</span>
-                        <input 
-                          type="number" 
-                          min="1" 
-                          max="72"
-                          value={formData.automation.inactivity.minHours}
-                          onChange={e => setFormData(p => ({ ...p, automation: { ...p.automation, inactivity: { ...p.automation.inactivity, minHours: Number(e.target.value) } } }))}
-                          className="w-12 outline-none border-b app-border text-center bg-transparent text-primary"
-                        />
-                        <span>and</span>
-                        <input 
-                          type="number" 
-                          min="1" 
-                          max="72"
-                          value={formData.automation.inactivity.maxHours}
-                          onChange={e => setFormData(p => ({ ...p, automation: { ...p.automation, inactivity: { ...p.automation.inactivity, maxHours: Number(e.target.value) } } }))}
-                          className="w-12 outline-none border-b app-border text-center bg-transparent text-primary"  
-                        />
-                        <span>hours</span>
-                      </div>
-                    )}
                   </div>
 
-                  {/* Time Triggers Section */}
+                  {/* Time Triggers */}
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h5 className="text-[14px] font-medium text-primary">Time-Based Greetings</h5>
-                    </div>
+                    <h5 className="text-[14px] font-medium text-primary">Time-Based Greetings</h5>
                     <div className="space-y-3">
-                      {formData.automation.timeTriggers.map((t, i) => {
+                      {(() => {
                         const now = new Date();
                         const todayDateStr = now.toLocaleDateString('en-CA');
                         const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+                        const hasAlreadyTalkedToday = formData.automation.timeTriggers.some(trigger => trigger.lastTriggered === todayDateStr);
                         
-                        const isTriggeredToday = t.lastTriggered === todayDateStr;
-                        const isNormal = t.lastTriggerType === 'normal';
-                        const isCatchup = t.lastTriggerType === 'catchup';
-                        const isMissed = !isTriggeredToday && currentTimeStr > t.endTime;
-                        
-                        let stateLabel = "Awaiting window";
-                        let stateColor = "text-secondary border-app-border";
-                        let badgeColor = "bg-secondary";
-                        let Icon = Clock;
+                        const processedTriggers = formData.automation.timeTriggers.map(t => {
+                          const isTriggeredToday = t.lastTriggered === todayDateStr;
+                          const isMissed = !isTriggeredToday && currentTimeStr > t.endTime;
+                          return { ...t, isTriggeredToday, isMissed };
+                        });
 
-                        if (isTriggeredToday) {
-                          if (isNormal) {
-                            stateLabel = "Completed on time";
-                            stateColor = "border-[#00a884]/50 bg-[#00a884]/5 shadow-[#00a884]/10";
-                            badgeColor = "bg-[#00a884]";
-                            Icon = Check;
-                          } else if (isCatchup) {
-                            stateLabel = "Caught up (was missed)";
-                            stateColor = "border-orange-500/50 bg-orange-500/5 shadow-orange-500/10";
-                            badgeColor = "bg-orange-500";
-                            Icon = Clock;
+                        const missedTriggers = processedTriggers
+                          .filter(t => t.isMissed)
+                          .sort((a, b) => b.endTime.localeCompare(a.endTime));
+                        const latestMissedId = missedTriggers[0]?.id;
+
+                        const pastTriggers = processedTriggers
+                          .filter(t => t.isTriggeredToday || t.isMissed)
+                          .sort((a, b) => b.endTime.localeCompare(a.endTime));
+                        
+                        const upcomingTriggers = processedTriggers
+                          .filter(t => !t.isTriggeredToday && !t.isMissed)
+                          .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+                        const renderTrigger = (t: any) => {
+                          const isNormal = t.lastTriggerType === 'normal';
+                          const isCatchup = t.lastTriggerType === 'catchup';
+                          
+                          let stateLabel = "Awaiting window";
+                          let stateColor = "text-secondary border-app-border";
+                          let badgeColor = "bg-secondary";
+                          let Icon = Clock;
+
+                          if (t.isTriggeredToday) {
+                            if (isNormal) {
+                              stateLabel = "Completed on time";
+                              stateColor = "border-[#00a884]/50 bg-[#00a884]/5 shadow-[#00a884]/10";
+                              badgeColor = "bg-[#00a884]";
+                              Icon = Check;
+                            } else if (isCatchup) {
+                              stateLabel = "Caught up (was missed)";
+                              stateColor = "border-orange-500/50 bg-orange-500/5 shadow-orange-500/10";
+                              badgeColor = "bg-orange-500";
+                              Icon = Clock;
+                            }
+                          } else if (t.isMissed) {
+                            if (hasAlreadyTalkedToday || t.id !== latestMissedId) {
+                              stateLabel = "Skipped (already caught up)";
+                              stateColor = "border-indigo-500/30 bg-indigo-500/5";
+                              badgeColor = "bg-indigo-500";
+                              Icon = Clock;
+                            } else {
+                              stateLabel = "Missed (waiting for engine)";
+                              stateColor = "border-red-500/30 bg-red-500/5";
+                              badgeColor = "bg-red-500";
+                              Icon = X;
+                            }
                           }
-                        } else if (isMissed) {
-                          stateLabel = "Missed (waiting for engine)";
-                          stateColor = "border-red-500/30 bg-red-500/5";
-                          badgeColor = "bg-red-500";
-                          Icon = X;
-                        }
+
+                          const originalIndex = formData.automation.timeTriggers.findIndex(trig => trig.id === t.id);
+
+                          return (
+                            <div key={t.id} className={`flex flex-col gap-2 p-3 bg-white dark:bg-[#202c33] border rounded relative transition-all ${stateColor}`}>
+                              {(t.isTriggeredToday || t.isMissed) && (
+                                 <div className={`absolute top-0 right-0 -mt-2.5 -mr-2 ${badgeColor} text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1 border-2 border-white dark:border-[#202c33]`}>
+                                   <Icon size={10} strokeWidth={3} /> {stateLabel}
+                                 </div>
+                              )}
+                              <div className="flex items-center justify-between">
+                                <input 
+                                  type="text" 
+                                  value={t.context}
+                                  onChange={e => {
+                                    const trigs = [...formData.automation.timeTriggers];
+                                    trigs[originalIndex].context = e.target.value;
+                                    delete trigs[originalIndex].lastTriggered;
+                                    setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
+                                  }}
+                                  className="outline-none text-[13px] font-medium bg-transparent text-primary w-full"
+                                  placeholder="e.g. Morning Greeting"
+                                />
+                                <div className="flex items-center gap-3 ml-2 shrink-0">
+                                  <Globe 
+                                    size={14} 
+                                    className="text-blue-500 cursor-pointer hover:scale-110 transition-transform" 
+                                    onClick={() => onTestAutomation?.(chat.id, 'time', t.context)} 
+                                    title="Test manually" 
+                                  />
+                                  <Trash2 size={16} className="text-red-400 cursor-pointer hover:scale-110 transition-transform" onClick={() => {
+                                    const trigs = formData.automation.timeTriggers.filter((_, idx) => idx !== originalIndex);
+                                    setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
+                                  }} />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 text-[12px] text-secondary">
+                                <span>Window:</span>
+                                <input type="time" value={t.startTime} onChange={e => {
+                                  const trigs = [...formData.automation.timeTriggers];
+                                  trigs[originalIndex].startTime = e.target.value;
+                                  delete trigs[originalIndex].lastTriggered;
+                                  delete trigs[originalIndex].lastTriggerType;
+                                  setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
+                                }} className="bg-transparent border-b app-border" />
+                                <span>to</span>
+                                <input type="time" value={t.endTime} onChange={e => {
+                                  const trigs = [...formData.automation.timeTriggers];
+                                  trigs[originalIndex].endTime = e.target.value;
+                                  delete trigs[originalIndex].lastTriggered;
+                                  delete trigs[originalIndex].lastTriggerType;
+                                  setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
+                                }} className="bg-transparent border-b app-border" />
+                              </div>
+                            </div>
+                          );
+                        };
 
                         return (
-                          <div key={t.id} className={`flex flex-col gap-2 p-3 bg-white dark:bg-[#202c33] border rounded relative transition-all ${stateColor}`}>
-                            {isTriggeredToday || isMissed ? (
-                               <div className={`absolute top-0 right-0 -mt-2.5 -mr-2 ${badgeColor} text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1 border-2 border-white dark:border-[#202c33]`}>
-                                 <Icon size={10} strokeWidth={3} /> {stateLabel}
-                               </div>
-                            ) : null}
-                            <div className="flex items-center justify-between">
-                              <input 
-                                type="text" 
-                                value={t.context}
-                              onChange={e => {
-                                const trigs = [...formData.automation.timeTriggers];
-                                trigs[i].context = e.target.value;
-                                delete trigs[i].lastTriggered;
-                                setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
-                              }}
-                              className="outline-none text-[13px] font-medium bg-transparent text-primary w-full"
-                              placeholder="e.g. Morning Greeting"
-                            />
-                            <div className="flex items-center gap-3 ml-2 shrink-0">
-                              <Globe 
-                                size={14} 
-                                className="text-blue-500 cursor-pointer hover:scale-110 transition-transform" 
-                                onClick={() => onTestAutomation?.(chat.id, 'time', t.context)} 
-                                title="Test this specific greeting context" 
-                              />
-                              <Trash2 size={16} className="text-red-400 cursor-pointer hover:scale-110 transition-transform" onClick={() => {
-                                const trigs = formData.automation.timeTriggers.filter((_, idx) => idx !== i);
-                                setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
-                              }} />
-                            </div>
+                          <div className="space-y-4">
+                            {pastTriggers.length > 0 && (
+                              <div className="space-y-3">
+                                <p className="text-[11px] font-bold text-secondary uppercase tracking-widest pl-1">Past Interactions</p>
+                                {pastTriggers.map(renderTrigger)}
+                              </div>
+                            )}
+                            {upcomingTriggers.length > 0 && (
+                              <div className="space-y-3 pt-2">
+                                <p className="text-[11px] font-bold text-secondary uppercase tracking-widest pl-1">Upcoming Greetings</p>
+                                {upcomingTriggers.map(renderTrigger)}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2 text-[12px] text-secondary">
-                            <span>Randomly between:</span>
-                            <input 
-                              type="time" 
-                              value={t.startTime}
-                              onChange={e => {
-                                const trigs = [...formData.automation.timeTriggers];
-                                trigs[i].startTime = e.target.value;
-                                delete trigs[i].lastTriggered;
-                                setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
-                              }}
-                              className="outline-none tracking-wider bg-[#f0f2f5] dark:bg-[#111b21] p-1 rounded border app-border text-primary"
-                            />
-                            <span>and</span>
-                            <input 
-                              type="time" 
-                              value={t.endTime}
-                              onChange={e => {
-                                const trigs = [...formData.automation.timeTriggers];
-                                trigs[i].endTime = e.target.value;
-                                delete trigs[i].lastTriggered;
-                                setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
-                              }}
-                              className="outline-none tracking-wider bg-[#f0f2f5] dark:bg-[#111b21] p-1 rounded border app-border text-primary"
-                            />
-                          </div>
-                        </div>
                         );
-                      })}
+                      })()}
                       <button 
                         onClick={() => {
                           const newTrig = { id: Date.now().toString(), context: 'New Greeting', startTime: '08:00', endTime: '09:00' };
@@ -424,39 +449,38 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
                       </button>
                     </div>
                   </div>
-
-                  {/* Test Buttons */}
-                  <div className="pt-4 border-t app-border space-y-2">
-                    <button
-                      onClick={() => onTestAutomation?.(chat.id, 'inactivity')}
-                      className="w-full flex items-center justify-center gap-2 text-[13px] bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium py-2.5 rounded hover:bg-blue-500/20 transition-colors uppercase tracking-tight"
-                    >
-                      <Clock size={16} /> Force Test Inactivity
-                    </button>
-                    <p className="text-[11px] text-secondary text-center leading-tight">
-                      Instantly triggers the background engine with an inactivity bypass. For time triggers, use the blue icon next to individual greetings.
-                    </p>
-                  </div>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        <div className="p-6 app-header space-y-3">
+        {/* Action Buttons Section */}
+        <div className="p-6 space-y-4">
+          {!chat.isGroup && (
+            <button 
+              onClick={() => {
+                if (window.confirm("This will clear the typing status and reset any internal session locks. Continue?")) {
+                  onRefreshPersona(chat.id);
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 text-[14px] text-indigo-600 dark:text-indigo-400 font-medium py-3 border border-indigo-500/20 bg-indigo-500/5 rounded-lg hover:bg-indigo-500/10 transition-colors shadow-sm"
+            >
+              <RefreshCw size={16} /> Refresh & Debug Persona
+            </button>
+          )}
+
           <button
             onClick={handleSave}
-            className="w-full bg-[#00a884] text-white py-3 rounded-md flex items-center justify-center gap-2 font-medium hover:bg-[#005c4b] transition-colors shadow-sm active:scale-95 uppercase text-[14px]"
+            className="w-full bg-[#00a884] text-white py-3 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-[#005c4b] transition-colors shadow-sm active:scale-95 uppercase text-[14px]"
           >
             <Save size={18} />
             Save Changes
           </button>
 
-          <div className="h-[1px] app-border bg-border my-2 opacity-50" />
-
           <button
             onClick={() => setShowClearModal(true)}
-            className="w-full text-primary py-3 rounded-md flex items-center justify-center gap-2 font-medium hover:bg-black/5 transition-colors active:scale-95 text-[14px]"
+            className="w-full text-primary py-3 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-black/5 transition-colors active:scale-95 text-[14px] border app-border"
           >
             <Eraser size={18} className="text-secondary" />
             Clear Chat History
@@ -464,7 +488,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ chat, allChats, onCl
 
           <button
             onClick={() => setShowDeleteModal(true)}
-            className="w-full text-red-500 py-3 rounded-md flex items-center justify-center gap-2 font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors active:scale-95 text-[14px]"
+            className="w-full text-red-500 py-3 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors active:scale-95 text-[14px] border border-red-500/20"
           >
             <Trash2 size={18} />
             {chat.isGroup ? 'Exit & Delete Group' : 'Delete Persona & Chat'}
