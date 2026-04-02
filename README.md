@@ -16,13 +16,16 @@ A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Ta
 This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini LLM.
 
 ### 🌟 What's New in v1.2.0 (The "Persona Proactivity" Update)
-*   **AI Automation Engine**: Personas are no longer passive. They now monitor background context and can independently initiate conversations through randomized probability checks.
-*   **Time-Gate Triggers**: Create custom "Daily Greetings" (e.g., Morning, Lunch, Dinner). The AI will automatically reach out during these windows with a unique "Done for today" visual tracker in the UI.
-*   **Inactivity Check-ins**: If you haven't messaged a persona for a user-defined number of hours (e.g., 6-24 hrs), the AI will proactively check in on you with context-aware concern.
-*   **Mobile Notification Drawer Support**: Full **PWA (Progressive Web App)** implementation including `manifest.json` and basic Service Worker. "Install" the app on Android/iOS to receive background notifications directly in your system tray.
-*   **Advanced Testing Suite**: Explicit "Force Test" buttons for every automation type, allowing you to verify AI behavior and notification delivery instantly without waiting for timers.
-*   **Intelligent Suppression**: Notifications and pings are automatically silenced if you are actively focusing on the relevant chat window, ensuring a frictionless UX.
-*   **Tab-Focus Feedback**: Browser tab titles now dynamically flash `(1) New Message` when activity occurs in the background.
+*   **Intelligent Catch-Up Engine**: Personas now automatically detect missed scheduling windows on app launch. If you miss a morning greeting, the AI will proactively apologize and "catch up" with natural context—ensuring only the latest missed window is addressed to avoid spamming.
+*   **Smart Automation UI**: The automation list is now divided into **"Past Interactions"** and **"Upcoming Greetings"** with intelligent chronological sorting.
+    *   **Past Interactions** are sorted **Latest First**, showing you exactly what just happened or what was recently caught up. 
+    *   **Upcoming Greetings** are sorted **Earliest First** to show you the next scheduled window.
+*   **Tri-State Visual Tracker**: Enhanced status badges for triggers: <span style="color: #00a884">●</span> **Completed**, <span style="color: #ff9800">●</span> **Caught Up**, <span style="color: #6366f1">●</span> **Skipped (Indigo)**, and <span style="color: #f43f5e">●</span> **Missed (Red)**.
+*   **Persona Health & Diagnostics**:
+    *   **Refresh & Debug Button**: A new tool in the Profile Panel to forcefully reset "stuck" agents and clear internal session locks.
+    *   **Robust Status Management**: Implementation of `finally` blocks in AI response logic to guarantee that the "typing..." state is always cleared, preventing infinite hangs.
+*   **Inactivity Check-ins**: Custom thresholds (6-24 hrs) for the AI to proactively message you if the conversation has stalled.
+*   **Mobile Notification Drawer Support**: Full **PWA** implementation for native background notifications on mobile devices.
 
 ### 🌟 Previous Updates (v1.1.5)
 *   **Quick Double-Tap Selection**: Say goodbye to finicky long-presses. Quickly tap a message twice to enter **Selection Mode**.
