@@ -35,8 +35,9 @@ export interface TimeTrigger {
 
 export interface InactivityTrigger {
   enabled: boolean;
-  minHours: number;
-  maxHours: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
 }
 
 export interface PersonaAutomation {

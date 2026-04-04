@@ -31,8 +31,10 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     automation: chat.automation || {
       enabled: false,
       timeTriggers: [],
-      inactivity: { enabled: false, minHours: 6, maxHours: 8 }
+      inactivity: { enabled: false, hours: 6, minutes: 0, seconds: 0 }
     }
+    // Handle migration for old saved data
+    // Delete minHours/maxHours if they exist
   });
 
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -53,8 +55,28 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       automation: chat.automation || {
         enabled: false,
         timeTriggers: [],
-        inactivity: { enabled: false, minHours: 6, maxHours: 8 }
+        inactivity: { enabled: false, hours: 6, minutes: 0, seconds: 0 }
       }
+    });
+    
+    // Normalize existing data if it used minHours
+    setFormData(prev => {
+      if (prev.automation?.inactivity && ('minHours' in prev.automation.inactivity)) {
+         const oldInactivity: any = prev.automation.inactivity;
+         return {
+           ...prev,
+           automation: {
+             ...prev.automation,
+             inactivity: {
+               enabled: oldInactivity.enabled,
+               hours: oldInactivity.hours ?? oldInactivity.minHours ?? 6,
+               minutes: oldInactivity.minutes ?? 0,
+               seconds: oldInactivity.seconds ?? 0
+             }
+           }
+         };
+      }
+      return prev;
     });
     setUrlValue(chat.avatar);
   }, [chat]);
@@ -298,6 +320,37 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                         <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.automation.inactivity.enabled ? 'left-[18px]' : 'left-[2px]'}`} />
                       </div>
                     </div>
+                    {formData.automation.inactivity.enabled && (
+                      <div className="flex items-center gap-2 text-[13px] text-secondary bg-white dark:bg-[#202c33] p-3 rounded border app-border">
+                        <span>Trigger after:</span>
+                        <input 
+                          type="number" 
+                          min="0"
+                          value={formData.automation.inactivity.hours} 
+                          onChange={e => setFormData(p => ({ ...p, automation: { ...p.automation, inactivity: { ...p.automation.inactivity, hours: parseInt(e.target.value) || 0 } } }))}
+                          className="w-10 bg-transparent text-center border-b app-border text-primary outline-none"
+                        />
+                        <span>hr</span>
+                        <input 
+                          type="number" 
+                          min="0"
+                          max="59"
+                          value={formData.automation.inactivity.minutes} 
+                          onChange={e => setFormData(p => ({ ...p, automation: { ...p.automation, inactivity: { ...p.automation.inactivity, minutes: parseInt(e.target.value) || 0 } } }))}
+                          className="w-10 bg-transparent text-center border-b app-border text-primary outline-none"
+                        />
+                        <span>min</span>
+                        <input 
+                          type="number" 
+                          min="0"
+                          max="59"
+                          value={formData.automation.inactivity.seconds} 
+                          onChange={e => setFormData(p => ({ ...p, automation: { ...p.automation, inactivity: { ...p.automation.inactivity, seconds: parseInt(e.target.value) || 0 } } }))}
+                          className="w-10 bg-transparent text-center border-b app-border text-primary outline-none"
+                        />
+                        <span>sec</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Time Triggers */}

@@ -314,7 +314,11 @@ const App: React.FC = () => {
         if (activeTrig) {
           // If app just opened, trigger immediately. Otherwise, use a probability check to feel natural.
           if (isInitialMount || Math.random() < 0.6) {
-            triggeredContext = activeTrig.context;
+            triggeredContext = `[SCHEDULED INTERACTION]
+INTENT: "${activeTrig.context}"
+
+INSTRUCTION: You are starting a conversation because of this scheduled interaction. 
+Deliver the message based on this intent while still being context-aware of our history.`;
             triggerId = activeTrig.id;
             triggerType = 'normal';
           }
@@ -323,27 +327,26 @@ const App: React.FC = () => {
         // 2. PRIORITY: Latest Catch-Up (if no active trigger)
         if (!triggeredContext) {
           // GUARD: If any trigger has already fired today (normal or catchup), stop all further catch-ups.
-          // This ensures we catch up ONCE for the latest missed window and don't spam apologies.
-          const hasAlreadyTalkedToday = automation.timeTriggers.some(t => t.lastTriggered === todayDateStr);
+          // Includes a check against handledTriggersRef to prevent race conditions during state updates.
+          const hasAlreadyTalkedToday = automation.timeTriggers.some(t => 
+            t.lastTriggered === todayDateStr || handledTriggersRef.current.has(`${chat.id}-${t.id}-${todayDateStr}`)
+          );
           
           if (!hasAlreadyTalkedToday) {
             const missedTriggers = automation.timeTriggers
               .filter(t => 
                 t.lastTriggered !== todayDateStr && 
-                !handledTriggersRef.current.has(`${chat.id}-${t.id}-${todayDateStr}`) &&
                 currentTimeStr > t.endTime
               )
               .sort((a, b) => b.endTime.localeCompare(a.endTime)); // Sort to find the MOST RECENT missed one
 
             if (missedTriggers.length > 0) {
               const latestMissed = missedTriggers[0];
-              triggeredContext = `[STATUS: CATCH-UP REQUIRED]
-[MISSES WINDOW: ${latestMissed.startTime} - ${latestMissed.endTime}]
-[CURRENT TIME: ${currentTimeStr}]
-[INTENDED INTERACTION: "${latestMissed.context}"]
+              triggeredContext = `[CATCH-UP REQUIRED]
+INTENT: "${latestMissed.context}"
 
-INSTRUCTION: You missed your scheduled window to message the user because the app was closed. The user has just opened the app. 
-Acknowledge the delay naturally according to your persona (e.g., just getting to your phone, busy earlier, etc.) and then deliver the intended interaction seamlessly.`;
+INSTRUCTION: You missed your scheduled window because the app was closed. Now that it's open, acknowledge the delay naturally (e.g., "just getting to my phone") and then deliver on the INTENT above. 
+Your primary goal is the INTENT while staying context-aware of our history.`;
               triggerId = latestMissed.id;
               triggerType = 'catchup';
             }
@@ -352,8 +355,8 @@ Acknowledge the delay naturally according to your persona (e.g., just getting to
 
         // 3. PRIORITY: Inactivity Pulse (if no timely or catch-up trigger)
         if (!triggeredContext && automation.inactivity.enabled) {
-          // Use a special key for inactivity to prevent double-firing in a single "dead-zone" session
-          const inactivityKey = `${chat.id}-inactivity-${Math.floor(Date.now() / (1000 * 60 * 60))}`; // Hourly bucket
+          // Use a minute-level bucket to prevent rapid double-firing during state wait
+          const inactivityKey = `${chat.id}-inactivity-${Math.floor(Date.now() / 60000)}`; 
           
           if (!handledTriggersRef.current.has(inactivityKey)) {
             const lastMsgMe = [...chat.messages].reverse().find(m => m.sender === 'me');
@@ -362,20 +365,25 @@ Acknowledge the delay naturally according to your persona (e.g., just getting to
               if (isNaN(msgTime)) msgTime = Date.now() - (24 * 60 * 60 * 1000);
 
               if (msgTime > 0) {
-                const hoursSinceLastOurs = (Date.now() - msgTime) / (1000 * 60 * 60);
+                const inactConf = automation.inactivity as any;
+                const hrs = inactConf.hours ?? inactConf.minHours ?? 6;
+                const mins = inactConf.minutes ?? 0;
+                const secs = inactConf.seconds ?? 0;
+                const thresholdMs = (hrs * 60 * 60 * 1000) + (mins * 60 * 1000) + (secs * 1000);
+                const timeSinceLastOurs = Date.now() - msgTime;
 
-                if (hoursSinceLastOurs >= automation.inactivity.minHours) {
+                // Fire exactly when the threshold is met, no randomness
+                if (timeSinceLastOurs >= thresholdMs) {
                   const lastInactivityTrig = automation.lastInactivityTriggered || 0;
+                  // Only fire if we haven't already fired an inactivity check for this specific missed message
                   if (lastInactivityTrig < msgTime) {
-                    // On launch, if minHours met, trigger immediately. Otherwise use probability.
-                    if (isInitialMount || hoursSinceLastOurs >= automation.inactivity.maxHours || Math.random() < 0.3) {
-                      triggeredContext = `[STATUS: INACTIVITY CHECK-IN]
-[HOURS SINCE LAST USER MESSAGE: ${hoursSinceLastOurs.toFixed(1)}]
+                    const hoursSinceLastOurs = timeSinceLastOurs / (1000 * 60 * 60);
+                    triggeredContext = `[INACTIVITY CHECK-IN]
+Status: User has been quiet for ${hoursSinceLastOurs.toFixed(1)} hours.
 
-INSTRUCTION: The user hasn't messaged you in a while. Send a friendly, natural check-in message based on your persona and the last conversation context.`;
-                      triggerType = 'inactivity';
-                      triggerId = inactivityKey; // Use key for tracking
-                    }
+Guideline: Reach out naturally. Prioritize the previous conversation context and flow. Don't force a new topic unless it feels right for your persona based on recent history.`;
+                    triggerType = 'inactivity';
+                    triggerId = inactivityKey; // Use key for tracking
                   }
                 }
               }

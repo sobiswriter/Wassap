@@ -66,9 +66,12 @@ IMPORTANT RULE: NEVER use formal citations (like [1], URLs, or "according to..."
 ` : '';
 
     const initiationPrompt = initiationContext ? `
-CRITICAL INSTRUCTION: You are initiating this conversation right now. Do not wait for the user to speak.
-Reason/Context for this message: ${initiationContext}
-Start the conversation naturally based on this specific context.
+CRITICAL INSTRUCTION: You are re-initiating the conversation right now.
+${initiationContext.includes('[SCHEDULED INTERACTION]') || initiationContext.includes('[CATCH-UP REQUIRED]') 
+  ? `INTENT: This is a scheduled interaction. You MUST prioritize this intent and address it immediately while remaining context-aware.` 
+  : `CONTEXT: This is a natural check-in. Prioritize the conversation history and flow while acknowledging the silence naturally.`}
+Context/Directive details:
+${initiationContext}
 ` : '';
 
     const systemPrompt = `You are ${responder.name}. 
@@ -81,7 +84,8 @@ ${groundingPrompt}
 ${initiationPrompt}
 
 Instructions:
-1. Respond naturally to the last few messages (or initiate if instructed above).
+1. If an initiation INTENT or CONTEXT is provided above, follow its prioritization directive (Specific intents take priority; Check-ins prioritize history).
+2. Maintain your unique personality and speech style at all times. Breathe life into the persona!
 2. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
 3. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear! If it's silent or unclear, politely ask them to repeat.
 4. If in a group, you don't always have to talk to the user; you can reply to another member's comment.
