@@ -106,8 +106,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     onUpdate(formData);
   };
 
-  const labelClass = "text-[14px] text-[#008069] font-medium block mb-2 uppercase tracking-tight";
-  const inputClass = "w-full outline-none text-[16px] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1";
+  const labelClass = "text-[calc(var(--msg-font-size)-0.5px)] text-[#008069] font-medium block mb-2 uppercase tracking-tight";
+  const inputClass = "w-full outline-none text-[calc(var(--msg-font-size)+1.5px)] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1";
 
   const groupMembers = chat.isGroup
     ? chat.memberIds?.map(id => allChats.find(c => c.id === id)).filter(Boolean) as Chat[]
@@ -145,7 +145,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       <div className="h-[60px] app-panel flex items-center p-5 shrink-0 border-b app-border">
         <div className="flex items-center gap-6">
           <X className="text-secondary cursor-pointer hover:bg-black/5 rounded-full p-1" onClick={onClose} />
-          <h2 className="text-[16px] font-medium text-primary">{chat.isGroup ? 'Group info' : 'Contact info'}</h2>
+          <h2 className="text-[calc(var(--msg-font-size)+1.5px)] font-medium text-primary">{chat.isGroup ? 'Group info' : 'Contact info'}</h2>
         </div>
       </div>
 
@@ -158,11 +158,11 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
               <div className="flex gap-4">
                 <div onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center hover:text-[#00a884] cursor-pointer">
                   <Camera size={20} />
-                  <span className="text-[10px] uppercase font-bold mt-1">Upload</span>
+                  <span className="text-[calc(var(--msg-font-size)-4.5px)] uppercase font-bold mt-1">Upload</span>
                 </div>
                 <div onClick={() => setShowUrlInput(!showUrlInput)} className="flex flex-col items-center hover:text-[#00a884] cursor-pointer">
                   <LinkIcon size={20} />
-                  <span className="text-[10px] uppercase font-bold mt-1">Link</span>
+                  <span className="text-[calc(var(--msg-font-size)-4.5px)] uppercase font-bold mt-1">Link</span>
                 </div>
               </div>
             </div>
@@ -175,7 +175,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                 <Globe size={16} className="text-[#00a884] shrink-0" />
                 <input
                   type="text"
-                  className="flex-1 outline-none text-[14px] bg-transparent text-primary px-1 font-medium"
+                  className="flex-1 outline-none text-[calc(var(--msg-font-size)-0.5px)] bg-transparent text-primary px-1 font-medium"
                   placeholder="Paste image URL here..."
                   value={urlValue}
                   onChange={(e) => setUrlValue(e.target.value)}
@@ -186,8 +186,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
             </div>
           )}
 
-          <h3 className="text-[20px] text-primary font-normal">{formData.name}</h3>
-          <p className="text-secondary text-[14px] mt-1">{chat.isGroup ? `Group · ${groupMembers.length + 1} participants` : (chat.status || 'online')}</p>
+          <h3 className="text-[calc(var(--msg-font-size)+5.5px)] text-primary font-normal">{formData.name}</h3>
+          <p className="text-secondary text-[calc(var(--msg-font-size)-0.5px)] mt-1">{chat.isGroup ? `Group · ${groupMembers.length + 1} participants` : (chat.status || 'online')}</p>
         </div>
 
         {/* Basic Info Section */}
@@ -241,7 +241,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
               <textarea
                 value={formData.systemInstruction}
                 onChange={(e) => setFormData(prev => ({ ...prev, systemInstruction: e.target.value }))}
-                className="w-full min-h-[140px] outline-none text-[15px] resize-none bg-[#f9f9f9] dark:bg-[#2a3942] p-3 rounded border app-border focus:border-[#00a884] transition-all text-primary leading-relaxed shadow-sm"
+                className="w-full min-h-[140px] outline-none text-[calc(var(--msg-font-size)+0.5px)] resize-none bg-[#f9f9f9] dark:bg-[#2a3942] p-3 rounded border app-border focus:border-[#00a884] transition-all text-primary leading-relaxed shadow-sm"
                 placeholder="Detailed instructions for the AI behavior..."
               />
             </div>
@@ -252,7 +252,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
         {chat.isGroup && (
            <div className="mt-2 app-panel shadow-sm overflow-hidden border-b app-border">
             <div className="px-6 py-4 border-b app-border flex items-center justify-between">
-              <h4 className="text-[14px] text-[#008069] font-medium uppercase tracking-tight">
+              <h4 className="text-[calc(var(--msg-font-size)-0.5px)] text-[#008069] font-medium uppercase tracking-tight">
                 {groupMembers.length + 1} Participants
               </h4>
               <Users size={16} className="text-secondary" />
@@ -260,15 +260,15 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
             <div className="divide-y app-border">
               <div className="px-6 py-3 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#202c33] flex items-center justify-center text-[#00a884] font-bold shrink-0">You</div>
-                <span className="text-[15px] text-primary">You</span>
-                <span className="text-[12px] text-secondary ml-auto">Group Admin</span>
+                <span className="text-[calc(var(--msg-font-size)+0.5px)] text-primary">You</span>
+                <span className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary ml-auto">Group Admin</span>
               </div>
               {groupMembers.map(member => (
                 <div key={member.id} className="px-6 py-3 flex items-center gap-4">
                   <img src={member.avatar} className="w-10 h-10 rounded-full object-cover shrink-0" alt="" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[15px] text-primary">{member.name}</p>
-                    <p className="text-[12px] text-secondary truncate">{member.about || 'Available'}</p>
+                    <p className="text-[calc(var(--msg-font-size)+0.5px)] text-primary">{member.name}</p>
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary truncate">{member.about || 'Available'}</p>
                   </div>
                 </div>
               ))}
@@ -285,7 +285,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
             >
               <div className="flex items-center gap-3">
                 <Settings size={20} className="text-secondary" />
-                <h4 className="text-[15px] text-primary font-medium">Advanced Features: Automation</h4>
+                <h4 className="text-[calc(var(--msg-font-size)+0.5px)] text-primary font-medium">Advanced Features: Automation</h4>
               </div>
               {showAdvanced ? <ChevronDown size={20} className="text-secondary" /> : <ChevronRight size={20} className="text-secondary" />}
             </div>
@@ -294,8 +294,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
               <div className="px-6 py-6 space-y-6 border-t app-border bg-gray-50/50 dark:bg-black/10">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[14.5px] font-medium text-primary">Enable Automation</p>
-                    <p className="text-[12px] text-secondary">Allow AI to initiate conversations</p>
+                    <p className="text-[length:var(--msg-font-size)] font-medium text-primary">Enable Automation</p>
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Allow AI to initiate conversations</p>
                   </div>
                   <div
                     onClick={() => setFormData(p => ({ ...p, automation: { ...p.automation, enabled: !p.automation.enabled } }))}
@@ -311,7 +311,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Clock size={16} className="text-secondary" />
-                        <h5 className="text-[14px] font-medium text-primary">Inactivity Check-ins</h5>
+                        <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Inactivity Check-ins</h5>
                       </div>
                       <div
                         onClick={() => setFormData(p => ({ ...p, automation: { ...p.automation, inactivity: { ...p.automation.inactivity, enabled: !p.automation.inactivity.enabled } } }))}
@@ -321,7 +321,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                       </div>
                     </div>
                     {formData.automation.inactivity.enabled && (
-                      <div className="flex items-center gap-2 text-[13px] text-secondary bg-white dark:bg-[#202c33] p-3 rounded border app-border">
+                      <div className="flex items-center gap-2 text-[calc(var(--msg-font-size)-1.5px)] text-secondary bg-white dark:bg-[#202c33] p-3 rounded border app-border">
                         <span>Trigger after:</span>
                         <input 
                           type="number" 
@@ -355,7 +355,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
                   {/* Time Triggers */}
                   <div className="space-y-3">
-                    <h5 className="text-[14px] font-medium text-primary">Time-Based Greetings</h5>
+                    <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Time-Based Greetings</h5>
                     <div className="space-y-3">
                       {(() => {
                         const now = new Date();
@@ -422,7 +422,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                           return (
                             <div key={t.id} className={`flex flex-col gap-2 p-3 bg-white dark:bg-[#202c33] border rounded relative transition-all ${stateColor}`}>
                               {(t.isTriggeredToday || t.isMissed) && (
-                                 <div className={`absolute top-0 right-0 -mt-2.5 -mr-2 ${badgeColor} text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1 border-2 border-white dark:border-[#202c33]`}>
+                                 <div className={`absolute top-0 right-0 -mt-2.5 -mr-2 ${badgeColor} text-white text-[calc(var(--msg-font-size)-4.5px)] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1 border-2 border-white dark:border-[#202c33]`}>
                                    <Icon size={10} strokeWidth={3} /> {stateLabel}
                                  </div>
                               )}
@@ -436,7 +436,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                                     delete trigs[originalIndex].lastTriggered;
                                     setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: trigs } }));
                                   }}
-                                  className="outline-none text-[13px] font-medium bg-transparent text-primary w-full"
+                                  className="outline-none text-[calc(var(--msg-font-size)-1.5px)] font-medium bg-transparent text-primary w-full"
                                   placeholder="e.g. Morning Greeting"
                                 />
                                 <div className="flex items-center gap-3 ml-2 shrink-0">
@@ -452,7 +452,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                                   }} />
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 text-[12px] text-secondary">
+                              <div className="flex items-center gap-2 text-[calc(var(--msg-font-size)-2.5px)] text-secondary">
                                 <span>Window:</span>
                                 <input type="time" value={t.startTime} onChange={e => {
                                   const trigs = [...formData.automation.timeTriggers];
@@ -478,13 +478,13 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                           <div className="space-y-4">
                             {pastTriggers.length > 0 && (
                               <div className="space-y-3">
-                                <p className="text-[11px] font-bold text-secondary uppercase tracking-widest pl-1">Past Interactions</p>
+                                <p className="text-[calc(var(--msg-font-size)-3.5px)] font-bold text-secondary uppercase tracking-widest pl-1">Past Interactions</p>
                                 {pastTriggers.map(renderTrigger)}
                               </div>
                             )}
                             {upcomingTriggers.length > 0 && (
                               <div className="space-y-3 pt-2">
-                                <p className="text-[11px] font-bold text-secondary uppercase tracking-widest pl-1">Upcoming Greetings</p>
+                                <p className="text-[calc(var(--msg-font-size)-3.5px)] font-bold text-secondary uppercase tracking-widest pl-1">Upcoming Greetings</p>
                                 {upcomingTriggers.map(renderTrigger)}
                               </div>
                             )}
@@ -496,7 +496,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                           const newTrig = { id: Date.now().toString(), context: 'New Greeting', startTime: '08:00', endTime: '09:00' };
                           setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: [...p.automation.timeTriggers, newTrig] } }));
                         }}
-                        className="w-full flex items-center justify-center gap-2 text-[13px] text-[#00a884] font-medium py-2 hover:bg-black/5 rounded transition-colors"
+                        className="w-full flex items-center justify-center gap-2 text-[calc(var(--msg-font-size)-1.5px)] text-[#00a884] font-medium py-2 hover:bg-black/5 rounded transition-colors"
                       >
                         <Plus size={16} /> Add Trigger
                       </button>
@@ -517,7 +517,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   onRefreshPersona(chat.id);
                 }
               }}
-              className="w-full flex items-center justify-center gap-2 text-[14px] text-indigo-600 dark:text-indigo-400 font-medium py-3 border border-indigo-500/20 bg-indigo-500/5 rounded-lg hover:bg-indigo-500/10 transition-colors shadow-sm"
+              className="w-full flex items-center justify-center gap-2 text-[calc(var(--msg-font-size)-0.5px)] text-indigo-600 dark:text-indigo-400 font-medium py-3 border border-indigo-500/20 bg-indigo-500/5 rounded-lg hover:bg-indigo-500/10 transition-colors shadow-sm"
             >
               <RefreshCw size={16} /> Refresh & Debug Persona
             </button>
@@ -525,7 +525,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
           <button
             onClick={handleSave}
-            className="w-full bg-[#00a884] text-white py-3 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-[#005c4b] transition-colors shadow-sm active:scale-95 uppercase text-[14px]"
+            className="w-full bg-[#00a884] text-white py-3 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-[#005c4b] transition-colors shadow-sm active:scale-95 uppercase text-[calc(var(--msg-font-size)-0.5px)]"
           >
             <Save size={18} />
             Save Changes
@@ -533,7 +533,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
           <button
             onClick={() => setShowClearModal(true)}
-            className="w-full text-primary py-3 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-black/5 transition-colors active:scale-95 text-[14px] border app-border"
+            className="w-full text-primary py-3 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-black/5 transition-colors active:scale-95 text-[calc(var(--msg-font-size)-0.5px)] border app-border"
           >
             <Eraser size={18} className="text-secondary" />
             Clear Chat History
@@ -541,7 +541,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
           <button
             onClick={() => setShowDeleteModal(true)}
-            className="w-full text-red-500 py-3 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors active:scale-95 text-[14px] border border-red-500/20"
+            className="w-full text-red-500 py-3 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors active:scale-95 text-[calc(var(--msg-font-size)-0.5px)] border border-red-500/20"
           >
             <Trash2 size={18} />
             {chat.isGroup ? 'Exit & Delete Group' : 'Delete Persona & Chat'}

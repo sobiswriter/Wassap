@@ -38,15 +38,15 @@ export const UserProfilePanel: React.FC<UserProfilePanelProps> = ({ user, onClos
     onClose();
   };
 
-  const labelClass = "text-[14px] text-[#008069] font-medium block mb-1 uppercase tracking-tight";
-  const inputClass = "w-full outline-none text-[16px] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1 font-normal";
+  const labelClass = "text-[calc(var(--msg-font-size)-0.5px)] text-[#008069] font-medium block mb-1 uppercase tracking-tight";
+  const inputClass = "w-full outline-none text-[calc(var(--msg-font-size)+1.5px)] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1 font-normal";
 
   return (
     <div className="w-full md:w-[410px] h-full app-header border-r app-border flex flex-col animate-in md:slide-in-from-left duration-300 absolute left-0 md:left-[64px] z-50 shadow-xl">
       <div className="h-[108px] bg-[#008069] flex items-end p-5 text-white shrink-0">
         <div className="flex items-center gap-6">
           <ArrowLeft className="cursor-pointer hover:bg-[#005c4b] rounded-full p-1" onClick={onClose} />
-          <h2 className="text-[19px] font-medium">Profile</h2>
+          <h2 className="text-[calc(var(--msg-font-size)+4.5px)] font-medium">Profile</h2>
         </div>
       </div>
 
@@ -58,11 +58,11 @@ export const UserProfilePanel: React.FC<UserProfilePanelProps> = ({ user, onClos
               <div className="flex gap-4">
                 <div onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center hover:text-[#00a884] cursor-pointer">
                   <Camera size={20} />
-                  <span className="text-[10px] uppercase font-bold mt-1">Upload</span>
+                  <span className="text-[calc(var(--msg-font-size)-4.5px)] uppercase font-bold mt-1">Upload</span>
                 </div>
                 <div onClick={() => setShowUrlInput(!showUrlInput)} className="flex flex-col items-center hover:text-[#00a884] cursor-pointer">
                   <LinkIcon size={20} />
-                  <span className="text-[10px] uppercase font-bold mt-1">Link</span>
+                  <span className="text-[calc(var(--msg-font-size)-4.5px)] uppercase font-bold mt-1">Link</span>
                 </div>
               </div>
             </div>
@@ -75,7 +75,7 @@ export const UserProfilePanel: React.FC<UserProfilePanelProps> = ({ user, onClos
                 <Globe size={16} className="text-[#00a884] shrink-0" />
                 <input
                   type="text"
-                  className="flex-1 outline-none text-[14px] bg-transparent text-primary px-1"
+                  className="flex-1 outline-none text-[calc(var(--msg-font-size)-0.5px)] bg-transparent text-primary px-1"
                   placeholder="Image URL..."
                   value={urlValue}
                   onChange={(e) => setUrlValue(e.target.value)}
@@ -123,7 +123,7 @@ export const UserProfilePanel: React.FC<UserProfilePanelProps> = ({ user, onClos
         <div className="p-6 app-header">
           <button
             onClick={handleSave}
-            className="w-full py-3 rounded-lg flex items-center justify-center gap-2 font-medium bg-[#00a884] text-white hover:bg-[#005c4b] active:scale-95 shadow-sm transition-all uppercase text-[14px]"
+            className="w-full py-3 rounded-lg flex items-center justify-center gap-2 font-medium bg-[#00a884] text-white hover:bg-[#005c4b] active:scale-95 shadow-sm transition-all uppercase text-[calc(var(--msg-font-size)-0.5px)]"
           >
             <Save size={18} />
             Save Profile

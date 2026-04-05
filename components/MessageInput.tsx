@@ -181,21 +181,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             ) : (
               <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#111b21] rounded-lg border app-border p-2">
                 <FileText className="text-[#00a884] mb-2" size={40} />
-                <span className="text-[11px] text-[#667781] text-center line-clamp-2 w-full leading-tight">{stagedAttachment.name}</span>
+                <span className="text-[calc(var(--input-font-size)-6px)] text-[#667781] text-center line-clamp-2 w-full leading-tight">{stagedAttachment.name}</span>
               </div>
             )}
             {stagedAttachment.type === 'audio' && (
               <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#111b21] rounded-lg border app-border p-2">
                 <WhatsAppMicIcon className="text-[#00a884] mb-2" size={40} />
-                <span className="text-[11px] text-[#667781] text-center w-full leading-tight">Audio Note recorded</span>
+                <span className="text-[calc(var(--input-font-size)-6px)] text-[#667781] text-center w-full leading-tight">Audio Note recorded</span>
               </div>
             )}
           </div>
           <div className="ml-5 mb-2 flex flex-col">
-            <span className="text-[15px] text-primary font-semibold">
+            <span className="text-[calc(var(--input-font-size)-2px)] text-primary font-semibold">
               {stagedAttachment.type === 'image' ? 'Send Image' : stagedAttachment.type === 'audio' ? 'Send Voice Note' : 'Send Document'}
             </span>
-            <span className="text-[12px] text-secondary italic">
+            <span className="text-[calc(var(--input-font-size)-5px)] text-secondary italic">
               {stagedAttachment.type === 'image' ? 'Add a caption below' : stagedAttachment.name}
             </span>
           </div>
@@ -207,8 +207,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         <div className="bg-[#f0f2f5] dark:bg-[#202c33] border-t app-border px-3 py-2 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-300">
            <div className="flex-1 bg-black/5 dark:bg-black/20 border-l-4 border-[#00a884] rounded p-2 relative pr-8 overflow-hidden">
              <button onClick={onCancelReply} className="absolute right-2 top-2 text-secondary hover:text-primary"><X size={16}/></button>
-             <p className="text-[13px] text-[#00a884] font-medium mb-0.5 truncate">{replyingTo.sender === 'me' ? 'You' : (replyingTo.senderName || 'Contact')}</p>
-             <p className="text-[12px] text-secondary truncate">{replyingTo.text || (replyingTo.attachment ? 'Attachment' : 'Message')}</p>
+             <p className="text-[calc(var(--input-font-size)-4px)] text-[#00a884] font-medium mb-0.5 truncate">{replyingTo.sender === 'me' ? 'You' : (replyingTo.senderName || 'Contact')}</p>
+             <p className="text-[calc(var(--input-font-size)-5px)] text-secondary truncate">{replyingTo.text || (replyingTo.attachment ? 'Attachment' : 'Message')}</p>
            </div>
         </div>
       )}
@@ -232,7 +232,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             ref={inputRef}
             placeholder={isRecording ? "Recording audio..." : (stagedAttachment ? (stagedAttachment.type === 'image' ? "Add a caption..." : "Message about this attachment...") : "Message")}
             disabled={isRecording}
-            className="flex-1 bg-transparent outline-none text-[17px] text-primary py-[12px] min-w-0 resize-none max-h-[140px] leading-relaxed custom-scrollbar disabled:opacity-70"
+            className="flex-1 bg-transparent outline-none text-[length:var(--input-font-size)] py-[12px] min-w-0 resize-none max-h-[140px] leading-relaxed custom-scrollbar disabled:opacity-70"
             value={text}
             rows={1}
             onChange={(e) => {
@@ -290,57 +290,57 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                 <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
                   <ImageIcon size={26} className="text-[#007bfc]" fill="currentColor" />
                 </div>
-                <span className="text-[13px] text-primary">Gallery</span>
+                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Gallery</span>
               </div>
               <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => imageInputRef.current?.click()}>
                 <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
                   <Camera size={26} className="text-[#d3396d]" fill="currentColor" />
                 </div>
-                <span className="text-[13px] text-primary">Camera</span>
+                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Camera</span>
               </div>
               <div className="flex flex-col items-center gap-2 cursor-pointer group">
                 <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
                   <MapPin size={26} className="text-[#21bfa6]" fill="currentColor" />
                 </div>
-                <span className="text-[13px] text-primary">Location</span>
+                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Location</span>
               </div>
               <div className="flex flex-col items-center gap-2 cursor-pointer group">
                 <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
                   <User size={26} className="text-[#00a4d4]" fill="currentColor" />
                 </div>
-                <span className="text-[13px] text-primary">Contact</span>
+                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Contact</span>
               </div>
 
               <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => docInputRef.current?.click()}>
                 <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
                   <FileText size={26} className="text-[#7f66ff]" fill="currentColor" />
                 </div>
-                <span className="text-[13px] text-primary">Document</span>
+                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Document</span>
               </div>
               <div className="flex flex-col items-center gap-2 cursor-pointer group">
                 <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
                   <Headphones size={26} className="text-[#f0643b]" fill="currentColor" />
                 </div>
-                <span className="text-[13px] text-primary">Audio</span>
+                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Audio</span>
               </div>
               <div className="flex flex-col items-center gap-2 cursor-pointer group">
                 <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
                   <BarChart size={26} className="text-[#ffbc38]" strokeWidth={3} />
                 </div>
-                <span className="text-[13px] text-primary">Poll</span>
+                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Poll</span>
               </div>
               <div className="flex flex-col items-center gap-2 cursor-pointer group">
                 <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
                   <Calendar size={26} className="text-[#ff3b7c]" fill="currentColor" />
                 </div>
-                <span className="text-[13px] text-primary">Event</span>
+                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Event</span>
               </div>
 
               <div className="flex flex-col items-center gap-2 cursor-pointer group">
                 <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
                   <Sparkles size={26} className="text-[#007bfc]" fill="currentColor" />
                 </div>
-                <span className="text-[13px] text-primary">AI Images</span>
+                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">AI Images</span>
               </div>
             </div>
           </div>
@@ -349,7 +349,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         {/* Emoji Picker (Absolute) */}
         {showEmojiPicker && (
           <div ref={emojiMenuRef} className="absolute bottom-[60px] left-2 md:left-4 w-[calc(100vw-16px)] md:w-[320px] h-[340px] app-panel shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200 border app-border z-[100]">
-            <div className="p-3 bg-gray-50 dark:bg-[#202c33] text-[13px] font-medium text-[#00a884] border-b app-border">
+            <div className="p-3 bg-gray-50 dark:bg-[#202c33] text-[calc(var(--msg-font-size)-1.5px)] font-medium text-[#00a884] border-b app-border">
               RECENTLY USED
             </div>
             <div className="flex-1 overflow-y-auto p-3 grid grid-cols-7 sm:grid-cols-8 gap-1">

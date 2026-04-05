@@ -40,18 +40,18 @@ export const NewGroupPanel: React.FC<NewGroupPanelProps> = ({ personas, onClose,
       <div className="h-[108px] bg-[#008069] flex items-end p-5 text-white shrink-0">
         <div className="flex items-center gap-6">
           <ArrowLeft className="cursor-pointer hover:bg-[#005c4b] rounded-full p-1" onClick={() => step === 1 ? onClose() : setStep(1)} />
-          <h2 className="text-[19px] font-medium">{step === 1 ? 'Add group members' : 'New Group'}</h2>
+          <h2 className="text-[calc(var(--msg-font-size)+4.5px)] font-medium">{step === 1 ? 'Add group members' : 'New Group'}</h2>
         </div>
       </div>
 
       {step === 1 ? (
         <div className="flex-1 flex flex-col overflow-hidden app-panel">
           <div className="p-4 flex flex-wrap gap-2 border-b app-border">
-            {selectedIds.length === 0 && <span className="text-secondary text-[14px] italic">Select at least one member</span>}
+            {selectedIds.length === 0 && <span className="text-secondary text-[calc(var(--msg-font-size)-0.5px)] italic">Select at least one member</span>}
             {selectedIds.map(id => {
               const p = personas.find(x => x.id === id);
               return (
-                <div key={id} className="app-header rounded-full pl-1 pr-3 py-1 flex items-center gap-2 text-[13px] text-primary border app-border">
+                <div key={id} className="app-header rounded-full pl-1 pr-3 py-1 flex items-center gap-2 text-[calc(var(--msg-font-size)-1.5px)] text-primary border app-border">
                   <img src={p?.avatar} className="w-6 h-6 rounded-full" />
                   <span>{p?.name}</span>
                   <X size={14} className="cursor-pointer hover:text-red-500" onClick={() => toggleSelect(id)} />
@@ -71,7 +71,7 @@ export const NewGroupPanel: React.FC<NewGroupPanelProps> = ({ personas, onClose,
                   {selectedIds.includes(p.id) && <Check size={12} className="text-white" />}
                 </div>
                 <img src={p.avatar} className="w-10 h-10 rounded-full mr-3" />
-                <span className="text-[16px] text-primary">{p.name}</span>
+                <span className="text-[calc(var(--msg-font-size)+1.5px)] text-primary">{p.name}</span>
               </div>
             ))}
           </div>
@@ -99,7 +99,7 @@ export const NewGroupPanel: React.FC<NewGroupPanelProps> = ({ personas, onClose,
               <input
                 type="text"
                 placeholder="Group Subject"
-                className="w-full text-center outline-none border-b-2 border-[#00a884] pb-2 text-[18px] text-primary bg-transparent"
+                className="w-full text-center outline-none border-b-2 border-[#00a884] pb-2 text-[calc(var(--msg-font-size)+3.5px)] text-primary bg-transparent"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
                 autoFocus

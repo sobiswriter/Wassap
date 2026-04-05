@@ -52,15 +52,15 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
     }
   };
 
-  const labelClass = "text-[14px] text-[#008069] font-medium block mb-1 uppercase tracking-tight";
-  const inputClass = "w-full outline-none text-[16px] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1 font-normal";
+  const labelClass = "text-[calc(var(--msg-font-size)-0.5px)] text-[#008069] font-medium block mb-1 uppercase tracking-tight";
+  const inputClass = "w-full outline-none text-[calc(var(--msg-font-size)+1.5px)] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1 font-normal";
 
   return (
     <div className="w-full md:w-[410px] h-full app-header border-r app-border flex flex-col animate-in md:slide-in-from-left duration-300 absolute left-0 md:left-[64px] z-50 shadow-xl">
       <div className="h-[108px] bg-[#008069] flex items-end p-5 text-white">
         <div className="flex items-center gap-6">
           <ArrowLeft className="cursor-pointer hover:bg-[#005c4b] rounded-full p-1" onClick={onClose} />
-          <h2 className="text-[19px] font-medium">New Persona</h2>
+          <h2 className="text-[calc(var(--msg-font-size)+4.5px)] font-medium">New Persona</h2>
         </div>
       </div>
 
@@ -73,11 +73,11 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
               <div className="flex gap-4">
                 <div onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center hover:text-[#00a884] cursor-pointer">
                   <Camera size={20} />
-                  <span className="text-[10px] uppercase font-bold mt-1">Upload</span>
+                  <span className="text-[calc(var(--msg-font-size)-4.5px)] uppercase font-bold mt-1">Upload</span>
                 </div>
                 <div onClick={() => setShowUrlInput(!showUrlInput)} className="flex flex-col items-center hover:text-[#00a884] cursor-pointer">
                   <LinkIcon size={20} />
-                  <span className="text-[10px] uppercase font-bold mt-1">Link</span>
+                  <span className="text-[calc(var(--msg-font-size)-4.5px)] uppercase font-bold mt-1">Link</span>
                 </div>
               </div>
             </div>
@@ -96,7 +96,7 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
                 <Globe size={16} className="text-[#00a884] shrink-0" />
                 <input
                   type="text"
-                  className="flex-1 outline-none text-[14px] bg-transparent text-primary px-1 font-medium"
+                  className="flex-1 outline-none text-[calc(var(--msg-font-size)-0.5px)] bg-transparent text-primary px-1 font-medium"
                   placeholder="Paste image URL..."
                   value={urlValue}
                   onChange={(e) => setUrlValue(e.target.value)}
@@ -162,7 +162,7 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
             <textarea
               value={formData.systemInstruction}
               onChange={(e) => setFormData(prev => ({ ...prev, systemInstruction: e.target.value }))}
-              className="w-full min-h-[120px] outline-none text-[15px] resize-none bg-[#f9f9f9] dark:bg-[#2a3942] p-3 rounded border app-border focus:border-[#00a884] transition-all text-primary shadow-sm leading-relaxed"
+              className="w-full min-h-[120px] outline-none text-[calc(var(--msg-font-size)+0.5px)] resize-none bg-[#f9f9f9] dark:bg-[#2a3942] p-3 rounded border app-border focus:border-[#00a884] transition-all text-primary shadow-sm leading-relaxed"
               placeholder="Describe their backstory and how they should behave..."
             />
           </div>
@@ -172,7 +172,7 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
           <button
             onClick={handleCreate}
             disabled={!formData.name.trim()}
-            className={`w-full py-3 rounded-lg flex items-center justify-center gap-2 font-medium shadow-sm transition-all uppercase text-[14px] ${formData.name.trim()
+            className={`w-full py-3 rounded-lg flex items-center justify-center gap-2 font-medium shadow-sm transition-all uppercase text-[calc(var(--msg-font-size)-0.5px)] ${formData.name.trim()
                 ? 'bg-[#00a884] text-white hover:bg-[#005c4b] active:scale-95'
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
               }`}

@@ -83,6 +83,7 @@ export interface AppSettings {
   selectedModel?: string;
   calendarNotes?: string;
   enableNotifications?: boolean;
+  fontSize?: number;
 }
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';

@@ -45,30 +45,55 @@ const showNotification = async (title: string, options: NotificationOptions) => 
 const splitMessage = (text: string): string[] => {
   if (!text) return [];
 
-  // 1. Split by multiple newlines (paragraphs)
-  const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
+  // 1. Initial split by multiple newlines (paragraphs)
+  let initialChunks = text.split(/\n\n+/).filter(p => p.trim());
   let chunks: string[] = [];
 
-  for (const p of paragraphs) {
-    if (p.length < 100) {
+  // 2. Refine chunks based on sentence and token intelligence
+  for (const p of initialChunks) {
+    if (p.length < 70) {
       chunks.push(p.trim());
     } else {
-      // 2. Split long paragraphs into sentences
-      // Looking for . ! ? followed by space or newline
+      // Split by sentence endings first
       const sentences = p.split(/(?<=[.!?])[\s\n]+/).filter(s => s.trim());
-      let currentChunk = "";
+      let currentBuffer = "";
 
       for (const s of sentences) {
-        // If adding this sentence stays within a reasonable "chat message" size
-        if ((currentChunk + s).length < 120) {
-          currentChunk += (currentChunk ? " " : "") + s;
+        // If the sentence itself is very long, try to break at tokens
+        if (s.length > 90) {
+          // Break at punctuations or conjunctives followed by space
+          // tokens: , ; but so and then ...
+          const subParts = s.split(/(?<=[,;]|but|so|and|then|\.\.\.)\s+/i).filter(sp => sp.trim());
+          
+          for (const sp of subParts) {
+            if ((currentBuffer + sp).length < 90) {
+              currentBuffer += (currentBuffer ? " " : "") + sp;
+            } else {
+              if (currentBuffer) chunks.push(currentBuffer.trim());
+              currentBuffer = sp;
+            }
+          }
         } else {
-          if (currentChunk) chunks.push(currentChunk.trim());
-          currentChunk = s;
+          if ((currentBuffer + s).length < 90) {
+            currentBuffer += (currentBuffer ? " " : "") + s;
+          } else {
+            if (currentBuffer) chunks.push(currentBuffer.trim());
+            currentBuffer = s;
+          }
         }
       }
-      if (currentChunk) chunks.push(currentChunk.trim());
+      if (currentBuffer) chunks.push(currentBuffer.trim());
     }
+  }
+
+  // 3. Adaptive Fragmentation Cap (4-6 chunks max for massive responses)
+  if (chunks.length > 6) {
+    const combinedChunks: string[] = [];
+    const targetSize = Math.ceil(chunks.length / 6);
+    for (let i = 0; i < chunks.length; i += targetSize) {
+      combinedChunks.push(chunks.slice(i, i + targetSize).join(' '));
+    }
+    return combinedChunks;
   }
 
   return chunks.length > 0 ? chunks : [text];
@@ -131,16 +156,25 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('whatsapp_settings');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return { ...parsed, fontSize: parsed.fontSize || 14.5 };
       } catch (e) {
         console.error("Failed to parse settings", e);
       }
     }
     return {
       theme: 'light',
-      shareUserInfo: true
+      shareUserInfo: true,
+      fontSize: 14.5
     };
   });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const fontSize = settings.fontSize || 14.5;
+    root.style.setProperty('--msg-font-size', `${fontSize}px`);
+    root.style.setProperty('--input-font-size', `${fontSize + 2.5}px`);
+  }, [settings.fontSize]);
 
   useEffect(() => {
     localStorage.setItem('whatsapp_settings', JSON.stringify(settings));
@@ -205,6 +239,10 @@ const App: React.FC = () => {
         }));
       }
 
+      // 1. Initial "Thinking" Delay before starting to type
+      const thinkingDelay = 1000 + Math.random() * 2000;
+      await new Promise(resolve => setTimeout(resolve, thinkingDelay));
+
       const response = await getGeminiResponse(
         { ...targetChat },
         hydratedHistory,
@@ -218,7 +256,10 @@ const App: React.FC = () => {
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
-        const typingDuration = Math.min(Math.max(chunk.length * 40, 1500), 4000);
+        
+        // 2. Randomized Typing Duration
+        const charEfficiency = 35 + Math.random() * 20; 
+        const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1500), 5000);
 
         setChatStatus(chatId, 'typing...');
         await new Promise(resolve => setTimeout(resolve, typingDuration));
@@ -245,7 +286,6 @@ const App: React.FC = () => {
         }));
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
-
         if (settings.enableNotifications && !isFocusingChat) {
           if (document.hidden) {
             document.title = `(1) New Message - ${targetChat.name}`;
@@ -253,9 +293,11 @@ const App: React.FC = () => {
           }
         }
 
+        // 3. Randomized Inter-message Delay
         if (i < chunks.length - 1) {
           setChatStatus(chatId, 'online');
-          await new Promise(resolve => setTimeout(resolve, 800));
+          const interDelay = 1200 + Math.random() * 1000;
+          await new Promise(resolve => setTimeout(resolve, interDelay));
         }
       }
 
@@ -511,20 +553,26 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   const handleSingleResponse = async (chat: Chat, updatedHistory: Message[]) => {
     const chatId = chat.id;
     try {
-      // Mark user message as delivered immediately before AI processes
+      // 1. "Seen" Delay Simulation (Persona opens the app)
+      const seenDelay = 1000 + Math.random() * 1500;
+      await new Promise(resolve => setTimeout(resolve, seenDelay));
+
+      // Mark user message as read (Blue ticks appear BEFORE typing)
       setChats(prev => prev.map(c => {
         if (c.id === chatId) {
           const newMsgs = [...c.messages];
-          const lastMsg = newMsgs[newMsgs.length - 1];
-          if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'delivered';
+          const lastMsg = newMsgs[updatedHistory.length - 1];
+          if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'read';
           return { ...c, messages: newMsgs };
         }
         return c;
       }));
 
-      setChatStatus(chatId, 'typing...');
+      // 2. Initial "Thinking" Delay
+      const thinkingDelay = 500 + Math.random() * 1000;
+      await new Promise(resolve => setTimeout(resolve, thinkingDelay));
 
-      // Hydrate history with image data from IndexedDB so AI can see it
+      // Hydrate history with media data
       const hydratedHistory = await Promise.all(updatedHistory.map(async m => {
         const mediaId = m.mediaId || m.attachment?.mediaId;
         const mediaData = mediaId ? await getMedia(mediaId) : undefined;
@@ -546,34 +594,21 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         settings
       );
 
-      // Split responses into multiple messages if they are long or have distinct thoughts
       const chunks = splitMessage(response);
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
 
-        // Mark previous messages as read as soon as AI "starts typing"
-        if (i === 0) {
-          setChats(prev => prev.map(c => {
-            if (c.id === chatId) {
-              const newMsgs = [...c.messages];
-              const lastMsg = newMsgs[updatedHistory.length - 1];
-              if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'read';
-              return { ...c, messages: newMsgs };
-            }
-            return c;
-          }));
-        }
+        // 3. Randomized Typing Duration
+        // Human typing: ~35ms to 55ms per character
+        const charEfficiency = 35 + Math.random() * 20; 
+        const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1500), 5000);
 
-        // Realistic typing speed simulation
-        const typingDuration = Math.min(Math.max(chunk.length * 40, 1500), 4000);
-
-        // Ensure status is typing...
         setChatStatus(chatId, 'typing...');
         await new Promise(resolve => setTimeout(resolve, typingDuration));
 
         const aiMsg: Message = {
-          id: `${Date.now()}-${i}`, // Unique ID per chunk
+          id: `${Date.now()}-${i}`,
           text: chunk,
           sender: 'other',
           timestamp: getFormattedTime(),
@@ -594,7 +629,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         }));
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
-
         if (settings.enableNotifications && !isFocusingChat) {
           if (document.hidden) {
             document.title = `(1) New Message - ${chat.name}`;
@@ -602,15 +636,16 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           }
         }
 
-        // Small pause between messages to feel like the user is "hitting send"
+        // 4. Randomized Inter-message Delay (simulating hitting 'send' and starting to type next)
         if (i < chunks.length - 1) {
           setChatStatus(chatId, 'online');
-          await new Promise(resolve => setTimeout(resolve, 800));
+          const interDelay = 1200 + Math.random() * 1000;
+          await new Promise(resolve => setTimeout(resolve, interDelay));
         }
       }
 
       setChatStatus(chatId, 'online');
-      setTimeout(() => setChatStatus(chatId, 'offline'), 15000); // realistic drop off
+      setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
     } catch (error) {
       console.error("Error getting AI response for single chat:", error);
     } finally {
@@ -626,6 +661,21 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   const handleGroupResponse = async (group: Chat, updatedHistory: Message[]) => {
     const memberIds = [...(group.memberIds || [])];
     if (memberIds.length === 0) return;
+
+    // 1. Initial "Seen" Delay for the whole group (simulating someone opening the group)
+    const initialSeenDelay = 1200 + Math.random() * 2000;
+    await new Promise(resolve => setTimeout(resolve, initialSeenDelay));
+
+    // Mark user message as read
+    setChats(prev => prev.map(c => {
+      if (c.id === group.id) {
+        const newMsgs = [...c.messages];
+        const lastMsg = newMsgs[updatedHistory.length - 1];
+        if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'read';
+        return { ...c, messages: newMsgs };
+      }
+      return c;
+    }));
 
     let responseSequence = [...memberIds].sort(() => Math.random() - 0.5);
 
@@ -643,23 +693,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       if (!persona) continue;
 
       try {
-        const delay = 1500 + (Math.random() * 2500);
+        // 2. Persona-specific thinking/readiness delay
+        const delay = 1000 + (Math.random() * 3000);
         await new Promise(resolve => setTimeout(resolve, delay));
 
-        setChatStatus(group.id, 'typing...'); // Status set by trigger check
-
-        // Mark user message as read
-        if (i === 0) {
-          setChats(prev => prev.map(c => {
-            if (c.id === group.id) {
-              const newMsgs = [...c.messages];
-              const lastMsg = newMsgs[updatedHistory.length - 1];
-              if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'read';
-              return { ...c, messages: newMsgs };
-            }
-            return c;
-          }));
-        }
+        setChatStatus(group.id, 'typing...');
 
         // Hydrate group history with media data from IndexedDB
         const hydratedGroupHistory = await Promise.all(currentHistory.map(async m => {
@@ -692,14 +730,15 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         for (let j = 0; j < chunks.length; j++) {
           const chunk = chunks[j];
 
-          // Typing duration for group personas
-          const typingDuration = Math.min(Math.max(chunk.length * 40, 1500), 4000);
+          // 3. Randomized Typing Duration for group personas
+          const charEfficiency = 35 + Math.random() * 25; 
+          const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1500), 5000);
 
           setChatStatus(group.id, 'typing...');
           await new Promise(resolve => setTimeout(resolve, typingDuration));
 
           const aiMsg: Message = {
-            id: `${Date.now()}-${i}-${j}`, // Unique ID per chunk
+            id: `${Date.now()}-${i}-${j}`,
             text: chunk,
             sender: 'other',
             senderName: persona.name,
@@ -708,7 +747,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             status: 'delivered'
           };
 
-          currentHistory.push(aiMsg); // Add to history for subsequent responses
+          currentHistory.push(aiMsg);
 
           setChats(prev => prev.map(c => {
             if (c.id === group.id) {
@@ -724,7 +763,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           }));
 
           const isFocusingChat = !document.hidden && activeChatId === group.id;
-
           if (settings.enableNotifications && !isFocusingChat) {
             if (document.hidden) {
               document.title = `(1) New Message - ${group.name}`;
@@ -736,7 +774,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
           if (j < chunks.length - 1) {
             setChatStatus(group.id, 'online');
-            await new Promise(resolve => setTimeout(resolve, 600));
+            const interDelay = 1000 + Math.random() * 1200;
+            await new Promise(resolve => setTimeout(resolve, interDelay));
           }
         }
 
@@ -846,7 +885,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.767 5.767 0 1.267.405 2.436 1.096 3.389l-.711 2.597 2.659-.697a5.733 5.733 0 0 0 2.723.678c3.181 0 5.767-2.586 5.767-5.767 0-3.181-2.586-5.767-5.767-5.767zm3.39 8.136c-.147.414-.733.754-1.011.802-.278.048-.543.085-1.545-.303-1.002-.387-1.649-1.398-1.698-1.464-.048-.066-.401-.532-.401-1.022 0-.49.255-.731.345-.83.09-.099.198-.122.264-.122.066 0 .132.001.189.004.057.002.132-.023.208.156.075.18.255.621.28.669.024.047.04.103.01.16-.03.057-.045.094-.09.146-.045.052-.094.113-.137.151-.047.042-.094.085-.042.174.052.09.231.382.495.617.34.303.623.396.711.439.088.042.141.033.193-.028.052-.061.222-.259.283-.349.061-.088.122-.075.208-.042.085.033.543.255.637.302.094.047.156.071.18.113.023.042.023.245-.124.659zM12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
           </svg>
         </div>
-        <span className="text-[12px] font-semibold text-secondary">WhatsApp</span>
+        <span className="text-[calc(var(--msg-font-size)-2.5px)] font-semibold text-secondary">WhatsApp</span>
       </div>
 
       <div className="flex-1 flex overflow-hidden bg-white relative">

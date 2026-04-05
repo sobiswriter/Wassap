@@ -29,13 +29,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick
           <div className="bg-black/5 dark:bg-white/10 p-2 rounded-full">
             <MessageSquareText className="text-primary w-6 h-6" />
           </div>
-          <div className="absolute top-1 right-1 bg-[#25d366] text-white text-[10px] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#202c33]">28</div>
+          <div className="absolute top-1 right-1 bg-[#25d366] text-white text-[calc(var(--msg-font-size)-4.5px)] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#202c33]">28</div>
         </div>
 
         {/* Calls */}
         <div className="p-2 relative cursor-pointer group hover:bg-black/5 rounded-lg transition-colors">
           <Phone className="text-secondary w-6 h-6" />
-          <div className="absolute top-1 right-1 bg-[#ea0038] text-white text-[10px] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#202c33]">3</div>
+          <div className="absolute top-1 right-1 bg-[#ea0038] text-white text-[calc(var(--msg-font-size)-4.5px)] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#202c33]">3</div>
         </div>
 
         {/* Status */}
@@ -60,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick
         {/* Archive */}
         <div className="p-2 relative cursor-pointer group hover:bg-black/5 rounded-lg transition-colors">
           <Archive className="text-secondary w-6 h-6" />
-          <div className="absolute top-1 right-1 bg-[#25d366] text-white text-[10px] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#202c33]">12</div>
+          <div className="absolute top-1 right-1 bg-[#25d366] text-white text-[calc(var(--msg-font-size)-4.5px)] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#202c33]">12</div>
         </div>
 
         {/* Calendar & Notes */}

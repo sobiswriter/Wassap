@@ -27,10 +27,10 @@ const formatMessageText = (text: string) => {
   
   return parts.map((part, index) => {
     if (part.startsWith('```') && part.endsWith('```')) {
-      return <code key={index} className="font-mono bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-[13px] text-[#00a884] block my-1 whitespace-pre-wrap">{part.slice(3, -3)}</code>;
+      return <code key={index} className="font-mono bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-[calc(var(--msg-font-size)-1.5px)] text-[#00a884] block my-1 whitespace-pre-wrap">{part.slice(3, -3)}</code>;
     }
     if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={index} className="font-mono bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded text-[13px] text-[#00a884]">{part.slice(1, -1)}</code>;
+      return <code key={index} className="font-mono bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded text-[calc(var(--msg-font-size)-1.5px)] text-[#00a884]">{part.slice(1, -1)}</code>;
     }
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={index} className="font-bold">{part.slice(2, -2)}</strong>;
@@ -117,7 +117,7 @@ const MessageBubble: React.FC<{
         style={{ backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)' }}
       >
         {message.replyToMessage && (
-          <div className="p-2 rounded-md mb-1 border-l-4 text-[13px] bg-black/5 dark:bg-black/20 overflow-hidden cursor-pointer"
+          <div className="p-2 rounded-md mb-1 border-l-4 text-[calc(var(--msg-font-size)-1.5px)] bg-black/5 dark:bg-black/20 overflow-hidden cursor-pointer"
                style={{ borderLeftColor: message.replyToMessage.sender === 'me' ? '#53bdeb' : (nameColor || '#35a62e') }}>
              <div className="font-bold mb-0.5" style={{ color: message.replyToMessage.sender === 'me' ? '#53bdeb' : (nameColor || '#35a62e') }}>
                 {message.replyToMessage.sender === 'me' ? 'You' : (message.replyToMessage.senderName || 'Contact')}
@@ -127,7 +127,7 @@ const MessageBubble: React.FC<{
         )}
 
         {isGroup && !isMe && message.senderName && (
-          <div className="text-[13px] font-bold mb-1 px-2 pt-1" style={{ color: nameColor }}>
+          <div className="text-[calc(var(--msg-font-size)-1.5px)] font-bold mb-1 px-2 pt-1" style={{ color: nameColor }}>
             {message.senderName}
           </div>
         )}
@@ -149,8 +149,8 @@ const MessageBubble: React.FC<{
               <FileText size={24} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[14px] text-primary font-medium truncate">{message.attachment.name}</p>
-              <p className="text-[12px] text-secondary uppercase font-bold tracking-tighter">Document</p>
+              <p className="text-[calc(var(--msg-font-size)-0.5px)] text-primary font-medium truncate">{message.attachment.name}</p>
+              <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary uppercase font-bold tracking-tighter">Document</p>
             </div>
             <Download size={20} className="text-secondary cursor-pointer hover:text-[#00a884] transition-colors" />
           </div>
@@ -167,13 +167,13 @@ const MessageBubble: React.FC<{
 
         <div className="px-2 py-1 flex flex-col relative">
           {message.text && (
-            <p className={`text-[14.5px] text-primary whitespace-pre-wrap break-words pr-12 ${hasAttachment ? 'pt-1 pb-4' : 'pb-3'}`}>
+            <p className={`text-[length:var(--msg-font-size)] text-primary whitespace-pre-wrap break-words pr-12 ${hasAttachment ? 'pt-1 pb-4' : 'pb-3'}`}>
               {formatMessageText(message.text)}
             </p>
           )}
 
           <div className={`flex items-center gap-1 self-end ${message.text ? 'absolute bottom-1 right-2' : 'mt-1 mb-0.5 mr-1'}`}>
-            <span className="text-[10px] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
+            <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
             {isMe && (
               <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
                 {message.status === 'sent' ? <Check size={16} /> : <CheckCheck size={16} />}
@@ -199,6 +199,25 @@ const MessageBubble: React.FC<{
     </div>
   );
 };
+
+const TypingBubble: React.FC = () => (
+  <div className="flex w-full px-1 py-[2px] justify-start mb-2">
+    <div 
+      className="p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none rounded-tl-none"
+      style={{ backgroundColor: 'var(--bubble-other)' }}
+    >
+      <div className="dot-typing">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div
+        className="absolute top-0 -left-2 border-r-[10px] border-t-[10px] border-t-transparent"
+        style={{ borderRightColor: 'var(--bubble-other)' }}
+      />
+    </div>
+  </div>
+);
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeaderClick, onDeleteChat, onClearChat, searchTerm, setSearchTerm, onBack, onProfileClick, onMetaAIClick, onAddContact, onReply }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -237,14 +256,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
             <div className="w-20 h-20 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-[#54656f] group-hover:bg-black/10 dark:group-hover:bg-white/10 transition-all active:scale-95">
               <User size={32} />
             </div>
-            <span className="text-[14px] text-secondary font-medium">Your Profile</span>
+            <span className="text-[calc(var(--msg-font-size)-0.5px)] text-secondary font-medium">Your Profile</span>
           </div>
 
           <div className="flex flex-col items-center gap-3 group cursor-pointer" onClick={onAddContact}>
             <div className="w-20 h-20 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-[#54656f] group-hover:bg-black/10 dark:group-hover:bg-white/10 transition-all active:scale-95">
               <UserPlus size={32} />
             </div>
-            <span className="text-[14px] text-secondary font-medium">Add contact</span>
+            <span className="text-[calc(var(--msg-font-size)-0.5px)] text-secondary font-medium">Add contact</span>
           </div>
 
           <div className="flex flex-col items-center gap-3 group cursor-pointer" onClick={onMetaAIClick}>
@@ -257,7 +276,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                 <div className="w-full h-full rounded-full bg-[#f8f9fa] dark:bg-[#182229]"></div>
               </div>
             </div>
-            <span className="text-[14px] text-secondary font-medium">Ask Meta AI</span>
+            <span className="text-[calc(var(--msg-font-size)-0.5px)] text-secondary font-medium">Ask Meta AI</span>
           </div>
         </div>
       </div>
@@ -315,7 +334,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
             <button onClick={() => setSelectedMessageIds([])} className="p-2 mr-2 hover:bg-black/5 rounded-full text-secondary transition-colors">
               <X size={20} />
             </button>
-            <span className="text-[19px] ml-4 text-primary font-medium">{selectedMessageIds.length}</span>
+            <span className="text-[calc(var(--msg-font-size)+4.5px)] ml-4 text-primary font-medium">{selectedMessageIds.length}</span>
           </div>
           <div className="flex items-center gap-4 text-secondary">
              {selectedMessageIds.length === 1 && onReply && (
@@ -357,8 +376,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
             <div className="flex items-center flex-1 min-w-0 ml-1" onClick={onHeaderClick}>
               <img src={chat.avatar} alt={chat.name} className="w-9 h-9 md:w-10 md:h-10 rounded-full mr-3 object-cover shadow-sm" />
               <div className="flex flex-col min-w-0">
-                <h2 className="text-[15px] md:text-[16px] text-primary font-medium leading-none truncate">{chat.name}</h2>
-                <span className="text-[12px] md:text-[12.5px] text-secondary mt-1 truncate">
+                <h2 className="text-[calc(var(--msg-font-size)+1.5px)] text-primary font-medium leading-none truncate">{chat.name}</h2>
+                <span className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary mt-1 truncate">
                   {getGroupMembersLabel()}
                 </span>
               </div>
@@ -377,27 +396,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                 <div className="absolute right-0 top-10 w-[210px] app-panel shadow-2xl rounded-lg py-2 z-50 animate-in fade-in zoom-in duration-200 origin-top-right border app-border overflow-hidden">
                   <button
                     onClick={() => { onHeaderClick(); setShowMenu(false); }}
-                    className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
+                    className="w-full text-left px-4 py-3 text-[calc(var(--msg-font-size))] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
                   >
                     <Info size={18} className="text-secondary" /> {chat.isGroup ? 'Group info' : 'Contact info / Edit'}
                   </button>
                   <button
                     onClick={() => { setShowSearch(true); setShowMenu(false); }}
-                    className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
+                    className="w-full text-left px-4 py-3 text-[calc(var(--msg-font-size))] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
                   >
                     <Search size={18} className="text-secondary" /> Search messages
                   </button>
                   <div className="h-[1px] app-border bg-border mx-2 my-1 opacity-50" />
                   <button
                     onClick={() => { setShowClearModal(true); setShowMenu(false); }}
-                    className="w-full text-left px-4 py-3 text-[14.5px] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
+                    className="w-full text-left px-4 py-3 text-[calc(var(--msg-font-size))] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
                   >
                     <Eraser size={18} className="text-secondary" /> Clear chat
                   </button>
                   <div className="h-[1px] app-border bg-border mx-2 my-1 opacity-50" />
                   <button
                     onClick={() => { onDeleteChat(); setShowMenu(false); }}
-                    className="w-full text-left px-4 py-3 text-[14.5px] text-[#ea0038] hover:bg-black/5 flex items-center gap-3 transition-colors"
+                    className="w-full text-left px-4 py-3 text-[calc(var(--msg-font-size))] text-[#ea0038] hover:bg-black/5 flex items-center gap-3 transition-colors"
                   >
                     <Trash2 size={18} /> {chat.isGroup ? 'Exit group' : 'Delete chat'}
                   </button>
@@ -417,7 +436,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
               placeholder="Search in chat..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 outline-none text-[15px] bg-transparent text-primary"
+              className="flex-1 outline-none text-[calc(var(--input-font-size)-2px)] bg-transparent text-primary"
               autoFocus
             />
           </div>
@@ -431,7 +450,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
 
       <div className="absolute inset-0 flex flex-col p-4 sm:p-10 space-y-1 overflow-y-auto pointer-events-auto z-10">
         <div className="flex justify-center my-4">
-          <div className="encryption-box text-[12.5px] px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 max-w-[500px] text-center border app-border">
+          <div className="encryption-box text-[calc(var(--msg-font-size)-2px)] px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 max-w-[500px] text-center border app-border">
             <Lock size={12} className="shrink-0 opacity-60" />
             <span>Messages are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them.</span>
           </div>
@@ -439,7 +458,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
 
         {searchTerm && filteredMessages.length === 0 && (
           <div className="flex justify-center py-10">
-            <span className="app-header px-4 py-2 rounded-lg text-secondary text-[13px] shadow-sm">
+            <span className="app-header px-4 py-2 rounded-lg text-secondary text-[calc(var(--msg-font-size)-1.5px)] shadow-sm">
               No messages found matching "{searchTerm}"
             </span>
           </div>
@@ -459,6 +478,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
             selectionMode={selectedMessageIds.length > 0}
           />
         ))}
+        {!searchTerm && chat.status === 'typing...' && <TypingBubble />}
         <div ref={scrollRef} />
       </div>
 
