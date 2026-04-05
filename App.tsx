@@ -354,43 +354,44 @@ const App: React.FC = () => {
         );
 
         if (activeTrig) {
-          // If app just opened, trigger immediately. Otherwise, use a probability check to feel natural.
-          if (isInitialMount || Math.random() < 0.6) {
-            triggeredContext = `[SCHEDULED INTERACTION]
+          triggeredContext = `[SCHEDULED INTERACTION]
 INTENT: "${activeTrig.context}"
 
 INSTRUCTION: You are starting a conversation because of this scheduled interaction. 
 Deliver the message based on this intent while still being context-aware of our history.`;
-            triggerId = activeTrig.id;
-            triggerType = 'normal';
-          }
+          triggerId = activeTrig.id;
+          triggerType = 'normal';
         }
 
         // 2. PRIORITY: Latest Catch-Up (if no active trigger)
         if (!triggeredContext) {
-          // GUARD: If any trigger has already fired today (normal or catchup), stop all further catch-ups.
-          // Includes a check against handledTriggersRef to prevent race conditions during state updates.
-          const hasAlreadyTalkedToday = automation.timeTriggers.some(t => 
-            t.lastTriggered === todayDateStr || handledTriggersRef.current.has(`${chat.id}-${t.id}-${todayDateStr}`)
-          );
-          
-          if (!hasAlreadyTalkedToday) {
-            const missedTriggers = automation.timeTriggers
-              .filter(t => 
-                t.lastTriggered !== todayDateStr && 
-                currentTimeStr > t.endTime
-              )
-              .sort((a, b) => b.endTime.localeCompare(a.endTime)); // Sort to find the MOST RECENT missed one
+          const missedTriggers = automation.timeTriggers
+            .filter(t => 
+              t.lastTriggered !== todayDateStr && 
+              currentTimeStr > t.endTime &&
+              !handledTriggersRef.current.has(`${chat.id}-${t.id}-${todayDateStr}`)
+            )
+            .sort((a, b) => b.endTime.localeCompare(a.endTime)); // Sort to find the MOST RECENT missed one
 
-            if (missedTriggers.length > 0) {
-              const latestMissed = missedTriggers[0];
-              triggeredContext = `[CATCH-UP REQUIRED]
+          if (missedTriggers.length > 0) {
+            const latestMissed = missedTriggers[0];
+            triggeredContext = `[CATCH-UP REQUIRED]
 INTENT: "${latestMissed.context}"
 
 INSTRUCTION: You missed your scheduled window because the app was closed. Now that it's open, acknowledge the delay naturally (e.g., "just getting to my phone") and then deliver on the INTENT above. 
 Your primary goal is the INTENT while staying context-aware of our history.`;
-              triggerId = latestMissed.id;
-              triggerType = 'catchup';
+            triggerId = latestMissed.id;
+            triggerType = 'catchup';
+
+            // Mark all older missed triggers as handled persistently for today
+            const skippedIds = missedTriggers.slice(1).map(t => t.id);
+            skippedIds.forEach(id => handledTriggersRef.current.add(`${chat.id}-${id}-${todayDateStr}`));
+            
+            if (chat.automation) {
+              const trigs = chat.automation.timeTriggers.map(t => 
+                skippedIds.includes(t.id) ? { ...t, lastTriggered: todayDateStr, lastTriggerType: 'catchup' as any } : t
+              );
+              updatedChats[i] = { ...chat, automation: { ...chat.automation, timeTriggers: trigs } };
             }
           }
         }
@@ -444,12 +445,12 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           handledTriggersRef.current.add(handleKey);
           
           setTimeout(() => handleAutomationTrigger(chat.id, context, tid, ttype), isInitialMount ? 1500 : 500);
-          break; // Only one automation per chat per cycle to keep it clean
         }
       }
 
       return updatedChats; // triggerId/lastTriggered is handled inside handleAutomationTrigger to avoid loop sync issues
     });
+
   };
 
   // Initial Startup Catch-Up
