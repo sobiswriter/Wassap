@@ -346,7 +346,8 @@ const App: React.FC = () => {
         let triggerId = undefined;
         let triggerType: 'normal' | 'catchup' | 'inactivity' | undefined = undefined;
 
-        // 1. PRIORITY: Current Timely Greetings
+        // PHASE 1: GREETING ENGINE
+        // Check for any currently active greetings
         const activeTrig = automation.timeTriggers.find(t => 
           t.lastTriggered !== todayDateStr && 
           !handledTriggersRef.current.has(`${chat.id}-${t.id}-${todayDateStr}`) &&
@@ -358,45 +359,49 @@ const App: React.FC = () => {
 INTENT: "${activeTrig.context}"
 
 INSTRUCTION: You are starting a conversation because of this scheduled interaction. 
-Deliver the message based on this intent while still being context-aware of our history.`;
+Your highest priority is delivering the INTENT above, second only to naturally flowing with the existing conversation history.`;
           triggerId = activeTrig.id;
           triggerType = 'normal';
-        }
-
-        // 2. PRIORITY: Latest Catch-Up (if no active trigger)
-        if (!triggeredContext) {
+        } else {
+          // If no active, check ONLY the absolute latest past greeting
           const missedTriggers = automation.timeTriggers
-            .filter(t => 
-              t.lastTriggered !== todayDateStr && 
-              currentTimeStr > t.endTime &&
-              !handledTriggersRef.current.has(`${chat.id}-${t.id}-${todayDateStr}`)
-            )
-            .sort((a, b) => b.endTime.localeCompare(a.endTime)); // Sort to find the MOST RECENT missed one
+            .filter(t => currentTimeStr > t.endTime)
+            .sort((a, b) => b.endTime.localeCompare(a.endTime)); // Sort to find the MOST RECENT past window
 
           if (missedTriggers.length > 0) {
-            const latestMissed = missedTriggers[0];
-            triggeredContext = `[CATCH-UP REQUIRED]
-INTENT: "${latestMissed.context}"
+            const latestPast = missedTriggers[0];
+            const isHandled = latestPast.lastTriggered === todayDateStr || handledTriggersRef.current.has(`${chat.id}-${latestPast.id}-${todayDateStr}`);
+
+            if (!isHandled) {
+              triggeredContext = `[CATCH-UP REQUIRED]
+INTENT: "${latestPast.context}"
 
 INSTRUCTION: You missed your scheduled window because the app was closed. Now that it's open, acknowledge the delay naturally (e.g., "just getting to my phone") and then deliver on the INTENT above. 
-Your primary goal is the INTENT while staying context-aware of our history.`;
-            triggerId = latestMissed.id;
-            triggerType = 'catchup';
+Your highest priority is the INTENT while staying context-aware of our history.`;
+              triggerId = latestPast.id;
+              triggerType = 'catchup';
 
-            // Mark all older missed triggers as handled persistently for today
-            const skippedIds = missedTriggers.slice(1).map(t => t.id);
-            skippedIds.forEach(id => handledTriggersRef.current.add(`${chat.id}-${id}-${todayDateStr}`));
-            
-            if (chat.automation) {
-              const trigs = chat.automation.timeTriggers.map(t => 
-                skippedIds.includes(t.id) ? { ...t, lastTriggered: todayDateStr, lastTriggerType: 'catchup' as any } : t
-              );
-              updatedChats[i] = { ...chat, automation: { ...chat.automation, timeTriggers: trigs } };
+              // Persistently mark skipped older triggers as handled for today so they don't pop up again
+              const skippedIds = missedTriggers.slice(1).map(t => t.id);
+              skippedIds.forEach(id => handledTriggersRef.current.add(`${chat.id}-${id}-${todayDateStr}`));
+              
+              if (chat.automation) {
+                const trigs = chat.automation.timeTriggers.map(t => 
+                  skippedIds.includes(t.id) ? { ...t, lastTriggered: todayDateStr, lastTriggerType: 'catchup' as any } : t
+                );
+                updatedChats[i] = { ...chat, automation: { ...chat.automation, timeTriggers: trigs } };
+              }
+            } else {
+              // The latest past greeting is already handled! We explicitly BREAK/ignore any older ones.
+              // Effectively, we do nothing for greetings. We still mark older ones as skipped in state just in case.
+              const skippedIds = missedTriggers.slice(1).map(t => t.id);
+              skippedIds.forEach(id => handledTriggersRef.current.add(`${chat.id}-${id}-${todayDateStr}`));
             }
           }
         }
 
-        // 3. PRIORITY: Inactivity Pulse (if no timely or catch-up trigger)
+        // PHASE 2: INACTIVITY ENGINE
+        // Only evaluate inactivity if no greeting was triggered
         if (!triggeredContext && automation.inactivity.enabled) {
           // Use a minute-level bucket to prevent rapid double-firing during state wait
           const inactivityKey = `${chat.id}-inactivity-${Math.floor(Date.now() / 60000)}`; 
