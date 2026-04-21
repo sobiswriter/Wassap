@@ -72,48 +72,94 @@ const splitMessage = (text: string): string[] => {
     if (wordCount === 0) continue;
 
     let targetChunksCount = 1;
-    if (wordCount <= 5) {
+    if (wordCount <= 8) {
       targetChunksCount = 1;
-    } else if (wordCount <= 12) {
-      targetChunksCount = 2; // 2-3 messages
-    } else if (wordCount <= 20) {
-      targetChunksCount = 4; // 4-5 messages
+    } else if (wordCount <= 15) {
+      targetChunksCount = 2;
+    } else if (wordCount <= 24) {
+      targetChunksCount = 3;
     } else {
-      targetChunksCount = 5; // 5-6 messages
+      targetChunksCount = Math.random() > 0.5 ? 4 : 5; // 4-5 randomly
     }
 
     if (targetChunksCount === 1) {
       finalChunks.push(rawChunk);
     } else {
-      const sentences = rawChunk.match(/[^.!?]+[.!?]*/g) || [rawChunk];
-      const cleanSentences = sentences.map(s => s.trim()).filter(Boolean);
-      const localChunks: string[] = [];
+      let currentSegment: string[] = [];
+      const segmentList: string[] = [];
       
-      if (cleanSentences.length >= targetChunksCount) {
-        const sentencesPerChunk = Math.max(1, Math.floor(cleanSentences.length / targetChunksCount));
-        for (let i = 0; i < cleanSentences.length; i += sentencesPerChunk) {
-          if (localChunks.length === targetChunksCount - 1) {
-            localChunks.push(cleanSentences.slice(i).join(' '));
-            break;
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        currentSegment.push(w);
+        
+        const isPunctuationEnd = /[.!?,\;:\-]+$/.test(w) || w.endsWith("...");
+        const nextW = words[i+1] ? words[i+1].toLowerCase() : "";
+        const isNextConjunction = ["and", "but", "so", "because", "then", "or"].includes(nextW);
+        
+        if (isPunctuationEnd || isNextConjunction) {
+          segmentList.push(currentSegment.join(' '));
+          currentSegment = [];
+        }
+      }
+      if (currentSegment.length > 0) {
+        segmentList.push(currentSegment.join(' '));
+      }
+
+      let localChunks: string[] = [];
+      if (segmentList.length >= targetChunksCount) {
+        const idealWordsPerChunk = Math.ceil(wordCount / targetChunksCount);
+        let currentChunk = "";
+        let currentWordCount = 0;
+        
+        for (let i = 0; i < segmentList.length; i++) {
+          const seg = segmentList[i];
+          const segWords = seg.split(/\s+/).length;
+          
+          if (currentChunk.length === 0) {
+            currentChunk = seg;
+            currentWordCount = segWords;
           } else {
-            localChunks.push(cleanSentences.slice(i, i + sentencesPerChunk).join(' '));
+            const chunksLeft = targetChunksCount - localChunks.length;
+            const segmentsLeft = segmentList.length - i;
+            
+            if (segmentsLeft === chunksLeft - 1) {
+              localChunks.push(currentChunk);
+              currentChunk = seg;
+              currentWordCount = segWords;
+            } else if (currentWordCount >= idealWordsPerChunk) {
+              localChunks.push(currentChunk);
+              currentChunk = seg;
+              currentWordCount = segWords;
+            } else {
+              currentChunk += " " + seg;
+              currentWordCount += segWords;
+            }
           }
+        }
+        if (currentChunk) localChunks.push(currentChunk);
+        
+        while (localChunks.length > targetChunksCount) {
+           const last = localChunks.pop();
+           if (last !== undefined) {
+             localChunks[localChunks.length - 1] += " " + last;
+           }
         }
       } else {
         const wordsPerChunk = Math.ceil(wordCount / targetChunksCount);
-        let currentChunk: string[] = [];
+        let currChunk: string[] = [];
         
-        for (const w of words) {
-          currentChunk.push(w);
-          if (currentChunk.length >= wordsPerChunk && localChunks.length < targetChunksCount - 1) {
-            localChunks.push(currentChunk.join(' '));
-            currentChunk = [];
+        for (let i = 0; i < words.length; i++) {
+          currChunk.push(words[i]);
+          if (currChunk.length >= wordsPerChunk && localChunks.length < targetChunksCount - 1) {
+            localChunks.push(currChunk.join(' '));
+            currChunk = [];
           }
         }
-        if (currentChunk.length > 0) {
-          localChunks.push(currentChunk.join(' '));
+        if (currChunk.length > 0) {
+          localChunks.push(currChunk.join(' '));
         }
       }
+      
       finalChunks.push(...localChunks.filter(c => c.trim().length > 0));
     }
   }
