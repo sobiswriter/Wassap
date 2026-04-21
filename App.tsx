@@ -41,6 +41,13 @@ const showNotification = async (title: string, options: NotificationOptions) => 
   } catch (e) { console.error("Standard notification failed", e); }
 };
 
+const playIncomingMessageSound = () => {
+  if (!document.hidden) {
+    const audio = new Audio('/whatapp.wav');
+    audio.play().catch(e => console.warn("Audio play failed:", e));
+  }
+};
+
 // Utility to split AI responses into human-like chunks
 const splitMessage = (text: string): string[] => {
   if (!text) return [];
@@ -352,6 +359,8 @@ const App: React.FC = () => {
           }
           return c;
         }));
+
+        playIncomingMessageSound();
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
         if (settings.enableNotifications && !isFocusingChat) {
@@ -702,6 +711,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           return c;
         }));
 
+        playIncomingMessageSound();
+
         const isFocusingChat = !document.hidden && activeChatId === chatId;
         if (settings.enableNotifications && !isFocusingChat) {
           if (document.hidden) {
@@ -835,6 +846,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             }
             return c;
           }));
+
+          playIncomingMessageSound();
 
           const isFocusingChat = !document.hidden && activeChatId === group.id;
           if (settings.enableNotifications && !isFocusingChat) {
