@@ -45,58 +45,80 @@ const showNotification = async (title: string, options: NotificationOptions) => 
 const splitMessage = (text: string): string[] => {
   if (!text) return [];
 
-  // 1. Initial split by multiple newlines (paragraphs)
-  let initialChunks = text.split(/\n\n+/).filter(p => p.trim());
-  let chunks: string[] = [];
+  const codeBlocks: string[] = [];
+  const placeholderPrefix = "__CODE_BLOCK_";
+  
+  // 1. Extract code blocks
+  let processedText = text.replace(/```[\s\S]*?```/g, (match) => {
+    const placeholder = `${placeholderPrefix}${codeBlocks.length}__`;
+    codeBlocks.push(match);
+    return `\n\n${placeholder}\n\n`;
+  });
 
-  // 2. Refine chunks based on sentence and token intelligence
-  for (const p of initialChunks) {
-    if (p.length < 70) {
-      chunks.push(p.trim());
+  const rawChunks = processedText.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+  const finalChunks: string[] = [];
+
+  for (const rawChunk of rawChunks) {
+    if (rawChunk.startsWith(placeholderPrefix)) {
+      const match = rawChunk.match(/__CODE_BLOCK_(\d+)__/);
+      if (match) {
+        finalChunks.push(codeBlocks[parseInt(match[1], 10)]);
+      }
+      continue;
+    }
+
+    const words = rawChunk.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+    if (wordCount === 0) continue;
+
+    let targetChunksCount = 1;
+    if (wordCount <= 5) {
+      targetChunksCount = 1;
+    } else if (wordCount <= 12) {
+      targetChunksCount = 2; // 2-3 messages
+    } else if (wordCount <= 20) {
+      targetChunksCount = 4; // 4-5 messages
     } else {
-      // Split by sentence endings first
-      const sentences = p.split(/(?<=[.!?])[\s\n]+/).filter(s => s.trim());
-      let currentBuffer = "";
+      targetChunksCount = 5; // 5-6 messages
+    }
 
-      for (const s of sentences) {
-        // If the sentence itself is very long, try to break at tokens
-        if (s.length > 90) {
-          // Break at punctuations or conjunctives followed by space
-          // tokens: , ; but so and then ...
-          const subParts = s.split(/(?<=[,;]|but|so|and|then|\.\.\.)\s+/i).filter(sp => sp.trim());
-          
-          for (const sp of subParts) {
-            if ((currentBuffer + sp).length < 90) {
-              currentBuffer += (currentBuffer ? " " : "") + sp;
-            } else {
-              if (currentBuffer) chunks.push(currentBuffer.trim());
-              currentBuffer = sp;
-            }
-          }
-        } else {
-          if ((currentBuffer + s).length < 90) {
-            currentBuffer += (currentBuffer ? " " : "") + s;
+    if (targetChunksCount === 1) {
+      finalChunks.push(rawChunk);
+    } else {
+      const sentences = rawChunk.match(/[^.!?]+[.!?]*/g) || [rawChunk];
+      const cleanSentences = sentences.map(s => s.trim()).filter(Boolean);
+      const localChunks: string[] = [];
+      
+      if (cleanSentences.length >= targetChunksCount) {
+        const sentencesPerChunk = Math.max(1, Math.floor(cleanSentences.length / targetChunksCount));
+        for (let i = 0; i < cleanSentences.length; i += sentencesPerChunk) {
+          if (localChunks.length === targetChunksCount - 1) {
+            localChunks.push(cleanSentences.slice(i).join(' '));
+            break;
           } else {
-            if (currentBuffer) chunks.push(currentBuffer.trim());
-            currentBuffer = s;
+            localChunks.push(cleanSentences.slice(i, i + sentencesPerChunk).join(' '));
           }
         }
+      } else {
+        const wordsPerChunk = Math.ceil(wordCount / targetChunksCount);
+        let currentChunk: string[] = [];
+        
+        for (const w of words) {
+          currentChunk.push(w);
+          if (currentChunk.length >= wordsPerChunk && localChunks.length < targetChunksCount - 1) {
+            localChunks.push(currentChunk.join(' '));
+            currentChunk = [];
+          }
+        }
+        if (currentChunk.length > 0) {
+          localChunks.push(currentChunk.join(' '));
+        }
       }
-      if (currentBuffer) chunks.push(currentBuffer.trim());
+      finalChunks.push(...localChunks.filter(c => c.trim().length > 0));
     }
   }
 
-  // 3. Adaptive Fragmentation Cap (4-6 chunks max for massive responses)
-  if (chunks.length > 6) {
-    const combinedChunks: string[] = [];
-    const targetSize = Math.ceil(chunks.length / 6);
-    for (let i = 0; i < chunks.length; i += targetSize) {
-      combinedChunks.push(chunks.slice(i, i + targetSize).join(' '));
-    }
-    return combinedChunks;
-  }
-
-  return chunks.length > 0 ? chunks : [text];
+  return finalChunks.length > 0 ? finalChunks : [text];
 };
 
 const App: React.FC = () => {
