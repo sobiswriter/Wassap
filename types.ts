@@ -12,6 +12,7 @@ export interface FileAttachment {
 export interface Message {
   id: string;
   text: string;
+  date?: string; // Local date key (YYYY-MM-DD) used for chat day dividers and memories
   timestamp: string;
   sender: 'me' | 'other';
   senderName?: string; // For groups
@@ -22,6 +23,17 @@ export interface Message {
   mediaId?: string; // ID for IndexedDB storage
   attachment?: FileAttachment;
   replyToMessage?: Message;
+}
+
+export interface MemoryBubble {
+  id: string;
+  chatId: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  summary: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface TimeTrigger {
@@ -48,6 +60,21 @@ export interface PersonaAutomation {
   lastInactivityType?: 'inactivity';
 }
 
+export interface PersonaScheduleBlock {
+  id: string;
+  startTime: string;
+  endTime: string;
+  context: string;
+}
+
+export interface PersonaSchedule {
+  enabled: boolean;
+  weekday: PersonaScheduleBlock[];
+  weekend: PersonaScheduleBlock[];
+  holidayDates?: string[];
+  weekendDays?: number[]; // 0 for Sunday, 1 for Monday, etc.
+}
+
 export interface Chat {
   id: string;
   name: string;
@@ -63,6 +90,9 @@ export interface Chat {
   systemInstruction?: string;
   isGroup?: boolean;
   memberIds?: string[]; // IDs of personas in the group
+  memoryEnabled?: boolean;
+  memoryBubbles?: MemoryBubble[];
+  schedule?: PersonaSchedule;
   automation?: PersonaAutomation;
 }
 

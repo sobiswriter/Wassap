@@ -11,13 +11,15 @@ import { CalendarNotesWidget } from './components/CalendarNotesWidget';
 import { SettingsPopover } from './components/SettingsPopover';
 import { MobileNavigation } from './components/MobileNavigation';
 import { INITIAL_CHATS } from './constants';
-import { Chat, Message, UserProfile, AppSettings, FileAttachment } from './types';
+import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble } from './types';
 import { getGeminiResponse } from './services/geminiService';
 import { saveMedia, getMedia } from './utils/storage';
+import { formatDateRangeLabel, getLocalDateKey } from './utils/dates';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
 // Helper for consistent 12-hour AM/PM time global formatting
 const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+const getDateKey = getLocalDateKey;
 
 // Robust Notification Helper for Desktop & Mobile Tray
 const showNotification = async (title: string, options: NotificationOptions) => {
@@ -274,6 +276,77 @@ const App: React.FC = () => {
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, status } : c));
   };
 
+  const buildMemoryRecallContext = (chat: Chat, text: string) => {
+    if (!chat.memoryEnabled || !/[\\\/]rem\b/i.test(text)) return undefined;
+
+    const memories = chat.memoryBubbles || [];
+    if (memories.length === 0) {
+      return `[MEMORY RECALL]
+The user invoked \\rem, but this chat has no saved memory bubbles yet. Acknowledge that naturally and continue the conversation without pretending to remember a saved day.`;
+    }
+
+    const query = text.replace(/[\\\/]rem\b/i, '').trim().toLowerCase();
+    const matchedMemories = query
+      ? memories.filter(memory =>
+          memory.title.toLowerCase().includes(query) ||
+          memory.summary.toLowerCase().includes(query) ||
+          memory.startDate.includes(query) ||
+          memory.endDate.includes(query)
+        )
+      : memories;
+
+    const selectedMemories = (matchedMemories.length > 0 ? matchedMemories : memories).slice(-4);
+    const memoryText = selectedMemories.map(memory => [
+      `Title: ${memory.title}`,
+      `When: ${formatDateRangeLabel(memory.startDate, memory.endDate)}`,
+      `Memory: ${memory.summary}`
+    ].join('\n')).join('\n\n');
+
+    return `[MEMORY RECALL]
+The user invoked a recall command (/rem). Use the saved memory context below as emotional and factual background, then reply in-character like this is something you naturally remember. Do not mention databases or settings unless the user asks.
+
+${memoryText}`;
+  };
+
+  const handleSaveMemory = (chatId: string, memory: MemoryBubble) => {
+    setChats(prev => prev.map(chat => {
+      if (chat.id !== chatId) return chat;
+      return {
+        ...chat,
+        memoryBubbles: [...(chat.memoryBubbles || []), memory]
+      };
+    }));
+  };
+
+  const combinePersonaContexts = (...contexts: Array<string | undefined>) => contexts.filter(Boolean).join('\n\n');
+
+  const buildScheduleContext = (chat: Chat) => {
+    const schedule = chat.schedule;
+    if (!schedule?.enabled) return undefined;
+
+    const now = new Date();
+    const todayDate = getDateKey();
+    const currentTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    const weekendDays = schedule.weekendDays || [0, 6];
+    const isWeekend = weekendDays.includes(now.getDay());
+    const isHoliday = !!schedule.holidayDates?.includes(todayDate);
+    const blocks = isWeekend || isHoliday ? schedule.weekend : schedule.weekday;
+    if (!blocks || blocks.length === 0) return undefined;
+
+    const sortedBlocks = [...blocks].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    const activeBlock = sortedBlocks.find(block => currentTime >= block.startTime && currentTime <= block.endTime);
+    const previousBlock = [...sortedBlocks].reverse().find(block => currentTime > block.endTime);
+    const nextBlock = sortedBlocks.find(block => currentTime < block.startTime);
+    const relevantBlock = activeBlock || previousBlock || nextBlock;
+    if (!relevantBlock?.context.trim()) return undefined;
+
+    const dayType = isWeekend || isHoliday ? 'weekend/holiday' : 'weekday';
+    const timing = activeBlock ? 'right now' : previousBlock ? 'recently' : 'later today';
+    return `[BACKGROUND SCHEDULE]
+${chat.name}'s ${dayType} schedule says that ${timing}, around ${relevantBlock.startTime}-${relevantBlock.endTime}, they are likely: ${relevantBlock.context}.
+Use this as subtle life context only. Let it color the reply naturally if it fits, like a real person casually texting during their day.`;
+  };
+
   const handleAutomationTrigger = async (chatId: string, context: string, triggerId?: string, type?: 'normal' | 'catchup' | 'inactivity') => {
     const targetChat = chatsRef.current.find(c => c.id === chatId);
     if (!targetChat) return;
@@ -299,7 +372,7 @@ const App: React.FC = () => {
         setChats(prev => prev.map(c => {
           if (c.id === chatId && c.automation) {
             const trigs = c.automation.timeTriggers.map(t => 
-              t.id === triggerId ? { ...t, lastTriggered: new Date().toLocaleDateString('en-CA'), lastTriggerType: type as any } : t
+              t.id === triggerId ? { ...t, lastTriggered: getDateKey(), lastTriggerType: type as any } : t
             );
             return { ...c, automation: { ...c.automation, timeTriggers: trigs } };
           }
@@ -324,7 +397,7 @@ const App: React.FC = () => {
         settings.shareUserInfo ? user : undefined,
         undefined,
         settings,
-        context
+        combinePersonaContexts(context, buildScheduleContext(targetChat))
       );
 
       const chunks = splitMessage(response);
@@ -343,6 +416,7 @@ const App: React.FC = () => {
           id: `${Date.now()}-${i}`,
           text: chunk,
           sender: 'other',
+          date: getDateKey(),
           timestamp: getFormattedTime(),
           status: 'delivered'
         };
@@ -395,7 +469,7 @@ const App: React.FC = () => {
     setChatStatus(chatId, 'offline');
     
     // 2. Clear any session locks in handledTriggersRef
-    const todayDateStr = new Date().toLocaleDateString('en-CA');
+    const todayDateStr = getDateKey();
     const keysToRemove: string[] = [];
     handledTriggersRef.current.forEach(key => {
       if (key.startsWith(`${chatId}-`)) keysToRemove.push(key);
@@ -407,7 +481,7 @@ const App: React.FC = () => {
 
   const runAutomationChecks = (isInitialMount: boolean = false) => {
     const now = new Date();
-    const todayDateStr = now.toLocaleDateString('en-CA'); 
+    const todayDateStr = getDateKey(); 
     const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
 
     setChats(prevChats => {
@@ -580,6 +654,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     if (!activeChat) return;
 
     const timestamp = getFormattedTime();
+    const date = getDateKey();
 
     let mediaId = '';
     if (attachment && (attachment.type === 'image' || attachment.type === 'audio')) {
@@ -602,6 +677,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       image: undefined, // No longer storing full Base64 in message object
       mediaId,
       sender: 'me',
+      date,
       timestamp,
       status: 'sent',
       replyToMessage: replyTo
@@ -626,14 +702,16 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }));
 
     // Trigger AI response(s)
+    const memoryContext = buildMemoryRecallContext(activeChat, text);
+    const scheduleContext = buildScheduleContext(activeChat);
     if (activeChat.isGroup) {
-      handleGroupResponse(activeChat, [...activeChat.messages, userMsg]);
+      handleGroupResponse(activeChat, [...activeChat.messages, userMsg], memoryContext);
     } else {
-      handleSingleResponse(activeChat, [...activeChat.messages, userMsg]);
+      handleSingleResponse(activeChat, [...activeChat.messages, userMsg], combinePersonaContexts(memoryContext, scheduleContext));
     }
   };
 
-  const handleSingleResponse = async (chat: Chat, updatedHistory: Message[]) => {
+  const handleSingleResponse = async (chat: Chat, updatedHistory: Message[], memoryContext?: string) => {
     const chatId = chat.id;
     try {
       // 1. "Seen" Delay Simulation (Persona opens the app)
@@ -674,7 +752,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         hydratedHistory,
         settings.shareUserInfo ? user : undefined,
         undefined,
-        settings
+        settings,
+        memoryContext
       );
 
       const chunks = splitMessage(response);
@@ -694,6 +773,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           id: `${Date.now()}-${i}`,
           text: chunk,
           sender: 'other',
+          date: getDateKey(),
           timestamp: getFormattedTime(),
           status: 'delivered'
         };
@@ -743,7 +823,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }
   };
 
-  const handleGroupResponse = async (group: Chat, updatedHistory: Message[]) => {
+  const handleGroupResponse = async (group: Chat, updatedHistory: Message[], memoryContext?: string) => {
     const memberIds = [...(group.memberIds || [])];
     if (memberIds.length === 0) return;
 
@@ -807,7 +887,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             groupName: group.name,
             otherMembers: group.memberIds?.filter(id => id !== responderId).map(id => chats.find(c => c.id === id)?.name || '') || []
           },
-          settings
+          settings,
+          combinePersonaContexts(memoryContext, buildScheduleContext(persona))
         );
 
         const chunks = splitMessage(responseText);
@@ -828,6 +909,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             sender: 'other',
             senderName: persona.name,
             senderId: persona.id,
+            date: getDateKey(),
             timestamp: getFormattedTime(),
             status: 'delivered'
           };
@@ -915,6 +997,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         text: `Welcome to ${data.name}! Members: ${data.memberIds.map(id => chats.find(c => c.id === id)?.name).join(', ')}`,
         sender: 'other',
         senderName: 'System',
+        date: getDateKey(),
         timestamp: '--'
       }]
     };
@@ -1040,6 +1123,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onMetaAIClick={() => handleChatSelect('6')}
             onAddContact={() => setShowNewChatPanel(true)}
             onReply={setReplyingTo}
+            onSaveMemory={handleSaveMemory}
+            settings={settings}
           />
           {activeChat && (!isMobile || !showProfilePanel) && (
             <MessageInput

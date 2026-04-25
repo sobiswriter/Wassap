@@ -65,14 +65,25 @@ CRITICAL INSTRUCTION: Google Search Grounding is ENABLED. If the user asks for c
 IMPORTANT RULE: NEVER use formal citations (like [1], URLs, or "according to..."). Weave the facts you find naturally into your chat response as if you just looked it up on your phone. Keep your persona intact!
 ` : '';
 
-    const initiationPrompt = initiationContext ? `
+    const isInitiationDirective = initiationContext && (
+      initiationContext.includes('[SCHEDULED INTERACTION]') ||
+      initiationContext.includes('[CATCH-UP REQUIRED]') ||
+      initiationContext.includes('[INACTIVITY CHECK-IN]') ||
+      initiationContext.includes('[MANUAL TEST]')
+    );
+
+    const initiationPrompt = initiationContext ? (isInitiationDirective ? `
 CRITICAL INSTRUCTION: You are re-initiating the conversation right now.
 ${initiationContext.includes('[SCHEDULED INTERACTION]') || initiationContext.includes('[CATCH-UP REQUIRED]') 
   ? `INTENT: This is a scheduled interaction. You MUST prioritize this intent and address it immediately while remaining context-aware.` 
   : `CONTEXT: This is a natural check-in. Prioritize the conversation history and flow while acknowledging the silence naturally.`}
 Context/Directive details:
 ${initiationContext}
-` : '';
+` : `
+ADDITIONAL PERSONA CONTEXT:
+Use this only as subtle background. Do not announce it directly or force it into the reply.
+${initiationContext}
+`) : '';
 
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}
@@ -134,5 +145,58 @@ Response as ${responder.name}:`;
       return "Invalid API Key. Please check your settings.";
     }
     return "Connection issues... please try again.";
+  }
+};
+
+export const getGeminiDiaryEntry = async (
+  persona: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string },
+  messageHistory: { text: string; sender: string; senderName?: string }[],
+  startDate: string,
+  endDate: string,
+  settings?: AppSettings
+) => {
+  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+
+  if (!finalKey) {
+    return "API Key not configured.";
+  }
+
+  const ai = new GoogleGenAI({ apiKey: finalKey });
+
+  try {
+    const historyString = messageHistory
+      .map(m => {
+        const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
+        return `${name}: ${m.text || ''}`.trim();
+      })
+      .join('\n');
+
+    const diaryPrompt = `
+You are ${persona.name}. 
+ABOUT YOU: ${persona.about || ''}
+ROLE: ${persona.role || ''}
+STYLE: ${persona.speechStyle || ''}
+NOTES: ${persona.systemInstruction || ''}
+
+TASK:
+Write a personal diary entry for ${startDate === endDate ? startDate : `${startDate} to ${endDate}`}.
+In this diary entry, summarize the interaction you had with the User today based on the conversation history provided below.
+CRITICAL: Include your personal feelings, thoughts, and reflections on the interaction as this persona. 
+Make it feel like a private, emotional entry in your own personal journal.
+
+CONVERSATION HISTORY:
+${historyString}
+
+DIARY ENTRY BY ${persona.name}:`;
+
+    const response = await ai.models.generateContent({
+      model: settings?.selectedModel || 'gemini-3-flash-preview',
+      contents: { parts: [{ text: diaryPrompt }] },
+    });
+
+    return response.text || "I couldn't find the words today...";
+  } catch (error: any) {
+    console.error("Diary generation error:", error);
+    return "I'm having trouble reflecting on today right now...";
   }
 };

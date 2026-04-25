@@ -1,7 +1,10 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Search, MoreVertical, CheckCheck, Check, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy } from 'lucide-react';
-import { Chat, Message } from '../types';
+import { Search, MoreVertical, CheckCheck, Check, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save } from 'lucide-react';
+import { Chat, MemoryBubble, Message, AppSettings } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
+import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, isDateInRange, normalizeDateKey } from '../utils/dates';
+import { getGeminiDiaryEntry } from '../services/geminiService';
+import { Sparkles, Loader2 } from 'lucide-react';
 
 interface ChatWindowProps {
   chat: Chat | null;
@@ -16,9 +19,182 @@ interface ChatWindowProps {
   onMetaAIClick?: () => void;
   onAddContact?: () => void;
   onReply?: (message: Message) => void;
+  onSaveMemory?: (chatId: string, memory: MemoryBubble) => void;
+  settings?: AppSettings;
 }
 
 const MEMBER_COLORS = ['#35a62e', '#e542a3', '#9141ac', '#dfa633', '#1d88e5'];
+
+const getSenderLabel = (message: Message, chat: Chat) => {
+  if (message.sender === 'me') return 'You';
+  return message.senderName || chat.name;
+};
+
+const buildCapturedMemorySummary = (chat: Chat, messages: Message[], startDate: string, endDate: string, note: string) => {
+  const textMessages = messages
+    .filter(message => (message.text || message.attachment?.name || '').trim())
+    .map(message => ({
+      speaker: getSenderLabel(message, chat),
+      text: (message.text || message.attachment?.name || 'Attachment').trim(),
+      timestamp: message.timestamp
+    }));
+  const participants = Array.from(new Set(textMessages.map(message => message.speaker))).join(', ') || `You, ${chat.name}`;
+  const first = textMessages[0];
+  const last = textMessages[textMessages.length - 1];
+  const highlights = textMessages
+    .filter(message => message.text.length > 18)
+    .slice(-4)
+    .map(message => `${message.speaker} said ${message.text.length > 140 ? `${message.text.slice(0, 137)}...` : message.text}`);
+  const noteText = note.trim() ? ` User note: ${note.trim()}` : '';
+
+  return [
+    `Memory from ${formatDateRangeLabel(startDate, endDate)} with ${participants}.`,
+    textMessages.length > 0
+      ? `The interaction started around ${first.timestamp} with ${first.speaker} saying "${first.text.length > 100 ? `${first.text.slice(0, 97)}...` : first.text}" and ended around ${last.timestamp} with ${last.speaker} saying "${last.text.length > 100 ? `${last.text.slice(0, 97)}...` : last.text}".`
+      : `There were no text messages to summarize, but this day was intentionally saved as a memory.`,
+    highlights.length > 0 ? `Key beats: ${highlights.join('; ')}.` : '',
+    noteText.trim()
+  ].filter(Boolean).join('\n');
+};
+
+const DateDivider: React.FC<{ dateKey: string; onClick?: () => void }> = ({ dateKey, onClick }) => (
+  <div className="flex justify-center sticky top-2 z-20 my-3">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      title={onClick ? 'Save this day as a memory' : undefined}
+      className={`app-header text-secondary text-[calc(var(--msg-font-size)-3px)] px-3 py-1.5 rounded-lg shadow-sm border app-border uppercase tracking-normal transition-colors ${onClick ? 'pointer-events-auto cursor-pointer hover:text-[#00a884] hover:border-[#00a884]/50' : 'pointer-events-none'}`}
+    >
+      {formatChatDividerLabel(dateKey)}
+    </button>
+  </div>
+);
+
+const DateMemoryModal: React.FC<{
+  chat: Chat;
+  dateKey: string;
+  onCancel: () => void;
+  onSave: (memory: MemoryBubble) => void;
+  settings?: AppSettings;
+}> = ({ chat, dateKey, onCancel, onSave, settings }) => {
+  const [endDate, setEndDate] = useState(dateKey);
+  const [title, setTitle] = useState('');
+  const [note, setNote] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const normalizedStart = normalizeDateKey(dateKey);
+  const normalizedEnd = normalizeDateKey(endDate, normalizedStart);
+  const capturedMessages = chat.messages.filter(message =>
+    isDateInRange(getMessageDateKey(message), normalizedStart, normalizedEnd)
+  );
+
+  const handleSave = () => {
+    if (normalizedEnd < normalizedStart) {
+      alert('End date cannot be before the selected day.');
+      return;
+    }
+    if (getDaysBetween(normalizedStart, normalizedEnd) > 1) {
+      alert('Memory capture can include this day and one extra day at most.');
+      return;
+    }
+
+    onSave({
+      id: `memory-${Date.now()}`,
+      chatId: chat.id,
+      title: title.trim() || `${chat.name} - ${formatDateRangeLabel(normalizedStart, normalizedEnd)}`,
+      startDate: normalizedStart,
+      endDate: normalizedEnd,
+      summary: buildCapturedMemorySummary(chat, capturedMessages, normalizedStart, normalizedEnd, note),
+      createdAt: new Date().toISOString()
+    });
+  };
+
+  const handleGenerateDiary = async () => {
+    if (!settings?.apiKey) {
+      alert("Please set your Gemini API key in Settings first.");
+      return;
+    }
+    
+    setIsGenerating(true);
+    try {
+      const diaryEntry = await getGeminiDiaryEntry(
+        { 
+          name: chat.name, 
+          about: chat.about, 
+          role: chat.role, 
+          speechStyle: chat.speechStyle, 
+          systemInstruction: chat.systemInstruction 
+        },
+        capturedMessages.map(m => ({ text: m.text, sender: m.sender, senderName: m.senderName })),
+        normalizedStart,
+        normalizedEnd,
+        settings
+      );
+      setNote(diaryEntry);
+    } catch (error) {
+      console.error("Diary generation failed", error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div className="absolute inset-0 z-[80] bg-black/40 flex items-center justify-center p-4">
+      <div className="app-panel border app-border shadow-2xl rounded-lg w-full max-w-[420px] overflow-hidden text-primary">
+        <div className="app-header border-b app-border px-4 py-3 flex items-center justify-between">
+          <div>
+            <h3 className="text-[calc(var(--msg-font-size)+1px)] font-medium">Save Memory Bubble</h3>
+            <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary">{formatDateRangeLabel(normalizedStart, normalizedEnd)} · {capturedMessages.length} messages</p>
+          </div>
+          <button onClick={onCancel} className="p-1.5 rounded-full hover:bg-black/5 text-secondary">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-4 space-y-3">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Memory title"
+            className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none"
+          />
+          <div className="space-y-1">
+            <label className="text-[calc(var(--msg-font-size)-3px)] text-secondary uppercase font-bold">Include up to one extra day</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="text-[calc(var(--msg-font-size)-3px)] text-secondary uppercase font-bold">Persona Diary / Notes</label>
+            <button
+              onClick={handleGenerateDiary}
+              disabled={isGenerating || capturedMessages.length === 0}
+              className="flex items-center gap-1.5 text-[calc(var(--msg-font-size)-2.5px)] text-[#00a884] font-bold hover:bg-[#00a884]/10 px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              Generate AI Diary
+            </button>
+          </div>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Write the memory note. Click the button above to have the persona write a diary entry for this day!"
+            rows={5}
+            className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none resize-none leading-relaxed"
+          />
+          <button
+            onClick={handleSave}
+            className="w-full bg-[#00a884] hover:bg-[#008f6f] text-white font-medium py-2.5 rounded transition-colors flex items-center justify-center gap-2"
+          >
+            <Save size={16} /> Compress & Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const formatMessageText = (text: string) => {
   if (!text) return null;
@@ -219,13 +395,14 @@ const TypingBubble: React.FC = () => (
   </div>
 );
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeaderClick, onDeleteChat, onClearChat, searchTerm, setSearchTerm, onBack, onProfileClick, onMetaAIClick, onAddContact, onReply }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeaderClick, onDeleteChat, onClearChat, searchTerm, setSearchTerm, onBack, onProfileClick, onMetaAIClick, onAddContact, onReply, onSaveMemory, settings }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [memoryCaptureDate, setMemoryCaptureDate] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -325,6 +502,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
             onClearChat();
             setShowClearModal(false);
           }}
+        />
+      )}
+
+      {memoryCaptureDate && !chat.isGroup && onSaveMemory && (
+        <DateMemoryModal
+          chat={chat}
+          dateKey={memoryCaptureDate}
+          onCancel={() => setMemoryCaptureDate(null)}
+          onSave={(memory) => {
+            onSaveMemory(chat.id, memory);
+            setMemoryCaptureDate(null);
+          }}
+          settings={settings}
         />
       )}
 
@@ -464,20 +654,33 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
           </div>
         )}
 
-        {filteredMessages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            highlight={!!searchTerm}
-            isGroup={chat.isGroup}
-            onReply={onReply}
-            selected={selectedMessageIds.includes(msg.id)}
-            onToggleSelect={(m) => {
-               setSelectedMessageIds(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]);
-            }}
-            selectionMode={selectedMessageIds.length > 0}
-          />
-        ))}
+        {filteredMessages.map((msg, index) => {
+          const dateKey = getMessageDateKey(msg);
+          const previousDateKey = index > 0 ? getMessageDateKey(filteredMessages[index - 1]) : '';
+          const shouldShowDateDivider = dateKey !== previousDateKey;
+
+          return (
+            <React.Fragment key={msg.id}>
+              {shouldShowDateDivider && (
+                <DateDivider
+                  dateKey={dateKey}
+                  onClick={!chat.isGroup && onSaveMemory ? () => setMemoryCaptureDate(dateKey) : undefined}
+                />
+              )}
+              <MessageBubble
+                message={msg}
+                highlight={!!searchTerm}
+                isGroup={chat.isGroup}
+                onReply={onReply}
+                selected={selectedMessageIds.includes(msg.id)}
+                onToggleSelect={(m) => {
+                   setSelectedMessageIds(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]);
+                }}
+                selectionMode={selectedMessageIds.length > 0}
+              />
+            </React.Fragment>
+          );
+        })}
         {!searchTerm && chat.status === 'typing...' && <TypingBubble />}
         <div ref={scrollRef} />
       </div>

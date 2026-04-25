@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, Camera, Link as LinkIcon, Save, Info, Globe, Check, 
   Users, Trash2, Eraser, Settings, ChevronDown, ChevronRight, 
-  Plus, Clock, RefreshCw, UserX 
+  Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays
 } from 'lucide-react';
-import { Chat, Message } from '../types';
+import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
+import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey } from '../utils/dates';
 
 interface ProfilePanelProps {
   chat: Chat;
@@ -18,6 +19,21 @@ interface ProfilePanelProps {
   onTestAutomation?: (chatId: string, testType: 'inactivity' | 'time', contextOverride?: string) => void;
 }
 
+const createDefaultSchedule = (): PersonaSchedule => ({
+  enabled: false,
+  weekday: [
+    { id: `weekday-${Date.now()}-morning`, startTime: '07:00', endTime: '09:00', context: 'getting ready for the day and having breakfast' },
+    { id: `weekday-${Date.now()}-work`, startTime: '09:00', endTime: '17:00', context: 'busy with work or daily responsibilities' },
+    { id: `weekday-${Date.now()}-evening`, startTime: '18:00', endTime: '22:00', context: 'winding down after the day' }
+  ],
+  weekend: [
+    { id: `weekend-${Date.now()}-morning`, startTime: '09:00', endTime: '11:00', context: 'having a slower morning' },
+    { id: `weekend-${Date.now()}-day`, startTime: '12:00', endTime: '18:00', context: 'taking care of personal plans or relaxing' }
+  ],
+  holidayDates: [],
+  weekendDays: [0, 6] // Default: Sunday and Saturday
+});
+
 export const ProfilePanel: React.FC<ProfilePanelProps> = ({ 
   chat, allChats, onClose, onUpdate, onDeleteChat, onClearChat, onRefreshPersona, onTestAutomation 
 }) => {
@@ -28,6 +44,9 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     speechStyle: chat.speechStyle || '',
     systemInstruction: chat.systemInstruction || '',
     avatar: chat.avatar,
+    memoryEnabled: chat.memoryEnabled || false,
+    memoryBubbles: chat.memoryBubbles || [],
+    schedule: chat.schedule || createDefaultSchedule(),
     automation: chat.automation || {
       enabled: false,
       timeTriggers: [],
@@ -38,10 +57,19 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   });
 
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSentience, setShowSentience] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlValue, setUrlValue] = useState(chat.avatar);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [memoryStartDate, setMemoryStartDate] = useState(getLocalDateKey());
+  const [memoryEndDate, setMemoryEndDate] = useState(getLocalDateKey());
+  const [memoryTitle, setMemoryTitle] = useState('');
+  const [memorySummary, setMemorySummary] = useState('');
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
+  const [editMemoryTitle, setEditMemoryTitle] = useState('');
+  const [editMemorySummary, setEditMemorySummary] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,6 +80,9 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       speechStyle: chat.speechStyle || '',
       systemInstruction: chat.systemInstruction || '',
       avatar: chat.avatar,
+      memoryEnabled: chat.memoryEnabled || false,
+      memoryBubbles: chat.memoryBubbles || [],
+      schedule: chat.schedule || createDefaultSchedule(),
       automation: chat.automation || {
         enabled: false,
         timeTriggers: [],
@@ -79,6 +110,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       return prev;
     });
     setUrlValue(chat.avatar);
+    setEditingMemoryId(null);
   }, [chat]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,6 +137,140 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   const handleSave = () => {
     onUpdate(formData);
   };
+
+  const handleCreateMemory = () => {
+    const normalizedStart = normalizeDateKey(memoryStartDate);
+    const normalizedEnd = normalizeDateKey(memoryEndDate);
+    if (normalizedEnd < normalizedStart) {
+      alert('End date cannot be before start date.');
+      return;
+    }
+    if (getDaysBetween(normalizedStart, normalizedEnd) > 1) {
+      alert('A memory bubble can capture one day or two consecutive days at most.');
+      return;
+    }
+    if (!memorySummary.trim()) {
+      alert('Write a memory note here, or use a chat date divider to auto-compress messages.');
+      return;
+    }
+
+    const newMemory: MemoryBubble = {
+      id: `memory-${Date.now()}`,
+      chatId: chat.id,
+      title: memoryTitle.trim() || `${formData.name} - ${formatDateRangeLabel(normalizedStart, normalizedEnd)}`,
+      startDate: normalizedStart,
+      endDate: normalizedEnd,
+      summary: memorySummary.trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      memoryBubbles: [...prev.memoryBubbles, newMemory]
+    }));
+    setMemoryTitle('');
+    setMemorySummary('');
+  };
+
+  const handleUpdateMemory = (memory: MemoryBubble) => {
+    setFormData(prev => ({
+      ...prev,
+      memoryBubbles: prev.memoryBubbles.map(item =>
+        item.id === memory.id
+          ? { ...item, title: editMemoryTitle.trim() || item.title, summary: editMemorySummary.trim(), updatedAt: new Date().toISOString() }
+          : item
+      )
+    }));
+    setEditingMemoryId(null);
+  };
+
+  const handleDeleteMemory = (memoryId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      memoryBubbles: prev.memoryBubbles.filter(memory => memory.id !== memoryId)
+    }));
+  };
+
+  const updateScheduleBlock = (kind: 'weekday' | 'weekend', blockId: string, updates: Partial<PersonaScheduleBlock>) => {
+    setFormData(prev => ({
+      ...prev,
+      schedule: {
+        ...prev.schedule,
+        [kind]: prev.schedule[kind].map(block => block.id === blockId ? { ...block, ...updates } : block)
+      }
+    }));
+  };
+
+  const addScheduleBlock = (kind: 'weekday' | 'weekend') => {
+    const newBlock: PersonaScheduleBlock = {
+      id: `${kind}-${Date.now()}`,
+      startTime: '09:00',
+      endTime: '10:00',
+      context: kind === 'weekday' ? 'doing something from their normal weekday routine' : 'spending time in a weekend or holiday mood'
+    };
+    setFormData(prev => ({
+      ...prev,
+      schedule: {
+        ...prev.schedule,
+        [kind]: [...prev.schedule[kind], newBlock]
+      }
+    }));
+  };
+
+  const deleteScheduleBlock = (kind: 'weekday' | 'weekend', blockId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      schedule: {
+        ...prev.schedule,
+        [kind]: prev.schedule[kind].filter(block => block.id !== blockId)
+      }
+    }));
+  };
+
+  const renderScheduleBlocks = (kind: 'weekday' | 'weekend', title: string) => (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">{title}</h5>
+        <button
+          onClick={() => addScheduleBlock(kind)}
+          className="flex items-center gap-1 text-[calc(var(--msg-font-size)-2px)] text-[#00a884] font-medium hover:bg-black/5 rounded px-2 py-1"
+        >
+          <Plus size={14} /> Add
+        </button>
+      </div>
+      {formData.schedule[kind].length === 0 ? (
+        <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">No schedule blocks yet.</p>
+      ) : formData.schedule[kind].map(block => (
+        <div key={block.id} className="p-3 bg-white dark:bg-[#202c33] border app-border rounded space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="time"
+              value={block.startTime}
+              onChange={(e) => updateScheduleBlock(kind, block.id, { startTime: e.target.value })}
+              className="bg-transparent border-b app-border text-[calc(var(--msg-font-size)-2px)] text-primary outline-none"
+            />
+            <span className="text-secondary">to</span>
+            <input
+              type="time"
+              value={block.endTime}
+              onChange={(e) => updateScheduleBlock(kind, block.id, { endTime: e.target.value })}
+              className="bg-transparent border-b app-border text-[calc(var(--msg-font-size)-2px)] text-primary outline-none"
+            />
+            <button onClick={() => deleteScheduleBlock(kind, block.id)} className="ml-auto p-1.5 text-secondary hover:text-red-500 hover:bg-black/5 rounded">
+              <Trash2 size={15} />
+            </button>
+          </div>
+          <textarea
+            value={block.context}
+            onChange={(e) => updateScheduleBlock(kind, block.id, { context: e.target.value })}
+            rows={2}
+            placeholder="What is this persona probably doing?"
+            className="w-full bg-black/5 dark:bg-black/20 border app-border rounded p-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none resize-none text-primary"
+          />
+        </div>
+      ))}
+    </div>
+  );
 
   const labelClass = "text-[calc(var(--msg-font-size)-0.5px)] text-[#008069] font-medium block mb-2 uppercase tracking-tight";
   const inputClass = "w-full outline-none text-[calc(var(--msg-font-size)+1.5px)] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1";
@@ -276,6 +442,218 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
           </div>
         )}
 
+        {/* Sentience / Memory Section */}
+        {!chat.isGroup && (
+          <div className="mt-2 app-panel shadow-sm border-b app-border">
+            <div
+              className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-black/5 transition-colors"
+              onClick={() => setShowSentience(!showSentience)}
+            >
+              <div className="flex items-center gap-3">
+                <Brain size={20} className="text-secondary" />
+                <h4 className="text-[calc(var(--msg-font-size)+0.5px)] text-primary font-medium">Sentience: Memories</h4>
+              </div>
+              {showSentience ? <ChevronDown size={20} className="text-secondary" /> : <ChevronRight size={20} className="text-secondary" />}
+            </div>
+
+            {showSentience && (
+              <div className="px-6 py-6 space-y-6 border-t app-border bg-gray-50/50 dark:bg-black/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[length:var(--msg-font-size)] font-medium text-primary">Memory Bubbles</p>
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Enable /rem recall for this persona only</p>
+                  </div>
+                  <div
+                    onClick={() => setFormData(prev => ({ ...prev, memoryEnabled: !prev.memoryEnabled }))}
+                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.memoryEnabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                  >
+                    <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${formData.memoryEnabled ? 'left-[22px]' : 'left-[2px]'}`} />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-[#00a884]">
+                    <Plus size={16} />
+                    <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium">Add Manual Memory</h5>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      value={memoryStartDate}
+                      onChange={(e) => setMemoryStartDate(e.target.value)}
+                      className="bg-white dark:bg-[#202c33] border app-border rounded px-2 py-2 text-[calc(var(--msg-font-size)-2px)] outline-none text-primary"
+                    />
+                    <input
+                      type="date"
+                      value={memoryEndDate}
+                      onChange={(e) => setMemoryEndDate(e.target.value)}
+                      className="bg-white dark:bg-[#202c33] border app-border rounded px-2 py-2 text-[calc(var(--msg-font-size)-2px)] outline-none text-primary"
+                    />
+                  </div>
+                  <input
+                    value={memoryTitle}
+                    onChange={(e) => setMemoryTitle(e.target.value)}
+                    placeholder="Memory title"
+                    className="w-full bg-white dark:bg-[#202c33] border app-border rounded px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none text-primary"
+                  />
+                  <textarea
+                    value={memorySummary}
+                    onChange={(e) => setMemorySummary(e.target.value)}
+                    placeholder="Write the memory note. Use a chat date chip to auto-compress messages."
+                    rows={4}
+                    className="w-full bg-white dark:bg-[#202c33] border app-border rounded px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none resize-none text-primary"
+                  />
+                  <button
+                    onClick={handleCreateMemory}
+                    className="w-full bg-[#00a884] hover:bg-[#008f6f] text-white font-medium py-2 rounded transition-colors flex items-center justify-center gap-2 text-[calc(var(--msg-font-size)-1.5px)]"
+                  >
+                    <Save size={16} /> Add Memory
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-[calc(var(--msg-font-size)-3.5px)] font-bold text-secondary uppercase tracking-widest pl-1">Saved Memories</p>
+                  {formData.memoryBubbles.length === 0 ? (
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">No memories saved for this persona yet.</p>
+                  ) : formData.memoryBubbles.map(memory => (
+                    <div key={memory.id} className="p-3 bg-white dark:bg-[#202c33] border app-border rounded space-y-2">
+                      {editingMemoryId === memory.id ? (
+                        <>
+                          <input
+                            value={editMemoryTitle}
+                            onChange={(e) => setEditMemoryTitle(e.target.value)}
+                            className="w-full bg-transparent border-b app-border pb-1 text-[calc(var(--msg-font-size)-1.5px)] outline-none text-primary"
+                          />
+                          <textarea
+                            value={editMemorySummary}
+                            onChange={(e) => setEditMemorySummary(e.target.value)}
+                            rows={4}
+                            className="w-full bg-black/5 dark:bg-black/20 border app-border rounded p-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none resize-none text-primary"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => setEditingMemoryId(null)} className="px-3 py-1 text-secondary hover:bg-black/10 rounded text-[calc(var(--msg-font-size)-2px)]">Cancel</button>
+                            <button onClick={() => handleUpdateMemory(memory)} className="px-3 py-1 bg-[#00a884] text-white rounded text-[calc(var(--msg-font-size)-2px)]">Save</button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-[calc(var(--msg-font-size)-1px)] text-primary font-medium truncate">{memory.title}</p>
+                              <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary">{formatDateRangeLabel(memory.startDate, memory.endDate)}</p>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              <button
+                                onClick={() => {
+                                  setEditingMemoryId(memory.id);
+                                  setEditMemoryTitle(memory.title);
+                                  setEditMemorySummary(memory.summary);
+                                }}
+                                className="p-1.5 text-secondary hover:text-[#00a884] hover:bg-black/5 rounded"
+                              >
+                                <Edit3 size={15} />
+                              </button>
+                              <button onClick={() => handleDeleteMemory(memory.id)} className="p-1.5 text-secondary hover:text-red-500 hover:bg-black/5 rounded">
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-[calc(var(--msg-font-size)-2px)] text-secondary whitespace-pre-wrap line-clamp-5">{memory.summary}</p>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Persona Schedule Section */}
+        {!chat.isGroup && (
+          <div className="mt-2 app-panel shadow-sm border-b app-border">
+            <div
+              className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-black/5 transition-colors"
+              onClick={() => setShowSchedule(!showSchedule)}
+            >
+              <div className="flex items-center gap-3">
+                <CalendarDays size={20} className="text-secondary" />
+                <h4 className="text-[calc(var(--msg-font-size)+0.5px)] text-primary font-medium">Sentience: Persona Schedule</h4>
+              </div>
+              {showSchedule ? <ChevronDown size={20} className="text-secondary" /> : <ChevronRight size={20} className="text-secondary" />}
+            </div>
+
+            {showSchedule && (
+              <div className="px-6 py-6 space-y-6 border-t app-border bg-gray-50/50 dark:bg-black/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[length:var(--msg-font-size)] font-medium text-primary">Use Schedule Context</p>
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Adds subtle daily-life context to replies</p>
+                  </div>
+                  <div
+                    onClick={() => setFormData(prev => ({ ...prev, schedule: { ...prev.schedule, enabled: !prev.schedule.enabled } }))}
+                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.schedule.enabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                  >
+                    <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${formData.schedule.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
+                  </div>
+                </div>
+
+                <div className={`space-y-6 transition-opacity ${formData.schedule.enabled ? 'opacity-100' : 'opacity-50'}`}>
+                  {renderScheduleBlocks('weekday', 'Weekday Routine')}
+                  {renderScheduleBlocks('weekend', 'Weekend & Holiday Routine')}
+
+                  <div className="space-y-3">
+                    <label className="text-[calc(var(--msg-font-size)-3px)] text-secondary uppercase font-bold">Weekend Days</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
+                        const isWeekend = (formData.schedule.weekendDays || [0, 6]).includes(index);
+                        return (
+                          <button
+                            key={day}
+                            onClick={() => {
+                              const current = formData.schedule.weekendDays || [0, 6];
+                              const next = current.includes(index)
+                                ? current.filter(i => i !== index)
+                                : [...current, index];
+                              setFormData(prev => ({
+                                ...prev,
+                                schedule: { ...prev.schedule, weekendDays: next }
+                              }));
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-[calc(var(--msg-font-size)-2.5px)] font-medium transition-all border ${
+                              isWeekend 
+                                ? 'bg-[#00a884] text-white border-[#00a884] shadow-sm' 
+                                : 'bg-white dark:bg-[#202c33] text-secondary border-app-border hover:bg-black/5'
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[calc(var(--msg-font-size)-3px)] text-secondary uppercase font-bold">Holiday Dates</label>
+                    <input
+                      value={(formData.schedule.holidayDates || []).join(', ')}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        schedule: {
+                          ...prev.schedule,
+                          holidayDates: e.target.value.split(',').map(date => normalizeDateKey(date.trim(), '')).filter(Boolean)
+                        }
+                      }))}
+                      placeholder="YYYY-MM-DD, YYYY-MM-DD"
+                      className="w-full bg-white dark:bg-[#202c33] border app-border rounded px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none text-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Advanced / Automation Section */}
         {!chat.isGroup && (
           <div className="mt-2 app-panel shadow-sm border-b app-border">
@@ -359,7 +737,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     <div className="space-y-3">
                       {(() => {
                         const now = new Date();
-                        const todayDateStr = now.toLocaleDateString('en-CA');
+                        const todayDateStr = getLocalDateKey();
                         const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
                         const hasAlreadyTalkedToday = formData.automation.timeTriggers.some(trigger => trigger.lastTriggered === todayDateStr);
                         
