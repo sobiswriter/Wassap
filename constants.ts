@@ -41,7 +41,7 @@ export const INITIAL_CHATS: Chat[] = [
       timeTriggers: [
         { id: 'mom-morning', context: 'Good morning beta, did you sleep well?', startTime: '08:00', endTime: '09:30' }
       ],
-      inactivity: { enabled: false, minHours: 6, maxHours: 12 }
+      inactivity: { enabled: false, hours: 6, minutes: 0, seconds: 0 }
     }
   },
   {
@@ -63,7 +63,7 @@ export const INITIAL_CHATS: Chat[] = [
       timeTriggers: [
         { id: 'sis-homework', context: 'Hey!! You promised to help with my math homework, where are you??', startTime: '16:00', endTime: '18:00' }
       ],
-      inactivity: { enabled: false, minHours: 6, maxHours: 12 }
+      inactivity: { enabled: false, hours: 6, minutes: 0, seconds: 0 }
     }
   },
   {
@@ -99,7 +99,7 @@ export const INITIAL_CHATS: Chat[] = [
     automation: {
       enabled: true,
       timeTriggers: [],
-      inactivity: { enabled: true, minHours: 4, maxHours: 8 }
+      inactivity: { enabled: true, hours: 4, minutes: 0, seconds: 0 }
     }
   },
   {

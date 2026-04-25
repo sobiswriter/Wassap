@@ -1,7 +1,7 @@
 {
-  "name": "whatsapp-v0.7",
+  "name": "wassap",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.2.5",
   "type": "module",
   "scripts": {
     "dev": "vite",

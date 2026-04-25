@@ -218,8 +218,8 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
                 const title = 'Wassap Verified';
                 const options = { 
                   body: 'Desktop and Mobile Drawer notifications are fully working!',
-                  icon: '/logo192.png',
-                  badge: '/logo192.png',
+                  icon: '/favicon.svg',
+                  badge: '/favicon.svg',
                   tag: 'test-notification'
                 };
 
