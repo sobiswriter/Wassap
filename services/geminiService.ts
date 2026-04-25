@@ -20,6 +20,10 @@ export const getGeminiResponse = async (
   try {
     const historyString = messageHistory
       .map(m => {
+        if ((m as any).isEvent) {
+          const imgTag = m.image ? "[IMAGE ATTACHED TO EVENT]" : "";
+          return `[ENVIRONMENTAL EVENT OCCURS]: *${m.text || ''}* ${imgTag}`.trim();
+        }
         const name = m.sender === 'me' ? (userProfile?.name || 'User') : (m.senderName || responder.name);
         const imgTag = m.image ? "[IMAGE ATTACHED]" : "";
         return `${name}: ${imgTag} ${m.text || ''}`.trim();
@@ -52,7 +56,8 @@ Current Status: ${userProfile.status}
 
     const timeContext = settings?.shareTimeContext !== false ? `
 CURRENT SYSTEM DATE AND TIME:
-${new Date().toLocaleString()}
+It is currently ${new Date().toLocaleString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}.
+CRITICAL RULE: Do NOT explicitly mention the time or date in your messages unless the User specifically asks about it. Use this information only to silently adjust your context (e.g. knowing it's late at night).
 ` : '';
 
     const notesContext = (settings?.shareCalendarNotes && settings?.calendarNotes) ? `
@@ -80,10 +85,15 @@ ${initiationContext.includes('[SCHEDULED INTERACTION]') || initiationContext.inc
 Context/Directive details:
 ${initiationContext}
 ` : `
-ADDITIONAL PERSONA CONTEXT:
-Use this only as subtle background. Do not announce it directly or force it into the reply.
-${initiationContext}
-`) : '';
+ADDITIONAL CONTEXT & GUIDELINES:
+Use the following context as a SUBTLE background influence on your mood/availability. Do NOT announce this context directly to the User unless asked.
+${initiationContext}`) : '';
+
+    const eventInstruction = messageHistory.some((m: any) => m.isEvent) ? `
+SPECIAL ROLEPLAY RULE FOR EVENTS:
+If the last message is an [ENVIRONMENTAL EVENT OCCURS], do NOT treat it as a text message from the User. It is an objective event that genuinely just happened around you or to you.
+React to it organically in your next text message to the User. Let your text be a natural, spontaneous reaction to whatever the event was, reflecting your true persona's feelings about the situation. You can also include physical actions in asterisks if necessary.
+` : '';
 
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}
@@ -93,6 +103,7 @@ ${timeContext}
 ${notesContext}
 ${groundingPrompt}
 ${initiationPrompt}
+${eventInstruction}
 
 Instructions:
 1. If an initiation INTENT or CONTEXT is provided above, follow its prioritization directive (Specific intents take priority; Check-ins prioritize history).

@@ -326,7 +326,9 @@ ${memoryText}`;
 
     const now = new Date();
     const todayDate = getDateKey();
-    const currentTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const currentTime = `${hh}:${mm}`;
     const weekendDays = schedule.weekendDays || [0, 6];
     const isWeekend = weekendDays.includes(now.getDay());
     const isHoliday = !!schedule.holidayDates?.includes(todayDate);
@@ -343,8 +345,8 @@ ${memoryText}`;
     const dayType = isWeekend || isHoliday ? 'weekend/holiday' : 'weekday';
     const timing = activeBlock ? 'right now' : previousBlock ? 'recently' : 'later today';
     return `[BACKGROUND SCHEDULE]
-${chat.name}'s ${dayType} schedule says that ${timing}, around ${relevantBlock.startTime}-${relevantBlock.endTime}, they are likely: ${relevantBlock.context}.
-Use this as subtle life context only. Let it color the reply naturally if it fits, like a real person casually texting during their day.`;
+CONTEXT: It is currently a ${dayType}. According to your daily routine, ${timing} (between ${relevantBlock.startTime} and ${relevantBlock.endTime}), your current status/activity is: ${relevantBlock.context}.
+CRITICAL RULE: Use this as SUBTLE background context only to influence your mood or availability. DO NOT announce what you are doing or mention the time/day unless the User explicitly asks "what are you up to" or similar. Keep it natural!`;
   };
 
   const handleAutomationTrigger = async (chatId: string, context: string, triggerId?: string, type?: 'normal' | 'catchup' | 'inactivity') => {
@@ -650,7 +652,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
 
 
-  const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message) => {
+  const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean) => {
     if (!activeChat) return;
 
     const timestamp = getFormattedTime();
@@ -680,7 +682,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       date,
       timestamp,
       status: 'sent',
-      replyToMessage: replyTo
+      replyToMessage: replyTo,
+      isEvent
     };
 
     setReplyingTo(null);
@@ -690,6 +693,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         let lastMsg = text || 'Attachment';
         if (attachment?.type === 'image') lastMsg = '📷 Photo' + (text ? `: ${text}` : '');
         if (attachment?.type === 'document') lastMsg = '📄 Document' + (text ? `: ${text}` : '');
+        if (isEvent) lastMsg = `🎬 Event: ${text}`;
 
         return {
           ...chat,

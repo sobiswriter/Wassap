@@ -4,7 +4,7 @@ import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Came
 import { FileAttachment, Message } from '../types';
 
 interface MessageInputProps {
-  onSendMessage: (text: string, attachment?: FileAttachment, replyTo?: Message) => void;
+  onSendMessage: (text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean) => void;
   activeChatId: string;
   replyingTo?: Message | null;
   onCancelReply?: () => void;
@@ -27,12 +27,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [stagedAttachment, setStagedAttachment] = useState<FileAttachment | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventText, setEventText] = useState('');
+  const [eventImage, setEventImage] = useState<FileAttachment | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const eventImageInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
@@ -48,6 +52,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     setShowEmojiPicker(false);
     setShowAttachmentMenu(false);
     setStagedAttachment(null);
+    setShowEventModal(false);
+    setEventText('');
+    setEventImage(null);
     if (isRecording) {
       stopRecording();
     }
@@ -92,6 +99,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         inputRef.current.style.height = 'auto';
         inputRef.current.focus();
       }
+    }
+  };
+
+  const handleTriggerEvent = () => {
+    if (eventText.trim() || eventImage) {
+      onSendMessage(eventText, eventImage || undefined, replyingTo || undefined, true);
+      setShowEventModal(false);
+      setEventText('');
+      setEventImage(null);
+      if (onCancelReply) onCancelReply();
     }
   };
 
@@ -164,6 +181,74 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
   return (
     <div className="flex flex-col shrink-0 z-30 transition-all duration-300">
+      {/* Event Modal */}
+      {showEventModal && (
+        <div className="absolute inset-0 z-[110] bg-black/40 flex items-center justify-center p-4">
+          <div className="app-panel border app-border shadow-2xl rounded-[16px] w-full max-w-[340px] overflow-hidden text-primary animate-in zoom-in-95 duration-200">
+            <div className="app-header border-b app-border px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar size={18} className="text-[#ff3b7c]" />
+                <h3 className="text-[calc(var(--msg-font-size)+1px)] font-medium">Trigger Event</h3>
+              </div>
+              <button onClick={() => setShowEventModal(false)} className="p-1.5 rounded-full hover:bg-black/5 text-secondary">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <textarea
+                value={eventText}
+                onChange={(e) => setEventText(e.target.value)}
+                placeholder="e.g., A doorbell rings, or A delivery man arrives with a present..."
+                className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded-xl px-3 py-3 text-[calc(var(--msg-font-size)-1px)] outline-none resize-none leading-relaxed min-h-[100px]"
+              />
+              
+              <input 
+                type="file" 
+                ref={eventImageInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setEventImage({ name: file.name, data: reader.result as string, type: 'image', size: file.size });
+                    reader.readAsDataURL(file);
+                  }
+                  e.target.value = '';
+                }} 
+              />
+              
+              {eventImage ? (
+                <div className="relative rounded-xl overflow-hidden border app-border group">
+                  <img src={eventImage.data} className="w-full h-32 object-cover" alt="Event preview" />
+                  <button 
+                    onClick={() => setEventImage(null)}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => eventImageInputRef.current?.click()}
+                  className="w-full py-2.5 border border-dashed app-border rounded-xl flex items-center justify-center gap-2 text-secondary hover:text-primary hover:bg-black/5 transition-colors text-[calc(var(--msg-font-size)-2px)] font-medium"
+                >
+                  <ImageIcon size={18} /> Attach an Image (Optional)
+                </button>
+              )}
+
+              <button
+                onClick={handleTriggerEvent}
+                disabled={!eventText.trim() && !eventImage}
+                className="w-full bg-[#00a884] hover:bg-[#008f6f] text-white font-medium py-3 rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none shadow-md"
+              >
+                Make it Happen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Attachment Preview Area (Staged) */}
       {stagedAttachment && (
         <div className="bg-[#f0f2f5] dark:bg-[#182229] border-t app-border px-4 py-4 flex items-end animate-in slide-in-from-bottom-2 duration-300 shadow-inner">
@@ -329,7 +414,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                 </div>
                 <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Poll</span>
               </div>
-              <div className="flex flex-col items-center gap-2 cursor-pointer group">
+              <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); setShowEventModal(true); }}>
                 <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
                   <Calendar size={26} className="text-[#ff3b7c]" fill="currentColor" />
                 </div>

@@ -264,6 +264,31 @@ const MessageBubble: React.FC<{
 
   const mediaSrc = mediaData || message.image || message.attachment?.data || null;
 
+  if (message.isEvent) {
+    return (
+      <div className="flex justify-center w-full my-4 px-4 select-none">
+        <div className="flex flex-col items-center bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded-2xl px-5 py-4 max-w-[85%] sm:max-w-[70%] shadow-md relative overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#00a884]/10 to-transparent pointer-events-none opacity-50"></div>
+          <div className="flex items-center gap-2 mb-2 z-10">
+            <Sparkles size={14} className="text-[#00a884]" />
+            <span className="text-[calc(var(--msg-font-size)-3px)] font-bold uppercase tracking-wider text-[#00a884]">Roleplay Event</span>
+          </div>
+          {mediaSrc && (
+             <img src={mediaSrc} alt="Event Context" className="rounded-xl w-full max-h-[300px] object-cover mb-3 shadow-sm border app-border z-10" />
+          )}
+          {message.text && (
+            <p className="text-[calc(var(--msg-font-size)+1px)] text-center text-primary italic leading-relaxed z-10">
+              {message.text}
+            </p>
+          )}
+          <div className="text-[calc(var(--msg-font-size)-4px)] text-secondary mt-3 z-10 font-medium">
+            {message.timestamp}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       className={`flex w-full group/bubble px-1 py-[2px] transition-colors duration-200 ${selected ? 'bg-[#00a884]/25 dark:bg-white/10 selection-highlight' : ''} ${isMe ? 'justify-end' : 'justify-start'}`}

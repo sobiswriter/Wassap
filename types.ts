@@ -23,6 +23,7 @@ export interface Message {
   mediaId?: string; // ID for IndexedDB storage
   attachment?: FileAttachment;
   replyToMessage?: Message;
+  isEvent?: boolean;
 }
 
 export interface MemoryBubble {
