@@ -10,6 +10,7 @@ import { UserProfilePanel } from './components/UserProfilePanel';
 import { CalendarNotesWidget } from './components/CalendarNotesWidget';
 import { SettingsPopover } from './components/SettingsPopover';
 import { MobileNavigation } from './components/MobileNavigation';
+import { GuidePanel } from './components/GuidePanel';
 import { INITIAL_CHATS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble } from './types';
 import { getGeminiResponse } from './services/geminiService';
@@ -198,6 +199,7 @@ const App: React.FC = () => {
   const [showUserProfilePanel, setShowUserProfilePanel] = useState(false);
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
   const [showCalendarWidget, setShowCalendarWidget] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [chatSearchTerm, setChatSearchTerm] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const chatsRef = React.useRef<Chat[]>(chats);
@@ -1069,6 +1071,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onUserProfileClick={() => setShowUserProfilePanel(!showUserProfilePanel)}
             onSettingsClick={() => setShowSettingsPopover(!showSettingsPopover)}
             onCalendarClick={() => setShowCalendarWidget(!showCalendarWidget)}
+            onGuideClick={() => setShowGuide(true)}
           />
         </div>
 
@@ -1110,7 +1113,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onMetaAIClick={() => handleChatSelect('6')}
             isMobile={isMobile}
           />
-          {isMobile && <MobileNavigation unreadCount={unreadTotal} />}
+          {isMobile && <MobileNavigation unreadCount={unreadTotal} onGuideClick={() => setShowGuide(true)} />}
         </div>
 
         <div className={`${isMobile && activeView === 'list' ? 'hidden' : 'flex'} flex-1 flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b141a]`}>
@@ -1168,6 +1171,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onCalendarClick={() => setShowCalendarWidget(true)}
             onMetaAIClick={() => handleChatSelect('6')}
           />
+        )}
+        {showGuide && (
+          <GuidePanel onClose={() => setShowGuide(false)} />
         )}
       </div>
     </div>

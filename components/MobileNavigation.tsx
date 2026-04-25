@@ -3,9 +3,10 @@ import { MessageSquareText, CircleDashed, Users, Phone } from 'lucide-react';
 
 interface MobileNavigationProps {
   unreadCount?: number;
+  onGuideClick?: () => void;
 }
 
-export const MobileNavigation: React.FC<MobileNavigationProps> = ({ unreadCount = 0 }) => {
+export const MobileNavigation: React.FC<MobileNavigationProps> = ({ unreadCount = 0, onGuideClick }) => {
   return (
     <div className="md:hidden flex h-[60px] bg-white dark:bg-[#0b141a] border-t app-border z-40 w-full justify-around items-center px-2 shrink-0 select-none pb-1">
       {/* Chats Tab */}
@@ -30,12 +31,12 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ unreadCount 
         <span className="text-[calc(var(--msg-font-size)-2.5px)] font-medium">Updates</span>
       </div>
 
-      {/* Communities Tab */}
-      <div className="flex flex-col items-center justify-center cursor-pointer w-16 h-full text-secondary hover:text-primary transition-colors">
+      {/* Communities Tab (Guide) */}
+      <div className="flex flex-col items-center justify-center cursor-pointer w-16 h-full text-secondary hover:text-primary transition-colors" onClick={onGuideClick}>
         <div className="px-4 py-1 mb-0.5 mt-1">
           <Users size={22} strokeWidth={1.8} />
         </div>
-        <span className="text-[calc(var(--msg-font-size)-2.5px)] font-medium">Communities</span>
+        <span className="text-[calc(var(--msg-font-size)-2.5px)] font-medium">Guide</span>
       </div>
 
       {/* Calls Tab */}

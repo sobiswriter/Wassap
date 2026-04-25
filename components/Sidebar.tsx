@@ -17,9 +17,10 @@ interface SidebarProps {
   onUserProfileClick: () => void;
   onSettingsClick: () => void;
   onCalendarClick: () => void;
+  onGuideClick: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick, onSettingsClick, onCalendarClick }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick, onSettingsClick, onCalendarClick, onGuideClick }) => {
   return (
     <div className="w-[64px] app-header border-r app-border flex flex-col justify-between py-3 items-center h-full transition-colors duration-300">
       {/* Top Section */}
@@ -50,8 +51,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick
           <div className="absolute top-2 right-2 bg-[#25d366] w-2.5 h-2.5 rounded-full border-2 border-[#f0f2f5] dark:border-[#202c33]"></div>
         </div>
 
-        {/* Communities */}
-        <div className="p-2 cursor-pointer group hover:bg-black/5 rounded-lg transition-colors">
+        {/* Communities (Guide) */}
+        <div className="p-2 cursor-pointer group hover:bg-black/5 rounded-lg transition-colors" onClick={onGuideClick}>
           <Users className="text-secondary w-6 h-6" />
         </div>
 
