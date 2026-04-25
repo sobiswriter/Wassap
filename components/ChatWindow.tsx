@@ -58,13 +58,13 @@ const buildCapturedMemorySummary = (chat: Chat, messages: Message[], startDate: 
 };
 
 const DateDivider: React.FC<{ dateKey: string; onClick?: () => void }> = ({ dateKey, onClick }) => (
-  <div className="flex justify-center sticky top-2 z-20 my-3">
+  <div className="flex justify-center sticky top-2 z-20 my-2 sm:my-4 pointer-events-none">
     <button
       type="button"
       onClick={onClick}
       disabled={!onClick}
       title={onClick ? 'Save this day as a memory' : undefined}
-      className={`app-header text-secondary text-[calc(var(--msg-font-size)-3px)] px-3 py-1.5 rounded-lg shadow-sm border app-border uppercase tracking-normal transition-colors ${onClick ? 'pointer-events-auto cursor-pointer hover:text-[#00a884] hover:border-[#00a884]/50' : 'pointer-events-none'}`}
+      className={`app-header text-secondary text-[10px] sm:text-[12px] px-3 py-1 sm:px-4 sm:py-1.5 rounded-full font-medium transition-all ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#00a884]' : 'pointer-events-none opacity-90'}`}
     >
       {formatChatDividerLabel(dateKey)}
     </button>

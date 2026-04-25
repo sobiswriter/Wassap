@@ -71,11 +71,9 @@ export const formatChatDividerLabel = (dateKey: string) => {
 
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
-  if (diffDays > 1 && diffDays < 7) {
-    return date.toLocaleDateString('en-US', { weekday: 'long' });
-  }
-
-  return date.toLocaleDateString('en-US', {
+  
+  // Older dates: Day Month Year (e.g., 15 May 2024)
+  return date.toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'long',
     year: today.getFullYear() === date.getFullYear() ? undefined : 'numeric'
