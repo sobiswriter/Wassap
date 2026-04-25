@@ -19,8 +19,8 @@ import { saveMedia, getMedia } from './utils/storage';
 import { formatDateRangeLabel, getLocalDateKey } from './utils/dates';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
-// Helper for consistent 12-hour AM/PM time global formatting
-const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+// Helper for consistent 24-hour time global formatting
+const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 const getDateKey = getLocalDateKey;
 
 // Robust Notification Helper for Desktop & Mobile Tray
@@ -178,12 +178,31 @@ const splitMessage = (text: string): string[] => {
   return finalChunks.length > 0 ? finalChunks : [text];
 };
 
+const convertTo24Hour = (timeStr: string) => {
+  if (!timeStr) return timeStr;
+  const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
+  if (!match) return timeStr;
+  let [_, hr, min, period] = match;
+  let hrNum = parseInt(hr, 10);
+  if (period.toLowerCase() === 'pm' && hrNum < 12) hrNum += 12;
+  if (period.toLowerCase() === 'am' && hrNum === 12) hrNum = 0;
+  return `${String(hrNum).padStart(2, '0')}:${min}`;
+};
+
 const App: React.FC = () => {
   const [chats, setChats] = useState<Chat[]>(() => {
     const saved = localStorage.getItem('whatsapp_chats');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsedChats: Chat[] = JSON.parse(saved);
+        return parsedChats.map(chat => ({
+          ...chat,
+          lastMessageTime: convertTo24Hour(chat.lastMessageTime),
+          messages: chat.messages.map(msg => ({
+            ...msg,
+            timestamp: convertTo24Hour(msg.timestamp)
+          }))
+        }));
       } catch (e) {
         console.error("Failed to parse chats", e);
       }
