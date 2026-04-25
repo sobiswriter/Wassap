@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.2.5)
+# Wassap Persona Simulation (v1.3.0)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.2.5-brightgreen)
+![Version](https://img.shields.io/badge/version-1.3.0-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -15,23 +15,26 @@ A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Ta
 
 This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini LLM.
 
-### 🌟 What's New in v1.2.5 (The "Intent & Precision" Update)
-*   **Precise Inactivity Controls**: You can now set exact inactivity durations down to the **second** (e.g., `2hr 30min 12sec`). The random range logic has been replaced with a rock-solid, precise trigger for consistent behavior.
-*   **Intent-Priority Prompting**: Radical shift in prompt engineering to prioritize your **[INTENT]** (scheduled greetings/catch-ups) over general conversation history. This ensures personas deliver their planned interactions without getting "distracted" by the previous chat context.
-*   **Context-Balanced Check-ins**: While scheduled greetings have hard-priority, "Inactivity Check-ins" are now explicitly context-aware, ensuring silence-breakers feel like natural continuations of your last conversation.
-*   **Anti-Spam Catch-Up Logic**: Fixed a race condition where multiple missed windows could trigger apologies simultaneously. The persona now only ever catches up to the **absolute latest** missed window and silences all others.
-*   **Intelligent Catch-Up Engine (v1.2.0 foundation)**: Personas automatically detect missed scheduling windows on app launch. If you miss a morning greeting, the AI will proactively apologize and "catch up" with natural context.
-*   **Smart Automation UI**: Chronological sorting for **"Past Interactions"** (Latest First) and **"Upcoming Greetings"** (Earliest First).
-*   **Tri-State Visual Tracker**: Status badges for <span style="color: #00a884">●</span> **Completed**, <span style="color: #ff9800">●</span> **Caught Up**, <span style="color: #6366f1">●</span> **Skipped (Indigo)**, and <span style="color: #f43f5e">●</span> **Missed (Red)**.
-*   **Persona Health & Diagnostics**:
-    *   **Refresh & Debug Button**: Forcefully reset "stuck" agents and clear internal session locks.
-    *   **Robust Status Management**: Guaranteed "typing..." state clearing via `finally` blocks.
-*   **Mobile Notification Drawer Support**: Full **PWA** implementation for native background notifications.
+### 🌟 What's New in v1.3.0 (The "Sentience & Immersion" Update)
+*   **Memory Bubbles & Long-term Sentience**: Personas can now form permanent "Memory Bubbles." You can save snapshots of chat history as keyframes, which the persona "remembers" during future interactions.
+*   **AI-Generated Personal Diaries**: Every Memory Bubble now includes an automatically generated **AI Diary Entry**. The persona reflects on your interactions from their own perspective, complete with personal feelings and internal monologue.
+*   **Dynamic Roleplay Event System**: Trigger objective world events (e.g., "A doorbell rings", "A storm starts") via the attachment menu. These are rendered as stylish, cinematic tiles and images in the chat.
+*   **Organic Event Reactions**: Personas now react spontaneously to world events. They might text you in a panic, describe their actions in asterisks, or naturally acknowledge a scenario as it happens.
+*   **Advanced Persona Scheduling**: Fully customizable routines for **Weekdays** and **Weekends**. Personas now have a sense of time; they might be busy at work, sleeping late, or out with friends, influencing their availability and mood.
+*   **Custom Weekend Calibration**: Set your own definition of the weekend (e.g., Saturday/Sunday or any other combination) to match your persona's unique lifestyle.
+*   **Chat History Timeframes**: WhatsApp-native grouping of messages into "Today", "Yesterday", and specific date headers for better organization.
+*   **Sentience Management Hub**: A dedicated "Sentience" tab in the profile panel to view, edit, delete, or manually create new memories for your personas.
 
-### 🌟 Previous Updates (v1.1.5)
-*   **Quick Double-Tap Selection**: Say goodbye to finicky long-presses. Quickly tap a message twice to enter **Selection Mode**.
+### 🌟 Previous Updates (v1.2.5)
+*   **Precise Inactivity Controls**: Set exact inactivity durations down to the **second** (e.g., `2hr 30min 12sec`).
+*   **Intent-Priority Prompting**: Prioritizes scheduled greetings/catch-ups over general conversation history.
+*   **Context-Balanced Check-ins**: Inactivity silence-breakers now feel like natural continuations of your last conversation.
+*   **Anti-Spam Catch-Up Logic**: Guarantees personas only ever catch up to the absolute latest missed window.
+
+### 🌟 Legacy Features (v1.1.5)
+*   **Quick Double-Tap Selection**: Tap a message twice to enter **Selection Mode**.
 *   **Omni-Markdown Engine**: Advanced parsing for both `*WhatsApp*` and `**Standard Markdown**` syntaxes.
-*   **Dynamic "Last Seen" Emulation**: Personas realistically transition between "online", "typing...", and time-calculated "last seen" states.
+*   **Dynamic "Last Seen" Emulation**: Real-time transitions between "online", "typing...", and "last seen".
 *   **Audio Voice Notes**: Record and send real microphone audio directly into the chat stream.
 
 ### ✨ Core Features
@@ -39,8 +42,6 @@ This project is a pixel-perfect reconstruction of the WhatsApp interface, repurp
 *   **Natural Message Splitting**: Delayed, human-like message chunking based on sentence structure.
 *   **Model Selection & Privacy**: Switch engines (Flash/Pro) and toggle context-sharing settings.
 *   **Calendar & Notes Integration**: Provide real-time context to the AI via a custom notes widget.
-*   **Deep Memory Reset**: Clear chat wipes both UI and AI context for a truly fresh start.
-*   **Persistent Meta AI**: A permanent AI companion chat integrated into landing page workflows.
 *   **IndexedDB Media Persistence**: Robust local storage for images and audio files.
 *   **Premium Aesthetics**: Dark/Light mode support with animated transitions and brand-native wallpapers.
 
@@ -55,18 +56,12 @@ This project is a pixel-perfect reconstruction of the WhatsApp interface, repurp
 [![Lucide](https://img.shields.io/badge/Lucide_Icons-latest-%23F59E0B?logo=lucide&logoColor=white)](https://lucide.dev/)
 
 ### Intelligence & Backend
-[![Gemini AI](https://img.shields.io/badge/Google_Gemini-3.1_Flash/Pro-%234285F4?logo=google-gemini&logoColor=white)](https://aistudio.google.com/)
+[![Gemini AI](https://img.shields.io/badge/Google_Gemini-1.5_Flash/Pro-%234285F4?logo=google-gemini&logoColor=white)](https://aistudio.google.com/)
 [![Typescript](https://img.shields.io/badge/TypeScript-5-%233178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-
-### Persistence & Storage
-[![Dexie.js](https://img.shields.io/badge/Dexie.js-IndexedDB-%23333333?logo=codepen&logoColor=white)](https://dexie.org/)
-[![LocalStorage](https://img.shields.io/badge/LocalStorage-Settings-orange?logo=database&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)
 
 ---
 
 ## 🚀 Getting Started (Local Development)
-
-Follow these steps to spin up your own local version of **Wassap**.
 
 ### 1. Requirements Check
 > [!IMPORTANT]
@@ -85,15 +80,10 @@ npm install
 ```
 
 ### 3. Launching the Simulator
-Initialize the Vite development server:
 ```bash
 npm run dev
 ```
 The app will be live at `http://localhost:5173`.
-
-### 4. Configuration
-> [!TIP]
-> **No .env needed!** Just open the app, head to the **Settings** menu (via the three dots or profile panel), and paste your Gemini API Key directly. Your key is stored securely in your browser's local storage and is never uploaded.
 
 ---
 
