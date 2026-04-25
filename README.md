@@ -56,18 +56,22 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 
 ---
 
-### 🌟 What's New in v1.3.0 (The "Sentience & Immersion" Update)
-*   **Memory Bubbles & Long-term Sentience**: Personas can now form permanent "Memory Bubbles." You can save snapshots of chat history as keyframes, which the persona "remembers" during future interactions.
-*   **AI-Generated Personal Diaries**: Every Memory Bubble now includes an automatically generated **AI Diary Entry**. The persona reflects on your interactions from their own perspective, complete with personal feelings and internal monologue.
-*   **Dynamic Roleplay Event System**: Trigger objective world events (e.g., "A doorbell rings", "A storm starts") via the attachment menu. These are rendered as stylish, cinematic tiles and images in the chat.
-*   **Organic Event Reactions**: Personas now react spontaneously to world events. They might text you in a panic, describe their actions in asterisks, or naturally acknowledge a scenario as it happens.
-*   **Advanced Persona Scheduling**: Fully customizable routines for **Weekdays** and **Weekends**. Personas now have a sense of time; they might be busy at work, sleeping late, or out with friends, influencing their availability and mood.
-*   **Custom Weekend Calibration**: Set your own definition of the weekend (e.g., Saturday/Sunday or any other combination) to match your persona's unique lifestyle.
-*   **Chat History Timeframes**: WhatsApp-native grouping of messages into "Today", "Yesterday", and specific date headers for better organization.
-*   **Sentience Management Hub**: A dedicated "Sentience" tab in the profile panel to view, edit, delete, or manually create new memories for your personas.
+### 🌟 What's New in v1.3.1 (The "Mobile UX & Accessibility" Update)
+*   **Optimized Mobile Headers**: Significantly smaller date dividers and improved spacing for mobile viewports.
+*   **Mobile Visibility Fixes**: Resolved issues where the encryption disclaimer and dropdown menus were being truncated.
+*   **Header Accessibility**: Wrapped search and menu triggers in accessible buttons with larger hit areas for reliable touch interaction.
+
+### 🌟 Previous Updates (v1.3.0)
+*   **Memory Bubbles & Long-term Sentience**: Personas can now form permanent "Memory Bubbles" to remember snapshots of past conversations.
+*   **AI-Generated Personal Diaries**: Every Memory Bubble includes an automatically generated AI Diary Entry from the persona's perspective.
+*   **Dynamic Roleplay Event System**: Trigger world events (e.g., "A storm starts") via the attachment menu with cinematic tiles.
+*   **Advanced Persona Scheduling**: Fully customizable routines for Weekdays and Weekends that influence persona mood and availability.
+*   **Custom Weekend Calibration**: Set your own definition of the weekend to match your persona's unique lifestyle.
+*   **Chat History Timeframes**: WhatsApp-native grouping of messages into "Today", "Yesterday", and specific date headers.
+*   **Sentience Management Hub**: A dedicated "Sentience" tab in the profile panel to manage memories.
 *   **In-App 'Go-To' Guide**: A native, beautifully designed manual accessible via the Communities tab.
 *   **System Updates Hub**: A sleek changelog timeline to view version updates natively inside the app.
-*   **24-Hour Time Standardization**: Eradicated AM/PM context bugs by enforcing a strict global 24-hour clock for both the UI and AI logic loops, complete with seamless local-storage auto-migration.
+*   **24-Hour Time Standardization**: Global 24-hour clock enforcement for both UI and AI logic loops.
 
 ### 🌟 Previous Updates (v1.2.5)
 *   **Precise Inactivity Controls**: Set exact inactivity durations down to the **second** (e.g., `2hr 30min 12sec`).
