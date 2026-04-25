@@ -4,9 +4,10 @@ import { MessageSquareText, CircleDashed, Users, Phone } from 'lucide-react';
 interface MobileNavigationProps {
   unreadCount?: number;
   onGuideClick?: () => void;
+  onUpdatesClick?: () => void;
 }
 
-export const MobileNavigation: React.FC<MobileNavigationProps> = ({ unreadCount = 0, onGuideClick }) => {
+export const MobileNavigation: React.FC<MobileNavigationProps> = ({ unreadCount = 0, onGuideClick, onUpdatesClick }) => {
   return (
     <div className="md:hidden flex h-[60px] bg-white dark:bg-[#0b141a] border-t app-border z-40 w-full justify-around items-center px-2 shrink-0 select-none pb-1">
       {/* Chats Tab */}
@@ -23,10 +24,10 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ unreadCount 
       </div>
 
       {/* Updates Tab */}
-      <div className="flex flex-col items-center justify-center cursor-pointer w-16 h-full text-secondary hover:text-primary transition-colors">
+      <div className="flex flex-col items-center justify-center cursor-pointer w-16 h-full text-secondary hover:text-primary transition-colors" onClick={onUpdatesClick}>
         <div className="relative px-4 py-1 mb-0.5 mt-1">
           <CircleDashed size={22} />
-          <div className="absolute top-1 right-3 bg-[#25d366] w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#0b141a]"></div>
+          <div className="absolute top-1 right-3 bg-[#00a884] w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#0b141a] animate-pulse"></div>
         </div>
         <span className="text-[calc(var(--msg-font-size)-2.5px)] font-medium">Updates</span>
       </div>

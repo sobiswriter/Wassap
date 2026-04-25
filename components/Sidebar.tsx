@@ -18,9 +18,10 @@ interface SidebarProps {
   onSettingsClick: () => void;
   onCalendarClick: () => void;
   onGuideClick: () => void;
+  onUpdatesClick: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick, onSettingsClick, onCalendarClick, onGuideClick }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick, onSettingsClick, onCalendarClick, onGuideClick, onUpdatesClick }) => {
   return (
     <div className="w-[64px] app-header border-r app-border flex flex-col justify-between py-3 items-center h-full transition-colors duration-300">
       {/* Top Section */}
@@ -39,10 +40,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick
           <div className="absolute top-1 right-1 bg-[#ea0038] text-white text-[calc(var(--msg-font-size)-4.5px)] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#202c33]">3</div>
         </div>
 
-        {/* Status */}
-        <div className="p-2 relative cursor-pointer group hover:bg-black/5 rounded-lg transition-colors">
+        {/* Updates (Changelog) */}
+        <div className="p-2 relative cursor-pointer group hover:bg-black/5 rounded-lg transition-colors" onClick={onUpdatesClick}>
           <CircleDashed className="text-secondary w-6 h-6" />
-          <div className="absolute top-2 right-2 bg-[#25d366] w-2.5 h-2.5 rounded-full border-2 border-[#f0f2f5] dark:border-[#202c33]"></div>
+          <div className="absolute top-2 right-2 bg-[#00a884] w-2.5 h-2.5 rounded-full border-2 border-[#f0f2f5] dark:border-[#202c33] animate-pulse"></div>
         </div>
 
         {/* Channels */}

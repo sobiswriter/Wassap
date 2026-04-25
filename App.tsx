@@ -11,6 +11,7 @@ import { CalendarNotesWidget } from './components/CalendarNotesWidget';
 import { SettingsPopover } from './components/SettingsPopover';
 import { MobileNavigation } from './components/MobileNavigation';
 import { GuidePanel } from './components/GuidePanel';
+import { UpdatesPanel } from './components/UpdatesPanel';
 import { INITIAL_CHATS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble } from './types';
 import { getGeminiResponse } from './services/geminiService';
@@ -200,6 +201,7 @@ const App: React.FC = () => {
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
   const [showCalendarWidget, setShowCalendarWidget] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showUpdates, setShowUpdates] = useState(false);
   const [chatSearchTerm, setChatSearchTerm] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const chatsRef = React.useRef<Chat[]>(chats);
@@ -1072,6 +1074,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onSettingsClick={() => setShowSettingsPopover(!showSettingsPopover)}
             onCalendarClick={() => setShowCalendarWidget(!showCalendarWidget)}
             onGuideClick={() => setShowGuide(true)}
+            onUpdatesClick={() => setShowUpdates(true)}
           />
         </div>
 
@@ -1113,7 +1116,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onMetaAIClick={() => handleChatSelect('6')}
             isMobile={isMobile}
           />
-          {isMobile && <MobileNavigation unreadCount={unreadTotal} onGuideClick={() => setShowGuide(true)} />}
+          {isMobile && <MobileNavigation unreadCount={unreadTotal} onGuideClick={() => setShowGuide(true)} onUpdatesClick={() => setShowUpdates(true)} />}
         </div>
 
         <div className={`${isMobile && activeView === 'list' ? 'hidden' : 'flex'} flex-1 flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b141a]`}>
@@ -1174,6 +1177,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         )}
         {showGuide && (
           <GuidePanel onClose={() => setShowGuide(false)} />
+        )}
+        {showUpdates && (
+          <UpdatesPanel onClose={() => setShowUpdates(false)} />
         )}
       </div>
     </div>
