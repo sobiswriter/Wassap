@@ -65,6 +65,9 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 *   **Custom Weekend Calibration**: Set your own definition of the weekend (e.g., Saturday/Sunday or any other combination) to match your persona's unique lifestyle.
 *   **Chat History Timeframes**: WhatsApp-native grouping of messages into "Today", "Yesterday", and specific date headers for better organization.
 *   **Sentience Management Hub**: A dedicated "Sentience" tab in the profile panel to view, edit, delete, or manually create new memories for your personas.
+*   **In-App 'Go-To' Guide**: A native, beautifully designed manual accessible via the Communities tab.
+*   **System Updates Hub**: A sleek changelog timeline to view version updates natively inside the app.
+*   **24-Hour Time Standardization**: Eradicated AM/PM context bugs by enforcing a strict global 24-hour clock for both the UI and AI logic loops, complete with seamless local-storage auto-migration.
 
 ### 🌟 Previous Updates (v1.2.5)
 *   **Precise Inactivity Controls**: Set exact inactivity durations down to the **second** (e.g., `2hr 30min 12sec`).
