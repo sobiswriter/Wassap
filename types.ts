@@ -114,6 +114,12 @@ export interface UserProfile {
   avatar: string;
 }
 
+export interface PersonaTemplate {
+  id: string;
+  name: string;
+  prompt: string;
+}
+
 export interface AppSettings {
   theme: 'light' | 'dark';
   shareUserInfo: boolean;
@@ -125,6 +131,7 @@ export interface AppSettings {
   calendarNotes?: string;
   enableNotifications?: boolean;
   fontSize?: number;
+  customTemplates?: PersonaTemplate[];
 }
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';

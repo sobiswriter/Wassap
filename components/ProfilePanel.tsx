@@ -4,9 +4,10 @@ import {
   Users, Trash2, Eraser, Settings, ChevronDown, ChevronRight, 
   Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays, Smile
 } from 'lucide-react';
-import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock } from '../types';
+import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey } from '../utils/dates';
+import { DEFAULT_TEMPLATES } from '../constants';
 
 interface ProfilePanelProps {
   chat: Chat;
@@ -63,6 +64,17 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     // Handle migration for old saved data
     // Delete minHours/maxHours if they exist
   });
+
+  const [customTemplates, setCustomTemplates] = useState<PersonaTemplate[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('whatsapp_custom_templates');
+    if (saved) {
+      try {
+        setCustomTemplates(JSON.parse(saved));
+      } catch(e) { console.error(e); }
+    }
+  }, []);
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSentience, setShowSentience] = useState(false);
@@ -420,7 +432,47 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
               />
             </div>
             <div className="relative">
-              <label className={labelClass}>Persona Notes</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[calc(var(--msg-font-size)-0.5px)] text-[#008069] font-medium block uppercase tracking-tight">Persona Notes</label>
+                <div className="flex gap-2">
+                  <select 
+                    className="text-[calc(var(--msg-font-size)-2px)] bg-transparent border app-border rounded px-1 text-secondary outline-none cursor-pointer max-w-[140px]"
+                    onChange={(e) => {
+                      if (!e.target.value) return;
+                      const allTemplates = [...DEFAULT_TEMPLATES, ...customTemplates];
+                      const tpl = allTemplates.find(t => t.id === e.target.value);
+                      if (tpl) {
+                        setFormData(prev => ({ ...prev, systemInstruction: tpl.prompt }));
+                      }
+                      e.target.value = '';
+                    }}
+                  >
+                    <option value="">Templates...</option>
+                    <optgroup label="Default">
+                      {DEFAULT_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </optgroup>
+                    {customTemplates.length > 0 && (
+                      <optgroup label="Custom">
+                        {customTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </optgroup>
+                    )}
+                  </select>
+                  <button 
+                    onClick={() => {
+                      const name = prompt("Enter a name for this custom template:");
+                      if (name && formData.systemInstruction) {
+                        const newTpl = { id: `custom-${Date.now()}`, name, prompt: formData.systemInstruction };
+                        const updated = [...customTemplates, newTpl];
+                        setCustomTemplates(updated);
+                        localStorage.setItem('whatsapp_custom_templates', JSON.stringify(updated));
+                      }
+                    }}
+                    className="text-[calc(var(--msg-font-size)-2px)] bg-[#00a884] text-white px-2 py-0.5 rounded hover:bg-[#008f6f]"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
               <textarea
                 value={formData.systemInstruction}
                 onChange={(e) => setFormData(prev => ({ ...prev, systemInstruction: e.target.value }))}
