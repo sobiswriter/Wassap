@@ -76,6 +76,15 @@ export interface PersonaSchedule {
   weekendDays?: number[]; // 0 for Sunday, 1 for Monday, etc.
 }
 
+export interface HumaneSettings {
+  enabled: boolean;
+  banRoboticLanguage: boolean;
+  humanImperfections: boolean;
+  varyMessageLength: boolean;
+  moodSliderEnabled: boolean;
+  moodValue: number; // 0 to 100
+}
+
 export interface Chat {
   id: string;
   name: string;
@@ -95,6 +104,7 @@ export interface Chat {
   memoryBubbles?: MemoryBubble[];
   schedule?: PersonaSchedule;
   automation?: PersonaAutomation;
+  humaneSettings?: HumaneSettings;
 }
 
 export interface UserProfile {

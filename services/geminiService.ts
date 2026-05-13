@@ -1,8 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
-import { UserProfile, AppSettings } from "../types";
+import { UserProfile, AppSettings, HumaneSettings } from "../types";
 
 export const getGeminiResponse = async (
-  responder: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string },
+  responder: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string; humaneSettings?: HumaneSettings },
   messageHistory: { text: string; sender: string; senderName?: string; image?: string; audio?: string }[],
   userProfile?: UserProfile,
   groupContext?: { groupName: string; otherMembers: string[] },
@@ -95,6 +95,32 @@ If the last message is an [ENVIRONMENTAL EVENT OCCURS], do NOT treat it as a tex
 React to it organically in your next text message to the User. Let your text be a natural, spontaneous reaction to whatever the event was, reflecting your true persona's feelings about the situation. You can also include physical actions in asterisks if necessary.
 ` : '';
 
+    let humaneInstructions = "";
+    if (responder.humaneSettings?.enabled) {
+      if (responder.humaneSettings.banRoboticLanguage) {
+        humaneInstructions += "\n- NEVER use robotic phrases like 'As an AI', 'I understand', 'How can I assist you', or 'That sounds great!'. React emotionally and naturally, not like a customer service bot.";
+      }
+      if (responder.humaneSettings.humanImperfections) {
+        humaneInstructions += "\n- Be realistically human: use casual abbreviations (e.g., tbh, idk, lol), don't always use perfect punctuation or capitalization, and allow for occasional natural conversational fillers (like 'umm', 'well', 'anyway').";
+      }
+      if (responder.humaneSettings.varyMessageLength) {
+        humaneInstructions += "\n- Keep it casual and varied in length. Sometimes reply with just one word or an emoji, other times a few short sentences, just like a real person texting.";
+      }
+      if (responder.humaneSettings.moodSliderEnabled) {
+        const mood = responder.humaneSettings.moodValue;
+        let moodState = "neutral";
+        if (mood <= 10) moodState = "very annoyed and hostile";
+        else if (mood <= 30) moodState = "annoyed and grumpy";
+        else if (mood <= 45) moodState = "indifferent and dismissive";
+        else if (mood <= 55) moodState = "tranquil and okay";
+        else if (mood <= 70) moodState = "good and positive";
+        else if (mood <= 90) moodState = "happy and warm";
+        else moodState = "very excited and thrilled";
+        
+        humaneInstructions += `\n- MOOD OVERRIDE: Your current emotional state is "${moodState}". Let this heavily influence your tone, reactions, and word choice in this response.`;
+      }
+    }
+
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}
 ${groupPrompt}
@@ -106,14 +132,13 @@ ${initiationPrompt}
 ${eventInstruction}
 
 Instructions:
-1. If an initiation INTENT or CONTEXT is provided above, follow its prioritization directive (Specific intents take priority; Check-ins prioritize history).
-2. Maintain your unique personality and speech style at all times. Breathe life into the persona!
-2. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
-3. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear! If it's silent or unclear, politely ask them to repeat.
-4. If in a group, you don't always have to talk to the user; you can reply to another member's comment.
-5. Keep it short (1-3 sentences), typical for chat apps.
-6. Maintain your unique personality and speech style at all times.
-7. Do not use AI clichés or reveal you are an AI.
+1. If an initiation INTENT or CONTEXT is provided above, follow its prioritization directive.
+2. Breathe life into this persona! Maintain your unique personality and speech style at all times.
+3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
+4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
+5. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
+6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? 'Focus on natural message lengths instead of strict sentence limits.' : 'Keep it short (1-3 sentences), typical for chat apps.'}
+7. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict ban on robotic language below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
 
 Conversation History:
 ${historyString}

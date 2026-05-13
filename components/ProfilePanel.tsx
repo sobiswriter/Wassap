@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, Camera, Link as LinkIcon, Save, Info, Globe, Check, 
   Users, Trash2, Eraser, Settings, ChevronDown, ChevronRight, 
-  Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays
+  Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays, Smile
 } from 'lucide-react';
 import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -51,6 +51,14 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       enabled: false,
       timeTriggers: [],
       inactivity: { enabled: false, hours: 6, minutes: 0, seconds: 0 }
+    },
+    humaneSettings: chat.humaneSettings || {
+      enabled: false,
+      banRoboticLanguage: true,
+      humanImperfections: false,
+      varyMessageLength: false,
+      moodSliderEnabled: false,
+      moodValue: 50
     }
     // Handle migration for old saved data
     // Delete minHours/maxHours if they exist
@@ -58,6 +66,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSentience, setShowSentience] = useState(false);
+  const [showHumane, setShowHumane] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlValue, setUrlValue] = useState(chat.avatar);
@@ -87,6 +96,14 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
         enabled: false,
         timeTriggers: [],
         inactivity: { enabled: false, hours: 6, minutes: 0, seconds: 0 }
+      },
+      humaneSettings: chat.humaneSettings || {
+        enabled: false,
+        banRoboticLanguage: true,
+        humanImperfections: false,
+        varyMessageLength: false,
+        moodSliderEnabled: false,
+        moodValue: 50
       }
     });
     
@@ -648,6 +665,126 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                       className="w-full bg-white dark:bg-[#202c33] border app-border rounded px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none text-primary"
                     />
                   </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Humane / Mood Section */}
+        {!chat.isGroup && (
+          <div className="mt-2 app-panel shadow-sm border-b app-border">
+            <div
+              className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-black/5 transition-colors"
+              onClick={() => setShowHumane(!showHumane)}
+            >
+              <div className="flex items-center gap-3">
+                <Smile size={20} className="text-secondary" />
+                <h4 className="text-[calc(var(--msg-font-size)+0.5px)] text-primary font-medium">Sentience: Humane Settings</h4>
+              </div>
+              {showHumane ? <ChevronDown size={20} className="text-secondary" /> : <ChevronRight size={20} className="text-secondary" />}
+            </div>
+
+            {showHumane && (
+              <div className="px-6 py-6 space-y-6 border-t app-border bg-gray-50/50 dark:bg-black/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[length:var(--msg-font-size)] font-medium text-primary">Enable Humane Personality</p>
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Make the AI feel more human-like</p>
+                  </div>
+                  <div
+                    onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, enabled: !p.humaneSettings!.enabled } }))}
+                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.enabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                  >
+                    <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
+                  </div>
+                </div>
+
+                <div className={`space-y-6 transition-opacity ${formData.humaneSettings?.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                  
+                  {/* Ban Robotic Language */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Ban Robotic Language</h5>
+                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">No "As an AI..." or "How can I help"</p>
+                    </div>
+                    <div
+                      onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, banRoboticLanguage: !p.humaneSettings!.banRoboticLanguage } }))}
+                      className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.banRoboticLanguage ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                    >
+                      <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.banRoboticLanguage ? 'left-[18px]' : 'left-[2px]'}`} />
+                    </div>
+                  </div>
+
+                  {/* Human Imperfections */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Human Imperfections</h5>
+                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Allow typos, slang, and filler words</p>
+                    </div>
+                    <div
+                      onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, humanImperfections: !p.humaneSettings!.humanImperfections } }))}
+                      className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.humanImperfections ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                    >
+                      <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.humanImperfections ? 'left-[18px]' : 'left-[2px]'}`} />
+                    </div>
+                  </div>
+
+                  {/* Vary Message Length */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Vary Message Length</h5>
+                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Mix short 1-word texts with longer ones</p>
+                    </div>
+                    <div
+                      onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, varyMessageLength: !p.humaneSettings!.varyMessageLength } }))}
+                      className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.varyMessageLength ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                    >
+                      <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.varyMessageLength ? 'left-[18px]' : 'left-[2px]'}`} />
+                    </div>
+                  </div>
+
+                  {/* Mood Slider */}
+                  <div className="pt-2 border-t app-border space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Mood Control</h5>
+                        <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Manually influence their current mood</p>
+                      </div>
+                      <div
+                        onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, moodSliderEnabled: !p.humaneSettings!.moodSliderEnabled } }))}
+                        className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.moodSliderEnabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                      >
+                        <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.moodSliderEnabled ? 'left-[18px]' : 'left-[2px]'}`} />
+                      </div>
+                    </div>
+
+                    {formData.humaneSettings?.moodSliderEnabled && (
+                      <div className="space-y-2">
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={formData.humaneSettings?.moodValue}
+                          onChange={(e) => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, moodValue: parseInt(e.target.value) } }))}
+                          className="w-full accent-[#00a884] h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                        />
+                        <div className="text-center font-medium text-[calc(var(--msg-font-size)-1px)] text-primary">
+                          {(() => {
+                            const val = formData.humaneSettings?.moodValue || 50;
+                            if (val <= 10) return "Very Annoyed / Hostile";
+                            if (val <= 30) return "Annoyed / Grumpy";
+                            if (val <= 45) return "Indifferent / Dismissive";
+                            if (val <= 55) return "Tranquil / Okay";
+                            if (val <= 70) return "Good / Positive";
+                            if (val <= 90) return "Happy / Warm";
+                            return "Very Excited / Thrilled";
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               </div>
             )}
