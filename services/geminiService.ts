@@ -104,7 +104,7 @@ React to it organically in your next text message to the User. Let your text be 
         humaneInstructions += "\n- Be realistically human: use casual abbreviations (e.g., tbh, idk, lol), don't always use perfect punctuation or capitalization, and allow for occasional natural conversational fillers (like 'umm', 'well', 'anyway').";
       }
       if (responder.humaneSettings.varyMessageLength) {
-        humaneInstructions += "\n- Keep it casual and varied in length. Sometimes reply with just one word or an emoji, other times a few short sentences, just like a real person texting.";
+        humaneInstructions += "\n- CRITICAL LENGTH RULE: Keep your total response EXTREMELY SHORT. You must write at most 1 to 2 very brief sentences, but mostly just 1 line. Since your response will be chopped up into individual rapid-fire texts, do NOT write long paragraphs.";
       }
       if (responder.humaneSettings.moodSliderEnabled) {
         const mood = responder.humaneSettings.moodValue;
@@ -137,7 +137,7 @@ Instructions:
 3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
 4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
 5. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
-6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? 'Focus on natural message lengths instead of strict sentence limits.' : 'Keep it short (1-3 sentences), typical for chat apps.'}
+6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.' : 'Respond naturally without any strict length restrictions.'}
 7. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict ban on robotic language below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
 
 Conversation History:

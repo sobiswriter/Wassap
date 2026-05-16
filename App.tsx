@@ -175,7 +175,29 @@ const splitMessage = (text: string): string[] => {
     }
   }
 
-  return finalChunks.length > 0 ? finalChunks : [text];
+  if (finalChunks.length > 0) {
+    const totalWords = finalChunks.join(' ').split(/\s+/).filter(Boolean).length;
+    let maxAllowed = 7;
+    if (totalWords <= 25) maxAllowed = 4;
+    else if (totalWords <= 50) maxAllowed = 6;
+    else maxAllowed = 7;
+
+    while (finalChunks.length > maxAllowed) {
+      let minLen = Infinity;
+      let mergeIdx = 0;
+      for (let i = 0; i < finalChunks.length - 1; i++) {
+        const combined = finalChunks[i].length + finalChunks[i+1].length;
+        if (combined < minLen) {
+          minLen = combined;
+          mergeIdx = i;
+        }
+      }
+      finalChunks.splice(mergeIdx, 2, finalChunks[mergeIdx] + ' ' + finalChunks[mergeIdx+1]);
+    }
+    return finalChunks;
+  }
+
+  return [text];
 };
 
 const convertTo24Hour = (timeStr: string) => {
