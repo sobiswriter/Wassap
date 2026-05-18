@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, Camera, Link as LinkIcon, Save, Info, Globe, Check, 
   Users, Trash2, Eraser, Settings, ChevronDown, ChevronRight, 
-  Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays, Smile
+  Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays, Smile, Download, Upload
 } from 'lucide-react';
 import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -165,6 +165,62 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
   const handleSave = () => {
     onUpdate(formData);
+  };
+
+  const memoryFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportMemories = () => {
+    if (formData.memoryBubbles.length === 0) {
+      alert("No memories to export.");
+      return;
+    }
+    const dataStr = JSON.stringify(formData.memoryBubbles, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${chat.name.replace(/\\s+/g, '_')}_Memories.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportMemories = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const importedMemories: MemoryBubble[] = JSON.parse(content);
+        
+        if (!Array.isArray(importedMemories)) {
+          alert("Invalid memory file format.");
+          return;
+        }
+
+        const existingIds = new Set(formData.memoryBubbles.map(m => m.id));
+        const newMemories = importedMemories.filter(m => !existingIds.has(m.id));
+
+        if (newMemories.length === 0) {
+          alert("No new memories found to import.");
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            memoryBubbles: [...prev.memoryBubbles, ...newMemories]
+          }));
+          alert(`Successfully imported ${newMemories.length} memories!`);
+        }
+      } catch (err) {
+        console.error("Failed to parse imported memories", err);
+        alert("Failed to parse the memory file. Ensure it is a valid JSON file.");
+      }
+      
+      if (memoryFileInputRef.current) memoryFileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
   };
 
   const handleCreateMemory = () => {
@@ -581,7 +637,32 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-[calc(var(--msg-font-size)-3.5px)] font-bold text-secondary uppercase tracking-widest pl-1">Saved Memories</p>
+                  <div className="flex items-center justify-between pl-1">
+                    <p className="text-[calc(var(--msg-font-size)-3.5px)] font-bold text-secondary uppercase tracking-widest">Saved Memories</p>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={handleExportMemories}
+                        className="p-1 hover:bg-black/5 rounded text-secondary transition-colors"
+                        title="Export Memories"
+                      >
+                        <Download size={14} />
+                      </button>
+                      <button 
+                        onClick={() => memoryFileInputRef.current?.click()}
+                        className="p-1 hover:bg-black/5 rounded text-secondary transition-colors"
+                        title="Import Memories"
+                      >
+                        <Upload size={14} />
+                      </button>
+                      <input 
+                        type="file" 
+                        ref={memoryFileInputRef} 
+                        onChange={handleImportMemories} 
+                        accept=".json,.txt" 
+                        className="hidden" 
+                      />
+                    </div>
+                  </div>
                   {formData.memoryBubbles.length === 0 ? (
                     <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">No memories saved for this persona yet.</p>
                   ) : formData.memoryBubbles.map(memory => (

@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.3.0)
+# Wassap Persona Simulation (v1.4.0)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.3.0-brightgreen)
+![Version](https://img.shields.io/badge/version-1.4.0-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -56,7 +56,16 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 
 ---
 
-### 🌟 What's New in v1.3.1 (The "Mobile UX & Accessibility" Update)
+### 🌟 What's New in v1.4.0 (The "Humane & Customization" Update)
+*   **Persona Templates**: Quickly load predefined AI personas (e.g., The Girlfriend, The Strict Mentor) or save your own custom prompts for easy reuse across different chats.
+*   **Memory Export/Import**: Download your persona's Memory Bubbles as a JSON file to safely back them up, and import them seamlessly into any persona without losing existing data.
+*   **Humane Settings Engine**: A dedicated panel to enforce true human-like sentience:
+    *   **Mood Overrides**: A dynamic 0-100 slider to manually influence the AI's current emotional state (from "Hostile" to "Thrilled").
+    *   **Ban Robotic Language**: Strict rules to prevent the AI from ever sounding like a customer service bot.
+    *   **Human Imperfections**: Allows the AI to use abbreviations, slang, and casual conversational fillers.
+*   **Tiered Message Fragmentation**: Hard limits on AI message chunking based on total word count to simulate rapid-fire texting without excessive message spam (e.g., capped at 4 chunks for short responses).
+
+### 🌟 Previous Updates (v1.3.1)
 *   **Optimized Mobile Headers**: Significantly smaller date dividers and improved spacing for mobile viewports.
 *   **Mobile Visibility Fixes**: Resolved issues where the encryption disclaimer and dropdown menus were being truncated.
 *   **Header Accessibility**: Wrapped search and menu triggers in accessible buttons with larger hit areas for reliable touch interaction.
