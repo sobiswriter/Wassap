@@ -179,7 +179,8 @@ const splitMessage = (text: string): string[] => {
     const totalWords = finalChunks.join(' ').split(/\s+/).filter(Boolean).length;
     let maxAllowed = 7;
     if (totalWords <= 25) maxAllowed = 4;
-    else if (totalWords <= 50) maxAllowed = 6;
+    else if (totalWords <= 50) maxAllowed = 5;
+    else if (totalWords <= 100) maxAllowed = 6;
     else maxAllowed = 7;
 
     while (finalChunks.length > maxAllowed) {
