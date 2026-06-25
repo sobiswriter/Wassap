@@ -57,7 +57,7 @@ Current Status: ${userProfile.status}
     const timeContext = settings?.shareTimeContext !== false ? `
 CURRENT SYSTEM DATE AND TIME:
 It is currently ${new Date().toLocaleString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}.
-CRITICAL RULE: Do NOT explicitly mention the time or date in your messages unless the User specifically asks about it. Use this information only to silently adjust your context (e.g. knowing it's late at night).
+CRITICAL RULE: Do NOT explicitly mention the exact system date or clock time (e.g. do not say "It is Thursday, June 25 at 17:51") in your messages unless the User specifically asks about it. Use this system timestamp only to silently adjust your context (e.g. knowing it's late at night). However, you are ENCOURAGED to naturally acknowledge relative time gaps (e.g. "since yesterday", "a few days ago") and chat frequency when relevant to the conversation.
 ` : '';
 
     const notesContext = (settings?.shareCalendarNotes && settings?.calendarNotes) ? `
@@ -74,7 +74,9 @@ IMPORTANT RULE: NEVER use formal citations (like [1], URLs, or "according to..."
       initiationContext.includes('[SCHEDULED INTERACTION]') ||
       initiationContext.includes('[CATCH-UP REQUIRED]') ||
       initiationContext.includes('[INACTIVITY CHECK-IN]') ||
-      initiationContext.includes('[MANUAL TEST]')
+      initiationContext.includes('[MANUAL TEST]') ||
+      initiationContext.includes('[TIME GAP DETECTED]') ||
+      initiationContext.includes('[CHAT FREQUENCY INFO]')
     );
 
     const initiationPrompt = initiationContext ? (isInitiationDirective ? `

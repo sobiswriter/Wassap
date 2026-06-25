@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.4.0)
+# Wassap Persona Simulation (v1.5.0)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.4.0-brightgreen)
+![Version](https://img.shields.io/badge/version-1.5.0-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -55,6 +55,12 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
     *   Are they at work? At the gym? Sleeping? You can even set custom **Weekend Days**. They won't blabber about it, but their mood and availability will change subtly. If it’s 3 AM and they’re "Sleeping", they might act a bit groggy if you wake them up. 😴👔
 
 ---
+
+### 🌟 What's New in v1.5.0 (The "Time & Pacing" Update)
+*   **Togglable Message Stacking**: Delay AI responses by a configurable amount (5s to 30s) to pool your follow-up messages into a single conversational turn.
+*   **Visual Bubble Grouping**: Renders stacked messages with tight vertical padding, hiding the bubble corner tails and sender name headers on consecutive messages for an authentic WhatsApp visual experience.
+*   **Relative Time Gap Awareness**: Personas detect how long it has been since you last spoke (e.g., hours, yesterday, days, weeks) and naturally comment on the silence.
+*   **Smart Chat Frequency Capping**: Personas acknowledge when you chat actively today (15+ messages) once per day without duplicate announcements.
 
 ### 🌟 What's New in v1.4.0 (The "Humane & Customization" Update)
 *   **Persona Templates**: Quickly load predefined AI personas (e.g., The Girlfriend, The Strict Mentor) or save your own custom prompts for easy reuse across different chats.

@@ -24,6 +24,7 @@ export interface Message {
   attachment?: FileAttachment;
   replyToMessage?: Message;
   isEvent?: boolean;
+  timestampEpoch?: number;
 }
 
 export interface MemoryBubble {
@@ -132,6 +133,8 @@ export interface AppSettings {
   enableNotifications?: boolean;
   fontSize?: number;
   customTemplates?: PersonaTemplate[];
+  enableTextStacking?: boolean;
+  textStackingDelay?: number;
 }
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';

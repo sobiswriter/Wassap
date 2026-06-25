@@ -16,7 +16,7 @@ import { INITIAL_CHATS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble } from './types';
 import { getGeminiResponse } from './services/geminiService';
 import { saveMedia, getMedia } from './utils/storage';
-import { formatDateRangeLabel, getLocalDateKey } from './utils/dates';
+import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext } from './utils/dates';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
 // Helper for consistent 24-hour time global formatting
@@ -248,6 +248,9 @@ const App: React.FC = () => {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const chatsRef = React.useRef<Chat[]>(chats);
   const handledTriggersRef = React.useRef<Set<string>>(new Set());
+  const aiResponseTimeoutsRef = React.useRef<Record<string, number>>({});
+  const aiRespondingChatsRef = React.useRef<Set<string>>(new Set());
+  const pendingTimeGapsRef = React.useRef<Record<string, string | undefined>>({});
   useEffect(() => { chatsRef.current = chats; }, [chats]);
 
   // User and Settings State
@@ -439,13 +442,15 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
       const thinkingDelay = 1000 + Math.random() * 2000;
       await new Promise(resolve => setTimeout(resolve, thinkingDelay));
 
+      const timeGapContext = getTimeGapAndFrequencyContext(targetChat.messages, true);
+
       const response = await getGeminiResponse(
         { ...targetChat },
         hydratedHistory,
         settings.shareUserInfo ? user : undefined,
         undefined,
         settings,
-        combinePersonaContexts(context, buildScheduleContext(targetChat))
+        combinePersonaContexts(context, buildScheduleContext(targetChat), timeGapContext)
       );
 
       const chunks = splitMessage(response);
@@ -466,6 +471,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
           sender: 'other',
           date: getDateKey(),
           timestamp: getFormattedTime(),
+          timestampEpoch: Date.now(),
           status: 'delivered'
         };
 
@@ -727,6 +733,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       sender: 'me',
       date,
       timestamp,
+      timestampEpoch: Date.now(),
       status: 'sent',
       replyToMessage: replyTo,
       isEvent
@@ -752,12 +759,73 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }));
 
     // Trigger AI response(s)
-    const memoryContext = buildMemoryRecallContext(activeChat, text);
-    const scheduleContext = buildScheduleContext(activeChat);
-    if (activeChat.isGroup) {
-      handleGroupResponse(activeChat, [...activeChat.messages, userMsg], memoryContext);
+    if (settings.enableTextStacking === false) {
+      const memoryContext = buildMemoryRecallContext(activeChat, text);
+      const scheduleContext = buildScheduleContext(activeChat);
+      const timeGapContext = getTimeGapAndFrequencyContext([...activeChat.messages, userMsg], false);
+      const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
+
+      if (activeChat.isGroup) {
+        handleGroupResponse(activeChat, [...activeChat.messages, userMsg], combinedContexts);
+      } else {
+        handleSingleResponse(activeChat, [...activeChat.messages, userMsg], combinedContexts);
+      }
     } else {
-      handleSingleResponse(activeChat, [...activeChat.messages, userMsg], combinePersonaContexts(memoryContext, scheduleContext));
+      const chatId = activeChat.id;
+      const hasPendingTimeout = !!aiResponseTimeoutsRef.current[chatId];
+      if (hasPendingTimeout) {
+        clearTimeout(aiResponseTimeoutsRef.current[chatId]);
+      }
+
+      // If no timeout was active, this is the first message of the stack. Calculate time-gap.
+      if (!hasPendingTimeout) {
+        const timeGapContext = getTimeGapAndFrequencyContext([...activeChat.messages, userMsg], false);
+        pendingTimeGapsRef.current[chatId] = timeGapContext;
+      }
+
+      const delaySeconds = settings.textStackingDelay || 10;
+      aiResponseTimeoutsRef.current[chatId] = window.setTimeout(async () => {
+        delete aiResponseTimeoutsRef.current[chatId];
+
+        const checkBusyAndTrigger = async () => {
+          if (aiRespondingChatsRef.current.has(chatId)) {
+            // AI is busy, check again in 1s
+            aiResponseTimeoutsRef.current[chatId] = window.setTimeout(checkBusyAndTrigger, 1000);
+            return;
+          }
+
+          const freshChat = chatsRef.current.find(c => c.id === chatId);
+          if (!freshChat) return;
+
+          aiRespondingChatsRef.current.add(chatId);
+          try {
+            const savedTimeGap = pendingTimeGapsRef.current[chatId];
+            delete pendingTimeGapsRef.current[chatId];
+
+            // Extract the user's stack of messages since last AI message
+            const lastAiMsgIdx = [...freshChat.messages].reverse().findIndex(m => m.sender === 'other');
+            const userStackMessages = lastAiMsgIdx === -1
+              ? freshChat.messages
+              : freshChat.messages.slice(freshChat.messages.length - lastAiMsgIdx);
+            
+            const combinedText = userStackMessages.map(m => m.text).join(' ');
+
+            const memoryContext = buildMemoryRecallContext(freshChat, combinedText);
+            const scheduleContext = buildScheduleContext(freshChat);
+            const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, savedTimeGap);
+
+            if (freshChat.isGroup) {
+              await handleGroupResponse(freshChat, freshChat.messages, combinedContexts);
+            } else {
+              await handleSingleResponse(freshChat, freshChat.messages, combinedContexts);
+            }
+          } finally {
+            aiRespondingChatsRef.current.delete(chatId);
+          }
+        };
+
+        checkBusyAndTrigger();
+      }, delaySeconds * 1000);
     }
   };
 
@@ -768,12 +836,15 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       const seenDelay = 1000 + Math.random() * 1500;
       await new Promise(resolve => setTimeout(resolve, seenDelay));
 
-      // Mark user message as read (Blue ticks appear BEFORE typing)
+      // Mark user messages as read (Blue ticks appear BEFORE typing)
       setChats(prev => prev.map(c => {
         if (c.id === chatId) {
-          const newMsgs = [...c.messages];
-          const lastMsg = newMsgs[updatedHistory.length - 1];
-          if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'read';
+          const newMsgs = c.messages.map(m => {
+            if (m.sender === 'me' && m.status !== 'read') {
+              return { ...m, status: 'read' as const };
+            }
+            return m;
+          });
           return { ...c, messages: newMsgs };
         }
         return c;
@@ -825,6 +896,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           sender: 'other',
           date: getDateKey(),
           timestamp: getFormattedTime(),
+          timestampEpoch: Date.now(),
           status: 'delivered'
         };
 
@@ -881,12 +953,15 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     const initialSeenDelay = 1200 + Math.random() * 2000;
     await new Promise(resolve => setTimeout(resolve, initialSeenDelay));
 
-    // Mark user message as read
+    // Mark user messages as read
     setChats(prev => prev.map(c => {
       if (c.id === group.id) {
-        const newMsgs = [...c.messages];
-        const lastMsg = newMsgs[updatedHistory.length - 1];
-        if (lastMsg && lastMsg.sender === 'me') lastMsg.status = 'read';
+        const newMsgs = c.messages.map(m => {
+          if (m.sender === 'me' && m.status !== 'read') {
+            return { ...m, status: 'read' as const };
+          }
+          return m;
+        });
         return { ...c, messages: newMsgs };
       }
       return c;
@@ -961,6 +1036,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             senderId: persona.id,
             date: getDateKey(),
             timestamp: getFormattedTime(),
+            timestampEpoch: Date.now(),
             status: 'delivered'
           };
 
@@ -1048,7 +1124,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         sender: 'other',
         senderName: 'System',
         date: getDateKey(),
-        timestamp: '--'
+        timestamp: '--',
+        timestampEpoch: Date.now()
       }]
     };
     setChats([newGroup, ...chats]);

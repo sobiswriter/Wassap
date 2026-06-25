@@ -183,6 +183,51 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
           </div>
         </div>
 
+        <div className="h-[1px] bg-gray-200 dark:bg-gray-800" />
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Clock size={20} className={draftSettings.enableTextStacking !== false ? "text-[#00a884]" : "text-gray-400"} />
+            <div>
+              <p className="text-[length:var(--msg-font-size)] font-medium">Message Stacking</p>
+              <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Wait for follow-ups before replying</p>
+            </div>
+          </div>
+          <div
+            onClick={() => setDraftSettings({ ...draftSettings, enableTextStacking: draftSettings.enableTextStacking === false ? true : false })}
+            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.enableTextStacking !== false ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+          >
+            <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${draftSettings.enableTextStacking !== false ? 'left-[22px]' : 'left-[2px]'}`} />
+          </div>
+        </div>
+
+        {draftSettings.enableTextStacking !== false && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <Clock size={20} className="text-[#00a884] opacity-0" />
+              <div>
+                <p className="text-[length:var(--msg-font-size)] font-medium">Stacking Delay</p>
+                <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Delay: {draftSettings.textStackingDelay || 10} seconds</p>
+              </div>
+            </div>
+            <div className="px-1 flex items-center gap-3">
+              <span className="text-[calc(var(--msg-font-size)-3px)] text-secondary font-bold">5s</span>
+              <input
+                type="range"
+                min="5"
+                max="30"
+                step="1"
+                value={draftSettings.textStackingDelay || 10}
+                onChange={(e) => setDraftSettings({ ...draftSettings, textStackingDelay: parseInt(e.target.value, 10) })}
+                className="flex-1 h-1.5 bg-[#f0f2f5] dark:bg-[#202c33] rounded-lg appearance-none cursor-pointer accent-[#00a884]"
+              />
+              <span className="text-[calc(var(--msg-font-size)-3px)] text-secondary font-bold">30s</span>
+            </div>
+          </div>
+        )}
+
+        <div className="h-[1px] bg-gray-200 dark:bg-gray-800" />
+
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

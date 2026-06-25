@@ -81,10 +81,35 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.5.0"
+              title="The Time & Pacing Update"
+              date="June 2026"
+              isLatest={true}
+              changes={[
+                "Message Stacking: Delay AI responses by a configurable amount (5s to 30s) to pool follow-ups.",
+                "Visual Bubble Stacking: Hide tails and headers on consecutive messages for a clean WhatsApp-native layout.",
+                "Relative Time Gap Awareness: Acknowledge silence organically (e.g., yesterday, last week) in character.",
+                "Smart Chat Frequency: Comments once per day on messaging activity (15+ messages today) without repeating."
+              ]}
+            />
+
+            <UpdateItem 
+              version="v1.4.0"
+              title="The Humane & Customization Update"
+              date="May 2026"
+              changes={[
+                "Humane Settings Engine: Fine-tune AI imperfections, abbreviation usage, and robotic phrasing blocks.",
+                "Mood Slider: Introduce a 0-100 slider to override the persona's current emotional state.",
+                "Persona Templates: Load pre-configured character roles or save your own prompt outlines.",
+                "Memory Export/Import: Backup and transfer memory bubble snapshots as JSON.",
+                "Message Chunk Capping: Restrict maximum message splits based on overall response word count."
+              ]}
+            />
+
+            <UpdateItem 
               version="v1.3.0"
               title="The Sentience & Immersion Update"
               date="April 2026"
-              isLatest={true}
               changes={[
                 "Memory Bubbles: Save chat keyframes into the persona's long-term brain.",
                 "AI Diaries: Peek into the persona's secret journal entries about your interactions.",
@@ -151,7 +176,7 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
           <div className="mt-16 text-center pb-20">
              <div className="inline-flex items-center gap-2 text-secondary opacity-40 font-bold uppercase tracking-[0.3em] text-[calc(var(--msg-font-size)-6px)]">
                 <Milestone size={14} />
-                <span>Wassap Engineering | April 2026</span>
+                <span>Wassap Engineering | June 2026</span>
              </div>
           </div>
 

@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Search, MoreVertical, CheckCheck, Check, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save } from 'lucide-react';
 import { Chat, MemoryBubble, Message, AppSettings } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
-import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, isDateInRange, normalizeDateKey } from '../utils/dates';
+import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, getMessageTimestampEpoch, isDateInRange, normalizeDateKey } from '../utils/dates';
 import { getGeminiDiaryEntry } from '../services/geminiService';
 import { Sparkles, Loader2 } from 'lucide-react';
 
@@ -239,7 +239,8 @@ const MessageBubble: React.FC<{
   selected?: boolean;
   onToggleSelect?: (message: Message) => void;
   selectionMode?: boolean;
-}> = ({ message, highlight, isGroup, onReply, selected, onToggleSelect, selectionMode }) => {
+  isConsecutive?: boolean;
+}> = ({ message, highlight, isGroup, onReply, selected, onToggleSelect, selectionMode, isConsecutive }) => {
   const isMe = message.sender === 'me';
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
@@ -291,7 +292,7 @@ const MessageBubble: React.FC<{
 
   return (
     <div 
-      className={`flex w-full group/bubble px-1 py-[2px] transition-colors duration-200 ${selected ? 'bg-[#00a884]/25 dark:bg-white/10 selection-highlight' : ''} ${isMe ? 'justify-end' : 'justify-start'}`}
+      className={`flex w-full group/bubble px-1 ${isConsecutive ? 'py-[0.5px]' : 'py-[2px]'} transition-colors duration-200 ${selected ? 'bg-[#00a884]/25 dark:bg-white/10 selection-highlight' : ''} ${isMe ? 'justify-end' : 'justify-start'}`}
       onClick={() => {
         if (!onToggleSelect) return;
         const now = Date.now();
@@ -314,7 +315,7 @@ const MessageBubble: React.FC<{
         </button>
       )}
       <div
-        className={`max-w-[85%] sm:max-w-[75%] p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto my-[2px] ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${isMe ? 'rounded-tr-none' : 'rounded-tl-none'}`}
+        className={`max-w-[85%] sm:max-w-[75%] p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto my-[2px] ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${!isConsecutive ? (isMe ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
         style={{ backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)' }}
       >
         {message.replyToMessage && (
@@ -327,7 +328,7 @@ const MessageBubble: React.FC<{
           </div>
         )}
 
-        {isGroup && !isMe && message.senderName && (
+        {isGroup && !isMe && message.senderName && !isConsecutive && (
           <div className="text-[calc(var(--msg-font-size)-1.5px)] font-bold mb-1 px-2 pt-1" style={{ color: nameColor }}>
             {message.senderName}
           </div>
@@ -383,13 +384,15 @@ const MessageBubble: React.FC<{
           </div>
         </div>
 
-        <div
-          className={`absolute top-0 ${isMe ? '-right-2 border-l-[10px]' : '-left-2 border-r-[10px]'} border-t-[10px] border-t-transparent`}
-          style={{
-            borderLeftColor: isMe ? 'var(--bubble-me)' : 'transparent',
-            borderRightColor: !isMe ? 'var(--bubble-other)' : 'transparent'
-          }}
-        />
+        {!isConsecutive && (
+          <div
+            className={`absolute top-0 ${isMe ? '-right-2 border-l-[10px]' : '-left-2 border-r-[10px]'} border-t-[10px] border-t-transparent`}
+            style={{
+              borderLeftColor: isMe ? 'var(--bubble-me)' : 'transparent',
+              borderRightColor: !isMe ? 'var(--bubble-other)' : 'transparent'
+            }}
+          />
+        )}
       </div>
 
       {isMe && onReply && !selectionMode && (
@@ -690,6 +693,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
           const previousDateKey = index > 0 ? getMessageDateKey(filteredMessages[index - 1]) : '';
           const shouldShowDateDivider = dateKey !== previousDateKey;
 
+          const isConsecutive = (() => {
+            if (index === 0) return false;
+            const prevMsg = filteredMessages[index - 1];
+            if (msg.isEvent || prevMsg.isEvent) return false;
+            if (msg.sender !== prevMsg.sender) return false;
+            if (chat.isGroup && msg.senderName !== prevMsg.senderName) return false;
+            if (dateKey !== previousDateKey) return false;
+
+            const currentMs = getMessageTimestampEpoch(msg);
+            const prevMs = getMessageTimestampEpoch(prevMsg);
+            return (currentMs - prevMs) < 120000; // 2 minutes
+          })();
+
           return (
             <React.Fragment key={msg.id}>
               {shouldShowDateDivider && (
@@ -708,6 +724,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                    setSelectedMessageIds(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]);
                 }}
                 selectionMode={selectedMessageIds.length > 0}
+                isConsecutive={isConsecutive}
               />
             </React.Fragment>
           );
