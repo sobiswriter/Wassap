@@ -18,8 +18,20 @@ self.addEventListener('notificationclick', (event) => {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       // 1. User typed an inline reply directly in notification shade
       if (replyText) {
-        for (let i = 0; i < clientList.length; i++) {
-          clientList[i].postMessage({ type: 'INLINE_REPLY', chatId: chatId, text: replyText });
+        if (clientList.length > 0) {
+          let focusedClient = null;
+          for (let i = 0; i < clientList.length; i++) {
+            clientList[i].postMessage({ type: 'INLINE_REPLY', chatId: chatId, text: replyText });
+            if ('focus' in clientList[i]) {
+              focusedClient = clientList[i];
+            }
+          }
+          if (focusedClient) {
+            return focusedClient.focus();
+          }
+        } else if (clients.openWindow) {
+          const url = '/?chatId=' + encodeURIComponent(chatId || '') + '&replyText=' + encodeURIComponent(replyText);
+          return clients.openWindow(url);
         }
         return;
       }
@@ -33,17 +45,20 @@ self.addEventListener('notificationclick', (event) => {
       }
 
       // 3. User tapped 'REPLY' button or clicked notification card body -> Open chat window
-      for (let i = 0; i < clientList.length; i++) {
-        let client = clientList[i];
-        if ('focus' in client) {
-          if (chatId) {
-            client.postMessage({ type: 'OPEN_CHAT', chatId: chatId });
+      if (clientList.length > 0) {
+        let focusedClient = null;
+        for (let i = 0; i < clientList.length; i++) {
+          clientList[i].postMessage({ type: 'OPEN_CHAT', chatId: chatId });
+          if ('focus' in clientList[i]) {
+            focusedClient = clientList[i];
           }
-          return client.focus();
         }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow('/');
+        if (focusedClient) {
+          return focusedClient.focus();
+        }
+      } else if (clients.openWindow) {
+        const url = '/?chatId=' + encodeURIComponent(chatId || '');
+        return clients.openWindow(url);
       }
     })
   );

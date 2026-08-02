@@ -292,13 +292,13 @@ const App: React.FC = () => {
         const { type, chatId } = event.data || {};
         if (type === 'OPEN_CHAT' && chatId) {
           handleChatSelect(chatId);
-          if (window.innerWidth < 768) setActiveView('chat');
+          setActiveView('chat');
         } else if (type === 'INLINE_REPLY' && chatId && event.data.text) {
           const text = event.data.text;
           const targetChat = chatsRef.current.find(c => c.id === chatId);
           if (targetChat) {
             handleChatSelect(chatId);
-            if (window.innerWidth < 768) setActiveView('chat');
+            setActiveView('chat');
 
             if (leftOnReadTimeoutsRef.current[chatId]) {
               clearTimeout(leftOnReadTimeoutsRef.current[chatId]);
@@ -800,6 +800,56 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   useEffect(() => {
     const timer = setTimeout(() => runAutomationChecks(true), 2000);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Check URL params on startup (when app is opened directly from native notification click/reply)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlChatId = params.get('chatId');
+    const urlReplyText = params.get('replyText');
+
+    if (urlChatId) {
+      handleChatSelect(urlChatId);
+      setActiveView('chat');
+
+      if (urlReplyText) {
+        window.history.replaceState({}, '', window.location.pathname);
+        const targetChat = chatsRef.current.find(c => c.id === urlChatId);
+        if (targetChat) {
+          const timestamp = getFormattedTime();
+          const date = getDateKey();
+          const userMsg: Message = {
+            id: Date.now().toString(),
+            text: urlReplyText,
+            sender: 'me',
+            date,
+            timestamp,
+            timestampEpoch: Date.now(),
+            status: 'sent'
+          };
+
+          setChats(prev => prev.map(c => c.id === urlChatId ? {
+            ...c,
+            unreadCount: 0,
+            lastMessage: urlReplyText,
+            lastMessageTime: timestamp,
+            messages: [...c.messages, userMsg]
+          } : c));
+
+          const updatedMessages = [...targetChat.messages, userMsg];
+          const memoryContext = buildMemoryRecallContext(targetChat, urlReplyText);
+          const scheduleContext = buildScheduleContext(targetChat);
+          const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false);
+          const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
+
+          if (targetChat.isGroup) {
+            handleGroupResponse(targetChat, updatedMessages, combinedContexts);
+          } else {
+            handleSingleResponse(targetChat, updatedMessages, combinedContexts);
+          }
+        }
+      }
+    }
   }, []);
 
   // Ongoing Background monitor
