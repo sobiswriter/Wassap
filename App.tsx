@@ -43,8 +43,8 @@ const showNotification = async (title: string, options: NotificationOptions) => 
     ...options,
     badge: options.badge || '/favicon.svg',
     actions: [
-      { action: 'reply', title: 'REPLY' },
-      { action: 'read', title: 'MARK AS READ' }
+      { action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' },
+      { action: 'read', title: 'Mark as read' }
     ]
   };
 
@@ -293,6 +293,55 @@ const App: React.FC = () => {
         if (type === 'OPEN_CHAT' && chatId) {
           handleChatSelect(chatId);
           if (window.innerWidth < 768) setActiveView('chat');
+        } else if (type === 'INLINE_REPLY' && chatId && event.data.text) {
+          const text = event.data.text;
+          const targetChat = chatsRef.current.find(c => c.id === chatId);
+          if (targetChat) {
+            handleChatSelect(chatId);
+            if (window.innerWidth < 768) setActiveView('chat');
+
+            if (leftOnReadTimeoutsRef.current[chatId]) {
+              clearTimeout(leftOnReadTimeoutsRef.current[chatId]);
+              delete leftOnReadTimeoutsRef.current[chatId];
+            }
+
+            const timestamp = getFormattedTime();
+            const date = getDateKey();
+            const userMsg: Message = {
+              id: Date.now().toString(),
+              text,
+              sender: 'me',
+              date,
+              timestamp,
+              timestampEpoch: Date.now(),
+              status: 'sent'
+            };
+
+            setChats(prev => prev.map(c => {
+              if (c.id === chatId) {
+                return {
+                  ...c,
+                  unreadCount: 0,
+                  lastMessage: text,
+                  lastMessageTime: timestamp,
+                  messages: [...c.messages, userMsg]
+                };
+              }
+              return c;
+            }));
+
+            const updatedMessages = [...targetChat.messages, userMsg];
+            const memoryContext = buildMemoryRecallContext(targetChat, text);
+            const scheduleContext = buildScheduleContext(targetChat);
+            const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false);
+            const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
+
+            if (targetChat.isGroup) {
+              handleGroupResponse(targetChat, updatedMessages, combinedContexts);
+            } else {
+              handleSingleResponse(targetChat, updatedMessages, combinedContexts);
+            }
+          }
         } else if (type === 'MARK_AS_READ' && chatId) {
           // Mark as read & trigger left on read persona reaction
           setChats(prev => prev.map(c => {
