@@ -18,13 +18,12 @@ import { getGeminiResponse } from './services/geminiService';
 import { saveMedia, getMedia } from './utils/storage';
 import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext } from './utils/dates';
 import { MobileActionFAB } from './components/MobileActionFAB';
-import { WhatsAppNotificationBanner, ToastNotification } from './components/WhatsAppNotificationBanner';
 
 // Helper for consistent 24-hour time global formatting
 const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 const getDateKey = getLocalDateKey;
 
-// Robust Notification Helper for Desktop & Mobile Tray
+// Robust Native OS Notification Helper for System Tray & Notification Shade
 const showNotification = async (title: string, options: NotificationOptions) => {
   if (!('Notification' in window)) return;
 
@@ -40,33 +39,40 @@ const showNotification = async (title: string, options: NotificationOptions) => 
 
   if (Notification.permission !== 'granted') return;
 
-  // 1. Direct Native OS Desktop Notification
-  try {
-    const n = new Notification(title, {
-      ...options,
-      badge: options.badge || '/favicon.svg'
-    });
-    n.onclick = () => {
-      window.focus();
-      n.close();
-    };
-    setTimeout(() => n.close(), 7000);
-  } catch (e) {
-    console.warn("Standard Notification API failed, trying SW", e);
-  }
+  const notificationOptions: any = {
+    ...options,
+    badge: options.badge || '/favicon.svg',
+    actions: [
+      { action: 'reply', title: 'REPLY' },
+      { action: 'read', title: 'MARK AS READ' }
+    ]
+  };
 
-  // 2. Service Worker Notification (for Android notification shade & background tray)
+  // 1. Service Worker Notification (Preferred for Android notification shade with action buttons)
   try {
     if ('serviceWorker' in navigator) {
       const regPromise = navigator.serviceWorker.ready;
       const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 1000));
       const reg = await Promise.race([regPromise, timeoutPromise]);
       if (reg && reg.showNotification) {
-        await reg.showNotification(title, options);
+        await reg.showNotification(title, notificationOptions);
+        return;
       }
     }
   } catch (e) {
-    console.warn("SW notification failed", e);
+    console.warn("SW notification failed, falling back to standard Notification", e);
+  }
+
+  // 2. Direct Native OS Desktop Notification Fallback
+  try {
+    const n = new Notification(title, notificationOptions);
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+    setTimeout(() => n.close(), 7000);
+  } catch (e) {
+    console.warn("Standard Notification API failed", e);
   }
 };
 
@@ -271,7 +277,6 @@ const App: React.FC = () => {
   const [showUpdates, setShowUpdates] = useState(false);
   const [chatSearchTerm, setChatSearchTerm] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [activeNotificationToast, setActiveNotificationToast] = useState<ToastNotification | null>(null);
   const chatsRef = React.useRef<Chat[]>(chats);
   const handledTriggersRef = React.useRef<Set<string>>(new Set());
   const aiResponseTimeoutsRef = React.useRef<Record<string, number>>({});
@@ -279,6 +284,58 @@ const App: React.FC = () => {
   const pendingTimeGapsRef = React.useRef<Record<string, string | undefined>>({});
   const leftOnReadTimeoutsRef = React.useRef<Record<string, number>>({});
   useEffect(() => { chatsRef.current = chats; }, [chats]);
+
+  // Service Worker Notification Actions Listener (REPLY & MARK AS READ from phone / OS tray)
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      const handleServiceWorkerMessage = (event: MessageEvent) => {
+        const { type, chatId } = event.data || {};
+        if (type === 'OPEN_CHAT' && chatId) {
+          handleChatSelect(chatId);
+          if (window.innerWidth < 768) setActiveView('chat');
+        } else if (type === 'MARK_AS_READ' && chatId) {
+          // Mark as read & trigger left on read persona reaction
+          setChats(prev => prev.map(c => {
+            if (c.id === chatId) {
+              return {
+                ...c,
+                unreadCount: 0,
+                messages: c.messages.map(m => ({ ...m, status: 'read' as MessageStatus }))
+              };
+            }
+            return c;
+          }));
+
+          if (leftOnReadTimeoutsRef.current[chatId]) {
+            clearTimeout(leftOnReadTimeoutsRef.current[chatId]);
+            delete leftOnReadTimeoutsRef.current[chatId];
+          }
+
+          const targetChat = chatsRef.current.find(c => c.id === chatId);
+          if (targetChat && !targetChat.isGroup) {
+            leftOnReadTimeoutsRef.current[chatId] = window.setTimeout(async () => {
+              delete leftOnReadTimeoutsRef.current[chatId];
+              const currentChat = chatsRef.current.find(c => c.id === chatId);
+              if (!currentChat) return;
+
+              const lastMsg = currentChat.messages[currentChat.messages.length - 1];
+              if (lastMsg && lastMsg.sender === 'other') {
+                handleAutomationTrigger(
+                  chatId,
+                  `[LEFT ON READ] The user just saw your last message ("${lastMsg.text.slice(0, 50)}") and marked it as read (blue ticks) but did NOT send a reply back. React naturally in character to being left on read in 1 short message.`,
+                  undefined,
+                  'inactivity'
+                );
+              }
+            }, 6000 + Math.random() * 5000);
+          }
+        }
+      };
+
+      navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+      return () => navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+    }
+  }, []);
 
   // User and Settings State
   const [user, setUser] = useState<UserProfile>({
@@ -519,18 +576,10 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
         if (settings.enableNotifications && !isFocusingChat) {
-          setActiveNotificationToast({
-            id: Date.now().toString(),
-            chatId,
-            senderName: targetChat.name,
-            avatar: targetChat.avatar,
-            message: chunk,
-            timestamp: 'now'
-          });
           if (document.hidden) {
             document.title = `(1) New Message - ${targetChat.name}`;
-            showNotification(targetChat.name, { body: chunk, icon: targetChat.avatar, tag: chatId });
           }
+          showNotification(targetChat.name, { body: chunk, icon: targetChat.avatar, tag: chatId });
         }
 
         // 3. Randomized Inter-message Delay
@@ -957,18 +1006,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
         if (settings.enableNotifications && !isFocusingChat) {
-          setActiveNotificationToast({
-            id: Date.now().toString(),
-            chatId,
-            senderName: chat.name,
-            avatar: chat.avatar,
-            message: chunk,
-            timestamp: 'now'
-          });
           if (document.hidden) {
             document.title = `(1) New Message - ${chat.name}`;
-            showNotification(chat.name, { body: chunk, icon: chat.avatar, tag: chat.id });
           }
+          showNotification(chat.name, { body: chunk, icon: chat.avatar, tag: chat.id });
         }
 
         // 4. Randomized Inter-message Delay (simulating hitting 'send' and starting to type next)
@@ -1109,18 +1150,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           if (settings.enableNotifications && !isFocusingChat) {
             const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
             const personaAvatar = chats.find(c => c.id === responderId)?.avatar || group.avatar;
-            setActiveNotificationToast({
-              id: Date.now().toString(),
-              chatId: group.id,
-              senderName: `${group.name} - ${personaLabel}`,
-              avatar: personaAvatar,
-              message: chunk,
-              timestamp: 'now'
-            });
             if (document.hidden) {
               document.title = `(1) New Message - ${group.name}`;
-              showNotification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar, tag: group.id });
             }
+            showNotification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar, tag: group.id });
           }
 
           if (j < chunks.length - 1) {
@@ -1253,72 +1286,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           />
         </div>
 
-        {/* WhatsApp Styled iOS Floating Notification Toast */}
-        <WhatsAppNotificationBanner
-          notification={activeNotificationToast}
-          onClose={() => setActiveNotificationToast(null)}
-          onReply={(chatId) => {
-            handleChatSelect(chatId);
-            if (isMobile) setActiveView('chat');
-          }}
-          onMarkAsRead={(chatId) => {
-            // 1. Clear unread count & set message status to read
-            setChats(prev => prev.map(c => {
-              if (c.id === chatId) {
-                return {
-                  ...c,
-                  unreadCount: 0,
-                  messages: c.messages.map(m => ({ ...m, status: 'read' as MessageStatus }))
-                };
-              }
-              return c;
-            }));
-
-            // 2. Clear any prior leftOnRead timer
-            if (leftOnReadTimeoutsRef.current[chatId]) {
-              clearTimeout(leftOnReadTimeoutsRef.current[chatId]);
-              delete leftOnReadTimeoutsRef.current[chatId];
-            }
-
-            // 3. Schedule "Left on Read" persona reaction after 6-11 seconds
-            const targetChat = chatsRef.current.find(c => c.id === chatId);
-            if (targetChat && !targetChat.isGroup) {
-              leftOnReadTimeoutsRef.current[chatId] = window.setTimeout(async () => {
-                delete leftOnReadTimeoutsRef.current[chatId];
-                const currentChat = chatsRef.current.find(c => c.id === chatId);
-                if (!currentChat) return;
-
-                const lastMsg = currentChat.messages[currentChat.messages.length - 1];
-                if (lastMsg && lastMsg.sender === 'other') {
-                  handleAutomationTrigger(
-                    chatId,
-                    `[LEFT ON READ] The user just saw your last message ("${lastMsg.text.slice(0, 50)}") and marked it as read (blue ticks) but did NOT send a reply back. React naturally in character to being left on read in 1 short message.`,
-                    undefined,
-                    'inactivity'
-                  );
-                }
-              }, 6000 + Math.random() * 5000);
-            }
-          }}
-          theme={settings.theme}
-        />
-
-        {showNewChatPanel && (
-          <NewChatPanel onClose={() => setShowNewChatPanel(false)} onCreate={handleCreatePersona} />
-        )}
-
-        {showNewGroupPanel && (
-          <NewGroupPanel
-            personas={chats.filter(c => !c.isGroup)}
-            onClose={() => setShowNewGroupPanel(false)}
-            onCreate={handleCreateGroup}
-          />
-        )}
-
-        {showUserProfilePanel && (
-          <UserProfilePanel user={user} onClose={() => setShowUserProfilePanel(false)} onUpdate={setUser} />
-        )}
-
         {showSettingsPopover && (
           <SettingsPopover
             settings={settings}
@@ -1329,15 +1296,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               const testChat = chats[0];
               const senderName = testChat ? testChat.name : 'Wassap Notification';
               const avatar = testChat ? testChat.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';
-
-              setActiveNotificationToast({
-                id: Date.now().toString(),
-                chatId: testChat ? testChat.id : '1',
-                senderName: senderName,
-                avatar: avatar,
-                message: 'Desktop and Mobile notifications are working perfectly!',
-                timestamp: 'now'
-              });
 
               await showNotification(senderName, {
                 body: 'Desktop and Mobile notifications are working perfectly!',
