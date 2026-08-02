@@ -76,14 +76,17 @@ IMPORTANT RULE: NEVER use formal citations (like [1], URLs, or "according to..."
       initiationContext.includes('[INACTIVITY CHECK-IN]') ||
       initiationContext.includes('[MANUAL TEST]') ||
       initiationContext.includes('[TIME GAP DETECTED]') ||
+      initiationContext.includes('[LEFT ON READ]') ||
       initiationContext.includes('[CHAT FREQUENCY INFO]')
     );
 
     const initiationPrompt = initiationContext ? (isInitiationDirective ? `
 CRITICAL INSTRUCTION: You are re-initiating the conversation right now.
-${initiationContext.includes('[SCHEDULED INTERACTION]') || initiationContext.includes('[CATCH-UP REQUIRED]') 
-  ? `INTENT: This is a scheduled interaction. You MUST prioritize this intent and address it immediately while remaining context-aware.` 
-  : `CONTEXT: This is a natural check-in. Prioritize the conversation history and flow while acknowledging the silence naturally.`}
+${initiationContext.includes('[LEFT ON READ]')
+  ? `INTENT: The user just read your message (marked as read / blue ticks) but left you on read without replying. React naturally in character to being left on read (e.g. casual callout, banter, teasing, or question). Keep it concise (1 short sentence/line).`
+  : (initiationContext.includes('[SCHEDULED INTERACTION]') || initiationContext.includes('[CATCH-UP REQUIRED]') 
+    ? `INTENT: This is a scheduled interaction. You MUST prioritize this intent and address it immediately while remaining context-aware.` 
+    : `CONTEXT: This is a natural check-in. Prioritize the conversation history and flow while acknowledging the silence naturally.`)}
 Context/Directive details:
 ${initiationContext}
 ` : `

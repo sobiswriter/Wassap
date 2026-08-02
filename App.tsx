@@ -13,7 +13,7 @@ import { MobileNavigation } from './components/MobileNavigation';
 import { GuidePanel } from './components/GuidePanel';
 import { UpdatesPanel } from './components/UpdatesPanel';
 import { INITIAL_CHATS } from './constants';
-import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble } from './types';
+import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus } from './types';
 import { getGeminiResponse } from './services/geminiService';
 import { saveMedia, getMedia } from './utils/storage';
 import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext } from './utils/dates';
@@ -277,6 +277,7 @@ const App: React.FC = () => {
   const aiResponseTimeoutsRef = React.useRef<Record<string, number>>({});
   const aiRespondingChatsRef = React.useRef<Set<string>>(new Set());
   const pendingTimeGapsRef = React.useRef<Record<string, string | undefined>>({});
+  const leftOnReadTimeoutsRef = React.useRef<Record<string, number>>({});
   useEffect(() => { chatsRef.current = chats; }, [chats]);
 
   // User and Settings State
@@ -740,6 +741,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
   const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean) => {
     if (!activeChat) return;
+
+    if (leftOnReadTimeoutsRef.current[activeChat.id]) {
+      clearTimeout(leftOnReadTimeoutsRef.current[activeChat.id]);
+      delete leftOnReadTimeoutsRef.current[activeChat.id];
+    }
 
     const timestamp = getFormattedTime();
     const date = getDateKey();
@@ -1251,9 +1257,48 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         <WhatsAppNotificationBanner
           notification={activeNotificationToast}
           onClose={() => setActiveNotificationToast(null)}
-          onClick={(chatId) => {
+          onReply={(chatId) => {
             handleChatSelect(chatId);
             if (isMobile) setActiveView('chat');
+          }}
+          onMarkAsRead={(chatId) => {
+            // 1. Clear unread count & set message status to read
+            setChats(prev => prev.map(c => {
+              if (c.id === chatId) {
+                return {
+                  ...c,
+                  unreadCount: 0,
+                  messages: c.messages.map(m => ({ ...m, status: 'read' as MessageStatus }))
+                };
+              }
+              return c;
+            }));
+
+            // 2. Clear any prior leftOnRead timer
+            if (leftOnReadTimeoutsRef.current[chatId]) {
+              clearTimeout(leftOnReadTimeoutsRef.current[chatId]);
+              delete leftOnReadTimeoutsRef.current[chatId];
+            }
+
+            // 3. Schedule "Left on Read" persona reaction after 6-11 seconds
+            const targetChat = chatsRef.current.find(c => c.id === chatId);
+            if (targetChat && !targetChat.isGroup) {
+              leftOnReadTimeoutsRef.current[chatId] = window.setTimeout(async () => {
+                delete leftOnReadTimeoutsRef.current[chatId];
+                const currentChat = chatsRef.current.find(c => c.id === chatId);
+                if (!currentChat) return;
+
+                const lastMsg = currentChat.messages[currentChat.messages.length - 1];
+                if (lastMsg && lastMsg.sender === 'other') {
+                  handleAutomationTrigger(
+                    chatId,
+                    `[LEFT ON READ] The user just saw your last message ("${lastMsg.text.slice(0, 50)}") and marked it as read (blue ticks) but did NOT send a reply back. React naturally in character to being left on read in 1 short message.`,
+                    undefined,
+                    'inactivity'
+                  );
+                }
+              }, 6000 + Math.random() * 5000);
+            }
           }}
           theme={settings.theme}
         />

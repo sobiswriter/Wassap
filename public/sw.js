@@ -9,18 +9,27 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  
+  if (event.action === 'read') {
+    return;
+  }
+
+  const chatId = event.notification.tag;
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      if (clientList.length > 0) {
-        let client = clientList[0];
-        for (let i = 0; i < clientList.length; i++) {
-          if (clientList[i].focused) {
-            client = clientList[i];
+      for (let i = 0; i < clientList.length; i++) {
+        let client = clientList[i];
+        if ('focus' in client) {
+          if (chatId) {
+            client.postMessage({ type: 'OPEN_CHAT', chatId: chatId });
           }
+          return client.focus();
         }
-        return client.focus();
       }
-      return clients.openWindow('/');
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
     })
   );
 });
