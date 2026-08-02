@@ -18,6 +18,7 @@ import { getGeminiResponse } from './services/geminiService';
 import { saveMedia, getMedia } from './utils/storage';
 import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext } from './utils/dates';
 import { MobileActionFAB } from './components/MobileActionFAB';
+import { WhatsAppNotificationBanner, ToastNotification } from './components/WhatsAppNotificationBanner';
 
 // Helper for consistent 24-hour time global formatting
 const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -25,24 +26,48 @@ const getDateKey = getLocalDateKey;
 
 // Robust Notification Helper for Desktop & Mobile Tray
 const showNotification = async (title: string, options: NotificationOptions) => {
-  // 1. Try Service Worker (Required for mobile drawer)
+  if (!('Notification' in window)) return;
+
+  if (Notification.permission === 'default') {
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+    } catch (e) {
+      console.warn("Permission request failed", e);
+      return;
+    }
+  }
+
+  if (Notification.permission !== 'granted') return;
+
+  // 1. Direct Native OS Desktop Notification
+  try {
+    const n = new Notification(title, {
+      ...options,
+      badge: options.badge || '/favicon.svg'
+    });
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+    setTimeout(() => n.close(), 7000);
+  } catch (e) {
+    console.warn("Standard Notification API failed, trying SW", e);
+  }
+
+  // 2. Service Worker Notification (for Android notification shade & background tray)
   try {
     if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.ready;
+      const regPromise = navigator.serviceWorker.ready;
+      const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 1000));
+      const reg = await Promise.race([regPromise, timeoutPromise]);
       if (reg && reg.showNotification) {
-        return reg.showNotification(title, options);
+        await reg.showNotification(title, options);
       }
     }
-  } catch (e) { console.warn("SW notification failed, falling back", e); }
-
-  // 2. Fallback to standard Notification API (Desktop)
-  try {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      const n = new Notification(title, options);
-      setTimeout(() => n.close(), 5000);
-      return n;
-    }
-  } catch (e) { console.error("Standard notification failed", e); }
+  } catch (e) {
+    console.warn("SW notification failed", e);
+  }
 };
 
 const playIncomingMessageSound = () => {
@@ -246,6 +271,7 @@ const App: React.FC = () => {
   const [showUpdates, setShowUpdates] = useState(false);
   const [chatSearchTerm, setChatSearchTerm] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [activeNotificationToast, setActiveNotificationToast] = useState<ToastNotification | null>(null);
   const chatsRef = React.useRef<Chat[]>(chats);
   const handledTriggersRef = React.useRef<Set<string>>(new Set());
   const aiResponseTimeoutsRef = React.useRef<Record<string, number>>({});
@@ -492,6 +518,14 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
         if (settings.enableNotifications && !isFocusingChat) {
+          setActiveNotificationToast({
+            id: Date.now().toString(),
+            chatId,
+            senderName: targetChat.name,
+            avatar: targetChat.avatar,
+            message: chunk,
+            timestamp: 'now'
+          });
           if (document.hidden) {
             document.title = `(1) New Message - ${targetChat.name}`;
             showNotification(targetChat.name, { body: chunk, icon: targetChat.avatar, tag: chatId });
@@ -917,6 +951,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
         if (settings.enableNotifications && !isFocusingChat) {
+          setActiveNotificationToast({
+            id: Date.now().toString(),
+            chatId,
+            senderName: chat.name,
+            avatar: chat.avatar,
+            message: chunk,
+            timestamp: 'now'
+          });
           if (document.hidden) {
             document.title = `(1) New Message - ${chat.name}`;
             showNotification(chat.name, { body: chunk, icon: chat.avatar, tag: chat.id });
@@ -1059,10 +1101,18 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
           const isFocusingChat = !document.hidden && activeChatId === group.id;
           if (settings.enableNotifications && !isFocusingChat) {
+            const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
+            const personaAvatar = chats.find(c => c.id === responderId)?.avatar || group.avatar;
+            setActiveNotificationToast({
+              id: Date.now().toString(),
+              chatId: group.id,
+              senderName: `${group.name} - ${personaLabel}`,
+              avatar: personaAvatar,
+              message: chunk,
+              timestamp: 'now'
+            });
             if (document.hidden) {
               document.title = `(1) New Message - ${group.name}`;
-              const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
-              const personaAvatar = chats.find(c => c.id === responderId)?.avatar;
               showNotification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar, tag: group.id });
             }
           }
@@ -1197,6 +1247,17 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           />
         </div>
 
+        {/* WhatsApp Styled iOS Floating Notification Toast */}
+        <WhatsAppNotificationBanner
+          notification={activeNotificationToast}
+          onClose={() => setActiveNotificationToast(null)}
+          onClick={(chatId) => {
+            handleChatSelect(chatId);
+            if (isMobile) setActiveView('chat');
+          }}
+          theme={settings.theme}
+        />
+
         {showNewChatPanel && (
           <NewChatPanel onClose={() => setShowNewChatPanel(false)} onCreate={handleCreatePersona} />
         )}
@@ -1214,7 +1275,33 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         )}
 
         {showSettingsPopover && (
-          <SettingsPopover settings={settings} onUpdate={setSettings} onClose={() => setShowSettingsPopover(false)} />
+          <SettingsPopover
+            settings={settings}
+            onUpdate={setSettings}
+            onClose={() => setShowSettingsPopover(false)}
+            onTestNotification={async () => {
+              playIncomingMessageSound();
+              const testChat = chats[0];
+              const senderName = testChat ? testChat.name : 'Wassap Notification';
+              const avatar = testChat ? testChat.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';
+
+              setActiveNotificationToast({
+                id: Date.now().toString(),
+                chatId: testChat ? testChat.id : '1',
+                senderName: senderName,
+                avatar: avatar,
+                message: 'Desktop and Mobile notifications are working perfectly!',
+                timestamp: 'now'
+              });
+
+              await showNotification(senderName, {
+                body: 'Desktop and Mobile notifications are working perfectly!',
+                icon: avatar,
+                badge: '/favicon.svg',
+                tag: 'test-notification'
+              });
+            }}
+          />
         )}
 
         {showCalendarWidget && (

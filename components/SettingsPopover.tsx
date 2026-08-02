@@ -7,9 +7,10 @@ interface SettingsPopoverProps {
   settings: AppSettings;
   onUpdate: (settings: AppSettings) => void;
   onClose: () => void;
+  onTestNotification?: () => void;
 }
 
-export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUpdate, onClose }) => {
+export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUpdate, onClose, onTestNotification }) => {
   const [showKey, setShowKey] = useState(false);
   const [draftSettings, setDraftSettings] = useState<AppSettings>(settings);
 
@@ -260,31 +261,22 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
           {draftSettings.enableNotifications && (
             <button
               onClick={async () => {
-                const title = 'Wassap Verified';
-                const options = { 
-                  body: 'Desktop and Mobile Drawer notifications are fully working!',
-                  icon: '/favicon.svg',
-                  badge: '/favicon.svg',
-                  tag: 'test-notification'
-                };
-
-                // Try Service Worker first
-                if ('serviceWorker' in navigator) {
-                  try {
-                    const reg = await navigator.serviceWorker.ready;
-                    if (reg && reg.showNotification) {
-                      reg.showNotification(title, options);
-                      return;
-                    }
-                  } catch (e) { console.error("SW test failed", e); }
-                }
-
-                // Fallback to standard
-                if ('Notification' in window && Notification.permission === 'granted') {
-                  const n = new Notification(title, options);
-                  setTimeout(() => n.close(), 6000);
+                if (onTestNotification) {
+                  onTestNotification();
                 } else {
-                  alert('Your browser is currently blocking notifications from this site. Please click the lock icon in the URL bar and allow notifications.');
+                  if ('Notification' in window && Notification.permission !== 'granted') {
+                    await Notification.requestPermission();
+                  }
+                  const title = 'Wassap Verified';
+                  const options = { 
+                    body: 'Desktop and Mobile notifications are fully working!',
+                    icon: '/favicon.svg',
+                    badge: '/favicon.svg',
+                    tag: 'test-notification'
+                  };
+                  if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification(title, options);
+                  }
                 }
               }}
               className="w-full text-[calc(var(--msg-font-size)-2.5px)] py-1.5 bg-[#00a884]/10 text-[#00a884] font-medium rounded mt-1 hover:bg-[#00a884]/20 transition-colors uppercase tracking-tight"
