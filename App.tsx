@@ -248,17 +248,19 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('whatsapp_chats');
     if (saved) {
       try {
-        const parsedChats: Chat[] = JSON.parse(saved);
-        return parsedChats.map(chat => ({
-          ...chat,
-          lastMessageTime: convertTo24Hour(chat.lastMessageTime),
-          messages: chat.messages.map(msg => ({
-            ...msg,
-            timestamp: convertTo24Hour(msg.timestamp)
-          }))
-        }));
+        const parsedChats = JSON.parse(saved);
+        if (Array.isArray(parsedChats) && parsedChats.length > 0) {
+          return parsedChats.map(chat => ({
+            ...chat,
+            lastMessageTime: convertTo24Hour(chat?.lastMessageTime || ''),
+            messages: (Array.isArray(chat?.messages) ? chat.messages : []).map(msg => ({
+              ...msg,
+              timestamp: convertTo24Hour(msg?.timestamp || '')
+            }))
+          }));
+        }
       } catch (e) {
-        console.error("Failed to parse chats", e);
+        console.error("Failed to parse chats safely", e);
       }
     }
     return INITIAL_CHATS;
@@ -416,9 +418,16 @@ const App: React.FC = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return { ...parsed, fontSize: parsed.fontSize || 14.5 };
+        if (parsed && typeof parsed === 'object') {
+          return {
+            theme: 'light',
+            shareUserInfo: true,
+            fontSize: 14.5,
+            ...parsed
+          };
+        }
       } catch (e) {
-        console.error("Failed to parse settings", e);
+        console.error("Failed to parse settings safely", e);
       }
     }
     return {
