@@ -31,10 +31,10 @@ class AppErrorBoundary extends Component<Props, State> {
 
   handleReset = () => {
     try {
-      localStorage.removeItem('whatsapp_chats');
-      localStorage.removeItem('whatsapp_settings');
+      // Non-destructive soft reload that preserves user chats, personas, and settings
+      sessionStorage.clear();
     } catch (e) {
-      console.error(e);
+      console.error("Session clear warning:", e);
     }
     window.location.href = window.location.origin + window.location.pathname;
   };
@@ -51,13 +51,13 @@ class AppErrorBoundary extends Component<Props, State> {
           </div>
           <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
           <p className="text-sm text-gray-400 max-w-sm mb-6 leading-relaxed">
-            Wassap encountered a startup error. Click below to repair your app session and reload cleanly.
+            Wassap encountered a temporary error. Your chats and data are safely saved. Click below to reload.
           </p>
           <button
             onClick={this.handleReset}
             className="px-6 py-2.5 bg-[#00a884] hover:bg-[#008f6f] text-white font-semibold rounded-lg shadow-lg transition-colors cursor-pointer"
           >
-            Repair & Reload App
+            Reload App Cleanly
           </button>
         </div>
       );
@@ -66,6 +66,15 @@ class AppErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+
+// Global safety net for unhandled async rejections and background errors
+window.addEventListener('unhandledrejection', (event) => {
+  console.warn('Global unhandled promise rejection caught safely:', event.reason);
+});
+
+window.addEventListener('error', (event) => {
+  console.warn('Global uncaught exception caught safely:', event.error);
+});
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -85,7 +94,11 @@ root.render(
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('SW registered:', reg))
+      .then(reg => {
+        console.log('SW registered:', reg);
+        reg.update(); // Keep service worker updated cleanly
+      })
       .catch(err => console.error('SW registration failed:', err));
   });
 }
+

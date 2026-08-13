@@ -13,6 +13,39 @@ interface ChatListProps {
   isMobile?: boolean;
 }
 
+interface ChatListItemProps {
+  chat: Chat;
+  isActive: boolean;
+  onSelect: (id: string) => void;
+}
+
+const ChatListItem = React.memo<ChatListItemProps>(({ chat, isActive, onSelect }) => (
+  <div
+    onClick={() => onSelect(chat.id)}
+    className={`flex items-center px-4 py-3 cursor-pointer border-b app-border transition-colors ${
+      isActive ? 'app-header' : 'hover:bg-black/5'
+    }`}
+  >
+    <img src={chat.avatar} alt={chat.name} className="w-12 h-12 rounded-full mr-4 object-cover" />
+    <div className="flex-1 min-w-0">
+      <div className="flex justify-between items-baseline">
+        <h3 className="text-[calc(var(--msg-font-size)+2.5px)] text-primary font-normal truncate">{chat.name}</h3>
+        <span className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">{chat.lastMessageTime}</span>
+      </div>
+      <div className="flex justify-between items-center mt-0.5">
+        <p className={`text-[calc(var(--msg-font-size)-0.5px)] truncate flex-1 ${chat.unreadCount ? 'text-primary font-semibold' : 'text-secondary'}`}>
+          {chat.lastMessage}
+        </p>
+        {chat.unreadCount ? (
+          <span className="bg-[#25d366] text-white text-[calc(var(--msg-font-size)-2.5px)] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
+            {chat.unreadCount}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  </div>
+));
+
 export const ChatList: React.FC<ChatListProps> = ({ chats, activeChatId, onChatSelect, onAddPersona, onAddGroup, onMetaAIClick, isMobile }) => {
   const [filter, setFilter] = useState<FilterType>('All');
   const [search, setSearch] = useState('');
@@ -120,33 +153,16 @@ export const ChatList: React.FC<ChatListProps> = ({ chats, activeChatId, onChatS
       {/* List */}
       <div className="flex-1 overflow-y-auto">
         {filteredChats.map((chat) => (
-          <div
+          <ChatListItem
             key={chat.id}
-            onClick={() => onChatSelect(chat.id)}
-            className={`flex items-center px-4 py-3 cursor-pointer border-b app-border transition-colors ${activeChatId === chat.id ? 'app-header' : 'hover:bg-black/5'
-              }`}
-          >
-            <img src={chat.avatar} alt={chat.name} className="w-12 h-12 rounded-full mr-4 object-cover" />
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-baseline">
-                <h3 className="text-[calc(var(--msg-font-size)+2.5px)] text-primary font-normal truncate">{chat.name}</h3>
-                <span className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">{chat.lastMessageTime}</span>
-              </div>
-              <div className="flex justify-between items-center mt-0.5">
-                <p className={`text-[calc(var(--msg-font-size)-0.5px)] truncate flex-1 ${chat.unreadCount ? 'text-primary font-semibold' : 'text-secondary'}`}>
-                  {chat.lastMessage}
-                </p>
-                {chat.unreadCount ? (
-                  <span className="bg-[#25d366] text-white text-[calc(var(--msg-font-size)-2.5px)] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
-                    {chat.unreadCount}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          </div>
+            chat={chat}
+            isActive={activeChatId === chat.id}
+            onSelect={onChatSelect}
+          />
         ))}
       </div>
 
     </div>
   );
 };
+

@@ -24,7 +24,7 @@ const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2
 const getDateKey = getLocalDateKey;
 
 // Robust Native OS Notification Helper for System Tray & Notification Shade
-const showNotification = async (title: string, options: NotificationOptions) => {
+const showNotification = async (title: string, options: NotificationOptions & { historySnippet?: string }) => {
   if (!('Notification' in window)) return;
 
   if (Notification.permission === 'default') {
@@ -39,9 +39,16 @@ const showNotification = async (title: string, options: NotificationOptions) => 
 
   if (Notification.permission !== 'granted') return;
 
+  const formattedBody = options.historySnippet 
+    ? `${options.historySnippet}\n\n${options.body}`
+    : options.body;
+
   const notificationOptions: any = {
     ...options,
+    body: formattedBody,
     badge: options.badge || '/favicon.svg',
+    renotify: true,
+    requireInteraction: false,
     actions: [
       { action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' },
       { action: 'read', title: 'Mark as read' }
@@ -70,11 +77,12 @@ const showNotification = async (title: string, options: NotificationOptions) => 
       window.focus();
       n.close();
     };
-    setTimeout(() => n.close(), 7000);
+    setTimeout(() => n.close(), 10000);
   } catch (e) {
     console.warn("Standard Notification API failed", e);
   }
 };
+
 
 const playIncomingMessageSound = () => {
   if (!document.hidden) {
@@ -253,10 +261,17 @@ const App: React.FC = () => {
           return parsedChats.map(chat => ({
             ...chat,
             lastMessageTime: convertTo24Hour(chat?.lastMessageTime || ''),
-            messages: (Array.isArray(chat?.messages) ? chat.messages : []).map(msg => ({
-              ...msg,
-              timestamp: convertTo24Hour(msg?.timestamp || '')
-            }))
+            messages: (Array.isArray(chat?.messages) ? chat.messages : []).map(msg => {
+              const cleanMsg = {
+                ...msg,
+                timestamp: convertTo24Hour(msg?.timestamp || '')
+              };
+              // Strip heavy legacy Base64 image data from localStorage to keep state light and prevent startup freezes
+              if (cleanMsg.image && cleanMsg.image.length > 500) {
+                delete (cleanMsg as any).image;
+              }
+              return cleanMsg;
+            })
           }));
         }
       } catch (e) {
@@ -287,6 +302,17 @@ const App: React.FC = () => {
   const leftOnReadTimeoutsRef = React.useRef<Record<string, number>>({});
   useEffect(() => { chatsRef.current = chats; }, [chats]);
 
+  const buildNotificationHistorySnippet = (chat: Chat) => {
+    const recentMsgs = (chat.messages || []).slice(-3);
+    if (recentMsgs.length === 0) return undefined;
+    
+    return recentMsgs.map(m => {
+      const sender = m.sender === 'me' ? 'You' : (m.senderName || chat.name);
+      const cleanText = m.text ? (m.text.length > 55 ? m.text.slice(0, 52) + '...' : m.text) : 'Attachment';
+      return `${sender}: ${cleanText}`;
+    }).join('\n');
+  };
+
   // Service Worker Notification Actions Listener (REPLY & MARK AS READ from phone / OS tray)
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -299,9 +325,7 @@ const App: React.FC = () => {
           const text = event.data.text;
           const targetChat = chatsRef.current.find(c => c.id === chatId);
           if (targetChat) {
-            handleChatSelect(chatId);
-            setActiveView('chat');
-
+            // Process reply in background WITHOUT switching active view or active chat!
             if (leftOnReadTimeoutsRef.current[chatId]) {
               clearTimeout(leftOnReadTimeoutsRef.current[chatId]);
               delete leftOnReadTimeoutsRef.current[chatId];
@@ -448,8 +472,35 @@ const App: React.FC = () => {
     localStorage.setItem('whatsapp_settings', JSON.stringify(settings));
   }, [settings]);
 
+  // Throttled and safe localStorage saver for chats state (prevents main thread freeze & quota crashes)
+  const saveTimeoutRef = React.useRef<number | null>(null);
   useEffect(() => {
-    localStorage.setItem('whatsapp_chats', JSON.stringify(chats));
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = window.setTimeout(() => {
+      try {
+        const sanitizedChats = chats.map(c => ({
+          ...c,
+          messages: (c.messages || []).map(m => {
+            if (m.image && m.image.length > 500) {
+              const { image, ...rest } = m;
+              return rest as Message;
+            }
+            return m;
+          })
+        }));
+        localStorage.setItem('whatsapp_chats', JSON.stringify(sanitizedChats));
+      } catch (e) {
+        console.warn("Throttled localStorage save failed safely:", e);
+      }
+    }, 400);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
   }, [chats]);
 
   const activeChat = chats.find(c => c.id === activeChatId) || null;
@@ -637,7 +688,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
           if (document.hidden) {
             document.title = `(1) New Message - ${targetChat.name}`;
           }
-          showNotification(targetChat.name, { body: chunk, icon: targetChat.avatar, tag: chatId });
+          const historySnippet = buildNotificationHistorySnippet(targetChat);
+          showNotification(targetChat.name, { body: chunk, icon: targetChat.avatar, tag: chatId, historySnippet });
         }
 
         // 3. Randomized Inter-message Delay
@@ -800,10 +852,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         }
       }
 
-      return updatedChats; // triggerId/lastTriggered is handled inside handleAutomationTrigger to avoid loop sync issues
+      if (!chatUpdated) {
+        return prevChats; // Prevents unnecessary re-renders when no background triggers occur
+      }
+      return updatedChats;
     });
 
   };
+
 
   // Initial Startup Catch-Up
   useEffect(() => {
@@ -1112,12 +1168,13 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
         playIncomingMessageSound();
 
-        const isFocusingChat = !document.hidden && activeChatId === chatId;
+        const isFocusingChat = !document.hidden && activeChatId === chat.id;
         if (settings.enableNotifications && !isFocusingChat) {
           if (document.hidden) {
             document.title = `(1) New Message - ${chat.name}`;
           }
-          showNotification(chat.name, { body: chunk, icon: chat.avatar, tag: chat.id });
+          const historySnippet = buildNotificationHistorySnippet(chat);
+          showNotification(chat.name, { body: chunk, icon: chat.avatar, tag: chat.id, historySnippet });
         }
 
         // 4. Randomized Inter-message Delay (simulating hitting 'send' and starting to type next)
@@ -1261,7 +1318,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             if (document.hidden) {
               document.title = `(1) New Message - ${group.name}`;
             }
-            showNotification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar, tag: group.id });
+            const historySnippet = buildNotificationHistorySnippet(group);
+            showNotification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar, tag: group.id, historySnippet });
           }
 
           if (j < chunks.length - 1) {
