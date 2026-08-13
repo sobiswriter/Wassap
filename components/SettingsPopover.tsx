@@ -271,7 +271,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
                   const options = { 
                     body: 'Desktop and Mobile notifications are fully working!',
                     icon: '/favicon.svg',
-                    badge: '/favicon.svg',
+                    badge: '/badge.svg',
                     tag: 'test-notification'
                   };
                   if ('Notification' in window && Notification.permission === 'granted') {

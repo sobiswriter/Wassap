@@ -92,7 +92,7 @@ const showNotification = async (title: string, options: NotificationOptions & { 
   const notificationOptions: any = {
     ...options,
     icon: squareIcon,
-    badge: options.badge || '/favicon.svg',
+    badge: options.badge || '/badge.svg',
     renotify: !isSilent,
     silent: isSilent,
     requireInteraction: false,
@@ -745,8 +745,20 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
             document.title = `(1) New Message - ${targetChat.name}`;
           }
           const stackedTurnText = chunks.slice(0, i + 1).join('\n');
-          sendNotificationWithChimeRule(chatId, targetChat.name, targetChat.avatar, stackedTurnText);
+          const isFirstChunkOfTurn = (i === 0);
+
+          if (isFirstChunkOfTurn) {
+            playIncomingMessageSound();
+          }
+
+          showNotification(targetChat.name, {
+            body: stackedTurnText,
+            icon: targetChat.avatar,
+            tag: chatId,
+            silentUpdate: !isFirstChunkOfTurn
+          });
         }
+
 
         // 3. Randomized Inter-message Delay
         if (i < chunks.length - 1) {
@@ -1228,8 +1240,20 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             document.title = `(1) New Message - ${chat.name}`;
           }
           const stackedTurnText = chunks.slice(0, i + 1).join('\n');
-          sendNotificationWithChimeRule(chat.id, chat.name, chat.avatar, stackedTurnText);
+          const isFirstChunkOfTurn = (i === 0);
+
+          if (isFirstChunkOfTurn) {
+            playIncomingMessageSound();
+          }
+
+          showNotification(chat.name, {
+            body: stackedTurnText,
+            icon: chat.avatar,
+            tag: chat.id,
+            silentUpdate: !isFirstChunkOfTurn
+          });
         }
+
 
         // 4. Randomized Inter-message Delay (simulating hitting 'send' and starting to type next)
         if (i < chunks.length - 1) {
@@ -1371,8 +1395,20 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               document.title = `(1) New Message - ${group.name}`;
             }
             const stackedTurnText = chunks.slice(0, j + 1).join('\n');
-            sendNotificationWithChimeRule(group.id, `${group.name} - ${personaLabel}`, personaAvatar, stackedTurnText);
+            const isFirstChunkOfTurn = (j === 0);
+
+            if (isFirstChunkOfTurn) {
+              playIncomingMessageSound();
+            }
+
+            showNotification(`${group.name} - ${personaLabel}`, {
+              body: stackedTurnText,
+              icon: personaAvatar,
+              tag: group.id,
+              silentUpdate: !isFirstChunkOfTurn
+            });
           }
+
 
           if (j < chunks.length - 1) {
             setChatStatus(group.id, 'online');
@@ -1519,7 +1555,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               await showNotification(senderName, {
                 body: 'Desktop and Mobile notifications are working perfectly!',
                 icon: avatar,
-                badge: '/favicon.svg',
+                badge: '/badge.svg',
                 tag: 'test-notification'
               });
             }}
