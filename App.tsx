@@ -346,6 +346,12 @@ const App: React.FC = () => {
   const chatsRef = React.useRef<Chat[]>(chats);
   const handledTriggersRef = React.useRef<Set<string>>(new Set());
   const activeNotificationSoundChatsRef = React.useRef<Set<string>>(new Set());
+  const aiResponseTimeoutsRef = React.useRef<Record<string, number>>({});
+  const aiRespondingChatsRef = React.useRef<Set<string>>(new Set());
+  const pendingTimeGapsRef = React.useRef<Record<string, string | undefined>>({});
+  const leftOnReadTimeoutsRef = React.useRef<Record<string, number>>({});
+  useEffect(() => { chatsRef.current = chats; }, [chats]);
+
 
   const sendNotificationWithChimeRule = (chatId: string, title: string, avatar: string, bodyText: string) => {
     const isFirstInChain = !activeNotificationSoundChatsRef.current.has(chatId);
