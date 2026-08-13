@@ -133,54 +133,78 @@ const showNotification = async (title: string, options: NotificationOptions & { 
 
 
 
-let globalAudioInstance: HTMLAudioElement | null = null;
+let audioBufferCache: AudioBuffer | null = null;
+let audioContextInstance: AudioContext | null = null;
 
-const getAudioInstance = () => {
+const getAudioContext = () => {
   if (typeof window === 'undefined') return null;
-  if (!globalAudioInstance) {
-    globalAudioInstance = new Audio('/whatapp.wav');
+  if (!audioContextInstance) {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioContextClass) {
+      audioContextInstance = new AudioContextClass();
+    }
   }
-  return globalAudioInstance;
+  return audioContextInstance;
 };
 
-// Unlock audio on first user click/tap for browser autoplay compliance
+const preloadWavBuffer = async () => {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const res = await fetch('/whatapp.wav');
+    const arrayBuffer = await res.arrayBuffer();
+    audioBufferCache = await ctx.decodeAudioData(arrayBuffer);
+  } catch (e) {
+    console.warn("WAV buffer preload fallback:", e);
+  }
+};
+
 if (typeof window !== 'undefined') {
-  const unlockAudio = () => {
-    const sound = getAudioInstance();
-    if (sound) {
-      sound.volume = 0;
-      sound.play().then(() => {
-        sound.pause();
-        sound.currentTime = 0;
-        sound.volume = 1;
-      }).catch(() => {});
+  preloadWavBuffer();
+  const unlockCtx = () => {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume();
     }
-    window.removeEventListener('click', unlockAudio);
-    window.removeEventListener('keydown', unlockAudio);
-    window.removeEventListener('touchstart', unlockAudio);
+    window.removeEventListener('click', unlockCtx);
+    window.removeEventListener('keydown', unlockCtx);
+    window.removeEventListener('touchstart', unlockCtx);
   };
-  window.addEventListener('click', unlockAudio);
-  window.addEventListener('keydown', unlockAudio);
-  window.addEventListener('touchstart', unlockAudio);
+  window.addEventListener('click', unlockCtx);
+  window.addEventListener('keydown', unlockCtx);
+  window.addEventListener('touchstart', unlockCtx);
 }
 
 const playIncomingMessageSound = () => {
   if (document.hidden) return; // Only play sound when actively in the app!
 
+  // 1. Primary: Web Audio API (instant 0ms, bypasses browser element locks)
   try {
-    const sound = getAudioInstance();
-    if (sound) {
-      sound.currentTime = 0;
-      sound.volume = 1;
-      sound.play().catch(e => console.warn("Audio play failed or blocked:", e));
-    } else {
-      const audio = new Audio('/whatapp.wav');
-      audio.play().catch(e => console.warn("Fallback audio play failed:", e));
+    const ctx = getAudioContext();
+    if (ctx && audioBufferCache) {
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = audioBufferCache;
+      source.connect(ctx.destination);
+      source.start(0);
+      return;
     }
+  } catch (e) {
+    console.warn("Web Audio API play failed, falling back to HTML5 Audio", e);
+  }
+
+  // 2. Fallback: HTML5 Audio
+  try {
+    const audio = new Audio('/whatapp.wav');
+    audio.volume = 1;
+    audio.play().catch(e => console.warn("HTML5 Audio play failed:", e));
   } catch (e) {
     console.warn("Failed to play notification sound", e);
   }
 };
+
 
 
 
@@ -783,17 +807,17 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
           return c;
         }));
 
+        const isFirstChunkOfTurn = (i === 0);
+        if (isFirstChunkOfTurn) {
+          playIncomingMessageSound();
+        }
+
         const isFocusingChat = !document.hidden && activeChatId === chatId;
         if (settings.enableNotifications && !isFocusingChat) {
           if (document.hidden) {
             document.title = `(1) New Message - ${targetChat.name}`;
           }
           const stackedTurnText = chunks.slice(0, i + 1).join('\n');
-          const isFirstChunkOfTurn = (i === 0);
-
-          if (isFirstChunkOfTurn) {
-            playIncomingMessageSound();
-          }
 
           showNotification(targetChat.name, {
             body: stackedTurnText,
@@ -802,6 +826,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
             silentUpdate: !isFirstChunkOfTurn
           });
         }
+
 
 
         // 3. Randomized Inter-message Delay
@@ -1278,17 +1303,17 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           return c;
         }));
 
+        const isFirstChunkOfTurn = (i === 0);
+        if (isFirstChunkOfTurn) {
+          playIncomingMessageSound();
+        }
+
         const isFocusingChat = !document.hidden && activeChatId === chat.id;
         if (settings.enableNotifications && !isFocusingChat) {
           if (document.hidden) {
             document.title = `(1) New Message - ${chat.name}`;
           }
           const stackedTurnText = chunks.slice(0, i + 1).join('\n');
-          const isFirstChunkOfTurn = (i === 0);
-
-          if (isFirstChunkOfTurn) {
-            playIncomingMessageSound();
-          }
 
           showNotification(chat.name, {
             body: stackedTurnText,
@@ -1297,6 +1322,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             silentUpdate: !isFirstChunkOfTurn
           });
         }
+
 
 
         // 4. Randomized Inter-message Delay (simulating hitting 'send' and starting to type next)
@@ -1431,6 +1457,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             return c;
           }));
 
+          const isFirstChunkOfTurn = (j === 0);
+          if (isFirstChunkOfTurn) {
+            playIncomingMessageSound();
+          }
+
           const isFocusingChat = !document.hidden && activeChatId === group.id;
           if (settings.enableNotifications && !isFocusingChat) {
             const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
@@ -1439,11 +1470,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               document.title = `(1) New Message - ${group.name}`;
             }
             const stackedTurnText = chunks.slice(0, j + 1).join('\n');
-            const isFirstChunkOfTurn = (j === 0);
-
-            if (isFirstChunkOfTurn) {
-              playIncomingMessageSound();
-            }
 
             showNotification(`${group.name} - ${personaLabel}`, {
               body: stackedTurnText,
@@ -1452,6 +1478,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               silentUpdate: !isFirstChunkOfTurn
             });
           }
+
 
 
           if (j < chunks.length - 1) {
