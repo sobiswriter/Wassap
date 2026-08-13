@@ -23,8 +23,55 @@ import { MobileActionFAB } from './components/MobileActionFAB';
 const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 const getDateKey = getLocalDateKey;
 
+const avatarCache = new Map<string, string>();
+
+// Canvas helper to guarantee 1:1 square cropped notification icons with zero stretching across all OS notification shades
+const getSquareNotificationIcon = async (url?: string): Promise<string> => {
+  const fallback = '/favicon.svg';
+  if (!url || typeof window === 'undefined') return fallback;
+  if (avatarCache.has(url)) return avatarCache.get(url)!;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const size = 192;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+          resolve(url);
+          return;
+        }
+
+        // Center-crop (aspect-fill cover) into a 1:1 square canvas
+        const scale = Math.max(size / img.width, size / img.height);
+        const nw = img.width * scale;
+        const nh = img.height * scale;
+        const dx = (size - nw) / 2;
+        const dy = (size - nh) / 2;
+
+        ctx.fillStyle = '#00a884';
+        ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(img, dx, dy, nw, nh);
+
+        const dataUrl = canvas.toDataURL('image/png');
+        avatarCache.set(url, dataUrl);
+        resolve(dataUrl);
+      } catch (e) {
+        resolve(url);
+      }
+    };
+    img.onerror = () => resolve(url);
+    img.src = url;
+  });
+};
+
 // Robust Native OS Notification Helper for System Tray & Notification Shade
-const showNotification = async (title: string, options: NotificationOptions & { historySnippet?: string }) => {
+const showNotification = async (title: string, options: NotificationOptions & { silentUpdate?: boolean }) => {
   if (!('Notification' in window)) return;
 
   if (Notification.permission === 'default') {
@@ -39,15 +86,15 @@ const showNotification = async (title: string, options: NotificationOptions & { 
 
   if (Notification.permission !== 'granted') return;
 
-  const formattedBody = options.historySnippet 
-    ? `${options.historySnippet}\n\n${options.body}`
-    : options.body;
+  const isSilent = !!options.silentUpdate;
+  const squareIcon = options.icon ? await getSquareNotificationIcon(options.icon as string) : '/favicon.svg';
 
   const notificationOptions: any = {
     ...options,
-    body: formattedBody,
+    icon: squareIcon,
     badge: options.badge || '/favicon.svg',
-    renotify: true,
+    renotify: !isSilent,
+    silent: isSilent,
     requireInteraction: false,
     actions: [
       { action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' },
@@ -82,6 +129,8 @@ const showNotification = async (title: string, options: NotificationOptions & { 
     console.warn("Standard Notification API failed", e);
   }
 };
+
+
 
 
 const playIncomingMessageSound = () => {
@@ -296,21 +345,22 @@ const App: React.FC = () => {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const chatsRef = React.useRef<Chat[]>(chats);
   const handledTriggersRef = React.useRef<Set<string>>(new Set());
-  const aiResponseTimeoutsRef = React.useRef<Record<string, number>>({});
-  const aiRespondingChatsRef = React.useRef<Set<string>>(new Set());
-  const pendingTimeGapsRef = React.useRef<Record<string, string | undefined>>({});
-  const leftOnReadTimeoutsRef = React.useRef<Record<string, number>>({});
-  useEffect(() => { chatsRef.current = chats; }, [chats]);
+  const activeNotificationSoundChatsRef = React.useRef<Set<string>>(new Set());
 
-  const buildNotificationHistorySnippet = (chat: Chat) => {
-    const recentMsgs = (chat.messages || []).slice(-3);
-    if (recentMsgs.length === 0) return undefined;
+  const sendNotificationWithChimeRule = (chatId: string, title: string, avatar: string, bodyText: string) => {
+    const isFirstInChain = !activeNotificationSoundChatsRef.current.has(chatId);
     
-    return recentMsgs.map(m => {
-      const sender = m.sender === 'me' ? 'You' : (m.senderName || chat.name);
-      const cleanText = m.text ? (m.text.length > 55 ? m.text.slice(0, 52) + '...' : m.text) : 'Attachment';
-      return `${sender}: ${cleanText}`;
-    }).join('\n');
+    if (isFirstInChain) {
+      playIncomingMessageSound();
+      activeNotificationSoundChatsRef.current.add(chatId);
+    }
+
+    showNotification(title, {
+      body: bodyText,
+      icon: avatar,
+      tag: chatId,
+      silentUpdate: !isFirstInChain
+    });
   };
 
   // Service Worker Notification Actions Listener (REPLY & MARK AS READ from phone / OS tray)
@@ -319,6 +369,7 @@ const App: React.FC = () => {
       const handleServiceWorkerMessage = (event: MessageEvent) => {
         const { type, chatId } = event.data || {};
         if (type === 'OPEN_CHAT' && chatId) {
+          activeNotificationSoundChatsRef.current.delete(chatId);
           handleChatSelect(chatId);
           setActiveView('chat');
         } else if (type === 'INLINE_REPLY' && chatId && event.data.text) {
@@ -369,6 +420,7 @@ const App: React.FC = () => {
             }
           }
         } else if (type === 'MARK_AS_READ' && chatId) {
+          activeNotificationSoundChatsRef.current.delete(chatId);
           // Mark as read & trigger left on read persona reaction
           setChats(prev => prev.map(c => {
             if (c.id === chatId) {
@@ -681,15 +733,13 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
           return c;
         }));
 
-        playIncomingMessageSound();
-
         const isFocusingChat = !document.hidden && activeChatId === chatId;
         if (settings.enableNotifications && !isFocusingChat) {
           if (document.hidden) {
             document.title = `(1) New Message - ${targetChat.name}`;
           }
-          const historySnippet = buildNotificationHistorySnippet(targetChat);
-          showNotification(targetChat.name, { body: chunk, icon: targetChat.avatar, tag: chatId, historySnippet });
+          const stackedTurnText = chunks.slice(0, i + 1).join('\n');
+          sendNotificationWithChimeRule(chatId, targetChat.name, targetChat.avatar, stackedTurnText);
         }
 
         // 3. Randomized Inter-message Delay
@@ -1166,15 +1216,13 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           return c;
         }));
 
-        playIncomingMessageSound();
-
         const isFocusingChat = !document.hidden && activeChatId === chat.id;
         if (settings.enableNotifications && !isFocusingChat) {
           if (document.hidden) {
             document.title = `(1) New Message - ${chat.name}`;
           }
-          const historySnippet = buildNotificationHistorySnippet(chat);
-          showNotification(chat.name, { body: chunk, icon: chat.avatar, tag: chat.id, historySnippet });
+          const stackedTurnText = chunks.slice(0, i + 1).join('\n');
+          sendNotificationWithChimeRule(chat.id, chat.name, chat.avatar, stackedTurnText);
         }
 
         // 4. Randomized Inter-message Delay (simulating hitting 'send' and starting to type next)
@@ -1309,8 +1357,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             return c;
           }));
 
-          playIncomingMessageSound();
-
           const isFocusingChat = !document.hidden && activeChatId === group.id;
           if (settings.enableNotifications && !isFocusingChat) {
             const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
@@ -1318,8 +1364,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             if (document.hidden) {
               document.title = `(1) New Message - ${group.name}`;
             }
-            const historySnippet = buildNotificationHistorySnippet(group);
-            showNotification(`${group.name} - ${personaLabel}`, { body: chunk, icon: personaAvatar, tag: group.id, historySnippet });
+            const stackedTurnText = chunks.slice(0, j + 1).join('\n');
+            sendNotificationWithChimeRule(group.id, `${group.name} - ${personaLabel}`, personaAvatar, stackedTurnText);
           }
 
           if (j < chunks.length - 1) {
@@ -1346,6 +1392,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   };
 
   const handleChatSelect = (id: string) => {
+    activeNotificationSoundChatsRef.current.delete(id);
     setActiveChatId(id);
     setChats(prev => prev.map(c => c.id === id ? { ...c, unreadCount: 0 } : c));
     setShowProfilePanel(false);
