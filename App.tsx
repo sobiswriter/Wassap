@@ -133,12 +133,56 @@ const showNotification = async (title: string, options: NotificationOptions & { 
 
 
 
+let globalAudioInstance: HTMLAudioElement | null = null;
+
+const getAudioInstance = () => {
+  if (typeof window === 'undefined') return null;
+  if (!globalAudioInstance) {
+    globalAudioInstance = new Audio('/whatapp.wav');
+  }
+  return globalAudioInstance;
+};
+
+// Unlock audio on first user click/tap for browser autoplay compliance
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    const sound = getAudioInstance();
+    if (sound) {
+      sound.volume = 0;
+      sound.play().then(() => {
+        sound.pause();
+        sound.currentTime = 0;
+        sound.volume = 1;
+      }).catch(() => {});
+    }
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('keydown', unlockAudio);
+    window.removeEventListener('touchstart', unlockAudio);
+  };
+  window.addEventListener('click', unlockAudio);
+  window.addEventListener('keydown', unlockAudio);
+  window.addEventListener('touchstart', unlockAudio);
+}
+
 const playIncomingMessageSound = () => {
-  if (!document.hidden) {
-    const audio = new Audio('/whatapp.wav');
-    audio.play().catch(e => console.warn("Audio play failed:", e));
+  if (document.hidden) return; // Only play sound when actively in the app!
+
+  try {
+    const sound = getAudioInstance();
+    if (sound) {
+      sound.currentTime = 0;
+      sound.volume = 1;
+      sound.play().catch(e => console.warn("Audio play failed or blocked:", e));
+    } else {
+      const audio = new Audio('/whatapp.wav');
+      audio.play().catch(e => console.warn("Fallback audio play failed:", e));
+    }
+  } catch (e) {
+    console.warn("Failed to play notification sound", e);
   }
 };
+
+
 
 // Utility to split AI responses into human-like chunks
 const splitMessage = (text: string): string[] => {
