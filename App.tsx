@@ -1699,6 +1699,26 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             }}
           />
         )}
+        {showNewChatPanel && (
+          <NewChatPanel
+            onClose={() => setShowNewChatPanel(false)}
+            onCreate={handleCreatePersona}
+          />
+        )}
+        {showNewGroupPanel && (
+          <NewGroupPanel
+            personas={chats.filter(c => !c.isGroup)}
+            onClose={() => setShowNewGroupPanel(false)}
+            onCreate={handleCreateGroup}
+          />
+        )}
+        {showUserProfilePanel && (
+          <UserProfilePanel
+            user={user}
+            onClose={() => setShowUserProfilePanel(false)}
+            onUpdate={setUser}
+          />
+        )}
         {/* Mobile Floating Action Button Hub */}
         {isMobile && activeView === 'list' && !showSettingsPopover && !showNewChatPanel && !showNewGroupPanel && !showUserProfilePanel && !showCalendarWidget && !showProfilePanel && (
           <MobileActionFAB
