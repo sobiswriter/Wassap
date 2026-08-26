@@ -539,12 +539,39 @@ const App: React.FC = () => {
   }, []);
 
   // User and Settings State
-  const [user, setUser] = useState<UserProfile>({
-    name: 'You',
-    about: 'Hey there! I am using WhatsApp.',
-    status: 'Available',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop'
+  const [user, setUser] = useState<UserProfile>(() => {
+    const saved = localStorage.getItem('whatsapp_user');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            name: 'You',
+            about: 'Hey there! I am using WhatsApp.',
+            status: 'Available',
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop',
+            ...parsed
+          };
+        }
+      } catch (e) {
+        console.error("Failed to parse user profile safely", e);
+      }
+    }
+    return {
+      name: 'You',
+      about: 'Hey there! I am using WhatsApp.',
+      status: 'Available',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop'
+    };
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('whatsapp_user', JSON.stringify(user));
+    } catch (e) {
+      console.warn("Failed to save user profile to localStorage:", e);
+    }
+  }, [user]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -600,26 +627,31 @@ const App: React.FC = () => {
 
   // Throttled and safe localStorage saver for chats state (prevents main thread freeze & quota crashes)
   const saveTimeoutRef = React.useRef<number | null>(null);
+
+  const saveChatsNow = (currentChats: Chat[]) => {
+    try {
+      const sanitizedChats = currentChats.map(c => ({
+        ...c,
+        messages: (c.messages || []).map(m => {
+          if (m.image && m.image.length > 500) {
+            const { image, ...rest } = m;
+            return rest as Message;
+          }
+          return m;
+        })
+      }));
+      localStorage.setItem('whatsapp_chats', JSON.stringify(sanitizedChats));
+    } catch (e) {
+      console.warn("Throttled localStorage save failed safely:", e);
+    }
+  };
+
   useEffect(() => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = window.setTimeout(() => {
-      try {
-        const sanitizedChats = chats.map(c => ({
-          ...c,
-          messages: (c.messages || []).map(m => {
-            if (m.image && m.image.length > 500) {
-              const { image, ...rest } = m;
-              return rest as Message;
-            }
-            return m;
-          })
-        }));
-        localStorage.setItem('whatsapp_chats', JSON.stringify(sanitizedChats));
-      } catch (e) {
-        console.warn("Throttled localStorage save failed safely:", e);
-      }
+      saveChatsNow(chats);
     }, 400);
 
     return () => {
@@ -628,6 +660,25 @@ const App: React.FC = () => {
       }
     };
   }, [chats]);
+
+  // Ensure any pending state is saved immediately on page exit / unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      saveChatsNow(chatsRef.current);
+      try {
+        localStorage.setItem('whatsapp_user', JSON.stringify(user));
+        localStorage.setItem('whatsapp_settings', JSON.stringify(settings));
+      } catch (e) {
+        console.warn("Unload save failed:", e);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+    };
+  }, [user, settings]);
 
   const activeChat = chats.find(c => c.id === activeChatId) || null;
   const unreadTotal = chats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
@@ -1535,7 +1586,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       lastMessageTime: getFormattedTime(),
       messages: [{
         id: 'init',
-        text: `Welcome to ${data.name}! Members: ${data.memberIds.map(id => chats.find(c => c.id === id)?.name).join(', ')}`,
+        text: `Welcome to ${data.name}! Members: ${data.memberIds.map(id => chatsRef.current.find(c => c.id === id)?.name || id).join(', ')}`,
         sender: 'other',
         senderName: 'System',
         date: getDateKey(),
@@ -1543,7 +1594,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         timestampEpoch: Date.now()
       }]
     };
-    setChats([newGroup, ...chats]);
+    setChats(prev => [newGroup, ...prev]);
     setActiveChatId(newGroup.id);
     setShowNewGroupPanel(false);
   };
@@ -1557,7 +1608,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       messages: [],
       status: 'offline',
     };
-    setChats([newPersona, ...chats]);
+    setChats(prev => [newPersona, ...prev]);
     setActiveChatId(newPersona.id);
     setShowNewChatPanel(false);
   };
