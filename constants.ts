@@ -204,4 +204,19 @@ export const GCP_CONFIG = {
 
 export const DEFAULT_AI_PROVIDER = 'vertex' as const;
 
+export interface WallpaperPreset {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export const WALLPAPER_PRESETS: WallpaperPreset[] = [
+  { id: 'default', name: 'WhatsApp Doodle', url: 'default' },
+  { id: 'midnight-minimal', name: 'Midnight Waves', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80' },
+  { id: 'nature-mist', name: 'Misty Forest', url: 'https://images.unsplash.com/photo-1511497584788-87676104235f?auto=format&fit=crop&w=1200&q=80' },
+  { id: 'warm-sunset', name: 'Warm Sunset', url: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80' },
+  { id: 'deep-cyber', name: 'Deep Cyber', url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1200&q=80' },
+];
+
+
 

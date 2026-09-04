@@ -732,7 +732,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
         <div ref={scrollRef} />
       </div>
 
-      <div className="absolute inset-0 pointer-events-none chat-wallpaper transition-all duration-500" />
+      {/* Background wallpaper layer with responsive scaling and cropping */}
+      <div
+        className="absolute inset-0 pointer-events-none chat-wallpaper transition-all duration-500"
+        style={
+          settings?.chatWallpaper && settings.chatWallpaper !== 'default'
+            ? {
+                backgroundImage: `url("${settings.chatWallpaper}")`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center center',
+                backgroundRepeat: 'no-repeat',
+                opacity: settings.chatWallpaperOpacity !== undefined ? settings.chatWallpaperOpacity : 0.85,
+              }
+            : undefined
+        }
+      />
     </div>
   );
 };

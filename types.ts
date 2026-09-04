@@ -138,6 +138,8 @@ export interface AppSettings {
   customTemplates?: PersonaTemplate[];
   enableTextStacking?: boolean;
   textStackingDelay?: number;
+  chatWallpaper?: string;
+  chatWallpaperOpacity?: number;
 }
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';

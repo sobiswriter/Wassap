@@ -88,6 +88,7 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
               changes={[
                 "Dual AI Provider: Toggle between Built-in Cloud (Vertex AI) with server credits or Custom Gemini AI Studio key.",
                 "Zero-Key Built-in Mode: Chat instantly with all personas powered by Google Cloud Vertex AI without supplying your own API key.",
+                "Custom Chat Wallpapers: Upload custom background photos or choose from aesthetic presets with responsive cover-scaling and opacity controls.",
                 "Streamlined Next-Gen Models: Powered by gemini-3.8-flash (default), gemini-3.7-flash, and gemini-3.5-flash-lite.",
                 "Speech Engine Preview: Added gemini-3.1-flash-tts-preview to the model lineup for upcoming voice capabilities."
               ]}

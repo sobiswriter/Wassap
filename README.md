@@ -62,6 +62,7 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 ### 🌟 What's New in v1.6.0 (The "Cloud Credits & Dual Provider" Update)
 *   **Dual AI Provider Architecture**: Choose between **Built-in Cloud (Vertex AI)** using server credits or **Custom API Key (Gemini AI Studio)** stored safely in browser `localStorage`.
 *   **Zero-Config Instant Chat**: New users can chat out of the box without providing an API key thanks to built-in Vertex AI integration.
+*   **Custom Chat Wallpapers**: Personalize the chat window with your own background photos or choose from curated aesthetic presets (with responsive cover-scaling and opacity dimming).
 *   **Upgraded Model Lineup**: Powered by `gemini-3.8-flash` (default), `gemini-3.7-flash`, and `gemini-3.5-flash-lite`.
 *   **Voice Engine Preview**: Added `gemini-3.1-flash-tts-preview` to the model list in preparation for native speech generation features.
 

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw } from 'lucide-react';
 import { AppSettings, AiProvider } from '../types';
-import { AVAILABLE_MODELS, GCP_CONFIG, DEFAULT_MODEL } from '../constants';
+import { AVAILABLE_MODELS, GCP_CONFIG, DEFAULT_MODEL, WALLPAPER_PRESETS } from '../constants';
+import { compressWallpaperImage } from '../utils/imageCompressor';
 
 interface SettingsPopoverProps {
   settings: AppSettings;
@@ -12,10 +13,70 @@ interface SettingsPopoverProps {
 
 export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUpdate, onClose, onTestNotification }) => {
   const [showKey, setShowKey] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [draftSettings, setDraftSettings] = useState<AppSettings>({
     ...settings,
     aiProvider: settings.aiProvider || 'vertex',
+    chatWallpaper: settings.chatWallpaper || 'default',
+    chatWallpaperOpacity: settings.chatWallpaperOpacity ?? 0.85,
   });
+
+  const handleToggleTheme = () => {
+    const nextTheme = draftSettings.theme === 'light' ? 'dark' : 'light';
+    const updated = { ...draftSettings, theme: nextTheme };
+    setDraftSettings(updated);
+
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
+    onUpdate(updated);
+  };
+
+  const handleSelectWallpaper = (url: string) => {
+    const updated = {
+      ...draftSettings,
+      chatWallpaper: url,
+      chatWallpaperOpacity: draftSettings.chatWallpaperOpacity ?? 0.85,
+    };
+    setDraftSettings(updated);
+    onUpdate(updated);
+  };
+
+  const handleUploadWallpaper = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await compressWallpaperImage(file);
+      const updated = {
+        ...draftSettings,
+        chatWallpaper: dataUrl,
+        chatWallpaperOpacity: draftSettings.chatWallpaperOpacity ?? 0.85,
+      };
+      setDraftSettings(updated);
+      onUpdate(updated);
+    } catch (err) {
+      console.error("Failed to compress wallpaper:", err);
+    }
+  };
+
+  const handleResetWallpaper = () => {
+    const updated = {
+      ...draftSettings,
+      chatWallpaper: 'default',
+      chatWallpaperOpacity: 0.85,
+    };
+    setDraftSettings(updated);
+    onUpdate(updated);
+  };
+
+  const handleOpacityChange = (opacity: number) => {
+    const updated = { ...draftSettings, chatWallpaperOpacity: opacity };
+    setDraftSettings(updated);
+    onUpdate(updated);
+  };
 
   const handleSave = () => {
     onUpdate(draftSettings);
@@ -23,6 +84,9 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
   };
 
   const currentProvider: AiProvider = draftSettings.aiProvider || 'vertex';
+  const currentWallpaper = draftSettings.chatWallpaper || 'default';
+  const isPreset = WALLPAPER_PRESETS.some(p => p.url === currentWallpaper);
+  const isUploadedCustom = currentWallpaper !== 'default' && !isPreset;
 
   return (
     <div className="absolute left-0 md:left-[80px] bottom-0 md:bottom-20 w-full md:w-[340px] h-[calc(100%-80px)] md:h-auto max-h-[calc(100vh-140px)] app-panel md:rounded-lg shadow-2xl border app-border z-[1000] animate-in slide-in-from-bottom-2 duration-200 flex flex-col text-primary">
@@ -170,18 +234,177 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {settings.theme === 'light' ? <Sun size={20} className="text-[#00a884]" /> : <Moon size={20} className="text-[#00a884]" />}
+            {draftSettings.theme === 'light' ? (
+              <Sun size={20} className="text-amber-500" />
+            ) : (
+              <Moon size={20} className="text-[#00a884]" />
+            )}
             <div>
               <p className="text-[length:var(--msg-font-size)] font-medium">App Theme</p>
-              <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Current: {settings.theme === 'light' ? 'Light' : 'Dark'}</p>
+              <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">
+                {draftSettings.theme === 'light' ? 'Light Mode' : 'Dark Mode'}
+              </p>
             </div>
           </div>
-          <button
-            onClick={() => setDraftSettings({ ...draftSettings, theme: draftSettings.theme === 'light' ? 'dark' : 'light' })}
-            className="text-[calc(var(--msg-font-size)-1.5px)] text-[#00a884] font-medium uppercase hover:bg-black/10 px-2 py-1 rounded transition-colors"
+          <div
+            onClick={handleToggleTheme}
+            className={`w-11 h-6 rounded-full relative cursor-pointer transition-colors p-0.5 flex items-center ${
+              draftSettings.theme === 'dark' ? 'bg-[#00a884]' : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+            title="Toggle Light/Dark Theme"
           >
-            Change
-          </button>
+            <div
+              className={`w-5 h-5 bg-white rounded-full shadow-md transition-all flex items-center justify-center transform ${
+                draftSettings.theme === 'dark' ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            >
+              {draftSettings.theme === 'dark' ? (
+                <Moon size={11} className="text-[#00a884]" />
+              ) : (
+                <Sun size={11} className="text-amber-500" />
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="h-[1px] bg-gray-200 dark:bg-gray-800" />
+
+        {/* Chat Wallpaper Section */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <ImageIcon size={20} className="text-[#00a884]" />
+              <div>
+                <p className="text-[length:var(--msg-font-size)] font-medium">Chat Wallpaper</p>
+                <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">
+                  {currentWallpaper === 'default' ? 'Classic WhatsApp Doodle' : 'Custom Background Active'}
+                </p>
+              </div>
+            </div>
+            {currentWallpaper !== 'default' && (
+              <button
+                onClick={handleResetWallpaper}
+                className="flex items-center gap-1 text-[calc(var(--msg-font-size)-3px)] text-secondary hover:text-[#00a884] transition-colors cursor-pointer"
+                title="Reset to WhatsApp Doodle"
+              >
+                <RotateCcw size={12} />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+
+          {/* Wallpaper Selection Grid */}
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            {/* WhatsApp Doodle Preset */}
+            <div
+              onClick={() => handleSelectWallpaper('default')}
+              className={`relative h-14 rounded-lg border cursor-pointer overflow-hidden transition-all flex flex-col items-center justify-center p-1 ${
+                currentWallpaper === 'default'
+                  ? 'border-[#00a884] ring-2 ring-[#00a884]/30'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+              } bg-[#efeae2] dark:bg-[#0b141a]`}
+              title="Classic WhatsApp Doodle"
+            >
+              <div className="w-full h-full opacity-40 bg-[url('/images/light.png')] dark:bg-[url('/images/dark.png')] bg-repeat bg-[length:120px]" />
+              <span className="absolute bottom-1 text-[9px] font-semibold bg-black/60 text-white px-1.5 py-0.5 rounded shadow">
+                Default
+              </span>
+              {currentWallpaper === 'default' && (
+                <div className="absolute top-1 right-1 bg-[#00a884] text-white rounded-full p-0.5 shadow">
+                  <Check size={10} />
+                </div>
+              )}
+            </div>
+
+            {/* Presets */}
+            {WALLPAPER_PRESETS.filter(p => p.id !== 'default').slice(0, 4).map(preset => {
+              const isSelected = currentWallpaper === preset.url;
+              return (
+                <div
+                  key={preset.id}
+                  onClick={() => handleSelectWallpaper(preset.url)}
+                  className={`relative h-14 rounded-lg border cursor-pointer overflow-hidden transition-all ${
+                    isSelected
+                      ? 'border-[#00a884] ring-2 ring-[#00a884]/30'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  }`}
+                  style={{
+                    backgroundImage: `url(${preset.url})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
+                  title={preset.name}
+                >
+                  <span className="absolute bottom-1 left-1 right-1 text-center truncate text-[9px] font-medium bg-black/60 text-white px-1 py-0.5 rounded shadow">
+                    {preset.name}
+                  </span>
+                  {isSelected && (
+                    <div className="absolute top-1 right-1 bg-[#00a884] text-white rounded-full p-0.5 shadow">
+                      <Check size={10} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Upload Custom Wallpaper Button */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className={`relative h-14 rounded-lg border-2 border-dashed cursor-pointer flex flex-col items-center justify-center gap-1 transition-all ${
+                isUploadedCustom
+                  ? 'border-[#00a884] bg-[#00a884]/10'
+                  : 'border-gray-300 dark:border-gray-700 hover:border-[#00a884] hover:bg-black/[0.02] dark:hover:bg-white/[0.02]'
+              }`}
+              style={isUploadedCustom ? {
+                backgroundImage: `url(${currentWallpaper})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              } : undefined}
+              title="Upload custom background image"
+            >
+              {!isUploadedCustom ? (
+                <>
+                  <Upload size={14} className="text-secondary" />
+                  <span className="text-[10px] font-medium text-secondary">Custom</span>
+                </>
+              ) : (
+                <>
+                  <span className="absolute bottom-1 left-1 right-1 text-center truncate text-[9px] font-medium bg-black/60 text-white px-1 py-0.5 rounded shadow">
+                    Custom Image
+                  </span>
+                  <div className="absolute top-1 right-1 bg-[#00a884] text-white rounded-full p-0.5 shadow">
+                    <Check size={10} />
+                  </div>
+                </>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleUploadWallpaper}
+                className="hidden"
+              />
+            </div>
+          </div>
+
+          {/* Opacity slider for custom wallpapers */}
+          {currentWallpaper !== 'default' && (
+            <div className="space-y-1.5 pt-1 animate-in fade-in duration-150">
+              <div className="flex justify-between text-[calc(var(--msg-font-size)-3px)] text-secondary">
+                <span>Wallpaper Opacity</span>
+                <span className="font-mono">{Math.round((draftSettings.chatWallpaperOpacity ?? 0.85) * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="1.0"
+                step="0.05"
+                value={draftSettings.chatWallpaperOpacity ?? 0.85}
+                onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
+                className="w-full h-1.5 bg-[#f0f2f5] dark:bg-[#202c33] rounded-lg appearance-none cursor-pointer accent-[#00a884]"
+              />
+            </div>
+          )}
         </div>
 
         {/* Model Selection */}

@@ -601,6 +601,8 @@ const App: React.FC = () => {
             shareUserInfo: true,
             fontSize: 14.5,
             aiProvider: 'vertex',
+            chatWallpaper: 'default',
+            chatWallpaperOpacity: 0.85,
             ...parsed
           };
         }
@@ -612,7 +614,9 @@ const App: React.FC = () => {
       theme: 'light',
       shareUserInfo: true,
       fontSize: 14.5,
-      aiProvider: 'vertex'
+      aiProvider: 'vertex',
+      chatWallpaper: 'default',
+      chatWallpaperOpacity: 0.85
     };
   });
 
@@ -1642,7 +1646,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-white overflow-hidden p-0">
+    <div className="h-screen w-full flex flex-col bg-[#f0f2f5] dark:bg-[#0c1317] overflow-hidden p-0">
       {/* Top Title Bar */}
       <div className="hidden md:flex h-[30px] app-panel items-center px-3 gap-2 shrink-0 border-b app-border select-none">
         <div className="bg-[#25d366] p-[2px] rounded flex items-center justify-center">
@@ -1653,7 +1657,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         <span className="text-[calc(var(--msg-font-size)-2.5px)] font-semibold text-secondary">WhatsApp</span>
       </div>
 
-      <div className="flex-1 flex overflow-hidden bg-white relative">
+      <div className="flex-1 flex overflow-hidden bg-white dark:bg-[#111b21] relative">
         <div className={`hidden md:block`}>
           <Sidebar
             userAvatar={user.avatar}
