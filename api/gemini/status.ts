@@ -1,6 +1,17 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { sendJson } from '../_lib/api';
-import { DEFAULT_GCP_PROJECT, DEFAULT_GCP_REGION } from '../_lib/vertexHandler';
+
+const DEFAULT_GCP_PROJECT = 'gen-lang-client-0100408368';
+const DEFAULT_GCP_REGION = 'global';
+
+function sendJson(res: ServerResponse & { status?: (code: number) => any; json?: (data: any) => any }, statusCode: number, data: any) {
+  if (typeof res.status === 'function' && typeof res.json === 'function') {
+    res.status(statusCode).json(data);
+    return;
+  }
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(data));
+}
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
