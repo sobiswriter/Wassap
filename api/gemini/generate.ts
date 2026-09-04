@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { handleVertexChat } from '../../server/vertexHandler';
-import { parseJsonBody, sendJson, isPasscodeValid } from '../../server/api';
+import { handleVertexChat } from '../_lib/vertexHandler';
+import { parseJsonBody, sendJson, isPasscodeValid } from '../_lib/api';
 
 export default async function handler(req: IncomingMessage & { body?: any }, res: ServerResponse) {
   // CORS configuration

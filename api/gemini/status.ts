@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { sendJson } from '../../server/api';
-import { GCP_CONFIG } from '../../constants';
+import { sendJson } from '../_lib/api';
+import { DEFAULT_GCP_PROJECT, DEFAULT_GCP_REGION } from '../_lib/vertexHandler';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -12,8 +12,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
-  const project = process.env.VERTEX_PROJECT_ID || GCP_CONFIG.projectId;
-  const region = process.env.VERTEX_LOCATION || process.env.GOOGLE_CLOUD_LOCATION || GCP_CONFIG.defaultRegion;
+  const project = process.env.VERTEX_PROJECT_ID || DEFAULT_GCP_PROJECT;
+  const region = process.env.VERTEX_LOCATION || process.env.GOOGLE_CLOUD_LOCATION || DEFAULT_GCP_REGION;
   const clientEmail =
     process.env.GCP_CLIENT_EMAIL ||
     process.env.CLIENT_EMAIL ||
