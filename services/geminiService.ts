@@ -1,12 +1,15 @@
 import { GoogleGenAI } from "@google/genai";
 import { UserProfile, AppSettings, HumaneSettings } from "../types";
-import { DEFAULT_MODEL } from "../constants";
+import { DEFAULT_MODEL, VERTEX_PASSCODE } from "../constants";
 
 async function fetchVertexChat(payload: any): Promise<string> {
   try {
     const res = await fetch('/api/gemini/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-vertex-passcode': VERTEX_PASSCODE,
+      },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
@@ -24,7 +27,10 @@ async function fetchVertexDiary(payload: any): Promise<string> {
   try {
     const res = await fetch('/api/gemini/diary', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-vertex-passcode': VERTEX_PASSCODE,
+      },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
@@ -50,6 +56,9 @@ export const getGeminiResponse = async (
 
   // Option A: Built-in / Server Credits (Vertex AI)
   if (provider === 'vertex') {
+    if (!settings?.isVertexUnlocked) {
+      return "Built-in Cloud (Vertex AI) is locked. Please enter the passcode in Settings to unlock server credits, or switch to Custom API Key.";
+    }
     return await fetchVertexChat({
       responder,
       messageHistory,
@@ -258,6 +267,9 @@ export const getGeminiDiaryEntry = async (
   const provider = settings?.aiProvider || 'vertex';
 
   if (provider === 'vertex') {
+    if (!settings?.isVertexUnlocked) {
+      return "Built-in Cloud (Vertex AI) is locked. Please enter the passcode in Settings to unlock server credits.";
+    }
     return await fetchVertexDiary({
       persona,
       messageHistory,

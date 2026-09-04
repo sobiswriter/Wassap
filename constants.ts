@@ -218,5 +218,8 @@ export const WALLPAPER_PRESETS: WallpaperPreset[] = [
   { id: 'deep-cyber', name: 'Deep Cyber', url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1200&q=80' },
 ];
 
+export const VERTEX_PASSCODE = 'Ness2020';
+export const VERTEX_PASSCODE_HINT = "It's your sister's name & date?";
+
 
 

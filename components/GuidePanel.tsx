@@ -120,13 +120,13 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
                 <GuideCard 
                   icon={Cloud}
                   title="Dual AI Provider & Credits"
-                  description="Use Built-in Cloud (Vertex AI) with server credits to chat immediately with zero API keys required, or switch to your custom Gemini AI Studio key anytime in Settings."
+                  description="Use Built-in Cloud (Vertex AI) with server credits (secured with passcode protection and hint support), or switch to your personal Gemini AI Studio key anytime in Settings."
                   tag="V1.6.0"
                 />
                 <GuideCard 
                   icon={SettingsIcon}
                   title="The Cockpit (Settings)"
-                  description="Configure your AI engine (gemini-3.8-flash default), toggle Search Grounding, and adjust message pacing or themes."
+                  description="Configure your AI engine (gemini-3.8-flash default), toggle Search Grounding, set custom responsive chat wallpapers, and toggle Dark Mode."
                 />
               </div>
             </div>

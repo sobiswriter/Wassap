@@ -28,9 +28,10 @@ Before you can have a "sentient" companion, you need to actually make them. Here
 *   **Birth of a Persona**: Click that **"New Chat"** icon (the little message bubble) and select **"New Persona"**. This is where the magic starts. Give them a name, a fancy avatar (upload your own or grab a link!), and most importantly, a **Role** and **Speech Style**. Want a sarcastic butler? A hyperactive gamer sister? This is where you set the vibe. 🎭
 *   **Deep Personality Tuning**: Don't just stop at a name. Use the **Personality Details** box to give them a backstory. The more you tell them, the more real they feel. 🧠
 *   **Dual AI Provider & Settings**: Hit those three dots and jump into **Settings**. 
-    *   **Built-in Cloud (Vertex AI) [Default]**: No API key required! Runs straight on server Google Cloud credits with the flagship `gemini-3.8-flash` engine.
-    *   **Custom API Key (Gemini AI Studio)**: Prefer using your own quota? Toggle to Custom Key and paste your personal AI Studio key anytime.
-    *   **Engine Selector**: Choose between `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.5-flash-lite`, and preview model `gemini-3.1-flash-tts-preview`. 🌙
+    *   **Built-in Cloud (Vertex AI) [Default]**: Runs straight on Google Cloud credits with the flagship `gemini-3.8-flash` engine using the global endpoint. Protected behind passcode authentication with an interactive hint option.
+    *   **Custom API Key (Gemini AI Studio)**: Prefer using your own quota? Toggle to Custom Key and paste your personal AI Studio key anytime—completely open with no passcode required.
+    *   **Engine Selector**: Choose between `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.5-flash-lite`, and voice preview model `gemini-3.1-flash-tts-preview`. 🌙
+    *   **Custom Chat Wallpapers**: Upload your own background photo or choose from curated aesthetic presets, with responsive cover-cropping for mobile and desktop plus adjustable opacity.
 
 ### ⚡ Phase 2: The Level Up (Automation & Smooth Vibes)
 
@@ -61,10 +62,12 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 
 ### 🌟 What's New in v1.6.0 (The "Cloud Credits & Dual Provider" Update)
 *   **Dual AI Provider Architecture**: Choose between **Built-in Cloud (Vertex AI)** using server credits or **Custom API Key (Gemini AI Studio)** stored safely in browser `localStorage`.
-*   **Zero-Config Instant Chat**: New users can chat out of the box without providing an API key thanks to built-in Vertex AI integration.
+*   **Passcode-Protected Server Credits**: Built-in Cloud mode is protected behind a passcode lock with built-in hint support, while Custom API Key mode remains freely accessible.
+*   **Zero-Config Instant Chat**: Chat immediately out of the box with Vertex AI routed to the global location for maximum model availability.
 *   **Custom Chat Wallpapers**: Personalize the chat window with your own background photos or choose from curated aesthetic presets (with responsive cover-scaling and opacity dimming).
-*   **Upgraded Model Lineup**: Powered by `gemini-3.8-flash` (default), `gemini-3.7-flash`, and `gemini-3.5-flash-lite`.
+*   **Streamlined Next-Gen Models**: Powered by `gemini-3.8-flash` (default), `gemini-3.7-flash`, and `gemini-3.5-flash-lite`.
 *   **Voice Engine Preview**: Added `gemini-3.1-flash-tts-preview` to the model list in preparation for native speech generation features.
+*   **Theme Fixes & Polish**: Resolved dark theme toggle responsiveness and streamlined settings layout.
 
 ### 🌟 What's New in v1.5.0 (The "Time & Pacing" Update)
 *   **Togglable Message Stacking**: Delay AI responses by a configurable amount (5s to 30s) to pool your follow-up messages into a single conversational turn.

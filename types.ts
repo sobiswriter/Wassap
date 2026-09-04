@@ -140,6 +140,7 @@ export interface AppSettings {
   textStackingDelay?: number;
   chatWallpaper?: string;
   chatWallpaperOpacity?: number;
+  isVertexUnlocked?: boolean;
 }
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';

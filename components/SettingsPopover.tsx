@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw } from 'lucide-react';
+import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle } from 'lucide-react';
 import { AppSettings, AiProvider } from '../types';
-import { AVAILABLE_MODELS, GCP_CONFIG, DEFAULT_MODEL, WALLPAPER_PRESETS } from '../constants';
+import { AVAILABLE_MODELS, GCP_CONFIG, DEFAULT_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE, VERTEX_PASSCODE_HINT } from '../constants';
 import { compressWallpaperImage } from '../utils/imageCompressor';
 
 interface SettingsPopoverProps {
@@ -13,13 +13,47 @@ interface SettingsPopoverProps {
 
 export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUpdate, onClose, onTestNotification }) => {
   const [showKey, setShowKey] = useState(false);
+  const [passcodeDraft, setPasscodeDraft] = useState('');
+  const [showPasscode, setShowPasscode] = useState(false);
+  const [showPasscodeHint, setShowPasscodeHint] = useState(false);
+  const [passcodeError, setPasscodeError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [draftSettings, setDraftSettings] = useState<AppSettings>({
     ...settings,
     aiProvider: settings.aiProvider || 'vertex',
     chatWallpaper: settings.chatWallpaper || 'default',
     chatWallpaperOpacity: settings.chatWallpaperOpacity ?? 0.85,
+    isVertexUnlocked: settings.isVertexUnlocked ?? false,
   });
+
+  const handleUnlockVertex = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (passcodeDraft.trim() === VERTEX_PASSCODE) {
+      const updated: AppSettings = {
+        ...draftSettings,
+        isVertexUnlocked: true,
+        aiProvider: 'vertex',
+      };
+      setDraftSettings(updated);
+      setPasscodeError(null);
+      setPasscodeDraft('');
+      setShowPasscodeHint(false);
+      onUpdate(updated);
+    } else {
+      setPasscodeError("Incorrect password. Please try again.");
+    }
+  };
+
+  const handleLockVertex = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated: AppSettings = {
+      ...draftSettings,
+      isVertexUnlocked: false,
+    };
+    setDraftSettings(updated);
+    setPasscodeError(null);
+    onUpdate(updated);
+  };
 
   const handleToggleTheme = () => {
     const nextTheme = draftSettings.theme === 'light' ? 'dark' : 'light';
@@ -110,7 +144,11 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
           <div className="space-y-2">
             {/* Option A: Built-in / Server Credits (Vertex AI) */}
             <div
-              onClick={() => setDraftSettings({ ...draftSettings, aiProvider: 'vertex' })}
+              onClick={() => {
+                const updated = { ...draftSettings, aiProvider: 'vertex' as const };
+                setDraftSettings(updated);
+                onUpdate(updated);
+              }}
               className={`p-3 rounded-lg border cursor-pointer transition-all ${
                 currentProvider === 'vertex'
                   ? 'border-[#00a884] bg-[#00a884]/10 dark:bg-[#00a884]/15'
@@ -126,29 +164,123 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
                   </div>
                   <span className="text-[calc(var(--msg-font-size)-1px)] font-medium">Built-in Cloud (Vertex AI)</span>
                 </div>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#00a884]/20 text-[#00a884]">
-                  Default
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {draftSettings.isVertexUnlocked ? (
+                    <span className="text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#00a884]/20 text-[#00a884] flex items-center gap-1">
+                      <Unlock size={10} /> Unlocked
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <Lock size={10} /> Locked
+                    </span>
+                  )}
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#00a884]/20 text-[#00a884]">
+                    Default
+                  </span>
+                </div>
               </div>
               <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary mt-1.5 ml-6">
-                Uses our server credits. No personal API key required.
+                Uses our server credits. Protected behind password.
               </p>
 
-              {currentProvider === 'vertex' && (
-                <div className="mt-2.5 ml-6 p-2 rounded bg-black/[0.03] dark:bg-white/[0.04] border border-[#00a884]/30 text-[11px] space-y-0.5 text-secondary">
-                  <div className="flex items-center gap-1.5 text-[#00a884] font-medium">
-                    <Check size={12} />
-                    <span>Google Cloud Vertex AI Active</span>
+              {/* If Unlocked: Show Active Cloud Details & Option to Re-lock */}
+              {draftSettings.isVertexUnlocked ? (
+                currentProvider === 'vertex' && (
+                  <div className="mt-2.5 ml-6 p-2 rounded bg-black/[0.03] dark:bg-white/[0.04] border border-[#00a884]/30 text-[11px] space-y-1 text-secondary animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-[#00a884] font-medium">
+                        <Check size={12} />
+                        <span>Google Cloud Vertex AI Active</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleLockVertex}
+                        className="text-[10px] text-secondary hover:text-red-500 dark:hover:text-red-400 flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                        title="Lock Built-in Cloud"
+                      >
+                        <Lock size={10} /> Lock
+                      </button>
+                    </div>
+                    <div>Project: <span className="font-mono text-primary font-medium">{GCP_CONFIG.projectId}</span></div>
+                    <div>Location: <span className="font-mono text-primary">{GCP_CONFIG.defaultRegion}</span></div>
                   </div>
-                  <div>Project: <span className="font-mono text-primary font-medium">{GCP_CONFIG.projectId}</span></div>
-                  <div>Location: <span className="font-mono text-primary">{GCP_CONFIG.defaultRegion}</span></div>
+                )
+              ) : (
+                /* If Locked: Show Passcode Input & Hint */
+                <div 
+                  className="mt-2.5 ml-6 p-2.5 rounded-lg bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 text-[11px] space-y-2 animate-in fade-in duration-150"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-medium">
+                    <Lock size={13} />
+                    <span>Enter password to unlock Built-in Cloud:</span>
+                  </div>
+
+                  <form onSubmit={handleUnlockVertex} className="space-y-2">
+                    <div className="flex gap-1.5">
+                      <div className="relative flex-1">
+                        <input
+                          type={showPasscode ? "text" : "password"}
+                          value={passcodeDraft}
+                          onChange={(e) => {
+                            setPasscodeDraft(e.target.value);
+                            if (passcodeError) setPasscodeError(null);
+                          }}
+                          placeholder="Enter password..."
+                          className="w-full bg-white dark:bg-[#202c33] border border-gray-300 dark:border-gray-600 rounded px-2.5 py-1 text-[calc(var(--msg-font-size)-2px)] outline-none focus:border-[#00a884] pr-7 font-mono text-primary"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasscode(!showPasscode)}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-secondary hover:text-primary"
+                          title={showPasscode ? "Hide password" : "Show password"}
+                        >
+                          {showPasscode ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      </div>
+                      <button
+                        type="submit"
+                        className="px-3 py-1 bg-[#00a884] hover:bg-[#02906f] text-white rounded font-medium text-[11px] flex items-center gap-1 shrink-0 transition-colors shadow-sm"
+                      >
+                        <Unlock size={11} /> Unlock
+                      </button>
+                    </div>
+
+                    {passcodeError && (
+                      <div className="flex items-center gap-1 text-red-500 text-[10.5px]">
+                        <AlertCircle size={11} className="shrink-0" />
+                        <span>{passcodeError}</span>
+                      </div>
+                    )}
+
+                    <div className="pt-0.5 flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowPasscodeHint(!showPasscodeHint)}
+                        className="text-[11px] text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1 self-start font-medium"
+                      >
+                        <HelpCircle size={12} />
+                        {showPasscodeHint ? "Hide hint" : "Need a hint?"}
+                      </button>
+
+                      {showPasscodeHint && (
+                        <div className="p-2 rounded bg-white/70 dark:bg-black/30 border border-amber-500/20 text-[11px] text-amber-900 dark:text-amber-200 animate-in fade-in duration-150">
+                          <span className="font-semibold">Hint:</span> {VERTEX_PASSCODE_HINT}
+                        </div>
+                      )}
+                    </div>
+                  </form>
                 </div>
               )}
             </div>
 
             {/* Option B: Custom API Key (Gemini AI Studio) */}
             <div
-              onClick={() => setDraftSettings({ ...draftSettings, aiProvider: 'studio' })}
+              onClick={() => {
+                const updated = { ...draftSettings, aiProvider: 'studio' as const };
+                setDraftSettings(updated);
+                onUpdate(updated);
+              }}
               className={`p-3 rounded-lg border cursor-pointer transition-all ${
                 currentProvider === 'studio'
                   ? 'border-[#00a884] bg-[#00a884]/10 dark:bg-[#00a884]/15'

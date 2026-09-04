@@ -603,6 +603,7 @@ const App: React.FC = () => {
             aiProvider: 'vertex',
             chatWallpaper: 'default',
             chatWallpaperOpacity: 0.85,
+            isVertexUnlocked: false,
             ...parsed
           };
         }
@@ -616,7 +617,8 @@ const App: React.FC = () => {
       fontSize: 14.5,
       aiProvider: 'vertex',
       chatWallpaper: 'default',
-      chatWallpaperOpacity: 0.85
+      chatWallpaperOpacity: 0.85,
+      isVertexUnlocked: false
     };
   });
 
