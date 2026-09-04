@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { X, Calendar as CalendarIcon, Save } from 'lucide-react';
+import { AppSettings } from '../types';
+import { getAppNow } from '../utils/dates';
 
 interface CalendarNotesWidgetProps {
     notes: string;
     onUpdateNotes: (notes: string) => void;
     onClose: () => void;
+    settings?: AppSettings;
 }
 
-export const CalendarNotesWidget: React.FC<CalendarNotesWidgetProps> = ({ notes, onUpdateNotes, onClose }) => {
+export const CalendarNotesWidget: React.FC<CalendarNotesWidgetProps> = ({ notes, onUpdateNotes, onClose, settings }) => {
     const [localNotes, setLocalNotes] = useState(notes || '');
     const [isSaved, setIsSaved] = useState(false);
 
@@ -17,7 +20,7 @@ export const CalendarNotesWidget: React.FC<CalendarNotesWidgetProps> = ({ notes,
         setTimeout(() => setIsSaved(false), 2000);
     };
 
-    const today = new Date();
+    const today = getAppNow(settings);
     const dateStr = today.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     return (

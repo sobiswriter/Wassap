@@ -15,13 +15,13 @@ import { UpdatesPanel } from './components/UpdatesPanel';
 import { INITIAL_CHATS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus } from './types';
 import { getGeminiResponse } from './services/geminiService';
-import { saveMedia, getMedia } from './utils/storage';
-import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext } from './utils/dates';
+import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext, getAppNow, getAppDateKey, getAppFormattedTime } from './utils/dates';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
-// Helper for consistent 24-hour time global formatting
-const getFormattedTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-const getDateKey = getLocalDateKey;
+// Module-level pointer to active settings to ensure global consistency across time formatting
+let globalActiveSettings: AppSettings | undefined = undefined;
+const getFormattedTime = () => getAppFormattedTime(globalActiveSettings);
+const getDateKey = () => getAppDateKey(globalActiveSettings);
 
 const avatarCache = new Map<string, string>();
 
@@ -464,7 +464,7 @@ const App: React.FC = () => {
               sender: 'me',
               date,
               timestamp,
-              timestampEpoch: Date.now(),
+              timestampEpoch: getAppNow(settingsRef.current).getTime(),
               status: 'sent'
             };
 
@@ -484,7 +484,7 @@ const App: React.FC = () => {
             const updatedMessages = [...targetChat.messages, userMsg];
             const memoryContext = buildMemoryRecallContext(targetChat, text);
             const scheduleContext = buildScheduleContext(targetChat);
-            const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false);
+            const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false, settingsRef.current);
             const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
 
             if (targetChat.isGroup) {
@@ -622,6 +622,13 @@ const App: React.FC = () => {
     };
   });
 
+  const settingsRef = React.useRef<AppSettings>(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+    globalActiveSettings = settings;
+  }, [settings]);
+  globalActiveSettings = settings;
+
   useEffect(() => {
     const root = document.documentElement;
     const fontSize = settings.fontSize || 14.5;
@@ -751,7 +758,7 @@ ${memoryText}`;
     const schedule = chat.schedule;
     if (!schedule?.enabled) return undefined;
 
-    const now = new Date();
+    const now = getAppNow(settingsRef.current);
     const todayDate = getDateKey();
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
@@ -849,7 +856,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
           sender: 'other',
           date: getDateKey(),
           timestamp: getFormattedTime(),
-          timestampEpoch: Date.now(),
+          timestampEpoch: getAppNow(settingsRef.current).getTime(),
           status: 'delivered'
         };
 
@@ -924,9 +931,9 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
   };
 
   const runAutomationChecks = (isInitialMount: boolean = false) => {
-    const now = new Date();
+    const now = getAppNow(settingsRef.current);
     const todayDateStr = getDateKey(); 
-    const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    const currentTimeStr = getFormattedTime();
 
     setChats(prevChats => {
       let chatUpdated = false;
@@ -1100,7 +1107,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           const updatedMessages = [...targetChat.messages, userMsg];
           const memoryContext = buildMemoryRecallContext(targetChat, urlReplyText);
           const scheduleContext = buildScheduleContext(targetChat);
-          const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false);
+          const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false, settingsRef.current);
           const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
 
           if (targetChat.isGroup) {
@@ -1182,7 +1189,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       sender: 'me',
       date,
       timestamp,
-      timestampEpoch: Date.now(),
+      timestampEpoch: getAppNow(settingsRef.current).getTime(),
       status: 'sent',
       replyToMessage: replyTo,
       isEvent
@@ -1211,7 +1218,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     if (settings.enableTextStacking === false) {
       const memoryContext = buildMemoryRecallContext(activeChat, text);
       const scheduleContext = buildScheduleContext(activeChat);
-      const timeGapContext = getTimeGapAndFrequencyContext([...activeChat.messages, userMsg], false);
+      const timeGapContext = getTimeGapAndFrequencyContext([...activeChat.messages, userMsg], false, settingsRef.current);
       const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
 
       if (activeChat.isGroup) {
@@ -1228,7 +1235,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
       // If no timeout was active, this is the first message of the stack. Calculate time-gap.
       if (!hasPendingTimeout) {
-        const timeGapContext = getTimeGapAndFrequencyContext([...activeChat.messages, userMsg], false);
+        const timeGapContext = getTimeGapAndFrequencyContext([...activeChat.messages, userMsg], false, settingsRef.current);
         pendingTimeGapsRef.current[chatId] = timeGapContext;
       }
 
@@ -1697,6 +1704,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             notes={settings.calendarNotes || ''}
             onUpdateNotes={(notes) => setSettings({ ...settings, calendarNotes: notes })}
             onClose={() => setShowCalendarWidget(false)}
+            settings={settings}
           />
         )}
 
@@ -1744,6 +1752,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           <ProfilePanel
             chat={chats.find(c => c.id === activeChatId)!}
             allChats={chats}
+            settings={settings}
             onClose={() => setShowProfilePanel(false)}
             onUpdate={updateActiveChat}
             onDeleteChat={handleDeleteChat}

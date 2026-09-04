@@ -4,9 +4,9 @@ import {
   Users, Trash2, Eraser, Settings, ChevronDown, ChevronRight, 
   Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays, Smile, Download, Upload
 } from 'lucide-react';
-import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate } from '../types';
+import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate, AppSettings } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
-import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey } from '../utils/dates';
+import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey, getAppNow, getAppDateKey } from '../utils/dates';
 import { DEFAULT_TEMPLATES } from '../constants';
 
 interface ProfilePanelProps {
@@ -18,6 +18,7 @@ interface ProfilePanelProps {
   onClearChat?: () => void;
   onRefreshPersona: (chatId: string) => void;
   onTestAutomation?: (chatId: string, testType: 'inactivity' | 'time', contextOverride?: string) => void;
+  settings?: AppSettings;
 }
 
 const createDefaultSchedule = (): PersonaSchedule => ({
@@ -36,7 +37,7 @@ const createDefaultSchedule = (): PersonaSchedule => ({
 });
 
 export const ProfilePanel: React.FC<ProfilePanelProps> = ({ 
-  chat, allChats, onClose, onUpdate, onDeleteChat, onClearChat, onRefreshPersona, onTestAutomation 
+  chat, allChats, onClose, onUpdate, onDeleteChat, onClearChat, onRefreshPersona, onTestAutomation, settings 
 }) => {
   const [formData, setFormData] = useState({
     name: chat.name,
@@ -1006,8 +1007,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Time-Based Greetings</h5>
                     <div className="space-y-3">
                       {(() => {
-                        const now = new Date();
-                        const todayDateStr = getLocalDateKey();
+                        const now = getAppNow(settings);
+                        const todayDateStr = getAppDateKey(settings);
                         const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
                         const hasAlreadyTalkedToday = formData.automation.timeTriggers.some(trigger => trigger.lastTriggered === todayDateStr);
                         

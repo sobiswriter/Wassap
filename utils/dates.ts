@@ -1,6 +1,34 @@
-import { Message } from '../types';
+import { Message, AppSettings } from '../types';
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export const getAppNow = (settings?: AppSettings): Date => {
+  if (settings?.timeMode === 'custom' && typeof settings.customTimeOffsetMs === 'number') {
+    return new Date(Date.now() + settings.customTimeOffsetMs);
+  }
+  return new Date();
+};
+
+export const getAppDateKey = (settings?: AppSettings): string => {
+  return getLocalDateKey(getAppNow(settings));
+};
+
+export const getAppFormattedTime = (settings?: AppSettings): string => {
+  return getAppNow(settings).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+};
+
+export const getAppTimeContext = (settings?: AppSettings): string => {
+  const now = getAppNow(settings);
+  return `It is currently ${now.toLocaleString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })}.`;
+};
 
 export const getLocalDateKey = (date = new Date()) => {
   const year = date.getFullYear();
@@ -99,7 +127,7 @@ export const getMessageTimestampEpoch = (message: Message): number => {
   return d.getTime();
 };
 
-export const getTimeGapAndFrequencyContext = (messages: Message[], isInitiationTrigger: boolean): string | undefined => {
+export const getTimeGapAndFrequencyContext = (messages: Message[], isInitiationTrigger: boolean, settings?: AppSettings): string | undefined => {
   if (messages.length < 2) return undefined;
 
   const prevMessage = isInitiationTrigger 
@@ -109,7 +137,7 @@ export const getTimeGapAndFrequencyContext = (messages: Message[], isInitiationT
   if (!prevMessage) return undefined;
 
   const prevMs = getMessageTimestampEpoch(prevMessage);
-  const currentMs = Date.now();
+  const currentMs = getAppNow(settings).getTime();
   const diffMs = currentMs - prevMs;
 
   if (diffMs <= 0) return undefined;
@@ -118,7 +146,7 @@ export const getTimeGapAndFrequencyContext = (messages: Message[], isInitiationT
   const diffHours = diffMinutes / 60;
   const diffDays = diffHours / 24;
 
-  const todayKey = getLocalDateKey();
+  const todayKey = getAppDateKey(settings);
   const messagesTodayList = messages.filter(m => m.date === todayKey);
   const messagesToday = messagesTodayList.length;
 

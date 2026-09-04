@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { UserProfile, AppSettings, HumaneSettings } from "../types";
 import { DEFAULT_MODEL, VERTEX_PASSCODE } from "../constants";
+import { getAppTimeContext } from "../utils/dates";
 
 export async function checkVertexConnectionStatus(): Promise<{
   ok: boolean;
@@ -113,7 +114,9 @@ export const getGeminiResponse = async (
         shareTimeContext: settings?.shareTimeContext,
         shareCalendarNotes: settings?.shareCalendarNotes,
         calendarNotes: settings?.calendarNotes,
+        clientTimeContext: getAppTimeContext(settings),
       },
+      clientTimeContext: getAppTimeContext(settings),
       initiationContext,
     });
   }
@@ -167,7 +170,7 @@ Current Status: ${userProfile.status}
 
     const timeContext = settings?.shareTimeContext !== false ? `
 CURRENT SYSTEM DATE AND TIME:
-It is currently ${new Date().toLocaleString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}.
+${getAppTimeContext(settings)}
 CRITICAL RULE: Do NOT explicitly mention the exact system date or clock time (e.g. do not say "It is Thursday, June 25 at 17:51") in your messages unless the User specifically asks about it. Use this system timestamp only to silently adjust your context (e.g. knowing it's late at night). However, you are ENCOURAGED to naturally acknowledge relative time gaps (e.g. "since yesterday", "a few days ago") and chat frequency when relevant to the conversation.
 ` : '';
 

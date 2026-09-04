@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
-import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw } from 'lucide-react';
 import { AppSettings, AiProvider } from '../types';
 import { AVAILABLE_MODELS, GCP_CONFIG, DEFAULT_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE, VERTEX_PASSCODE_HINT } from '../constants';
 import { compressWallpaperImage } from '../utils/imageCompressor';
 import { checkVertexConnectionStatus } from '../services/geminiService';
+import { getLocalDateKey } from '../utils/dates';
 
 interface SettingsPopoverProps {
   settings: AppSettings;
@@ -28,6 +29,61 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
   });
   const [testingVertex, setTestingVertex] = useState(false);
   const [vertexTestResult, setVertexTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [, setTicker] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setTicker(t => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const effectiveTimeMode = draftSettings.timeMode || 'device';
+  const effectiveOffset = draftSettings.customTimeOffsetMs || 0;
+  const currentAppDate = new Date(Date.now() + (effectiveTimeMode === 'custom' ? effectiveOffset : 0));
+  const digitalClockStr = currentAppDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  const digitalDateStr = currentAppDate.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+  const inputDateVal = getLocalDateKey(currentAppDate);
+  const inputTimeVal = currentAppDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+  const handleSetDeviceTime = () => {
+    const updated: AppSettings = {
+      ...draftSettings,
+      timeMode: 'device',
+      customTimeOffsetMs: 0,
+    };
+    setDraftSettings(updated);
+    onUpdate(updated);
+  };
+
+  const handleSetCustomTimeMode = () => {
+    const updated: AppSettings = {
+      ...draftSettings,
+      timeMode: 'custom',
+      customTimeOffsetMs: draftSettings.customTimeOffsetMs ?? 0,
+    };
+    setDraftSettings(updated);
+    onUpdate(updated);
+  };
+
+  const handleCustomDateTimeChange = (newDateStr: string, newTimeStr: string) => {
+    try {
+      if (!newDateStr || !newTimeStr) return;
+      const [year, month, day] = newDateStr.split('-').map(Number);
+      const [hours, minutes] = newTimeStr.split(':').map(Number);
+      const targetDate = new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
+      if (!isNaN(targetDate.getTime())) {
+        const offset = targetDate.getTime() - Date.now();
+        const updated: AppSettings = {
+          ...draftSettings,
+          timeMode: 'custom',
+          customTimeOffsetMs: offset,
+        };
+        setDraftSettings(updated);
+        onUpdate(updated);
+      }
+    } catch (e) {
+      console.warn("Invalid date/time inputs:", e);
+    }
+  };
 
   const handleTestVertex = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -638,6 +694,102 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
           >
             <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${draftSettings.shareTimeContext !== false ? 'left-[22px]' : 'left-[2px]'}`} />
           </div>
+        </div>
+
+        {/* In-App Clock & Time Configuration */}
+        <div className="p-3.5 rounded-xl border app-border bg-[#f0f2f5]/70 dark:bg-[#202c33]/70 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock size={16} className="text-[#00a884]" />
+              <span className="text-[calc(var(--msg-font-size)-0.5px)] font-semibold text-primary">In-App Clock & Time</span>
+            </div>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1.5 ${
+              effectiveTimeMode === 'device' 
+                ? 'bg-[#00a884]/15 text-[#00a884] dark:bg-[#00a884]/25' 
+                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 dark:bg-amber-500/25'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${effectiveTimeMode === 'device' ? 'bg-[#00a884] animate-pulse' : 'bg-amber-500'}`} />
+              {effectiveTimeMode === 'device' ? 'Device Synced' : 'Custom Virtual Time'}
+            </span>
+          </div>
+
+          {/* Live Digital Display */}
+          <div className="p-3 bg-white dark:bg-[#111b21] rounded-lg border app-border shadow-xs text-center flex flex-col items-center justify-center">
+            <div className="text-2xl font-mono font-bold tracking-wider text-primary">
+              {digitalClockStr}
+            </div>
+            <div className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary font-medium mt-0.5">
+              {digitalDateStr}
+            </div>
+          </div>
+
+          {/* Mode Selector Tabs */}
+          <div className="grid grid-cols-2 gap-1.5 p-1 bg-white dark:bg-[#111b21] rounded-lg border app-border">
+            <button
+              type="button"
+              onClick={handleSetDeviceTime}
+              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-[calc(var(--msg-font-size)-2px)] font-medium transition-all cursor-pointer ${
+                effectiveTimeMode === 'device'
+                  ? 'bg-[#00a884] text-white shadow-xs'
+                  : 'text-secondary hover:text-primary hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+            >
+              <Smartphone size={14} />
+              Device Time
+            </button>
+            <button
+              type="button"
+              onClick={handleSetCustomTimeMode}
+              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-[calc(var(--msg-font-size)-2px)] font-medium transition-all cursor-pointer ${
+                effectiveTimeMode === 'custom'
+                  ? 'bg-[#00a884] text-white shadow-xs'
+                  : 'text-secondary hover:text-primary hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+            >
+              <Clock size={14} />
+              Custom Time
+            </button>
+          </div>
+
+          {/* Custom Date & Time Controls */}
+          {effectiveTimeMode === 'custom' && (
+            <div className="space-y-2.5 pt-1.5 border-t app-border">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-secondary uppercase tracking-wider">Virtual Date</label>
+                  <input
+                    type="date"
+                    value={inputDateVal}
+                    onChange={(e) => handleCustomDateTimeChange(e.target.value, inputTimeVal)}
+                    className="w-full text-[calc(var(--msg-font-size)-2px)] bg-white dark:bg-[#111b21] border app-border rounded-md px-2 py-1.5 text-primary focus:outline-none focus:border-[#00a884]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-secondary uppercase tracking-wider">Virtual Time (24h)</label>
+                  <input
+                    type="time"
+                    value={inputTimeVal}
+                    onChange={(e) => handleCustomDateTimeChange(inputDateVal, e.target.value)}
+                    className="w-full text-[calc(var(--msg-font-size)-2px)] bg-white dark:bg-[#111b21] border app-border rounded-md px-2 py-1.5 text-primary focus:outline-none focus:border-[#00a884]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-[calc(var(--msg-font-size)-3.5px)] text-secondary italic">
+                  Virtual clock advances second-by-second.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleSetDeviceTime}
+                  className="flex items-center gap-1 text-[calc(var(--msg-font-size)-2.5px)] text-[#00a884] hover:underline font-medium shrink-0 ml-2 cursor-pointer"
+                >
+                  <RotateCw size={12} />
+                  Reset to Device
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between">

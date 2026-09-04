@@ -122,6 +122,7 @@ export interface PersonaTemplate {
 }
 
 export type AiProvider = 'vertex' | 'studio';
+export type TimeMode = 'device' | 'custom';
 
 export interface AppSettings {
   aiProvider?: AiProvider; // 'vertex' (Built-in Server Credits) | 'studio' (Custom API Key)
@@ -141,6 +142,9 @@ export interface AppSettings {
   chatWallpaper?: string;
   chatWallpaperOpacity?: number;
   isVertexUnlocked?: boolean;
+  timeMode?: TimeMode;
+  customTimeOffsetMs?: number;
+  clientTimeContext?: string;
 }
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';

@@ -50,6 +50,7 @@ interface ChatPayload {
   groupContext?: { groupName: string; otherMembers: string[] };
   settings?: AppSettings;
   initiationContext?: string;
+  clientTimeContext?: string;
 }
 
 async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
@@ -216,7 +217,7 @@ function resolveVertexModel(selectedModel?: string): string {
 
 async function handleVertexChat(payload: ChatPayload): Promise<{ ok: boolean; text?: string; error?: string }> {
   try {
-    const { responder, messageHistory, userProfile, groupContext, settings, initiationContext } = payload;
+    const { responder, messageHistory, userProfile, groupContext, settings, initiationContext, clientTimeContext } = payload;
     const ai = getVertexClient();
 
     const historyString = (messageHistory || [])
@@ -255,9 +256,11 @@ About: ${userProfile.about}
 Current Status: ${userProfile.status}
 ` : '';
 
+    const currentDateTimeStr = clientTimeContext || settings?.clientTimeContext || `It is currently ${new Date().toLocaleString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}.`;
+
     const timeContext = settings?.shareTimeContext !== false ? `
 CURRENT SYSTEM DATE AND TIME:
-It is currently ${new Date().toLocaleString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}.
+${currentDateTimeStr}
 CRITICAL RULE: Do NOT explicitly mention the exact system date or clock time (e.g. do not say "It is Thursday, June 25 at 17:51") in your messages unless the User specifically asks about it. Use this system timestamp only to silently adjust your context (e.g. knowing it's late at night). However, you are ENCOURAGED to naturally acknowledge relative time gaps (e.g. "since yesterday", "a few days ago") and chat frequency when relevant to the conversation.
 ` : '';
 
