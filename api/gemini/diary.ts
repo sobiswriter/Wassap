@@ -66,6 +66,27 @@ function isPasscodeValid(req: IncomingMessage & { body?: any }, payload?: any): 
   return headerCode === VERTEX_PASSCODE || bodyCode === VERTEX_PASSCODE;
 }
 
+function normalizePrivateKey(key?: string): string {
+  if (!key) return '';
+  let cleaned = key.trim();
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  cleaned = cleaned.replace(/\\n/g, '\n').replace(/\\r/g, '');
+  const headerMatch = cleaned.match(/-----BEGIN [A-Z ]+-----/);
+  const footerMatch = cleaned.match(/-----END [A-Z ]+-----/);
+  if (headerMatch && footerMatch) {
+    const header = headerMatch[0];
+    const footer = footerMatch[0];
+    const startIndex = cleaned.indexOf(header) + header.length;
+    const endIndex = cleaned.indexOf(footer);
+    const body = cleaned.substring(startIndex, endIndex).replace(/\s+/g, '');
+    const formattedBody = body.match(/.{1,64}/g)?.join('\n') || body;
+    return `${header}\n${formattedBody}\n${footer}\n`;
+  }
+  return cleaned;
+}
+
 function getVertexClient() {
   const serviceAccountJson =
     process.env.GCP_SERVICE_ACCOUNT_KEY ||
@@ -106,7 +127,7 @@ function getVertexClient() {
     try {
       const credentials = typeof serviceAccountJson === 'string' ? JSON.parse(serviceAccountJson) : serviceAccountJson;
       if (credentials.private_key) {
-        credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+        credentials.private_key = normalizePrivateKey(credentials.private_key);
       }
       googleAuthOptions = { credentials };
     } catch (e) {
@@ -116,7 +137,7 @@ function getVertexClient() {
     googleAuthOptions = {
       credentials: {
         client_email: clientEmail.trim(),
-        private_key: privateKey.trim().replace(/\\n/g, '\n'),
+        private_key: normalizePrivateKey(privateKey),
         project_id: project,
       },
     };
