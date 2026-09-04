@@ -2,6 +2,33 @@ import { GoogleGenAI } from "@google/genai";
 import { UserProfile, AppSettings, HumaneSettings } from "../types";
 import { DEFAULT_MODEL, VERTEX_PASSCODE } from "../constants";
 
+export async function checkVertexConnectionStatus(): Promise<{
+  ok: boolean;
+  status?: string;
+  provider?: string;
+  project?: string;
+  region?: string;
+  hasCredentials?: boolean;
+  credentialsType?: string;
+  platform?: string;
+  error?: string;
+}> {
+  try {
+    const res = await fetch('/api/gemini/status');
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return {
+        ok: false,
+        error: `Server returned non-JSON (${res.status}). Verify API routes are deployed on Vercel.`,
+      };
+    }
+    const data = await res.json();
+    return { ok: true, ...data };
+  } catch (e: any) {
+    return { ok: false, error: e.message || 'Unable to connect to server.' };
+  }
+}
+
 async function fetchVertexChat(payload: any): Promise<string> {
   try {
     const res = await fetch('/api/gemini/generate', {
@@ -12,6 +39,14 @@ async function fetchVertexChat(payload: any): Promise<string> {
       },
       body: JSON.stringify(payload),
     });
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      console.error("Non-JSON response from Vertex backend:", res.status, text.slice(0, 300));
+      return `Vertex AI server returned HTML or non-JSON (${res.status}). Please verify the Vercel serverless deployment or switch to 'Custom API Key' in Settings.`;
+    }
+
     const data = await res.json();
     if (!res.ok || !data.text) {
       return data.error || "Vertex AI server encountered an error. Please try again or switch to 'Custom API Key' in Settings.";
@@ -33,6 +68,14 @@ async function fetchVertexDiary(payload: any): Promise<string> {
       },
       body: JSON.stringify(payload),
     });
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      console.error("Non-JSON response from Vertex backend for diary:", res.status, text.slice(0, 300));
+      return `Vertex AI diary server returned non-JSON (${res.status}). Please try again later or switch to 'Custom API Key' in Settings.`;
+    }
+
     const data = await res.json();
     if (!res.ok || !data.text) {
       return data.error || "Vertex AI server encountered an error while writing diary.";

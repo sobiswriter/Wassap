@@ -2,7 +2,22 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { handleVertexChat, handleVertexDiary } from './vertexHandler';
 import { VERTEX_PASSCODE } from '../constants';
 
-export function parseJsonBody<T = any>(req: IncomingMessage): Promise<T> {
+export async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
+  // If the body is already parsed by Vercel or Express middleware
+  if (req.body !== undefined && req.body !== null) {
+    if (typeof req.body === 'object') {
+      return req.body as T;
+    }
+    if (typeof req.body === 'string' && req.body.trim().length > 0) {
+      try {
+        return JSON.parse(req.body);
+      } catch (e) {
+        return {} as T;
+      }
+    }
+  }
+
+  // Fallback for raw stream (Vite local dev server / Node HTTP)
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => {
@@ -23,13 +38,17 @@ export function parseJsonBody<T = any>(req: IncomingMessage): Promise<T> {
   });
 }
 
-export function sendJson(res: ServerResponse, statusCode: number, data: any) {
+export function sendJson(res: ServerResponse & { status?: (code: number) => any; json?: (data: any) => any }, statusCode: number, data: any) {
+  if (typeof res.status === 'function' && typeof res.json === 'function') {
+    res.status(statusCode).json(data);
+    return;
+  }
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify(data));
 }
 
-function isPasscodeValid(req: IncomingMessage, payload?: any): boolean {
+export function isPasscodeValid(req: IncomingMessage & { body?: any }, payload?: any): boolean {
   const headerCode = req.headers['x-vertex-passcode'] || req.headers['x-passcode'];
   const bodyCode = payload?.passcode;
   return headerCode === VERTEX_PASSCODE || bodyCode === VERTEX_PASSCODE;

@@ -40,13 +40,102 @@ export interface DiaryPayload {
 }
 
 /**
- * Initializes GoogleGenAI client in Vertex AI mode.
- * Authenticates via Google Cloud Application Default Credentials (ADC) / Service Account environment variables.
+ * Initializes GoogleGenAI client in Vertex AI or Server API Key mode.
+ * Supports:
+ * 1. GCP Service Account JSON key from environment variables (GCP_SERVICE_ACCOUNT_KEY, GOOGLE_CREDENTIALS, GOOGLE_APPLICATION_CREDENTIALS_JSON)
+ * 2. Individual GCP credentials (GCP_CLIENT_EMAIL, GCP_PRIVATE_KEY)
+ * 3. File-based credentials / Local ADC via gcloud (GOOGLE_APPLICATION_CREDENTIALS)
+ * 4. Fallback server-level GEMINI_API_KEY if configured in Vercel
  */
 export const getVertexClient = () => {
-  const project = process.env.VERTEX_PROJECT_ID || GCP_CONFIG.projectId;
-  const location = process.env.VERTEX_LOCATION || GCP_CONFIG.defaultRegion; // Defaults to 'global'
+  // 1. Check for Service Account Key JSON in environment variables (standard for Vercel/Cloud)
+  const serviceAccountJson =
+    process.env.GCP_SERVICE_ACCOUNT_KEY ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON ||
+    process.env.GOOGLE_CREDENTIALS;
 
+  const clientEmail =
+    process.env.GCP_CLIENT_EMAIL ||
+    process.env.CLIENT_EMAIL ||
+    process.env.GOOGLE_CLIENT_EMAIL ||
+    process.env.VERTEX_CLIENT_EMAIL;
+
+  const privateKey =
+    process.env.GCP_PRIVATE_KEY ||
+    process.env.PRIVATE_KEY ||
+    process.env.GOOGLE_PRIVATE_KEY ||
+    process.env.VERTEX_PRIVATE_KEY;
+
+  // Extract project from credentials if available
+  let saProjectId: string | undefined = undefined;
+  if (serviceAccountJson) {
+    try {
+      const credentials = typeof serviceAccountJson === 'string' ? JSON.parse(serviceAccountJson) : serviceAccountJson;
+      saProjectId = credentials.project_id;
+    } catch {}
+  } else if (clientEmail && clientEmail.includes('@') && clientEmail.includes('.iam.gserviceaccount.com')) {
+    const match = clientEmail.match(/@([^.]+)\.iam\.gserviceaccount\.com/);
+    if (match && match[1]) {
+      saProjectId = match[1];
+    }
+  }
+
+  const project =
+    process.env.VERTEX_PROJECT_ID ||
+    saProjectId ||
+    GCP_CONFIG.projectId;
+
+  const location = process.env.VERTEX_LOCATION || process.env.GOOGLE_CLOUD_LOCATION || GCP_CONFIG.defaultRegion; // Defaults to 'global'
+
+  let googleAuthOptions: any = undefined;
+
+  if (serviceAccountJson) {
+    try {
+      const credentials = typeof serviceAccountJson === 'string' ? JSON.parse(serviceAccountJson) : serviceAccountJson;
+      if (credentials.private_key) {
+        credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+      }
+      googleAuthOptions = { credentials };
+    } catch (e) {
+      console.error("[Vertex AI] Failed to parse service account key JSON from environment variable:", e);
+    }
+  } else if (clientEmail && privateKey) {
+    googleAuthOptions = {
+      credentials: {
+        client_email: clientEmail.trim(),
+        private_key: privateKey.trim().replace(/\\n/g, '\n'),
+        project_id: project,
+      },
+    };
+  }
+
+  if (googleAuthOptions) {
+    return new GoogleGenAI({
+      vertexai: true,
+      project,
+      location,
+      googleAuthOptions,
+    });
+  }
+
+  // 2. If running locally with ADC or GOOGLE_APPLICATION_CREDENTIALS file path
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.NODE_ENV !== 'production' || (!process.env.VERCEL && !process.env.AWS_REGION)) {
+    return new GoogleGenAI({
+      vertexai: true,
+      project,
+      location,
+    });
+  }
+
+  // 3. Fallback: If deployed to Vercel and user configured GEMINI_API_KEY as the built-in server credit key
+  const serverApiKey = process.env.VERTEX_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY;
+  if (serverApiKey) {
+    return new GoogleGenAI({
+      apiKey: serverApiKey,
+    });
+  }
+
+  // Default to standard Vertex AI initialization
   return new GoogleGenAI({
     vertexai: true,
     project,
@@ -244,7 +333,7 @@ Response as ${responder.name}:`;
     if (errMessage.includes('invalid_grant') || errMessage.includes('Could not load the default credentials')) {
       return {
         ok: false,
-        error: "Vertex AI authentication failed: Google Cloud Application Default Credentials (ADC) are missing or expired on the server. Please run `gcloud auth application-default login` on the host, or switch to 'Custom API Key' in Settings."
+        error: "Vertex AI authentication failed on the server: Google Cloud credentials are missing or invalid in this environment. In your Vercel Project Settings > Environment Variables, please add 'GCP_SERVICE_ACCOUNT_KEY' (your Service Account JSON key) or set 'GEMINI_API_KEY', or switch to 'Custom API Key' in Settings."
       };
     }
 

@@ -3,6 +3,7 @@ import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, Calend
 import { AppSettings, AiProvider } from '../types';
 import { AVAILABLE_MODELS, GCP_CONFIG, DEFAULT_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE, VERTEX_PASSCODE_HINT } from '../constants';
 import { compressWallpaperImage } from '../utils/imageCompressor';
+import { checkVertexConnectionStatus } from '../services/geminiService';
 
 interface SettingsPopoverProps {
   settings: AppSettings;
@@ -25,6 +26,36 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
     chatWallpaperOpacity: settings.chatWallpaperOpacity ?? 0.85,
     isVertexUnlocked: settings.isVertexUnlocked ?? false,
   });
+  const [testingVertex, setTestingVertex] = useState(false);
+  const [vertexTestResult, setVertexTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const handleTestVertex = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTestingVertex(true);
+    setVertexTestResult(null);
+    try {
+      const res = await checkVertexConnectionStatus();
+      if (res.ok) {
+        const credDesc = res.hasCredentials ? `Credentials: ${res.credentialsType || 'Detected'}` : 'Warning: No GCP service key detected';
+        setVertexTestResult({
+          ok: true,
+          message: `Connected to ${res.platform || 'Cloud Serverless'}. ${credDesc}`,
+        });
+      } else {
+        setVertexTestResult({
+          ok: false,
+          message: res.error || 'Connection failed',
+        });
+      }
+    } catch (err: any) {
+      setVertexTestResult({
+        ok: false,
+        message: err.message || 'Unable to contact backend endpoint',
+      });
+    } finally {
+      setTestingVertex(false);
+    }
+  };
 
   const handleUnlockVertex = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -203,6 +234,22 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
                     </div>
                     <div>Project: <span className="font-mono text-primary font-medium">{GCP_CONFIG.projectId}</span></div>
                     <div>Location: <span className="font-mono text-primary">{GCP_CONFIG.defaultRegion}</span></div>
+
+                    <div className="pt-1.5 flex items-center justify-between border-t border-black/5 dark:border-white/5">
+                      <button
+                        type="button"
+                        onClick={handleTestVertex}
+                        disabled={testingVertex}
+                        className="text-[10.5px] font-medium text-[#00a884] hover:underline flex items-center gap-1 disabled:opacity-50"
+                      >
+                        {testingVertex ? 'Verifying Cloud Connection...' : '⚡ Verify Cloud Connection'}
+                      </button>
+                    </div>
+                    {vertexTestResult && (
+                      <div className={`text-[10px] p-1.5 rounded leading-tight ${vertexTestResult.ok ? 'bg-[#00a884]/15 text-[#00a884]' : 'bg-red-500/15 text-red-500'}`}>
+                        {vertexTestResult.message}
+                      </div>
+                    )}
                   </div>
                 )
               ) : (
