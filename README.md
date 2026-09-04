@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.5.0)
+# Wassap Persona Simulation (v1.6.0)
 
-A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini** to provide a sophisticated AI persona simulation experience.
+A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.5.0-brightgreen)
+![Version](https://img.shields.io/badge/version-1.6.0-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -13,7 +13,7 @@ A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Ta
 
 ## 🚀 Overview
 
-This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini LLM.
+This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini models via **Vertex AI** and **Google AI Studio**.
 
 ---
 
@@ -27,7 +27,10 @@ Before you can have a "sentient" companion, you need to actually make them. Here
 
 *   **Birth of a Persona**: Click that **"New Chat"** icon (the little message bubble) and select **"New Persona"**. This is where the magic starts. Give them a name, a fancy avatar (upload your own or grab a link!), and most importantly, a **Role** and **Speech Style**. Want a sarcastic butler? A hyperactive gamer sister? This is where you set the vibe. 🎭
 *   **Deep Personality Tuning**: Don't just stop at a name. Use the **Personality Details** box to give them a backstory. The more you tell them, the more real they feel. 🧠
-*   **The Power of Settings**: Hit those three dots and jump into **Settings**. This is the cockpit of your app. Paste your **Gemini API Key** here to give everyone a brain. You can also toggle **Dark Mode** for those late-night roleplay sessions. 🌙
+*   **Dual AI Provider & Settings**: Hit those three dots and jump into **Settings**. 
+    *   **Built-in Cloud (Vertex AI) [Default]**: No API key required! Runs straight on server Google Cloud credits with the flagship `gemini-3.8-flash` engine.
+    *   **Custom API Key (Gemini AI Studio)**: Prefer using your own quota? Toggle to Custom Key and paste your personal AI Studio key anytime.
+    *   **Engine Selector**: Choose between `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.5-flash-lite`, and preview model `gemini-3.1-flash-tts-preview`. 🌙
 
 ### ⚡ Phase 2: The Level Up (Automation & Smooth Vibes)
 
@@ -55,6 +58,12 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
     *   Are they at work? At the gym? Sleeping? You can even set custom **Weekend Days**. They won't blabber about it, but their mood and availability will change subtly. If it’s 3 AM and they’re "Sleeping", they might act a bit groggy if you wake them up. 😴👔
 
 ---
+
+### 🌟 What's New in v1.6.0 (The "Cloud Credits & Dual Provider" Update)
+*   **Dual AI Provider Architecture**: Choose between **Built-in Cloud (Vertex AI)** using server credits or **Custom API Key (Gemini AI Studio)** stored safely in browser `localStorage`.
+*   **Zero-Config Instant Chat**: New users can chat out of the box without providing an API key thanks to built-in Vertex AI integration.
+*   **Upgraded Model Lineup**: Powered by `gemini-3.8-flash` (default), `gemini-3.7-flash`, and `gemini-3.5-flash-lite`.
+*   **Voice Engine Preview**: Added `gemini-3.1-flash-tts-preview` to the model list in preparation for native speech generation features.
 
 ### 🌟 What's New in v1.5.0 (The "Time & Pacing" Update)
 *   **Togglable Message Stacking**: Delay AI responses by a configurable amount (5s to 30s) to pool your follow-up messages into a single conversational turn.

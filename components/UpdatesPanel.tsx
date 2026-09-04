@@ -81,10 +81,23 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.6.0"
+              title="The Cloud Credits & Dual Provider Update"
+              date="September 2026"
+              isLatest={true}
+              changes={[
+                "Dual AI Provider: Toggle between Built-in Cloud (Vertex AI) with server credits or Custom Gemini AI Studio key.",
+                "Zero-Key Built-in Mode: Chat instantly with all personas powered by Google Cloud Vertex AI without supplying your own API key.",
+                "Streamlined Next-Gen Models: Powered by gemini-3.8-flash (default), gemini-3.7-flash, and gemini-3.5-flash-lite.",
+                "Speech Engine Preview: Added gemini-3.1-flash-tts-preview to the model lineup for upcoming voice capabilities."
+              ]}
+            />
+
+            <UpdateItem 
               version="v1.5.0"
               title="The Time & Pacing Update"
               date="June 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "Message Stacking: Delay AI responses by a configurable amount (5s to 30s) to pool follow-ups.",
                 "Visual Bubble Stacking: Hide tails and headers on consecutive messages for a clean WhatsApp-native layout.",

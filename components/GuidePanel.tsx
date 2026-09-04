@@ -15,7 +15,8 @@ import {
   Heart,
   Clock,
   Settings as SettingsIcon,
-  PlusCircle
+  PlusCircle,
+  Cloud
 } from 'lucide-react';
 
 interface GuidePanelProps {
@@ -69,7 +70,7 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
           </div>
           <div className="ml-auto hidden sm:flex items-center gap-2 px-3 py-1 bg-[#e7fce3] dark:bg-[#064a3d] rounded-full border border-[#00a884]/20">
              <div className="w-2 h-2 bg-[#00a884] rounded-full animate-pulse"></div>
-             <span className="text-[calc(var(--msg-font-size)-4px)] font-bold text-[#00a884] uppercase tracking-widest">Version 1.5.0 Live</span>
+             <span className="text-[calc(var(--msg-font-size)-4px)] font-bold text-[#00a884] uppercase tracking-widest">Version 1.6.0 Live</span>
           </div>
         </div>
       </div>
@@ -117,9 +118,15 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
                   description="Use the Personality Details box to write their backstory. The deeper the lore, the more real the conversation feels."
                 />
                 <GuideCard 
+                  icon={Cloud}
+                  title="Dual AI Provider & Credits"
+                  description="Use Built-in Cloud (Vertex AI) with server credits to chat immediately with zero API keys required, or switch to your custom Gemini AI Studio key anytime in Settings."
+                  tag="V1.6.0"
+                />
+                <GuideCard 
                   icon={SettingsIcon}
                   title="The Cockpit (Settings)"
-                  description="Paste your Gemini API Key in Settings to activate the simulation. Toggle Dark Mode for late-night vibes."
+                  description="Configure your AI engine (gemini-3.8-flash default), toggle Search Grounding, and adjust message pacing or themes."
                 />
               </div>
             </div>

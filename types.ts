@@ -121,7 +121,10 @@ export interface PersonaTemplate {
   prompt: string;
 }
 
+export type AiProvider = 'vertex' | 'studio';
+
 export interface AppSettings {
+  aiProvider?: AiProvider; // 'vertex' (Built-in Server Credits) | 'studio' (Custom API Key)
   theme: 'light' | 'dark';
   shareUserInfo: boolean;
   apiKey?: string;

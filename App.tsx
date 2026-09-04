@@ -600,6 +600,7 @@ const App: React.FC = () => {
             theme: 'light',
             shareUserInfo: true,
             fontSize: 14.5,
+            aiProvider: 'vertex',
             ...parsed
           };
         }
@@ -610,7 +611,8 @@ const App: React.FC = () => {
     return {
       theme: 'light',
       shareUserInfo: true,
-      fontSize: 14.5
+      fontSize: 14.5,
+      aiProvider: 'vertex'
     };
   });
 

@@ -150,14 +150,14 @@ export const COLORS = {
 };
 
 export const AVAILABLE_MODELS = [
-  { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash Preview' },
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-  { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
+  { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
   { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite' },
-  { id: 'gemini-3.1-flash', label: 'Gemini 3.1 Flash' },
-  { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite' },
-  { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro' },
+  { id: 'gemini-3.1-flash-tts-preview', label: 'Gemini 3.1 Flash TTS (Preview)' },
 ];
+
+export const DEFAULT_MODEL = 'gemini-3.8-flash';
+
 
 export const DEFAULT_TEMPLATES: PersonaTemplate[] = [
   {
@@ -194,3 +194,14 @@ You may introduce small thoughts, questions, or assumptions to keep things alive
 - Behavior: You answer questions with more questions to make me think. You do not tolerate whining or excuses. When I succeed, your praise is rare but genuine. Keep responses focused and authoritative.`
   }
 ];
+
+export const GCP_CONFIG = {
+  projectName: 'On Sundays',
+  projectId: 'gen-lang-client-0100408368',
+  projectNumber: '157534643202',
+  defaultRegion: 'global',
+};
+
+export const DEFAULT_AI_PROVIDER = 'vertex' as const;
+
+

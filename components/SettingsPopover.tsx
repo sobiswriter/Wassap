@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall } from 'lucide-react';
-import { AppSettings } from '../types';
-import { AVAILABLE_MODELS } from '../constants';
+import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle } from 'lucide-react';
+import { AppSettings, AiProvider } from '../types';
+import { AVAILABLE_MODELS, GCP_CONFIG, DEFAULT_MODEL } from '../constants';
 
 interface SettingsPopoverProps {
   settings: AppSettings;
@@ -12,48 +12,134 @@ interface SettingsPopoverProps {
 
 export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUpdate, onClose, onTestNotification }) => {
   const [showKey, setShowKey] = useState(false);
-  const [draftSettings, setDraftSettings] = useState<AppSettings>(settings);
+  const [draftSettings, setDraftSettings] = useState<AppSettings>({
+    ...settings,
+    aiProvider: settings.aiProvider || 'vertex',
+  });
 
   const handleSave = () => {
     onUpdate(draftSettings);
     onClose();
   };
 
+  const currentProvider: AiProvider = draftSettings.aiProvider || 'vertex';
+
   return (
-    <div className="absolute left-0 md:left-[80px] bottom-0 md:bottom-20 w-full md:w-[320px] h-[calc(100%-80px)] md:h-auto max-h-[calc(100vh-140px)] app-panel md:rounded-lg shadow-2xl border app-border z-[1000] animate-in slide-in-from-bottom-2 duration-200 flex flex-col text-primary">
+    <div className="absolute left-0 md:left-[80px] bottom-0 md:bottom-20 w-full md:w-[340px] h-[calc(100%-80px)] md:h-auto max-h-[calc(100vh-140px)] app-panel md:rounded-lg shadow-2xl border app-border z-[1000] animate-in slide-in-from-bottom-2 duration-200 flex flex-col text-primary">
       <div className="p-4 border-b app-border flex justify-between items-center app-header shrink-0">
         <h3 className="font-medium text-[calc(var(--msg-font-size)+1.5px)]">Settings</h3>
         <X size={18} className="text-secondary cursor-pointer hover:bg-black/5 rounded-full" onClick={onClose} />
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
-        {/* API Key Section */}
+        {/* Dual AI Provider Section */}
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <Key size={20} className="text-[#00a884]" />
+            <Cloud size={20} className="text-[#00a884]" />
             <div>
-              <p className="text-[length:var(--msg-font-size)] font-medium">Gemini API Key</p>
-              <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Required for AI responses</p>
+              <p className="text-[length:var(--msg-font-size)] font-medium">AI Provider & Credits</p>
+              <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Choose how AI responses are powered</p>
             </div>
           </div>
-          <div className="relative">
-            <input
-              type={showKey ? "text" : "password"}
-              value={draftSettings.apiKey || ''}
-              onChange={(e) => setDraftSettings({ ...draftSettings, apiKey: e.target.value })}
-              placeholder="Paste your key here..."
-              className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none focus:border-[#00a884] transition-all pr-10"
-            />
-            <button
-              onClick={() => setShowKey(!showKey)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors"
+
+          {/* Provider Selection Cards */}
+          <div className="space-y-2">
+            {/* Option A: Built-in / Server Credits (Vertex AI) */}
+            <div
+              onClick={() => setDraftSettings({ ...draftSettings, aiProvider: 'vertex' })}
+              className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                currentProvider === 'vertex'
+                  ? 'border-[#00a884] bg-[#00a884]/10 dark:bg-[#00a884]/15'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-black/[0.02] dark:bg-white/[0.02]'
+              }`}
             >
-              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                    currentProvider === 'vertex' ? 'border-[#00a884] bg-[#00a884]' : 'border-gray-400'
+                  }`}>
+                    {currentProvider === 'vertex' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </div>
+                  <span className="text-[calc(var(--msg-font-size)-1px)] font-medium">Built-in Cloud (Vertex AI)</span>
+                </div>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#00a884]/20 text-[#00a884]">
+                  Default
+                </span>
+              </div>
+              <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary mt-1.5 ml-6">
+                Uses our server credits. No personal API key required.
+              </p>
+
+              {currentProvider === 'vertex' && (
+                <div className="mt-2.5 ml-6 p-2 rounded bg-black/[0.03] dark:bg-white/[0.04] border border-[#00a884]/30 text-[11px] space-y-0.5 text-secondary">
+                  <div className="flex items-center gap-1.5 text-[#00a884] font-medium">
+                    <Check size={12} />
+                    <span>Google Cloud Vertex AI Active</span>
+                  </div>
+                  <div>Project: <span className="font-mono text-primary font-medium">{GCP_CONFIG.projectId}</span></div>
+                  <div>Location: <span className="font-mono text-primary">{GCP_CONFIG.defaultRegion}</span></div>
+                </div>
+              )}
+            </div>
+
+            {/* Option B: Custom API Key (Gemini AI Studio) */}
+            <div
+              onClick={() => setDraftSettings({ ...draftSettings, aiProvider: 'studio' })}
+              className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                currentProvider === 'studio'
+                  ? 'border-[#00a884] bg-[#00a884]/10 dark:bg-[#00a884]/15'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-black/[0.02] dark:bg-white/[0.02]'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                    currentProvider === 'studio' ? 'border-[#00a884] bg-[#00a884]' : 'border-gray-400'
+                  }`}>
+                    {currentProvider === 'studio' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </div>
+                  <span className="text-[calc(var(--msg-font-size)-1px)] font-medium">Custom API Key (AI Studio)</span>
+                </div>
+                <Key size={14} className="text-secondary" />
+              </div>
+              <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary mt-1.5 ml-6">
+                Use your personal Google Gemini AI Studio API key.
+              </p>
+            </div>
           </div>
-          <p className="text-[calc(var(--msg-font-size)-3.5px)] text-secondary leading-tight">
-            Independent mode: Keys are stored locally in your browser.
-          </p>
+
+          {/* Custom API Key Input Field (shown when Custom API Key is selected) */}
+          {currentProvider === 'studio' && (
+            <div className="pt-1 space-y-2 animate-in fade-in duration-150">
+              <div className="relative">
+                <input
+                  type={showKey ? "text" : "password"}
+                  value={draftSettings.apiKey || ''}
+                  onChange={(e) => setDraftSettings({ ...draftSettings, apiKey: e.target.value })}
+                  placeholder="Paste your Gemini AI Studio API key..."
+                  className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none focus:border-[#00a884] transition-all pr-10 font-mono"
+                />
+                <button
+                  onClick={() => setShowKey(!showKey)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors"
+                  title={showKey ? "Hide key" : "Show key"}
+                >
+                  {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+
+              {!draftSettings.apiKey?.trim() ? (
+                <div className="flex items-center gap-1.5 text-amber-500 dark:text-amber-400 text-[calc(var(--msg-font-size)-3.5px)]">
+                  <AlertCircle size={13} className="shrink-0" />
+                  <span>Please enter your Gemini AI Studio key to chat in custom mode.</span>
+                </div>
+              ) : (
+                <p className="text-[calc(var(--msg-font-size)-3.5px)] text-secondary leading-tight">
+                  Independent mode: Keys are stored securely in your browser localStorage.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Font Size Selector */}
@@ -109,7 +195,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
           </div>
           <div className="ml-[32px]">
             <select
-              value={draftSettings.selectedModel || 'gemini-3-flash-preview'}
+              value={draftSettings.selectedModel || DEFAULT_MODEL}
               onChange={(e) => setDraftSettings({ ...draftSettings, selectedModel: e.target.value })}
               className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none focus:border-[#00a884] transition-all cursor-pointer appearance-none"
             >

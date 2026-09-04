@@ -1,83 +1,76 @@
-import { GoogleGenAI } from "@google/genai";
-import { UserProfile, AppSettings, HumaneSettings } from "../types";
-import { DEFAULT_MODEL } from "../constants";
+import { GoogleGenAI } from '@google/genai';
+import { HumaneSettings, UserProfile, AppSettings } from '../types';
+import { GCP_CONFIG } from '../constants';
 
-async function fetchVertexChat(payload: any): Promise<string> {
-  try {
-    const res = await fetch('/api/gemini/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.text) {
-      return data.error || "Vertex AI server encountered an error. Please try again or switch to 'Custom API Key' in Settings.";
-    }
-    return data.text;
-  } catch (e: any) {
-    console.error("Failed to contact Vertex AI backend:", e);
-    return "Unable to connect to the built-in Vertex AI server. Please verify your connection or switch to 'Custom API Key' in Settings.";
-  }
+export interface ChatPayload {
+  responder: {
+    name: string;
+    role?: string;
+    speechStyle?: string;
+    about?: string;
+    systemInstruction?: string;
+    humaneSettings?: HumaneSettings;
+  };
+  messageHistory: {
+    text: string;
+    sender: string;
+    senderName?: string;
+    image?: string;
+    audio?: string;
+    isEvent?: boolean;
+  }[];
+  userProfile?: UserProfile;
+  groupContext?: { groupName: string; otherMembers: string[] };
+  settings?: AppSettings;
+  initiationContext?: string;
 }
 
-async function fetchVertexDiary(payload: any): Promise<string> {
-  try {
-    const res = await fetch('/api/gemini/diary', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.text) {
-      return data.error || "Vertex AI server encountered an error while writing diary.";
-    }
-    return data.text;
-  } catch (e: any) {
-    console.error("Failed to contact Vertex AI backend for diary:", e);
-    return "Unable to connect to the built-in Vertex AI server. Try again later or switch to 'Custom API Key' in Settings.";
-  }
+export interface DiaryPayload {
+  persona: {
+    name: string;
+    role?: string;
+    speechStyle?: string;
+    about?: string;
+    systemInstruction?: string;
+  };
+  messageHistory: { text: string; sender: string; senderName?: string }[];
+  startDate: string;
+  endDate: string;
+  settings?: AppSettings;
 }
 
-export const getGeminiResponse = async (
-  responder: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string; humaneSettings?: HumaneSettings },
-  messageHistory: { text: string; sender: string; senderName?: string; image?: string; audio?: string }[],
-  userProfile?: UserProfile,
-  groupContext?: { groupName: string; otherMembers: string[] },
-  settings?: AppSettings,
-  initiationContext?: string
-) => {
-  const provider = settings?.aiProvider || 'vertex';
+/**
+ * Initializes GoogleGenAI client in Vertex AI mode.
+ * Authenticates via Google Cloud Application Default Credentials (ADC) / Service Account environment variables.
+ */
+export const getVertexClient = () => {
+  const project = process.env.VERTEX_PROJECT_ID || GCP_CONFIG.projectId;
+  const location = process.env.VERTEX_LOCATION || GCP_CONFIG.defaultRegion; // Defaults to 'global'
 
-  // Option A: Built-in / Server Credits (Vertex AI)
-  if (provider === 'vertex') {
-    return await fetchVertexChat({
-      responder,
-      messageHistory,
-      userProfile,
-      groupContext,
-      settings: {
-        selectedModel: settings?.selectedModel,
-        useSearchGrounding: settings?.useSearchGrounding,
-        shareTimeContext: settings?.shareTimeContext,
-        shareCalendarNotes: settings?.shareCalendarNotes,
-        calendarNotes: settings?.calendarNotes,
-      },
-      initiationContext,
-    });
-  }
+  return new GoogleGenAI({
+    vertexai: true,
+    project,
+    location,
+  });
+};
 
-  // Option B: Custom API Key (Gemini AI Studio)
-  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+/**
+ * Maps or fallbacks model names for Vertex AI if needed.
+ */
+export const resolveVertexModel = (selectedModel?: string): string => {
+  if (!selectedModel) return 'gemini-3.8-flash';
+  return selectedModel.trim();
+};
 
-  if (!finalKey) {
-    return "API Key not configured. Please enter your Gemini AI Studio API key in Settings, or switch to 'Built-in (Vertex AI)' mode.";
-  }
-
-  const ai = new GoogleGenAI({ apiKey: finalKey });
-
-
+/**
+ * Handles chat generation on the backend using Vertex AI.
+ */
+export async function handleVertexChat(payload: ChatPayload): Promise<{ ok: boolean; text?: string; error?: string }> {
   try {
-    const historyString = messageHistory
+    const { responder, messageHistory, userProfile, groupContext, settings, initiationContext } = payload;
+    const ai = getVertexClient();
+
+    const historyString = (messageHistory || [])
       .map(m => {
         if ((m as any).isEvent) {
           const imgTag = m.image ? "[IMAGE ATTACHED TO EVENT]" : "";
@@ -209,7 +202,7 @@ ${historyString}
 
 Response as ${responder.name}:`;
 
-    const recentMessagesWithMedia = messageHistory.slice(-5).filter(m => m.image || m.audio);
+    const recentMessagesWithMedia = (messageHistory || []).slice(-5).filter(m => m.image || m.audio);
     const parts: any[] = [{ text: systemPrompt }];
 
     recentMessagesWithMedia.slice(-2).forEach(msg => {
@@ -232,51 +225,52 @@ Response as ${responder.name}:`;
       config.tools = [{ googleSearch: {} }];
     }
 
+    const modelToUse = resolveVertexModel(settings?.selectedModel);
+
     const response = await ai.models.generateContent({
-      model: settings?.selectedModel || DEFAULT_MODEL,
+      model: modelToUse,
       contents: [{ role: 'user', parts }],
       config,
     });
 
-    return response.text || "...";
+    return {
+      ok: true,
+      text: response.text || "...",
+    };
   } catch (error: any) {
-    console.error("Connection error:", error);
-    if (error.status === 401 || error.status === 403) {
-      return "Invalid API Key. Please check your settings.";
+    console.error("[Vertex AI Error]:", error);
+
+    const errMessage = error?.message || String(error);
+    if (errMessage.includes('invalid_grant') || errMessage.includes('Could not load the default credentials')) {
+      return {
+        ok: false,
+        error: "Vertex AI authentication failed: Google Cloud Application Default Credentials (ADC) are missing or expired on the server. Please run `gcloud auth application-default login` on the host, or switch to 'Custom API Key' in Settings."
+      };
     }
-    return "Connection issues... please try again.";
+
+    if (error?.status === 401 || error?.status === 403 || errMessage.includes('PERMISSION_DENIED')) {
+      return {
+        ok: false,
+        error: `Google Cloud Vertex AI permission denied for project '${process.env.GOOGLE_CLOUD_PROJECT || GCP_CONFIG.projectId}'. Ensure Vertex AI API is enabled and billing is active, or switch to 'Custom API Key' in Settings.`
+      };
+    }
+
+    return {
+      ok: false,
+      error: `Vertex AI error: ${errMessage}`
+    };
   }
-};
+}
 
-export const getGeminiDiaryEntry = async (
-  persona: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string },
-  messageHistory: { text: string; sender: string; senderName?: string }[],
-  startDate: string,
-  endDate: string,
-  settings?: AppSettings
-) => {
-  const provider = settings?.aiProvider || 'vertex';
-
-  if (provider === 'vertex') {
-    return await fetchVertexDiary({
-      persona,
-      messageHistory,
-      startDate,
-      endDate,
-      settings: { selectedModel: settings?.selectedModel },
-    });
-  }
-
-  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
-
-  if (!finalKey) {
-    return "API Key not configured. Please enter your Gemini AI Studio API key in Settings, or switch to 'Built-in (Vertex AI)' mode.";
-  }
-
-  const ai = new GoogleGenAI({ apiKey: finalKey });
-
+/**
+ * Handles diary entry generation on the backend using Vertex AI.
+ */
+export async function handleVertexDiary(payload: DiaryPayload): Promise<{ ok: boolean; text?: string; error?: string }> {
   try {
-    const historyString = messageHistory
+    const { persona, messageHistory, startDate, endDate, settings } = payload;
+    const ai = getVertexClient();
+
+    const historyString = (messageHistory || [])
       .map(m => {
         const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
         return `${name}: ${m.text || ''}`.trim();
@@ -301,14 +295,23 @@ ${historyString}
 
 DIARY ENTRY BY ${persona.name}:`;
 
+    const modelToUse = resolveVertexModel(settings?.selectedModel);
+
     const response = await ai.models.generateContent({
-      model: settings?.selectedModel || DEFAULT_MODEL,
+      model: modelToUse,
       contents: [{ role: 'user', parts: [{ text: diaryPrompt }] }],
     });
 
-    return response.text || "I couldn't find the words today...";
+    return {
+      ok: true,
+      text: response.text || "I couldn't find the words today...",
+    };
   } catch (error: any) {
-    console.error("Diary generation error:", error);
-    return "I'm having trouble reflecting on today right now...";
+    console.error("[Vertex AI Diary Error]:", error);
+    const errMessage = error?.message || String(error);
+    return {
+      ok: false,
+      error: `Vertex AI Diary generation failed: ${errMessage}`,
+    };
   }
-};
+}
