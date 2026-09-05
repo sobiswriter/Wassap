@@ -216,10 +216,28 @@ Wassap is fully configured for seamless deployment on **Vercel**:
    - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
    - **Install Command**: `npm install`
-4. **Serverless Endpoints**:
-   - The included `vercel.json` and `/api/gemini/` handlers (`image-synthesize`, `image-generate`, `image-excuse`, `generate`, `diary`, `tts`, `status`) are pre-configured to run as Vercel serverless functions.
-5. **Hit Deploy!** 🚀
+4. **Environment Variables (Vercel Project Settings)**:
+   Add either your Google Cloud service account credentials or an API key:
+   - `GCP_SERVICE_ACCOUNT_KEY`: *(Recommended)* Full JSON content of your GCP Service Account Key.
+   - *OR* `GCP_CLIENT_EMAIL` + `GCP_PRIVATE_KEY`: Your service account client email and private key (newlines are handled automatically).
+   - *OR* `VERTEX_API_KEY` / `GEMINI_API_KEY`: Direct API key fallback.
+   - `VERTEX_PASSCODE`: *(Optional)* Passcode for Built-in Cloud mode (defaults to `Ness2020`).
+   - `VERTEX_PROJECT_ID`: *(Optional)* GCP project ID (defaults to `gen-lang-client-0100408368`).
+   - `VERTEX_LOCATION`: *(Optional)* Vertex region (defaults to `global`).
+5. **Serverless Endpoints**:
+   - The included `vercel.json` and `/api/gemini/` handlers (`image-synthesize`, `image-generate`, `image-excuse`, `generate`, `diary`, `tts`, `status`) are pre-configured to run as self-contained Vercel serverless functions.
+6. **Hit Deploy!** 🚀
 
+---
+
+## 📚 Project Documentation
+
+For deeper architectural, styling, and operational guidelines, refer to the dedicated documentation files:
+
+- 🧠 [**`memory.md`**](memory.md): AI context cache, current task status, and completed milestones. Read this first in any AI pairing session.
+- 🏗️ [**`architecture.md`**](architecture.md): System architecture, high-level Mermaid sequence diagrams, folder hierarchy, and tech stack details.
+- 🎨 [**`design.md`**](design.md): WhatsApp design tokens, complete hex color palettes (light & dark), typography, and layout measurements.
+- 📜 [**`rules.md`**](rules.md): Development guidelines, testing standards, and the strict git push protocol.
 
 ---
 
