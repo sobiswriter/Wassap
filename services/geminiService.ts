@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { UserProfile, AppSettings, HumaneSettings } from "../types";
-import { DEFAULT_MODEL, VERTEX_PASSCODE, getVoiceDescriptor } from "../constants";
+import { DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, VERTEX_PASSCODE, getVoiceDescriptor } from "../constants";
 import { getAppTimeContext } from "../utils/dates";
 import { pcmBase64ToWavDataUrl } from "../utils/audio";
 
@@ -515,3 +515,409 @@ export const generateGeminiVoiceNote = async (
     return { ok: false, error: error?.message || "TTS generation error." };
   }
 };
+
+/**
+ * Helper to convert an avatar URL or data URI to base64 inlineData
+ */
+export async function resolveAvatarBase64(avatarUrl?: string): Promise<{ data: string; mimeType: string } | null> {
+  if (!avatarUrl) return null;
+
+  try {
+    if (avatarUrl.startsWith('data:')) {
+      const parts = avatarUrl.split(',');
+      const mimeMatch = parts[0].match(/data:(.*?);base64/);
+      return {
+        mimeType: mimeMatch ? mimeMatch[1] : 'image/jpeg',
+        data: parts[1] || ''
+      };
+    }
+
+    const response = await fetch(avatarUrl);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        if (result && result.startsWith('data:')) {
+          const parts = result.split(',');
+          const mimeMatch = parts[0].match(/data:(.*?);base64/);
+          resolve({
+            mimeType: mimeMatch ? mimeMatch[1] : blob.type || 'image/jpeg',
+            data: parts[1] || ''
+          });
+        } else {
+          resolve(null);
+        }
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (err) {
+    console.warn("Could not resolve avatar to base64:", err);
+    return null;
+  }
+}
+
+export type ImageGenerationMode = 'selfie' | 'candid' | 'pov';
+
+export interface SynthesizeImageContextResult {
+  mode: ImageGenerationMode;
+  is_persona_subject: boolean;
+  user_wants_posed?: boolean;
+  caption: string;
+  action_and_setting: string;
+}
+
+export async function synthesizeImageContextAndCaption(
+  persona: {
+    name: string;
+    role?: string;
+    speechStyle?: string;
+    about?: string;
+    systemInstruction?: string;
+    humaneSettings?: HumaneSettings;
+  },
+  userPrompt: string,
+  messageHistory: { text: string; sender: string; senderName?: string }[],
+  userProfile?: UserProfile,
+  settings?: AppSettings
+): Promise<{ ok: boolean; result?: SynthesizeImageContextResult; error?: string }> {
+  const provider = settings?.aiProvider || 'vertex';
+
+  // Option A: Vertex AI
+  if (provider === 'vertex') {
+    if (!settings?.isVertexUnlocked) {
+      return {
+        ok: false,
+        error: "Built-in Cloud (Vertex AI) is locked. Please enter passcode in Settings."
+      };
+    }
+
+    try {
+      const res = await fetch('/api/gemini/image-synthesize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-vertex-passcode': VERTEX_PASSCODE,
+        },
+        body: JSON.stringify({
+          persona,
+          userPrompt,
+          messageHistory,
+          userProfile,
+          settings: { selectedModel: settings?.selectedModel },
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.result) {
+        return { ok: true, result: data.result };
+      }
+      return { ok: false, error: data.error || 'Failed to synthesize photo context.' };
+    } catch (e: any) {
+      console.error("Error calling /api/gemini/image-synthesize:", e);
+      return { ok: false, error: e.message || 'Unable to connect to synthesis endpoint.' };
+    }
+  }
+
+  // Option B: Custom Studio API Key
+  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+  if (!finalKey) {
+    return { ok: false, error: "API Key not configured." };
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: finalKey });
+    const historySnippet = (messageHistory || [])
+      .slice(-6)
+      .map(m => `${m.sender === 'me' ? 'User' : (m.senderName || persona.name)}: ${m.text || ''}`)
+      .join('\n');
+
+    const synthesisPrompt = `You are a Context & Caption Synthesizer for an authentic, smartphone-style photo exchange in a messaging app.
+The persona who will send the photo is:
+Name: ${persona.name}
+About: ${persona.about || 'N/A'}
+Role: ${persona.role || 'N/A'}
+Speech Style: ${persona.speechStyle || 'Casual WhatsApp texting'}
+System Guidelines: ${persona.systemInstruction || 'N/A'}
+
+Recent Chat History:
+${historySnippet || '(No prior messages)'}
+
+User Request / Current Prompt:
+"${userPrompt}"
+
+TASK:
+Analyze the conversation and user request according to the following STRICT priority order:
+
+1. USER QUERY FIRST (HIGHEST PRIORITY):
+   If the user asks for something specific (e.g. "show me what you're eating", "send a pic of your dog", "show me your outfit", "selfie please"), follow their EXACT instruction above everything else.
+
+2. RECENT HISTORY (SECONDARY):
+   Only use conversation history if the user's request is generic (e.g., "send an @image", "@img", or "show me you"), and the chat naturally mentions a current activity, food, or place.
+
+3. RANDOM EVERYDAY VARIETY (FALLBACK):
+   If no specific activity was recently discussed or requested, randomly pick from one of these realistic everyday situations:
+   - Living room couch browsing phone/laptop
+   - Sitting in a car passenger seat
+   - Kitchen counter making tea/coffee
+   - Desk/study space with notebooks or laptop
+   - Waiting outdoors at a bus stop or cafe table
+   (DO NOT default to bed unless specifically mentioned in chat).
+
+OUTPUT REQUIREMENTS:
+1. "mode": "selfie" | "candid" | "pov"
+   - "selfie": User specifically asks to see her/him, front-facing camera selfie, face, or outfit where they hold the camera.
+   - "candid": Third-person snapshot of the persona (e.g., taken quickly on a phone camera or propped up).
+   - "pov": Food, objects, views, surroundings, pets, scenery, laptop, desk (first-person POV snapshot, NO person subject).
+2. "caption": string
+   - A realistic, in-character text comment matching the persona's tone, current mood, speech style, and photo context (e.g. 'Excuse the bed hair haha, literally just woke up', 'Look what just arrived!', 'Having this right now, send me yours too!').
+   - NEVER sound robotic or assistant-like. Keep it casual like a real WhatsApp message.
+3. "action_and_setting": string
+   - A concise, context-aware description of the action and environment (e.g. 'sitting on the living room couch with a mug', 'eating ramen at a cozy street food stall with steam rising', 'at a study desk with an open laptop and notebook').
+4. "user_wants_posed": boolean
+   - If the user explicitly asks for a specific pose (e.g., 'look at the camera', 'smile', 'pose nicely', 'stand straight', 'pose for me', 'just a simple of u standing and posing'), set user_wants_posed: true and reflect that exact request in action_and_setting.
+   - Otherwise, default user_wants_posed: false.
+
+Return ONLY a valid JSON object with keys "mode", "user_wants_posed", "caption", and "action_and_setting".`;
+
+    const response = await ai.models.generateContent({
+      model: settings?.selectedModel || DEFAULT_MODEL,
+      contents: [{ role: 'user', parts: [{ text: synthesisPrompt }] }],
+      config: {
+        responseMimeType: "application/json",
+      },
+    });
+
+    const responseText = response.text || "{}";
+    let parsed: any;
+    try {
+      parsed = JSON.parse(responseText);
+    } catch {
+      const match = responseText.match(/\{[\s\S]*\}/);
+      parsed = match ? JSON.parse(match[0]) : {};
+    }
+    const mode: ImageGenerationMode = (parsed.mode === 'selfie' || parsed.mode === 'candid' || parsed.mode === 'pov')
+      ? parsed.mode
+      : (parsed.is_persona_subject ? 'selfie' : 'pov');
+    const user_wants_posed = Boolean(parsed.user_wants_posed);
+
+    return {
+      ok: true,
+      result: {
+        mode,
+        is_persona_subject: mode !== 'pov',
+        user_wants_posed,
+        caption: parsed.caption || "Snapped this just now!",
+        action_and_setting: parsed.action_and_setting || "sitting on the living room couch",
+      }
+    };
+  } catch (err: any) {
+    console.error("Studio synthesis error:", err);
+    return { ok: false, error: err.message || "Synthesis error." };
+  }
+}
+
+export async function generatePersonaImage(options: {
+  model?: string;
+  mode?: ImageGenerationMode;
+  is_persona_subject: boolean;
+  user_wants_posed?: boolean;
+  action_and_setting: string;
+  avatarBase64?: string;
+  avatarMimeType?: string;
+  avatarUrl?: string;
+  settings?: AppSettings;
+}): Promise<{ ok: boolean; imageDataUrl?: string; error?: string; blocked?: boolean }> {
+  const { model, action_and_setting, avatarBase64, avatarMimeType, avatarUrl, settings } = options;
+  const mode: ImageGenerationMode = options.mode || (options.is_persona_subject ? 'selfie' : 'pov');
+  const isSubject = mode === 'selfie' || mode === 'candid';
+  const provider = settings?.aiProvider || 'vertex';
+  const modelToUse = model || settings?.selectedImageModel || DEFAULT_IMAGE_MODEL;
+
+  // Option A: Vertex AI
+  if (provider === 'vertex') {
+    if (!settings?.isVertexUnlocked) {
+      return { ok: false, error: "Built-in Cloud (Vertex AI) is locked. Enter passcode in Settings." };
+    }
+
+    try {
+      const res = await fetch('/api/gemini/image-generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-vertex-passcode': VERTEX_PASSCODE,
+        },
+        body: JSON.stringify({
+          model: modelToUse,
+          mode,
+          is_persona_subject: isSubject,
+          user_wants_posed: options.user_wants_posed,
+          action_and_setting,
+          avatarBase64,
+          avatarMimeType,
+          avatarUrl,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.imageData) {
+        return { ok: true, imageDataUrl: data.imageData };
+      }
+      return {
+        ok: false,
+        error: data.error || "Failed to generate image.",
+        blocked: data.blocked,
+      };
+    } catch (e: any) {
+      console.error("Error calling /api/gemini/image-generate:", e);
+      return { ok: false, error: e.message || "Failed to connect to image generation endpoint." };
+    }
+  }
+
+  // Option B: Custom Studio API Key
+  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+  if (!finalKey) {
+    return { ok: false, error: "API Key not configured." };
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: finalKey });
+    let parts: any[] = [];
+    let promptText = '';
+
+    if (mode === 'selfie') {
+      promptText = `Use [Input Image 1] as the subject reference (identical face, exact facial structure, hair, and eye shape). A spontaneous, casual amateur selfie taken on a smartphone front-facing camera. She is ${action_and_setting}. Arm extended holding the phone at a slight, natural angle; the shot is slightly off-center and imperfectly framed. Natural, flat indoor lighting or screen glare illuminating her face—strictly no studio rim lighting or warm glam glow. Casual relaxed expression, half-smile or candid smirk (not an Instagram model pose). Authentic smartphone front-lens compression, subtle motion blur around edges, faint digital camera grain. Raw unedited Snapchat/WhatsApp front camera snap, zero beauty filter, zero cinematic styling.`;
+
+      if (avatarBase64) {
+        parts.push({
+          inlineData: {
+            mimeType: avatarMimeType || 'image/jpeg',
+            data: avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64,
+          }
+        });
+      }
+      parts.push({ text: promptText });
+    } else if (mode === 'candid') {
+      if (options.user_wants_posed) {
+        promptText = `Use [Input Image 1] as the subject reference (same woman, exact same facial features, hair, and skin tone). A casual, amateur smartphone snapshot of her ${action_and_setting}. She is posing casually for someone taking her photo on a phone, looking directly toward the camera with a natural, unforced expression. Shot on an everyday smartphone, slightly imperfect composition, authentic room/outdoor lighting. Realistic skin texture, natural soft focus, raw unedited mobile photo.`;
+      } else {
+        promptText = `Use [Input Image 1] as the subject reference (same woman, exact same facial features, hair, and skin tone). A natural, unposed amateur photo of her ${action_and_setting}. Captured quickly on an everyday smartphone, feels accidental rather than staged. Composition is slightly imperfect: off-center framing, awkward angle (either slightly too low or tilted, horizon not completely straight, or part of her body slightly cropped out of frame). She is mid-action or looking away casually (looking at her phone, lost in thought, or reaching for something—not aware of or posing for the camera). Uneven realistic lighting [e.g., flat fluorescent lighting, harsh daylight with one side slightly overblown, or fading low light with subtle grain]. Focus is naturally soft or slightly missed rather than razor-sharp, with subtle motion blur from quick movement. An uncurated, unedited raw capture sent over chat.`;
+      }
+
+      if (avatarBase64) {
+        parts.push({
+          inlineData: {
+            mimeType: avatarMimeType || 'image/jpeg',
+            data: avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64,
+          }
+        });
+      }
+      parts.push({ text: promptText });
+    } else {
+      // mode === 'pov'
+      promptText = `A casual amateur first-person POV photo taken on a smartphone of ${action_and_setting}. Documentary everyday realism, flat natural light or harsh indoor fluorescent bulbs. Slightly off-center angle, real clutter in the background, believable phone lens depth. An accidental 2-second snapshot, no editorial color grading, zero artistic styling.`;
+      parts.push({ text: promptText });
+    }
+
+    const response = await ai.models.generateContent({
+      model: modelToUse,
+      contents: [{ role: 'user', parts }],
+      config: {
+        responseModalities: ["IMAGE"],
+        aspectRatio: "3:4",
+        imageConfig: {
+          aspectRatio: "3:4",
+        },
+      } as any,
+    });
+
+    const candidate = response.candidates?.[0];
+    if (candidate?.finishReason === 'SAFETY') {
+      return { ok: false, blocked: true, error: "Prompt triggered safety filter." };
+    }
+
+    const part = candidate?.content?.parts?.find((p: any) => p.inlineData?.data);
+    if (part && part.inlineData?.data) {
+      const mime = part.inlineData.mimeType || 'image/jpeg';
+      return {
+        ok: true,
+        imageDataUrl: `data:${mime};base64,${part.inlineData.data}`,
+      };
+    }
+
+    return { ok: false, error: "No image received from Gemini." };
+  } catch (err: any) {
+    console.error("Studio image generation error:", err);
+    const errStr = err?.message || String(err);
+    return {
+      ok: false,
+      blocked: errStr.includes('SAFETY') || errStr.includes('blocked'),
+      error: errStr,
+    };
+  }
+}
+
+export async function generatePersonaImageExcuse(
+  persona: {
+    name: string;
+    role?: string;
+    speechStyle?: string;
+    about?: string;
+    systemInstruction?: string;
+    humaneSettings?: HumaneSettings;
+  },
+  userPrompt: string,
+  settings?: AppSettings
+): Promise<string> {
+  const provider = settings?.aiProvider || 'vertex';
+
+  if (provider === 'vertex') {
+    try {
+      const res = await fetch('/api/gemini/image-excuse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-vertex-passcode': VERTEX_PASSCODE,
+        },
+        body: JSON.stringify({
+          persona,
+          userPrompt,
+          settings: { selectedModel: settings?.selectedModel },
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.text) {
+        return data.text;
+      }
+    } catch (e) {
+      console.warn("Fallback to local excuse:", e);
+    }
+  } else {
+    const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+    if (finalKey) {
+      try {
+        const ai = new GoogleGenAI({ apiKey: finalKey });
+        const excusePrompt = `You are ${persona.name}. The user asked you to send a photo ('${userPrompt}'), but right now your camera is unavailable (e.g. app crashed, camera glitch, bad lighting). In your exact natural speech style (${persona.speechStyle || 'casual'}), reply with 1 short, in-character sentence explaining why you can't send one right now. Never say you are an AI.`;
+        const res = await ai.models.generateContent({
+          model: settings?.selectedModel || DEFAULT_MODEL,
+          contents: [{ role: 'user', parts: [{ text: excusePrompt }] }],
+        });
+        if (res.text) return res.text.trim();
+      } catch (e) {
+        console.warn("Studio excuse generation failed:", e);
+      }
+    }
+  }
+
+  // Graceful deterministic fallback
+  const excuses = [
+    "My camera app literally just crashed on me, hold on!",
+    "Ugh, terrible lighting in here right now haha, I'll send one later!",
+    "My lens is completely fogged up right now lol, give me a bit!",
+    "Phone is glitching out when I open the camera, hold up!"
+  ];
+  return excuses[Math.floor(Math.random() * excuses.length)];
+}
+

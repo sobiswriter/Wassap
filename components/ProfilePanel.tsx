@@ -8,7 +8,7 @@ import {
 import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate, AppSettings, PersonaVoiceSettings, VoiceNoteFrequency } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey, getAppNow, getAppDateKey } from '../utils/dates';
-import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TTS_VOICE_DETAILS } from '../constants';
+import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TTS_VOICE_DETAILS, AVAILABLE_IMAGE_MODELS, DEFAULT_IMAGE_MODEL } from '../constants';
 import { generateGeminiVoiceNote } from '../services/geminiService';
 
 interface ProfilePanelProps {
@@ -64,7 +64,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       moodSliderEnabled: false,
       moodValue: 50
     },
-    voiceSettings: chat.voiceSettings || { ...DEFAULT_VOICE_SETTINGS }
+    voiceSettings: chat.voiceSettings || { ...DEFAULT_VOICE_SETTINGS },
+    imageModel: chat.imageModel || ''
   });
 
   const [customTemplates, setCustomTemplates] = useState<PersonaTemplate[]>([]);
@@ -82,6 +83,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   const [showSentience, setShowSentience] = useState(false);
   const [showHumane, setShowHumane] = useState(false);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [showImageSettings, setShowImageSettings] = useState(false);
   const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -121,7 +123,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
         moodSliderEnabled: false,
         moodValue: 50
       },
-      voiceSettings: chat.voiceSettings || { ...DEFAULT_VOICE_SETTINGS }
+      voiceSettings: chat.voiceSettings || { ...DEFAULT_VOICE_SETTINGS },
+      imageModel: chat.imageModel || ''
     });
     
     // Normalize existing data if it used minHours
@@ -1099,6 +1102,62 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   </div>
                 </div>
 
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Photo Generation Settings Section */}
+        {!chat.isGroup && (
+          <div className="mt-2 app-panel shadow-sm border-b app-border">
+            <div
+              className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-black/5 transition-colors"
+              onClick={() => setShowImageSettings(!showImageSettings)}
+            >
+              <div className="flex items-center gap-3">
+                <Camera size={20} className="text-[#00a884]" />
+                <div>
+                  <h4 className="text-[calc(var(--msg-font-size)+0.5px)] text-primary font-medium">In-Chat Photo Generation (@img)</h4>
+                  <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">
+                    {formData.imageModel
+                      ? (AVAILABLE_IMAGE_MODELS.find(m => m.id === formData.imageModel)?.label || formData.imageModel)
+                      : `App Default (${AVAILABLE_IMAGE_MODELS.find(m => m.id === (settings?.selectedImageModel || DEFAULT_IMAGE_MODEL))?.label || 'Fast'})`}
+                  </p>
+                </div>
+              </div>
+              {showImageSettings ? <ChevronDown size={20} className="text-secondary" /> : <ChevronRight size={20} className="text-secondary" />}
+            </div>
+
+            {showImageSettings && (
+              <div className="px-6 py-5 space-y-4 border-t app-border bg-gray-50/50 dark:bg-black/10">
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Image Generation Model</label>
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">
+                      Choose which model this persona uses when triggered with @img
+                    </p>
+                  </div>
+
+                  <select
+                    value={formData.imageModel || ''}
+                    onChange={(e) => {
+                      const newModel = e.target.value;
+                      setFormData(p => ({ ...p, imageModel: newModel }));
+                      onUpdate({ imageModel: newModel });
+                    }}
+                    className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2.5 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
+                  >
+                    <option value="">Use App Default Setting</option>
+                    {AVAILABLE_IMAGE_MODELS.map(model => (
+                      <option key={model.id} value={model.id}>{model.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg text-[calc(var(--msg-font-size)-2.5px)] text-secondary leading-relaxed">
+                  <p className="font-medium text-primary mb-1">📸 How @img works:</p>
+                  <p>Send a message containing <code className="bg-[#00a884]/10 text-[#00a884] px-1 py-0.5 rounded font-mono">@img</code> in this chat. The persona will automatically evaluate the conversation context, generate an unposed authentic photo (or selfie using their avatar as reference), and send it with an in-character caption!</p>
+                </div>
               </div>
             )}
           </div>

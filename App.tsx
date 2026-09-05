@@ -12,9 +12,16 @@ import { SettingsPopover } from './components/SettingsPopover';
 import { MobileNavigation } from './components/MobileNavigation';
 import { GuidePanel } from './components/GuidePanel';
 import { UpdatesPanel } from './components/UpdatesPanel';
-import { INITIAL_CHATS } from './constants';
+import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus, PersonaVoiceSettings } from './types';
-import { getGeminiResponse, generateGeminiVoiceNote } from './services/geminiService';
+import { 
+  getGeminiResponse, 
+  generateGeminiVoiceNote, 
+  synthesizeImageContextAndCaption, 
+  generatePersonaImage, 
+  generatePersonaImageExcuse, 
+  resolveAvatarBase64 
+} from './services/geminiService';
 import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext, getAppNow, getAppDateKey, getAppFormattedTime } from './utils/dates';
 import { cleanSpokenTranscript } from './utils/audio';
 import { saveMedia, getMedia } from './utils/storage';
@@ -1310,9 +1317,13 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       }
     }
 
+    const isImageRequest = !isEvent && /@(img|image)\b/i.test(text);
+    const cleanedText = isImageRequest ? text.replace(/@(img|image)\b/gi, '').trim() : text;
+    const displayText = cleanedText || (isImageRequest ? 'Send a photo' : text);
+
     const userMsg: Message = {
       id: Date.now().toString(),
-      text,
+      text: displayText,
       attachment: attachment ? {
         ...attachment,
         data: (attachment.type === 'image' || attachment.type === 'audio') ? '' : attachment.data, // Strip media data for storage
@@ -1326,18 +1337,20 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       timestampEpoch: getAppNow(settingsRef.current).getTime(),
       status: 'sent',
       replyToMessage: replyTo,
-      isEvent
+      isEvent,
+      isImageRequest
     };
 
     setReplyingTo(null);
 
     setChats(prev => prev.map(chat => {
       if (chat.id === activeChat.id) {
-        let lastMsg = text || 'Attachment';
-        if (attachment?.type === 'image') lastMsg = '📷 Photo' + (text ? `: ${text}` : '');
-        if (attachment?.type === 'document') lastMsg = '📄 Document' + (text ? `: ${text}` : '');
+        let lastMsg = displayText || 'Attachment';
+        if (attachment?.type === 'image') lastMsg = '📷 Photo' + (displayText ? `: ${displayText}` : '');
+        if (attachment?.type === 'document') lastMsg = '📄 Document' + (displayText ? `: ${displayText}` : '');
         if (attachment?.type === 'audio') lastMsg = '🎤 Voice message';
-        if (isEvent) lastMsg = `🎬 Event: ${text}`;
+        if (isEvent) lastMsg = `🎬 Event: ${displayText}`;
+        if (isImageRequest) lastMsg = `📷 Photo request: ${displayText}`;
 
         return {
           ...chat,
@@ -1350,8 +1363,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }));
 
     // Trigger AI response(s)
-    if (settings.enableTextStacking === false) {
-      const memoryContext = buildMemoryRecallContext(activeChat, text);
+    if (isImageRequest || settings.enableTextStacking === false) {
+      const memoryContext = buildMemoryRecallContext(activeChat, displayText);
       const scheduleContext = buildScheduleContext(activeChat);
       const timeGapContext = getTimeGapAndFrequencyContext([...activeChat.messages, userMsg], false, settingsRef.current);
       const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
@@ -1359,7 +1372,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       if (activeChat.isGroup) {
         handleGroupResponse(activeChat, [...activeChat.messages, userMsg], combinedContexts);
       } else {
-        handleSingleResponse(activeChat, [...activeChat.messages, userMsg], combinedContexts);
+        handleSingleResponse(activeChat, [...activeChat.messages, userMsg], combinedContexts, isImageRequest, displayText);
       }
     } else {
       const chatId = activeChat.id;
@@ -1400,6 +1413,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               : freshChat.messages.slice(freshChat.messages.length - lastAiMsgIdx);
             
             const combinedText = userStackMessages.map(m => m.text).join(' ');
+            const hasImgReq = userStackMessages.some(m => m.isImageRequest);
 
             const memoryContext = buildMemoryRecallContext(freshChat, combinedText);
             const scheduleContext = buildScheduleContext(freshChat);
@@ -1408,7 +1422,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             if (freshChat.isGroup) {
               await handleGroupResponse(freshChat, freshChat.messages, combinedContexts);
             } else {
-              await handleSingleResponse(freshChat, freshChat.messages, combinedContexts);
+              await handleSingleResponse(freshChat, freshChat.messages, combinedContexts, hasImgReq, combinedText);
             }
           } finally {
             aiRespondingChatsRef.current.delete(chatId);
@@ -1420,7 +1434,13 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }
   };
 
-  const handleSingleResponse = async (chat: Chat, updatedHistory: Message[], memoryContext?: string) => {
+  const handleSingleResponse = async (
+    chat: Chat, 
+    updatedHistory: Message[], 
+    memoryContext?: string, 
+    isImageRequest = false, 
+    imagePromptText = ''
+  ) => {
     const chatId = chat.id;
     try {
       // 1. "Seen" Delay Simulation (Persona opens the app)
@@ -1458,6 +1478,156 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
         };
       }));
+
+      const checkImageReq = isImageRequest || updatedHistory.slice(-2).some(m => m.sender === 'me' && m.isImageRequest);
+
+      // --- IN-CHAT IMAGE GENERATION PIPELINE ---
+      if (checkImageReq) {
+        setChatStatus(chatId, 'typing...');
+        const userPrompt = imagePromptText || updatedHistory.slice().reverse().find(m => m.sender === 'me')?.text || 'Send me a photo';
+
+        // Step 1: Context & Caption Synthesizer
+        const synthRes = await synthesizeImageContextAndCaption(
+          { ...chat },
+          userPrompt,
+          hydratedHistory,
+          settings.shareUserInfo ? user : undefined,
+          settings
+        );
+
+        if (synthRes.ok && synthRes.result) {
+          const { mode, is_persona_subject, user_wants_posed, caption, action_and_setting } = synthRes.result;
+          const isSubject = mode === 'selfie' || mode === 'candid' || (is_persona_subject && mode !== 'pov');
+
+          let avatarBase64Data: string | undefined;
+          let avatarMime: string | undefined;
+
+          if (isSubject && chat.avatar) {
+            const resolved = await resolveAvatarBase64(chat.avatar);
+            if (resolved) {
+              avatarBase64Data = resolved.data;
+              avatarMime = resolved.mimeType;
+            }
+          }
+
+          const personaImageModel = chat.imageModel || settings.selectedImageModel || DEFAULT_IMAGE_MODEL;
+
+          // Step 2: Image Generation Call
+          const imgRes = await generatePersonaImage({
+            model: personaImageModel,
+            mode,
+            is_persona_subject: isSubject,
+            user_wants_posed,
+            action_and_setting,
+            avatarBase64: avatarBase64Data,
+            avatarMimeType: avatarMime,
+            avatarUrl: chat.avatar,
+            settings,
+          });
+
+          if (imgRes.ok && imgRes.imageDataUrl) {
+            const mediaId = `media-${Date.now()}`;
+            try {
+              await saveMedia(mediaId, imgRes.imageDataUrl);
+            } catch (err) {
+              console.error("Failed to save generated image to IndexedDB", err);
+            }
+
+            // Realistic photo sending delay
+            const photoSendDelay = 1200 + Math.random() * 800;
+            await new Promise(resolve => setTimeout(resolve, photoSendDelay));
+
+            const aiMsg: Message = {
+              id: `${Date.now()}-img`,
+              text: caption,
+              sender: 'other',
+              date: getDateKey(),
+              timestamp: getFormattedTime(),
+              timestampEpoch: Date.now(),
+              status: 'delivered',
+              attachment: {
+                name: 'Photo',
+                data: '',
+                type: 'image',
+                mediaId,
+              },
+              mediaId,
+            };
+
+            setChats(prev => prev.map(c => {
+              if (c.id === chatId) {
+                return {
+                  ...c,
+                  messages: [...c.messages, aiMsg],
+                  lastMessage: '📷 ' + caption,
+                  lastMessageTime: aiMsg.timestamp,
+                  unreadCount: (c.unreadCount || 0) + 1,
+                };
+              }
+              return c;
+            }));
+
+            playIncomingMessageSound();
+
+            const isFocusingChat = !document.hidden && activeChatId === chat.id;
+            if (settings.enableNotifications && !isFocusingChat) {
+              if (document.hidden) {
+                document.title = `(1) New Photo - ${chat.name}`;
+              }
+              showNotification(chat.name, {
+                body: '📷 ' + caption,
+                icon: chat.avatar,
+                tag: chat.id,
+                silentUpdate: false,
+              });
+            }
+
+            setChatStatus(chatId, 'online');
+            setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
+            return;
+          }
+        }
+
+        // Graceful Degradation: If image generation fails, times out, or triggers safety filter
+        console.warn("Photo generation failed or blocked, falling back to in-character excuse");
+        const excuse = await generatePersonaImageExcuse(
+          { ...chat },
+          userPrompt,
+          settings
+        );
+
+        const typingDelay = Math.min(Math.max(excuse.length * 40, 1500), 3000);
+        await new Promise(resolve => setTimeout(resolve, typingDelay));
+
+        const aiMsg: Message = {
+          id: `${Date.now()}-excuse`,
+          text: excuse,
+          sender: 'other',
+          date: getDateKey(),
+          timestamp: getFormattedTime(),
+          timestampEpoch: Date.now(),
+          status: 'delivered',
+        };
+
+        setChats(prev => prev.map(c => {
+          if (c.id === chatId) {
+            return {
+              ...c,
+              messages: [...c.messages, aiMsg],
+              lastMessage: excuse,
+              lastMessageTime: aiMsg.timestamp,
+              unreadCount: (c.unreadCount || 0) + 1,
+            };
+          }
+          return c;
+        }));
+
+        playIncomingMessageSound();
+
+        setChatStatus(chatId, 'online');
+        setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
+        return;
+      }
 
       // Check if user sent a voice note
       const lastUserMsg = [...updatedHistory].reverse().find(m => m.sender === 'me');

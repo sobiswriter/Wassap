@@ -1,5 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { handleVertexChat, handleVertexDiary, handleVertexTTS } from './vertexHandler';
+import { 
+  handleVertexChat, 
+  handleVertexDiary, 
+  handleVertexTTS, 
+  handleVertexImageSynthesis, 
+  handleVertexImageGeneration, 
+  handleVertexImageExcuse 
+} from './vertexHandler';
 import { VERTEX_PASSCODE, GCP_CONFIG } from '../constants';
 
 export async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
@@ -125,6 +132,78 @@ export async function handleGeminiApiMiddleware(
       }
     } catch (err: any) {
       console.error('[API Error /tts]:', err);
+      sendJson(res, 400, { error: err.message || 'Invalid request body' });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url === '/api/gemini/image-synthesize') {
+    try {
+      const payload = await parseJsonBody(req);
+      if (!isPasscodeValid(req, payload)) {
+        sendJson(res, 401, {
+          error: "Built-in Cloud (Vertex AI) is locked behind password protection. Please enter the passcode in Settings.",
+          code: "LOCKED"
+        });
+        return;
+      }
+
+      const result = await handleVertexImageSynthesis(payload);
+      if (result.ok) {
+        sendJson(res, 200, { result: result.result });
+      } else {
+        sendJson(res, 500, { error: result.error });
+      }
+    } catch (err: any) {
+      console.error('[API Error /image-synthesize]:', err);
+      sendJson(res, 400, { error: err.message || 'Invalid request body' });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url === '/api/gemini/image-generate') {
+    try {
+      const payload = await parseJsonBody(req);
+      if (!isPasscodeValid(req, payload)) {
+        sendJson(res, 401, {
+          error: "Built-in Cloud (Vertex AI) is locked behind password protection. Please enter the passcode in Settings.",
+          code: "LOCKED"
+        });
+        return;
+      }
+
+      const result = await handleVertexImageGeneration(payload);
+      if (result.ok) {
+        sendJson(res, 200, { imageData: result.imageData });
+      } else {
+        sendJson(res, 500, { error: result.error, blocked: result.blocked });
+      }
+    } catch (err: any) {
+      console.error('[API Error /image-generate]:', err);
+      sendJson(res, 400, { error: err.message || 'Invalid request body' });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url === '/api/gemini/image-excuse') {
+    try {
+      const payload = await parseJsonBody(req);
+      if (!isPasscodeValid(req, payload)) {
+        sendJson(res, 401, {
+          error: "Built-in Cloud (Vertex AI) is locked behind password protection. Please enter the passcode in Settings.",
+          code: "LOCKED"
+        });
+        return;
+      }
+
+      const result = await handleVertexImageExcuse(payload);
+      if (result.ok) {
+        sendJson(res, 200, { text: result.text });
+      } else {
+        sendJson(res, 500, { error: result.error });
+      }
+    } catch (err: any) {
+      console.error('[API Error /image-excuse]:', err);
       sendJson(res, 400, { error: err.message || 'Invalid request body' });
     }
     return;

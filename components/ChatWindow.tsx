@@ -7,6 +7,7 @@ import { getGeminiDiaryEntry } from '../services/geminiService';
 import { getMedia } from '../utils/storage';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { VoiceNotePlayer } from './VoiceNotePlayer';
+import { ImageLightboxModal } from './ImageLightboxModal';
 
 interface ChatWindowProps {
   chat: Chat | null;
@@ -243,7 +244,8 @@ const MessageBubble = React.memo<{
   onToggleSelect?: (message: Message) => void;
   selectionMode?: boolean;
   isConsecutive?: boolean;
-}>(({ message, highlight, isGroup, chatAvatar, onReply, selected, onToggleSelect, selectionMode, isConsecutive }) => {
+  onOpenImage?: (src: string, caption?: string, senderName?: string, timestamp?: string) => void;
+}>(({ message, highlight, isGroup, chatAvatar, onReply, selected, onToggleSelect, selectionMode, isConsecutive, onOpenImage }) => {
   const isMe = message.sender === 'me';
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
@@ -268,6 +270,7 @@ const MessageBubble = React.memo<{
   }, [message.mediaId, message.attachment?.mediaId]);
 
   const mediaSrc = mediaData || message.image || message.attachment?.data || null;
+  const isMediaMessage = Boolean(mediaSrc && message.attachment?.type !== 'audio');
 
   if (message.isEvent) {
     return (
@@ -316,8 +319,15 @@ const MessageBubble = React.memo<{
         </button>
       )}
       <div
-        className={`max-w-[85%] sm:max-w-[75%] p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto my-[2px] ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${!isConsecutive ? (isMe ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
-        style={{ backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)' }}
+        className={`${
+          isMediaMessage
+            ? 'media-message-bubble'
+            : 'max-w-[85%] sm:max-w-[75%]'
+        } p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto my-[2px] ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${!isConsecutive ? (isMe ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
+        style={{ 
+          backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)',
+          ...(isMediaMessage ? { width: 'fit-content', maxWidth: '330px' } : {})
+        }}
       >
         {message.replyToMessage && (
           <div className="p-2 rounded-md mb-1 border-l-4 text-[calc(var(--msg-font-size)-1.5px)] bg-black/5 dark:bg-black/20 overflow-hidden cursor-pointer"
@@ -335,59 +345,99 @@ const MessageBubble = React.memo<{
           </div>
         )}
 
-        {mediaSrc && message.attachment?.type !== 'audio' && (
-          <div className="p-0.5 overflow-hidden">
-            <img
-              src={mediaSrc}
-              alt="Sent content"
-              className="rounded-md w-full max-h-[450px] object-contain block shadow-sm bg-black/5 dark:bg-white/5"
-              loading="lazy"
-            />
-          </div>
-        )}
-
-        {message.attachment?.type === 'document' && (
-          <div className="p-2 flex items-center gap-3 bg-black/5 dark:bg-black/20 rounded-md mb-1 border border-black/5 hover:bg-black/10 transition-colors cursor-pointer group">
-            <div className="w-12 h-12 bg-[#00a884] rounded flex items-center justify-center text-white shadow-sm shrink-0 group-hover:scale-105 transition-transform">
-              <FileText size={24} />
+        {isMediaMessage ? (
+          <>
+            <div 
+              className="image-wrapper cursor-pointer group/img relative"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenImage?.(
+                  mediaSrc,
+                  message.text,
+                  isMe ? 'You' : (message.senderName || undefined),
+                  message.timestamp
+                );
+              }}
+            >
+              <img
+                src={mediaSrc}
+                alt="Sent photo"
+                className="transition-transform duration-200 group-hover/img:scale-[1.01]"
+                loading="lazy"
+              />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[calc(var(--msg-font-size)-0.5px)] text-primary font-medium truncate">{message.attachment.name}</p>
-              <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary uppercase font-bold tracking-tighter">Document</p>
-            </div>
-            <Download size={20} className="text-secondary cursor-pointer hover:text-[#00a884] transition-colors" />
-          </div>
-        )}
 
-        {message.attachment?.type === 'audio' && (
-          <div className="p-1 pb-0">
-            <VoiceNotePlayer
-              src={mediaSrc || message.attachment?.data || ''}
-              seedId={message.id}
-              transcript={message.text}
-              isMe={isMe}
-              avatar={isMe ? undefined : chatAvatar}
-              senderName={isMe ? 'You' : (message.senderName || 'Voice Note')}
-            />
-          </div>
-        )}
-
-        <div className="px-2 py-1 flex flex-col relative">
-          {(!message.attachment || message.attachment.type !== 'audio') && message.text && (
-            <p className={`text-[length:var(--msg-font-size)] text-primary whitespace-pre-wrap break-words pr-12 ${hasAttachment ? 'pt-1 pb-4' : 'pb-3'}`}>
-              {formatMessageText(message.text)}
-            </p>
-          )}
-
-          <div className={`flex items-center gap-1 self-end ${(!message.attachment || message.attachment.type !== 'audio') && message.text ? 'absolute bottom-1 right-2' : 'mt-1 mb-0.5 mr-1'}`}>
-            <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
-            {isMe && (
-              <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
-                {message.status === 'sent' ? <Check size={16} /> : <CheckCheck size={16} />}
-              </span>
+            {message.text ? (
+              <div className="caption-text flex flex-col relative w-full">
+                <p className="text-primary whitespace-pre-wrap break-words pr-12 pb-2">
+                  {formatMessageText(message.text)}
+                </p>
+                <div className="flex items-center gap-1 self-end absolute bottom-1 right-2">
+                  <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
+                  {isMe && (
+                    <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
+                      {message.status === 'sent' ? <Check size={16} /> : <CheckCheck size={16} />}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 self-end mt-1 mb-0.5 mr-1.5">
+                <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
+                {isMe && (
+                  <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
+                    {message.status === 'sent' ? <Check size={16} /> : <CheckCheck size={16} />}
+                  </span>
+                )}
+              </div>
             )}
-          </div>
-        </div>
+          </>
+        ) : (
+          <>
+            {message.attachment?.type === 'document' && (
+              <div className="p-2 flex items-center gap-3 bg-black/5 dark:bg-black/20 rounded-md mb-1 border border-black/5 hover:bg-black/10 transition-colors cursor-pointer group">
+                <div className="w-12 h-12 bg-[#00a884] rounded flex items-center justify-center text-white shadow-sm shrink-0 group-hover:scale-105 transition-transform">
+                  <FileText size={24} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[calc(var(--msg-font-size)-0.5px)] text-primary font-medium truncate">{message.attachment.name}</p>
+                  <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary uppercase font-bold tracking-tighter">Document</p>
+                </div>
+                <Download size={20} className="text-secondary cursor-pointer hover:text-[#00a884] transition-colors" />
+              </div>
+            )}
+
+            {message.attachment?.type === 'audio' && (
+              <div className="p-1 pb-0">
+                <VoiceNotePlayer
+                  src={mediaSrc || message.attachment?.data || ''}
+                  seedId={message.id}
+                  transcript={message.text}
+                  isMe={isMe}
+                  avatar={isMe ? undefined : chatAvatar}
+                  senderName={isMe ? 'You' : (message.senderName || 'Voice Note')}
+                />
+              </div>
+            )}
+
+            <div className="px-2 py-1 flex flex-col relative">
+              {(!message.attachment || message.attachment.type !== 'audio') && message.text && (
+                <p className={`text-[length:var(--msg-font-size)] text-primary whitespace-pre-wrap break-words pr-12 ${hasAttachment ? 'pt-1 pb-4' : 'pb-3'}`}>
+                  {formatMessageText(message.text)}
+                </p>
+              )}
+
+              <div className={`flex items-center gap-1 self-end ${(!message.attachment || message.attachment.type !== 'audio') && message.text ? 'absolute bottom-1 right-2' : 'mt-1 mb-0.5 mr-1'}`}>
+                <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
+                {isMe && (
+                  <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
+                    {message.status === 'sent' ? <Check size={16} /> : <CheckCheck size={16} />}
+                  </span>
+                )}
+              </div>
+            </div>
+          </>
+        )}
 
         {!isConsecutive && (
           <div
@@ -436,6 +486,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
   const [showClearModal, setShowClearModal] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [memoryCaptureDate, setMemoryCaptureDate] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<{
+    src: string;
+    caption?: string;
+    senderName?: string;
+    timestamp?: string;
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -737,6 +793,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                 }}
                 selectionMode={selectedMessageIds.length > 0}
                 isConsecutive={isConsecutive}
+                onOpenImage={(src, caption, senderName, timestamp) => {
+                  setLightboxImage({
+                    src,
+                    caption,
+                    senderName: senderName || (msg.sender === 'me' ? 'You' : (msg.senderName || chat.name)),
+                    timestamp: timestamp || msg.timestamp
+                  });
+                }}
               />
             </React.Fragment>
           );
@@ -744,6 +808,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
         {!searchTerm && chat.status === 'typing...' && <TypingBubble />}
         <div ref={scrollRef} />
       </div>
+
+      {lightboxImage && (
+        <ImageLightboxModal
+          src={lightboxImage.src}
+          caption={lightboxImage.caption}
+          senderName={lightboxImage.senderName}
+          timestamp={lightboxImage.timestamp}
+          onClose={() => setLightboxImage(null)}
+        />
+      )}
 
       {/* Background wallpaper layer with responsive scaling and cropping */}
       <div

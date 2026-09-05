@@ -60,8 +60,26 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 
 ---
 
-### 🌟 What's New in v1.7.0 (The "AI Voice Note Replies & Gemini-TTS" Update)
-*   **Authentic AI Voice Note Replies**: Personas can now reply with real, dynamic voice notes rendered with WhatsApp-style voice cards:
+### 🌟 What's New in v1.7.0 (The "In-Chat Photos (@img) & Gemini-TTS" Update)
+
+*   **In-Chat Authentic Smartphone Photo Generation (`@img` / `@image`)**:
+    *   **Two-Step Generation Pipeline**: Type `@img` or `@image` anywhere in your message (e.g. *"what are you eating? @img"*, *"send a selfie @img"*, or *"show me your outfit @img"*). The tag is automatically stripped from the message bubble for a seamless chat experience.
+    *   **Step 1 Context & Caption Synthesizer**: Powered by the chat LLM (`gemini-3.8-flash` / `gemini-3.5-flash-lite`), analyzing user intent with strict priority rules:
+        1. *User Query First (Highest Priority)*: Explicit requests strictly dictate the shot subject and setting.
+        2. *Recent History (Secondary)*: Generic requests pull naturally from ongoing chat context (food, places, activities).
+        3. *Everyday Variety Fallback*: Never defaults to bed; picks realistic moments (couch, passenger seat, kitchen counter, study desk, cafe).
+    *   **Step 2 Realistic Smartphone Prompts (3 Distinct Modes)**:
+        *   **Mode A (`"selfie"`)**: Front-facing mobile lens with arm extended at a natural angle, subject avatar attached as `[Input Image 1]` identity reference, flat natural indoor light or screen glare, subtle camera grain, zero beauty filter.
+        *   **Mode B (`"candid"`)**: Third-person amateur snapshot sent on WhatsApp with avatar reference. Features accidental framing, tilted angles, and soft focus.
+            *   *Instruction Following Override (`user_wants_posed`)*: If the user explicitly asks to pose, smile, or look at the camera, the prompt dynamically switches to a casual direct-to-camera smile.
+        *   **Mode C (`"pov"`)**: First-person casual snapshot of food, clutter, desk, or surroundings without subject reference.
+    *   **Aspect Ratio & Formatting**: Generated with 3:4 portrait aspect ratio (`aspectRatio: "3:4"`).
+    *   **WhatsApp Native Media Bubble Styling**: Custom `.media-message-bubble` tightly wraps the image width (max 330px) to prevent wide blank whitespace, with in-character captions paired inside the exact same message card.
+    *   **Full-Screen Lightbox Modal**: Click any photo to inspect in full resolution with blurred backdrop, sender name, timestamp, caption, and instant download button.
+    *   **Model Selection**: Choose between `gemini-3.1-flash-lite-image` (default, fast & realistic) and `gemini-3.1-flash-image` (high fidelity) globally in Settings or override per-persona.
+    *   **Fail-Safe In-Character Excuses**: If generation times out, errors, or triggers safety filters, the persona naturally explains why their camera isn't working (e.g. *"My camera app literally just crashed on me, hold on!"*).
+
+*   **Authentic AI Voice Note Replies**: Personas can reply with real, dynamic voice notes rendered with WhatsApp-style voice cards:
     *   **Circular Green Play/Pause**: Smooth audio playback with interactive audio state management.
     *   **Interactive Waveform Scrubber**: Click or drag across the audio waveform bars to scrub through messages with visual progress tracking.
     *   **Dual Duration Timer**: Displays total duration before playback and counts elapsed time during playback.
@@ -78,8 +96,8 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
     *   **Voice Frequency**: Choose from *Off (Never)*, *Occasional (~20%)*, *Frequent (~50%)*, or *Always Voice (100%)*.
     *   **"Voice-for-Voice" Mirroring**: Toggles automatic voice replies whenever you send a voice note to the persona.
     *   **In-Panel Voice Preview**: Audition each voice directly from the profile editor before chatting.
-*   **Dual-Engine Audio Generation**: Seamlessly works with both Built-in Cloud (Vertex AI credits) and Custom API Key (Gemini AI Studio).
-*   **Fail-Safe Graceful Fallback**: If audio synthesis times out or errors, automatically falls back to clean, polished text delivery.
+*   **Dual-Engine Audio & Image Generation**: Seamlessly works with both Built-in Cloud (Vertex AI credits) and Custom API Key (Gemini AI Studio).
+*   **Fail-Safe Graceful Fallback**: If audio synthesis or image generation encounters an issue, automatically falls back cleanly.
 
 ### 🌟 What's New in v1.6.0 (The "Cloud Credits & Dual Provider" Update)
 *   **Dual AI Provider Architecture**: Choose between **Built-in Cloud (Vertex AI)** using server credits or **Custom API Key (Gemini AI Studio)** stored safely in browser `localStorage`.
@@ -181,6 +199,27 @@ npm install
 npm run dev
 ```
 The app will be live at `http://localhost:5173`.
+
+### 4. Deploying to Vercel (Production Ready)
+
+Wassap is fully configured for seamless deployment on **Vercel**:
+
+1. **Push your code to GitHub**:
+   ```bash
+   git push origin main
+   ```
+2. **Import into Vercel**:
+   - Visit [vercel.com](https://vercel.com/) and click **"Add New Project"**.
+   - Select your `Wassap` repository from GitHub.
+   - The Framework Preset will automatically detect **Vite**.
+3. **Build & Output Settings**:
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+   - **Install Command**: `npm install`
+4. **Serverless Endpoints**:
+   - The included `vercel.json` and `/api/gemini/` handlers (`image-synthesize`, `image-generate`, `image-excuse`, `generate`, `diary`, `tts`, `status`) are pre-configured to run as Vercel serverless functions.
+5. **Hit Deploy!** 🚀
+
 
 ---
 

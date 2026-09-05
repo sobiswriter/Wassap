@@ -25,6 +25,7 @@ export interface Message {
   replyToMessage?: Message;
   isEvent?: boolean;
   timestampEpoch?: number;
+  isImageRequest?: boolean;
 }
 
 export interface MemoryBubble {
@@ -115,6 +116,7 @@ export interface Chat {
   automation?: PersonaAutomation;
   humaneSettings?: HumaneSettings;
   voiceSettings?: PersonaVoiceSettings;
+  imageModel?: string; // e.g. 'gemini-3.1-flash-lite-image' or 'gemini-3.1-flash-image'
 }
 
 export interface UserProfile {
@@ -142,6 +144,7 @@ export interface AppSettings {
   shareCalendarNotes?: boolean;
   useSearchGrounding?: boolean;
   selectedModel?: string;
+  selectedImageModel?: string; // 'gemini-3.1-flash-lite-image' | 'gemini-3.1-flash-image'
   calendarNotes?: string;
   enableNotifications?: boolean;
   fontSize?: number;

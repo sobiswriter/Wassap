@@ -13,6 +13,7 @@ import {
   BookOpen,
   Gamepad2,
   Heart,
+  Camera,
   Clock,
   Settings as SettingsIcon,
   PlusCircle,
@@ -198,6 +199,12 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
                   icon={MessageSquareText}
                   title="Recall Command (\rem)"
                   description="Type '\rem [keyword]' in chat to force them to remember a specific memory bubble from your shared past."
+                />
+                <GuideCard 
+                  icon={Camera}
+                  title="In-Chat Photos (@img)"
+                  description="Include '@img' in your message to have personas send authentic, unposed handheld photos or selfies matching the conversation."
+                  tag="NEW"
                 />
                 <GuideCard 
                   icon={Search}

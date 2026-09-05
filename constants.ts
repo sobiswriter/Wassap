@@ -258,6 +258,13 @@ export const AVAILABLE_MODELS = [
 
 export const DEFAULT_MODEL = 'gemini-3.8-flash';
 
+export const AVAILABLE_IMAGE_MODELS = [
+  { id: 'gemini-3.1-flash-lite-image', label: 'Gemini 3.1 Flash Lite Image (Fast, cost-effective default)' },
+  { id: 'gemini-3.1-flash-image', label: 'Gemini 3.1 Flash Image (High-fidelity detailed mode)' },
+];
+
+export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-lite-image';
+
 
 export const DEFAULT_TEMPLATES: PersonaTemplate[] = [
   {
