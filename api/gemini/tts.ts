@@ -1,10 +1,59 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { GoogleGenAI } from '@google/genai';
-import { getVoiceDescriptor } from '../../constants';
 
 const VERTEX_PASSCODE = 'Ness2020';
 const DEFAULT_GCP_PROJECT = 'gen-lang-client-0100408368';
 const DEFAULT_GCP_REGION = 'global';
+
+interface VoiceDetail {
+  name: string;
+  gender: 'female' | 'male';
+  trait: string;
+  stylePrompt: string;
+}
+
+const GEMINI_TTS_VOICE_DETAILS: Record<string, VoiceDetail> = {
+  // Female Voices (14)
+  Achernar: { name: 'Achernar', gender: 'female', trait: 'Crisp & Articulate', stylePrompt: 'crisp, clear, and articulate' },
+  Aoede: { name: 'Aoede', gender: 'female', trait: 'Breezy & Natural', stylePrompt: 'breezy, relaxed, and natural' },
+  Autonoe: { name: 'Autonoe', gender: 'female', trait: 'Assertive & Expressive', stylePrompt: 'assertive, lively, and expressive' },
+  Callirrhoe: { name: 'Callirrhoe', gender: 'female', trait: 'Playful & Melodic', stylePrompt: 'playful, melodic, and cheerful' },
+  Despina: { name: 'Despina', gender: 'female', trait: 'Gentle & Smooth', stylePrompt: 'gentle, sweet, and smooth' },
+  Erinome: { name: 'Erinome', gender: 'female', trait: 'Soft & Relaxed', stylePrompt: 'soft, warm, and relaxed' },
+  Gacrux: { name: 'Gacrux', gender: 'female', trait: 'Mature & Measured', stylePrompt: 'mature, composed, and measured' },
+  Kore: { name: 'Kore', gender: 'female', trait: 'Firm & Confident', stylePrompt: 'firm, strong, and confident' },
+  Laomedeia: { name: 'Laomedeia', gender: 'female', trait: 'Friendly & Engaging', stylePrompt: 'friendly, upbeat, and engaging' },
+  Leda: { name: 'Leda', gender: 'female', trait: 'Youthful & Warm', stylePrompt: 'youthful, caring, and warm' },
+  Pulcherrima: { name: 'Pulcherrima', gender: 'female', trait: 'Lively & Dynamic', stylePrompt: 'lively, animated, and dynamic' },
+  Sulafat: { name: 'Sulafat', gender: 'female', trait: 'Calm & Poised', stylePrompt: 'calm, elegant, and poised' },
+  Vindemiatrix: { name: 'Vindemiatrix', gender: 'female', trait: 'Polished & Professional', stylePrompt: 'polished, clear, and professional' },
+  Zephyr: { name: 'Zephyr', gender: 'female', trait: 'Bright & Cheerful', stylePrompt: 'bright, cheerful, and fast-paced' },
+
+  // Male Voices (16)
+  Achird: { name: 'Achird', gender: 'male', trait: 'Warm & Friendly', stylePrompt: 'warm, approachable, and friendly' },
+  Algenib: { name: 'Algenib', gender: 'male', trait: 'Confident & Bold', stylePrompt: 'confident, bold, and energetic' },
+  Algieba: { name: 'Algieba', gender: 'male', trait: 'Refined & Smooth', stylePrompt: 'refined, smooth, and pleasant' },
+  Alnilam: { name: 'Alnilam', gender: 'male', trait: 'Resonant & Authoritative', stylePrompt: 'resonant, authoritative, and steady' },
+  Charon: { name: 'Charon', gender: 'male', trait: 'Deep & Informative', stylePrompt: 'deep, calm, and informative' },
+  Enceladus: { name: 'Enceladus', gender: 'male', trait: 'Husky & Intense', stylePrompt: 'husky, intense, and dramatic' },
+  Fenrir: { name: 'Fenrir', gender: 'male', trait: 'Energetic & Passionate', stylePrompt: 'energetic, passionate, and excitable' },
+  Iapetus: { name: 'Iapetus', gender: 'male', trait: 'Casual & Easygoing', stylePrompt: 'casual, easygoing, and relaxed' },
+  Orus: { name: 'Orus', gender: 'male', trait: 'Firm & Grounded', stylePrompt: 'firm, calm, and grounded' },
+  Puck: { name: 'Puck', gender: 'male', trait: 'Upbeat & Lively', stylePrompt: 'upbeat, lively, and playful' },
+  Rasalgethi: { name: 'Rasalgethi', gender: 'male', trait: 'Rich & Baritone', stylePrompt: 'rich, deep baritone, and steady' },
+  Sadachbia: { name: 'Sadachbia', gender: 'male', trait: 'Gentle & Reassuring', stylePrompt: 'gentle, reassuring, and kind' },
+  Sadaltager: { name: 'Sadaltager', gender: 'male', trait: 'Distinct & Steady', stylePrompt: 'distinct, steady, and clear' },
+  Schedar: { name: 'Schedar', gender: 'male', trait: 'Deep & Expressive', stylePrompt: 'deep, expressive, and thoughtful' },
+  Umbriel: { name: 'Umbriel', gender: 'male', trait: 'Subtle & Quiet', stylePrompt: 'subtle, quiet, and reflective' },
+  Zubenelgenubi: { name: 'Zubenelgenubi', gender: 'male', trait: 'Vibrant & Animated', stylePrompt: 'vibrant, animated, and spirited' },
+};
+
+function getVoiceDescriptor(voiceName?: string): VoiceDetail {
+  if (voiceName && GEMINI_TTS_VOICE_DETAILS[voiceName]) {
+    return GEMINI_TTS_VOICE_DETAILS[voiceName];
+  }
+  return GEMINI_TTS_VOICE_DETAILS['Aoede'];
+}
 
 interface TTSPayload {
   text: string;
@@ -197,6 +246,16 @@ export default async function handler(
   req: IncomingMessage & { body?: any },
   res: ServerResponse & { status?: (code: number) => any; json?: (data: any) => any }
 ) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-vertex-passcode, x-passcode');
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
   if (req.method !== 'POST') {
     sendJson(res, 405, { error: 'Method Not Allowed' });
     return;
