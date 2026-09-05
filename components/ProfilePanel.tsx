@@ -1063,8 +1063,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2.5 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
                   >
                     <option value="off">Off (Never send voice notes; plain text only)</option>
-                    <option value="occasional">Occasional (~20% chance of replying via voice note)</option>
-                    <option value="frequent">Frequent (~50% chance of replying via voice note)</option>
+                    <option value="occasional">Occasional (~10% chance of replying via voice note)</option>
+                    <option value="frequent">Frequent (~30% chance of replying via voice note)</option>
                     <option value="always">Always Voice (100% of messages are voice notes)</option>
                   </select>
                 </div>

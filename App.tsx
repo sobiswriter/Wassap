@@ -44,8 +44,8 @@ const shouldReplyWithVoiceNote = (
   }
 
   if (frequency === 'always') return true;
-  if (frequency === 'frequent') return Math.random() < 0.5;
-  if (frequency === 'occasional') return Math.random() < 0.2;
+  if (frequency === 'frequent') return Math.random() < 0.3;
+  if (frequency === 'occasional') return Math.random() < 0.1;
   return false;
 };
 
@@ -55,6 +55,23 @@ const getFormattedTime = () => getAppFormattedTime(globalActiveSettings);
 const getDateKey = () => getAppDateKey(globalActiveSettings);
 
 const avatarCache = new Map<string, string>();
+
+// Helper to format rich reply context for AI prompts
+const formatQuotedReplyContext = (replyTo: Message, fallbackAuthorName?: string): string => {
+  const author = replyTo.sender === 'me' ? 'You' : (replyTo.senderName || fallbackAuthorName || 'Contact');
+  const isImage = replyTo.attachment?.type === 'image' || !!replyTo.image;
+  const isAudio = replyTo.attachment?.type === 'audio';
+
+  if (isImage) {
+    const caption = replyTo.text ? `: "${replyTo.text}"` : '';
+    return `[Replying to ${author}'s photo${caption}] `;
+  }
+  if (isAudio) {
+    const transcript = replyTo.text ? ` (transcript: "${replyTo.text}")` : '';
+    return `[Replying to ${author}'s voice note${transcript}] `;
+  }
+  return `[Replying to ${author}: "${replyTo.text || ''}"] `;
+};
 
 // Canvas helper to guarantee 1:1 square cropped notification icons with zero stretching across all OS notification shades
 const getSquareNotificationIcon = async (url?: string): Promise<string> => {
@@ -442,8 +459,15 @@ const App: React.FC = () => {
               messages: (Array.isArray(chat?.messages) ? chat.messages : []).map(msg => {
                 const cleanMsg = {
                   ...msg,
+                  senderName: msg.senderName || (msg.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined)),
                   timestamp: convertTo24Hour(msg?.timestamp || '')
                 };
+                if (cleanMsg.replyToMessage && !cleanMsg.replyToMessage.senderName) {
+                  cleanMsg.replyToMessage = {
+                    ...cleanMsg.replyToMessage,
+                    senderName: cleanMsg.replyToMessage.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined)
+                  };
+                }
                 // Strip heavy legacy Base64 image data from localStorage to keep state light and prevent startup freezes
                 if (cleanMsg.image && cleanMsg.image.length > 500) {
                   delete (cleanMsg as any).image;
@@ -457,7 +481,13 @@ const App: React.FC = () => {
         console.error("Failed to parse chats safely", e);
       }
     }
-    return INITIAL_CHATS;
+    return INITIAL_CHATS.map(chat => ({
+      ...chat,
+      messages: (chat.messages || []).map(msg => ({
+        ...msg,
+        senderName: msg.senderName || (msg.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined))
+      }))
+    }));
   });
 
   const [activeChatId, setActiveChatId] = useState<string>('');
@@ -856,7 +886,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
         const mediaId = m.mediaId || m.attachment?.mediaId;
         const mediaData = mediaId ? await getMedia(mediaId) : undefined;
         let text = m.text;
-        if (m.replyToMessage) text = `[Replying to: "${m.replyToMessage.text}"] ` + text;
+        if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage, targetChat.name) + text;
         return {
           text,
           sender: m.sender,
@@ -931,6 +961,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
             id: `${Date.now()}-vn`,
             text: cleanedTranscript,
             sender: 'other',
+            senderName: targetChat.name,
             date: getDateKey(),
             timestamp: getFormattedTime(),
             timestampEpoch: getAppNow(settingsRef.current).getTime(),
@@ -997,6 +1028,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
           id: `${Date.now()}-${i}`,
           text: chunk,
           sender: 'other',
+          senderName: targetChat.name,
           date: getDateKey(),
           timestamp: getFormattedTime(),
           timestampEpoch: getAppNow(settingsRef.current).getTime(),
@@ -1298,12 +1330,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
 
 
-  const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean) => {
-    if (!activeChat) return;
-
-    if (leftOnReadTimeoutsRef.current[activeChat.id]) {
-      clearTimeout(leftOnReadTimeoutsRef.current[activeChat.id]);
-      delete leftOnReadTimeoutsRef.current[activeChat.id];
+  const sendMessageToChat = async (targetChat: Chat, text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean) => {
+    if (leftOnReadTimeoutsRef.current[targetChat.id]) {
+      clearTimeout(leftOnReadTimeoutsRef.current[targetChat.id]);
+      delete leftOnReadTimeoutsRef.current[targetChat.id];
     }
 
     const timestamp = getFormattedTime();
@@ -1334,6 +1364,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       image: undefined, // No longer storing full Base64 in message object
       mediaId,
       sender: 'me',
+      senderName: 'You',
       date,
       timestamp,
       timestampEpoch: getAppNow(settingsRef.current).getTime(),
@@ -1346,7 +1377,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     setReplyingTo(null);
 
     setChats(prev => prev.map(chat => {
-      if (chat.id === activeChat.id) {
+      if (chat.id === targetChat.id) {
         let lastMsg = displayText || 'Attachment';
         if (attachment?.type === 'image') lastMsg = '📷 Photo' + (displayText ? `: ${displayText}` : '');
         if (attachment?.type === 'document') lastMsg = '📄 Document' + (displayText ? `: ${displayText}` : '');
@@ -1366,18 +1397,18 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
     // Trigger AI response(s)
     if (isImageRequest || settings.enableTextStacking === false) {
-      const memoryContext = buildMemoryRecallContext(activeChat, displayText);
-      const scheduleContext = buildScheduleContext(activeChat);
-      const timeGapContext = getTimeGapAndFrequencyContext([...activeChat.messages, userMsg], false, settingsRef.current);
+      const memoryContext = buildMemoryRecallContext(targetChat, displayText);
+      const scheduleContext = buildScheduleContext(targetChat);
+      const timeGapContext = getTimeGapAndFrequencyContext([...targetChat.messages, userMsg], false, settingsRef.current);
       const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
 
-      if (activeChat.isGroup) {
-        handleGroupResponse(activeChat, [...activeChat.messages, userMsg], combinedContexts);
+      if (targetChat.isGroup) {
+        handleGroupResponse(targetChat, [...targetChat.messages, userMsg], combinedContexts);
       } else {
-        handleSingleResponse(activeChat, [...activeChat.messages, userMsg], combinedContexts, isImageRequest, displayText);
+        handleSingleResponse(targetChat, [...targetChat.messages, userMsg], combinedContexts, isImageRequest, displayText);
       }
     } else {
-      const chatId = activeChat.id;
+      const chatId = targetChat.id;
       const hasPendingTimeout = !!aiResponseTimeoutsRef.current[chatId];
       if (hasPendingTimeout) {
         clearTimeout(aiResponseTimeoutsRef.current[chatId]);
@@ -1385,7 +1416,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
       // If no timeout was active, this is the first message of the stack. Calculate time-gap.
       if (!hasPendingTimeout) {
-        const timeGapContext = getTimeGapAndFrequencyContext([...activeChat.messages, userMsg], false, settingsRef.current);
+        const timeGapContext = getTimeGapAndFrequencyContext([...targetChat.messages, userMsg], false, settingsRef.current);
         pendingTimeGapsRef.current[chatId] = timeGapContext;
       }
 
@@ -1436,6 +1467,27 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }
   };
 
+  const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean) => {
+    if (!activeChat) return;
+    await sendMessageToChat(activeChat, text, attachment, replyTo, isEvent);
+  };
+
+  const handleSendPhotoToChat = async (targetChatId: string, fileData: string, caption?: string) => {
+    const targetChat = chats.find(c => c.id === targetChatId);
+    if (!targetChat) return;
+
+    setActiveChatId(targetChatId);
+    setActiveView('chat');
+
+    const attachment: FileAttachment = {
+      name: 'Photo',
+      data: fileData,
+      type: 'image'
+    };
+
+    await sendMessageToChat(targetChat, caption || '', attachment);
+  };
+
   const handleSingleResponse = async (
     chat: Chat, 
     updatedHistory: Message[], 
@@ -1472,7 +1524,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const mediaId = m.mediaId || m.attachment?.mediaId;
         const mediaData = mediaId ? await getMedia(mediaId) : undefined;
         let text = m.text;
-        if (m.replyToMessage) text = `[Replying to: "${m.replyToMessage.text}"] ` + text;
+        if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage, chat.name) + text;
         return {
           text,
           sender: m.sender,
@@ -1543,6 +1595,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               id: `${Date.now()}-img`,
               text: caption,
               sender: 'other',
+              senderName: chat.name,
               date: getDateKey(),
               timestamp: getFormattedTime(),
               timestampEpoch: Date.now(),
@@ -1605,6 +1658,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           id: `${Date.now()}-excuse`,
           text: excuse,
           sender: 'other',
+          senderName: chat.name,
           date: getDateKey(),
           timestamp: getFormattedTime(),
           timestampEpoch: Date.now(),
@@ -1678,6 +1732,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             id: `${Date.now()}-vn`,
             text: cleanedTranscript,
             sender: 'other',
+            senderName: chat.name,
             date: getDateKey(),
             timestamp: getFormattedTime(),
             timestampEpoch: Date.now(),
@@ -1745,6 +1800,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           id: `${Date.now()}-${i}`,
           text: chunk,
           sender: 'other',
+          senderName: chat.name,
           date: getDateKey(),
           timestamp: getFormattedTime(),
           timestampEpoch: Date.now(),
@@ -1857,7 +1913,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           const mediaId = m.mediaId || m.attachment?.mediaId;
           const mediaData = mediaId ? await getMedia(mediaId) : undefined;
           let text = m.text;
-          if (m.replyToMessage) text = `[Replying to: "${m.replyToMessage.text}"] ` + text;
+          if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage) + text;
           return {
             text,
             sender: m.sender,
@@ -2185,6 +2241,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onChatSelect={handleChatSelect}
             onAddPersona={() => setShowNewChatPanel(true)}
             onAddGroup={() => setShowNewGroupPanel(true)}
+            onOpenSettings={() => setShowSettingsPopover(true)}
+            onSendPhotoToChat={handleSendPhotoToChat}
             onMetaAIClick={() => handleChatSelect('6')}
             isMobile={isMobile}
           />
@@ -2211,6 +2269,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           {activeChat && (!isMobile || !showProfilePanel) && (
             <MessageInput
               activeChatId={activeChatId}
+              chatName={activeChat?.name}
               onSendMessage={handleSendMessage}
               replyingTo={replyingTo}
               onCancelReply={() => setReplyingTo(null)}

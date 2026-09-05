@@ -6,6 +6,7 @@ import { FileAttachment, Message } from '../types';
 interface MessageInputProps {
   onSendMessage: (text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean) => void;
   activeChatId: string;
+  chatName?: string;
   replyingTo?: Message | null;
   onCancelReply?: () => void;
 }
@@ -21,7 +22,7 @@ const WhatsAppMicIcon = ({ size = 20, className = '' }) => (
   </svg>
 );
 
-export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activeChatId, replyingTo, onCancelReply }) => {
+export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activeChatId, chatName, replyingTo, onCancelReply }) => {
   const [text, setText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
@@ -292,8 +293,26 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         <div className="bg-[#f0f2f5] dark:bg-[#202c33] border-t app-border px-3 py-2 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-300">
            <div className="flex-1 bg-black/5 dark:bg-black/20 border-l-4 border-[#00a884] rounded p-2 relative pr-8 overflow-hidden">
              <button onClick={onCancelReply} className="absolute right-2 top-2 text-secondary hover:text-primary"><X size={16}/></button>
-             <p className="text-[calc(var(--input-font-size)-4px)] text-[#00a884] font-medium mb-0.5 truncate">{replyingTo.sender === 'me' ? 'You' : (replyingTo.senderName || 'Contact')}</p>
-             <p className="text-[calc(var(--input-font-size)-5px)] text-secondary truncate">{replyingTo.text || (replyingTo.attachment ? 'Attachment' : 'Message')}</p>
+             <p className="text-[calc(var(--input-font-size)-4px)] text-[#00a884] font-medium mb-0.5 truncate">
+               {replyingTo.sender === 'me' ? 'You' : (replyingTo.senderName || chatName || 'Contact')}
+             </p>
+             <div className="text-[calc(var(--input-font-size)-5px)] text-secondary flex items-center gap-1.5 truncate">
+               {(replyingTo.image || replyingTo.attachment?.type === 'image') && (
+                 <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
+                   <Camera size={13} className="text-secondary" />
+                   <span>Photo</span>
+                 </span>
+               )}
+               {replyingTo.attachment?.type === 'audio' && (
+                 <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
+                   <Mic size={13} className="text-[#00a884]" />
+                   <span>Voice message</span>
+                 </span>
+               )}
+               <span className="truncate">
+                 {replyingTo.text || ((replyingTo.image || replyingTo.attachment?.type === 'image') ? '' : replyingTo.attachment ? 'Attachment' : 'Message')}
+               </span>
+             </div>
            </div>
         </div>
       )}

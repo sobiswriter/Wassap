@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Search, MoreVertical, CheckCheck, Check, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save } from 'lucide-react';
+import { Search, MoreVertical, CheckCheck, Check, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic } from 'lucide-react';
 import { Chat, MemoryBubble, Message, AppSettings } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, getMessageTimestampEpoch, isDateInRange, normalizeDateKey } from '../utils/dates';
@@ -238,6 +238,7 @@ const MessageBubble = React.memo<{
   message: Message; 
   highlight?: boolean; 
   isGroup?: boolean; 
+  chatName?: string;
   chatAvatar?: string;
   onReply?: (message: Message) => void;
   selected?: boolean;
@@ -245,7 +246,7 @@ const MessageBubble = React.memo<{
   selectionMode?: boolean;
   isConsecutive?: boolean;
   onOpenImage?: (src: string, caption?: string, senderName?: string, timestamp?: string) => void;
-}>(({ message, highlight, isGroup, chatAvatar, onReply, selected, onToggleSelect, selectionMode, isConsecutive, onOpenImage }) => {
+}>(({ message, highlight, isGroup, chatName, chatAvatar, onReply, selected, onToggleSelect, selectionMode, isConsecutive, onOpenImage }) => {
   const isMe = message.sender === 'me';
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
@@ -314,7 +315,13 @@ const MessageBubble = React.memo<{
       }}
     >
       {!isMe && onReply && !selectionMode && (
-        <button onClick={() => onReply(message)} className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity mr-1 self-center scale-x-[-1]">
+        <button 
+          onClick={() => onReply({
+            ...message,
+            senderName: message.senderName || (!isGroup ? chatName : undefined)
+          })} 
+          className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity mr-1 self-center scale-x-[-1]"
+        >
           <CornerDownLeft size={18} />
         </button>
       )}
@@ -333,9 +340,25 @@ const MessageBubble = React.memo<{
           <div className="p-2 rounded-md mb-1 border-l-4 text-[calc(var(--msg-font-size)-1.5px)] bg-black/5 dark:bg-black/20 overflow-hidden cursor-pointer"
                style={{ borderLeftColor: message.replyToMessage.sender === 'me' ? '#53bdeb' : (nameColor || '#35a62e') }}>
              <div className="font-bold mb-0.5" style={{ color: message.replyToMessage.sender === 'me' ? '#53bdeb' : (nameColor || '#35a62e') }}>
-                {message.replyToMessage.sender === 'me' ? 'You' : (message.replyToMessage.senderName || 'Contact')}
+                {message.replyToMessage.sender === 'me' ? 'You' : (message.replyToMessage.senderName || (!isGroup ? chatName : 'Contact') || 'Contact')}
              </div>
-             <div className="text-secondary truncate">{message.replyToMessage.text || (message.replyToMessage.attachment ? 'Attachment' : 'Message')}</div>
+             <div className="text-secondary truncate flex items-center gap-1.5">
+               {(message.replyToMessage.image || message.replyToMessage.attachment?.type === 'image') && (
+                 <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
+                   <Camera size={13} className="text-secondary" />
+                   <span>Photo</span>
+                 </span>
+               )}
+               {message.replyToMessage.attachment?.type === 'audio' && (
+                 <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
+                   <Mic size={13} className="text-[#00a884]" />
+                   <span>Voice message</span>
+                 </span>
+               )}
+               <span className="truncate">
+                 {message.replyToMessage.text || ((message.replyToMessage.image || message.replyToMessage.attachment?.type === 'image') ? '' : message.replyToMessage.attachment ? 'Attachment' : 'Message')}
+               </span>
+             </div>
           </div>
         )}
 
@@ -451,7 +474,10 @@ const MessageBubble = React.memo<{
       </div>
 
       {isMe && onReply && !selectionMode && (
-        <button onClick={() => onReply(message)} className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity ml-1 self-center">
+        <button 
+          onClick={() => onReply({ ...message, senderName: 'You' })} 
+          className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity ml-1 self-center"
+        >
           <CornerDownLeft size={18} />
         </button>
       )}
@@ -620,7 +646,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                 <button 
                   onClick={() => {
                      const msg = chat.messages.find(m => m.id === selectedMessageIds[0]);
-                     if(msg) onReply(msg);
+                     if (msg) onReply({
+                       ...msg,
+                       senderName: msg.senderName || (msg.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined))
+                     });
                      setSelectedMessageIds([]);
                   }} 
                   className="p-2 hover:bg-black/5 rounded-full transition-colors scale-x-[-1]"
@@ -779,6 +808,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                 message={msg}
                 highlight={!!searchTerm}
                 isGroup={chat.isGroup}
+                chatName={chat.name}
                 chatAvatar={
                   msg.sender === 'me'
                     ? undefined
