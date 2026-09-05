@@ -110,10 +110,10 @@ export const MobileActionFAB: React.FC<MobileActionFABProps> = ({
                 className={`w-14 h-14 shadow-[0_4px_16px_rgba(33,192,99,0.35)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.6)] flex items-center justify-center transition-all duration-300 transform active:scale-95 z-50 ${
                   isOpen 
                     ? 'rotate-45 bg-[#ef4444] rounded-full text-white' 
-                    : 'bg-[#21c063] hover:bg-[#1eb05b] rounded-[16px] text-[#0b1014]'
+                    : 'bg-[#21c063] hover:bg-[#1eb05b] rounded-[16px] text-white dark:text-[#0b1014]'
                 }`}
             >
-                {isOpen ? <Plus size={30} className="text-white" /> : <MessageSquarePlus size={28} strokeWidth={2.5} className="text-[#0b1014]" />}
+                {isOpen ? <Plus size={30} className="text-white" /> : <MessageSquarePlus size={28} strokeWidth={2.5} className="text-white dark:text-[#0b1014]" />}
             </button>
         </div>
     );

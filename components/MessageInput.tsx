@@ -372,14 +372,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
           {text.trim() || stagedAttachment ? (
             <button
               onClick={handleSend}
-              className="w-full h-full bg-[#21c063] hover:bg-[#1eb05b] rounded-full flex items-center justify-center text-[#0b1014] transition-all active:scale-95 shadow-[0_2px_8px_rgba(33,192,99,0.3)]"
+              className="w-full h-full bg-[#21c063] hover:bg-[#1eb05b] rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-[0_2px_8px_rgba(33,192,99,0.3)]"
             >
               <SendHorizontal size={24} fill="currentColor" strokeWidth={1} className="ml-1" />
             </button>
           ) : (
             <button
               onClick={isRecording ? stopRecording : startRecording}
-              className={`w-full h-full rounded-full flex items-center justify-center text-[#0b1014] transition-all active:scale-95 shadow-[0_2px_8px_rgba(33,192,99,0.3)] ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse text-white' : 'bg-[#21c063] hover:bg-[#1eb05b]'}`}
+              className={`w-full h-full rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-[0_2px_8px_rgba(33,192,99,0.3)] ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-[#21c063] hover:bg-[#1eb05b]'}`}
             >
               {isRecording ? <Square size={18} fill="currentColor" /> : <WhatsAppMicIcon size={24} className="ml-[1px]" />}
             </button>

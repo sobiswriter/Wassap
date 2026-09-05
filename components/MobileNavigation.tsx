@@ -15,7 +15,7 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ unreadCount 
         <div className="relative bg-[#d8fdd2] dark:bg-[#103629] px-4 py-1 rounded-full mb-0.5 mt-0.5 transition-colors">
           <MessageSquareText size={22} className="text-[#105e4b] dark:text-[#21c063] fill-[#105e4b] dark:fill-[#21c063]" />
           {unreadCount > 0 && (
-            <div className="absolute -top-1 -right-1.5 bg-[#21c063] text-[#0b1014] text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[19px] h-[18px] flex items-center justify-center border-2 border-white dark:border-[#0b1014]">
+            <div className="absolute -top-1 -right-1.5 bg-[#21c063] text-white dark:text-[#0b1014] text-[10px] leading-none font-bold px-1 rounded-full min-w-[17px] h-[17px] flex items-center justify-center border-[1.5px] border-white dark:border-[#0b1014]">
               {unreadCount > 99 ? '99+' : unreadCount}
             </div>
           )}

@@ -2197,6 +2197,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         <div className={`hidden md:block`}>
           <Sidebar
             userAvatar={user.avatar}
+            unreadCount={unreadTotal}
             onUserProfileClick={() => setShowUserProfilePanel(!showUserProfilePanel)}
             onSettingsClick={() => setShowSettingsPopover(!showSettingsPopover)}
             onCalendarClick={() => setShowCalendarWidget(!showCalendarWidget)}

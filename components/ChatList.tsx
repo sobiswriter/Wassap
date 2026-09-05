@@ -32,14 +32,14 @@ const ChatListItem = React.memo<ChatListItemProps>(({ chat, isActive, onSelect }
     <div className="flex-1 min-w-0">
       <div className="flex justify-between items-baseline">
         <h3 className="text-[calc(var(--msg-font-size)+2.5px)] text-primary font-normal truncate">{chat.name}</h3>
-        <span className={`text-[calc(var(--msg-font-size)-2.5px)] ${chat.unreadCount ? 'text-[#21c063] font-semibold' : 'text-secondary'}`}>{chat.lastMessageTime}</span>
+        <span className={`text-[calc(var(--msg-font-size)-2.5px)] ${chat.unreadCount ? 'text-[#1fa855] dark:text-[#21c063] font-semibold' : 'text-secondary'}`}>{chat.lastMessageTime}</span>
       </div>
       <div className="flex justify-between items-center mt-0.5">
         <p className={`text-[calc(var(--msg-font-size)-0.5px)] truncate flex-1 ${chat.unreadCount ? 'text-primary font-semibold' : 'text-secondary'}`}>
           {chat.lastMessage}
         </p>
         {chat.unreadCount ? (
-          <span className="bg-[#21c063] text-[#0b1014] text-[calc(var(--msg-font-size)-2.5px)] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
+          <span className="bg-[#21c063] text-white text-[11px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center leading-none">
             {chat.unreadCount}
           </span>
         ) : null}
@@ -304,7 +304,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                   window.open('https://lens.google.com/', '_blank');
                   setShowScannerModal(false);
                 }}
-                className="w-full py-2.5 px-4 bg-[#21c063] hover:bg-[#1eb05b] text-[#0b1014] rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow transition-colors cursor-pointer"
+                className="w-full py-2.5 px-4 bg-[#21c063] hover:bg-[#1eb05b] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow transition-colors cursor-pointer"
               >
                 <ExternalLink size={16} />
                 <span>Open Google Lens / Scanner</span>
@@ -375,7 +375,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                 </button>
                 <button
                   onClick={handleSendSharedPhoto}
-                  className="px-5 py-2 bg-[#21c063] hover:bg-[#1eb05b] text-[#0b1014] rounded-xl text-sm font-semibold flex items-center gap-2 shadow-md transition-colors cursor-pointer"
+                  className="px-5 py-2 bg-[#21c063] hover:bg-[#1eb05b] text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-md transition-colors cursor-pointer"
                 >
                   <span>Send</span>
                   <SendHorizontal size={16} />

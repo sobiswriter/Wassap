@@ -14,6 +14,7 @@ import {
 
 interface SidebarProps {
   userAvatar: string;
+  unreadCount?: number;
   onUserProfileClick: () => void;
   onSettingsClick: () => void;
   onCalendarClick: () => void;
@@ -21,7 +22,7 @@ interface SidebarProps {
   onUpdatesClick: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick, onSettingsClick, onCalendarClick, onGuideClick, onUpdatesClick }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, unreadCount = 0, onUserProfileClick, onSettingsClick, onCalendarClick, onGuideClick, onUpdatesClick }) => {
   return (
     <div className="w-[64px] app-header border-r app-border flex flex-col justify-between py-3 items-center h-full transition-colors duration-300">
       {/* Top Section */}
@@ -31,7 +32,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick
           <div className="bg-black/5 dark:bg-white/10 p-2 rounded-full">
             <MessageSquareText className="text-primary w-6 h-6" />
           </div>
-          <div className="absolute top-1 right-1 bg-[#21c063] text-[#0b1014] text-[calc(var(--msg-font-size)-4.5px)] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#182229]">28</div>
+          {unreadCount > 0 && (
+            <div className="absolute top-1 right-1 bg-[#21c063] text-white text-[10px] leading-none rounded-full min-w-[17px] h-[17px] px-1 flex items-center justify-center font-bold border-[1.5px] border-[#f0f2f5] dark:border-[#182229]">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </div>
+          )}
         </div>
 
         {/* Calls */}
