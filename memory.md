@@ -47,6 +47,24 @@
   - Fixed `ERR_MODULE_NOT_FOUND` by ensuring all `api/gemini/` endpoints (`image-synthesize.ts`, `image-generate.ts`, `image-excuse.ts`, `image.ts`, `generate.ts`, `diary.ts`, `tts.ts`, `status.ts`) are standalone and don't rely on cross-file internal ESM path aliases that break in Vercel bundle isolation.
   - Fixed `@google/genai` v1.38+ authentication: Replaced naive `new GoogleGenAI({ vertexAI: { project, location } })` with full `normalizePrivateKey` and multi-source credentials resolver (`vertexai: true, googleAuthOptions`). Supports Service Account JSON (`GCP_SERVICE_ACCOUNT_KEY`), Client Email + Private Key (`GCP_CLIENT_EMAIL` + `GCP_PRIVATE_KEY`), and fallback API keys (`VERTEX_API_KEY`, `GEMINI_API_KEY`).
 
+### 3. Progressive Web App (PWA) & Offline Shell
+- **Manifest & Mobile Integration**:
+  - `public/manifest.json`: Full PWA metadata, `display: "standalone"`, `id: "/"`, `start_url: "/"`, `scope: "/"`, maskable SVG icons.
+  - `index.html`: iOS Safari web-app-capable meta tags (`apple-mobile-web-app-capable`, `black-translucent` status bar, `apple-touch-icon`).
+- **Service Worker Caching (`public/sw.js`)**:
+  - Pre-caches core app shell (`/`, `/index.html`, `/manifest.json`, `/favicon.svg`, `/whatapp.wav`).
+  - Stale-While-Revalidate caching for static assets.
+  - Strictly bypasses `/api/` network requests so Gemini AI responses are always live.
+  - Retains background push notification handling and inline quick-reply listeners.
+
+### 4. Vite Bundle Optimization & Lazy Code-Splitting
+- **Vite Rollup Chunking (`vite.config.ts`)**:
+  - Configured `output.manualChunks` for immutable vendor libraries (`vendor-react`, `vendor-icons`, `vendor-genai`, `vendor-other`).
+- **React Lazy-Loading (`App.tsx`)**:
+  - Converted heavy on-demand overlay panels to `React.lazy()`: `ProfilePanel` (~47 kB), `SettingsPopover` (~32 kB), `GuidePanel` (~9 kB), `UpdatesPanel` (~10 kB), `NewChatPanel` (~5 kB), `NewGroupPanel` (~4 kB), `UserProfilePanel`, `CalendarNotesWidget`.
+  - Wrapped modals in `<React.Suspense fallback={null}>`.
+  - **Results**: Main entry bundle size plummeted from **755 kB down to 153 kB** (47.5 kB gzip), cutting initial load time and eliminating all bundle size warnings.
+
 ---
 
 ## 🏛️ Architecture & Key Components
@@ -117,6 +135,9 @@ Wassap/
   - 30 Gemini-TTS voices with pitch/speed steering, emotional cues `[laughs]`, and interactive waveform audio cards.
   - Vercel production serverless function deployment with robust multi-credential authentication.
   - WhatsApp-native media bubble width clamping (`fit-content`, max 330px).
+- [x] **v1.7.1**:
+  - Full PWA Installability (manifest, iOS standalone tags, touch icons, offline app shell caching in `sw.js`).
+  - Vite code-splitting and bundle chunking (`React.lazy()` for modals, Rollup `manualChunks`, reducing main bundle from 755 kB to 153 kB).
 
 ---
 

@@ -3,15 +3,17 @@ import { Sidebar } from './components/Sidebar';
 import { ChatList } from './components/ChatList';
 import { ChatWindow } from './components/ChatWindow';
 import { MessageInput } from './components/MessageInput';
-import { ProfilePanel } from './components/ProfilePanel';
-import { NewChatPanel } from './components/NewChatPanel';
-import { NewGroupPanel } from './components/NewGroupPanel';
-import { UserProfilePanel } from './components/UserProfilePanel';
-import { CalendarNotesWidget } from './components/CalendarNotesWidget';
-import { SettingsPopover } from './components/SettingsPopover';
 import { MobileNavigation } from './components/MobileNavigation';
-import { GuidePanel } from './components/GuidePanel';
-import { UpdatesPanel } from './components/UpdatesPanel';
+
+// Lazy-loaded secondary panels to optimize initial bundle size & load performance
+const ProfilePanel = React.lazy(() => import('./components/ProfilePanel').then(m => ({ default: m.ProfilePanel })));
+const SettingsPopover = React.lazy(() => import('./components/SettingsPopover').then(m => ({ default: m.SettingsPopover })));
+const GuidePanel = React.lazy(() => import('./components/GuidePanel').then(m => ({ default: m.GuidePanel })));
+const UpdatesPanel = React.lazy(() => import('./components/UpdatesPanel').then(m => ({ default: m.UpdatesPanel })));
+const NewChatPanel = React.lazy(() => import('./components/NewChatPanel').then(m => ({ default: m.NewChatPanel })));
+const NewGroupPanel = React.lazy(() => import('./components/NewGroupPanel').then(m => ({ default: m.NewGroupPanel })));
+const UserProfilePanel = React.lazy(() => import('./components/UserProfilePanel').then(m => ({ default: m.UserProfilePanel })));
+const CalendarNotesWidget = React.lazy(() => import('./components/CalendarNotesWidget').then(m => ({ default: m.CalendarNotesWidget })));
 import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus, PersonaVoiceSettings } from './types';
 import { 
@@ -2144,35 +2146,37 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           />
         </div>
 
-        {showSettingsPopover && (
-          <SettingsPopover
-            settings={settings}
-            onUpdate={setSettings}
-            onClose={() => setShowSettingsPopover(false)}
-            onTestNotification={async () => {
-              playIncomingMessageSound();
-              const testChat = chats[0];
-              const senderName = testChat ? testChat.name : 'Wassap Notification';
-              const avatar = testChat ? testChat.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';
+        <React.Suspense fallback={null}>
+          {showSettingsPopover && (
+            <SettingsPopover
+              settings={settings}
+              onUpdate={setSettings}
+              onClose={() => setShowSettingsPopover(false)}
+              onTestNotification={async () => {
+                playIncomingMessageSound();
+                const testChat = chats[0];
+                const senderName = testChat ? testChat.name : 'Wassap Notification';
+                const avatar = testChat ? testChat.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';
 
-              await showNotification(senderName, {
-                body: 'Desktop and Mobile notifications are working perfectly!',
-                icon: avatar,
-                badge: '/badge.svg',
-                tag: 'test-notification'
-              });
-            }}
-          />
-        )}
+                await showNotification(senderName, {
+                  body: 'Desktop and Mobile notifications are working perfectly!',
+                  icon: avatar,
+                  badge: '/badge.svg',
+                  tag: 'test-notification'
+                });
+              }}
+            />
+          )}
 
-        {showCalendarWidget && (
-          <CalendarNotesWidget
-            notes={settings.calendarNotes || ''}
-            onUpdateNotes={(notes) => setSettings({ ...settings, calendarNotes: notes })}
-            onClose={() => setShowCalendarWidget(false)}
-            settings={settings}
-          />
-        )}
+          {showCalendarWidget && (
+            <CalendarNotesWidget
+              notes={settings.calendarNotes || ''}
+              onUpdateNotes={(notes) => setSettings({ ...settings, calendarNotes: notes })}
+              onClose={() => setShowCalendarWidget(false)}
+              settings={settings}
+            />
+          )}
+        </React.Suspense>
 
         <div className={`${isMobile && activeView === 'chat' ? 'hidden' : 'flex'} w-full md:w-[410px] md:flex shrink-0 flex-col h-full`}>
           <ChatList
@@ -2214,45 +2218,54 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           )}
         </div>
 
-        {showProfilePanel && activeChat && (
-          <ProfilePanel
-            chat={chats.find(c => c.id === activeChatId)!}
-            allChats={chats}
-            settings={settings}
-            onClose={() => setShowProfilePanel(false)}
-            onUpdate={updateActiveChat}
-            onDeleteChat={handleDeleteChat}
-            onClearChat={handleClearChat}
-            onRefreshPersona={handleRefreshPersona}
-            onTestAutomation={(chatId, type, contextOverride) => {
-              setShowProfilePanel(false);
-              const customContext = type === 'inactivity'
-                ? `[MANUAL TEST] Perform an inactivity check-in now.`
-                : `[MANUAL TEST] Deliver this greeting context: "${contextOverride}"`;
-              handleAutomationTrigger(chatId, customContext, undefined, type);
-            }}
-          />
-        )}
-        {showNewChatPanel && (
-          <NewChatPanel
-            onClose={() => setShowNewChatPanel(false)}
-            onCreate={handleCreatePersona}
-          />
-        )}
-        {showNewGroupPanel && (
-          <NewGroupPanel
-            personas={chats.filter(c => !c.isGroup)}
-            onClose={() => setShowNewGroupPanel(false)}
-            onCreate={handleCreateGroup}
-          />
-        )}
-        {showUserProfilePanel && (
-          <UserProfilePanel
-            user={user}
-            onClose={() => setShowUserProfilePanel(false)}
-            onUpdate={setUser}
-          />
-        )}
+        <React.Suspense fallback={null}>
+          {showProfilePanel && activeChat && (
+            <ProfilePanel
+              chat={chats.find(c => c.id === activeChatId)!}
+              allChats={chats}
+              settings={settings}
+              onClose={() => setShowProfilePanel(false)}
+              onUpdate={updateActiveChat}
+              onDeleteChat={handleDeleteChat}
+              onClearChat={handleClearChat}
+              onRefreshPersona={handleRefreshPersona}
+              onTestAutomation={(chatId, type, contextOverride) => {
+                setShowProfilePanel(false);
+                const customContext = type === 'inactivity'
+                  ? `[MANUAL TEST] Perform an inactivity check-in now.`
+                  : `[MANUAL TEST] Deliver this greeting context: "${contextOverride}"`;
+                handleAutomationTrigger(chatId, customContext, undefined, type);
+              }}
+            />
+          )}
+          {showNewChatPanel && (
+            <NewChatPanel
+              onClose={() => setShowNewChatPanel(false)}
+              onCreate={handleCreatePersona}
+            />
+          )}
+          {showNewGroupPanel && (
+            <NewGroupPanel
+              personas={chats.filter(c => !c.isGroup)}
+              onClose={() => setShowNewGroupPanel(false)}
+              onCreate={handleCreateGroup}
+            />
+          )}
+          {showUserProfilePanel && (
+            <UserProfilePanel
+              user={user}
+              onClose={() => setShowUserProfilePanel(false)}
+              onUpdate={setUser}
+            />
+          )}
+          {showGuide && (
+            <GuidePanel onClose={() => setShowGuide(false)} />
+          )}
+          {showUpdates && (
+            <UpdatesPanel onClose={() => setShowUpdates(false)} />
+          )}
+        </React.Suspense>
+
         {/* Mobile Floating Action Button Hub */}
         {isMobile && activeView === 'list' && !showSettingsPopover && !showNewChatPanel && !showNewGroupPanel && !showUserProfilePanel && !showCalendarWidget && !showProfilePanel && (
           <MobileActionFAB
@@ -2263,12 +2276,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onCalendarClick={() => setShowCalendarWidget(true)}
             onMetaAIClick={() => handleChatSelect('6')}
           />
-        )}
-        {showGuide && (
-          <GuidePanel onClose={() => setShowGuide(false)} />
-        )}
-        {showUpdates && (
-          <UpdatesPanel onClose={() => setShowUpdates(false)} />
         )}
       </div>
     </div>
