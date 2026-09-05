@@ -51,6 +51,7 @@ interface ChatPayload {
   settings?: AppSettings;
   initiationContext?: string;
   clientTimeContext?: string;
+  isVoiceNoteReply?: boolean;
 }
 
 async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
@@ -330,6 +331,11 @@ React to it organically in your next text message to the User. Let your text be 
       }
     }
 
+    const voiceNotePrompt = payload.isVoiceNoteReply ? `
+VOICE NOTE RECORDING INSTRUCTIONS:
+You are recording a real voice note. You can expressively use inline brackets for delivery and emotion such as [whispers], [laughs], [sighs], [excited], [pauses] where natural to breathe life into the voice.
+` : '';
+
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}
 ${groupPrompt}
@@ -339,6 +345,7 @@ ${notesContext}
 ${groundingPrompt}
 ${initiationPrompt}
 ${eventInstruction}
+${voiceNotePrompt}
 
 Instructions:
 1. If an initiation INTENT or CONTEXT is provided above, follow its prioritization directive.

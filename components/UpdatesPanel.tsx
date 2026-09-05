@@ -81,10 +81,26 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.7.0"
+              title="The AI Voice Notes & Gemini-TTS Update"
+              date="September 2026"
+              isLatest={true}
+              changes={[
+                "AI Voice Note Replies: Personas can reply with authentic WhatsApp-style voice messages featuring waveforms, dual timers, and speed toggles (1x, 1.5x, 2x).",
+                "30 Prebuilt Gemini-TTS Voices: Choose between 14 female and 16 male voices, complete with distinct personality traits and acoustic profiles.",
+                "Google Gemini-TTS Prompt Steering: Synthesizes expressive, emotive speech tailored to each persona's role, tone, and vocal characteristics.",
+                "Expressive Emotional Cues: Inline cues like [laughs], [whispers], and [sighs] are performed naturally in audio and stripped from text transcripts.",
+                "Persona Voice Lab: Granular voice settings per persona with frequency controls (Off, Occasional, Frequent, Always) and Voice-for-Voice mirroring.",
+                "In-Panel Audition: Preview any persona's assigned voice directly from their profile editor before chatting.",
+                "Fail-Safe Audio Delivery: Seamless IndexedDB audio persistence and graceful fallback to clean text on any network or quota interruption."
+              ]}
+            />
+
+            <UpdateItem 
               version="v1.6.0"
               title="The Cloud Credits & Dual Provider Update"
               date="September 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "Dual AI Provider: Toggle between Built-in Cloud (Vertex AI) with server credits or Custom Gemini AI Studio key.",
                 "Passcode Protected Cloud: Secure server credits behind passcode protection with interactive hint assistance.",

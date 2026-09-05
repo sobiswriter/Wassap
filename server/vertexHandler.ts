@@ -1,6 +1,15 @@
 import { GoogleGenAI } from '@google/genai';
 import { HumaneSettings, UserProfile, AppSettings } from '../types';
-import { GCP_CONFIG } from '../constants';
+import { GCP_CONFIG, getVoiceDescriptor } from '../constants';
+import { pcmBase64ToWavDataUrl } from '../utils/audio';
+
+export interface TTSPayload {
+  text: string;
+  voiceName: string;
+  stylePrompt?: string;
+  personaName?: string;
+  speechStyle?: string;
+}
 
 export interface ChatPayload {
   responder: {
@@ -24,6 +33,7 @@ export interface ChatPayload {
   settings?: AppSettings;
   initiationContext?: string;
   clientTimeContext?: string;
+  isVoiceNoteReply?: boolean;
 }
 
 export interface DiaryPayload {
@@ -268,6 +278,11 @@ React to it organically in your next text message to the User. Let your text be 
       }
     }
 
+    const voiceNotePrompt = payload.isVoiceNoteReply ? `
+VOICE NOTE RECORDING INSTRUCTIONS:
+You are recording a real voice note. You can expressively use inline brackets for delivery and emotion such as [whispers], [laughs], [sighs], [excited], [pauses] where natural to breathe life into the voice.
+` : '';
+
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}
 ${groupPrompt}
@@ -277,6 +292,7 @@ ${notesContext}
 ${groundingPrompt}
 ${initiationPrompt}
 ${eventInstruction}
+${voiceNotePrompt}
 
 Instructions:
 1. If an initiation INTENT or CONTEXT is provided above, follow its prioritization directive.
@@ -399,6 +415,79 @@ DIARY ENTRY BY ${persona.name}:`;
     return {
       ok: false,
       error: `Vertex AI Diary generation failed: ${errMessage}`,
+    };
+  }
+}
+
+export async function handleVertexTTS(payload: TTSPayload): Promise<{ ok: boolean; audioData?: string; mimeType?: string; error?: string }> {
+  try {
+    const { text, voiceName, stylePrompt, personaName, speechStyle } = payload;
+    if (!text || !text.trim()) {
+      return { ok: false, error: "Text is required for Voice Note generation" };
+    }
+
+    const selectedVoice = voiceName || 'Aoede';
+    const voiceDescriptor = getVoiceDescriptor(selectedVoice);
+
+    // Formulate Google Cloud recommended prompt steering directive if not already styled
+    let steeredInput = text.trim();
+    const hasExistingDirective = steeredInput.startsWith('Say the following') || steeredInput.startsWith('TTS the following');
+
+    if (!hasExistingDirective) {
+      const traitDesc = stylePrompt || voiceDescriptor?.stylePrompt || voiceDescriptor?.trait || 'natural and expressive';
+      const promptParts = [
+        personaName ? `as ${personaName}` : '',
+        `with a ${traitDesc} voice delivery`,
+        speechStyle ? `(personality & tone: ${speechStyle})` : ''
+      ].filter(Boolean).join(' ');
+
+      steeredInput = `Say the following in a natural WhatsApp voice note ${promptParts}: ${text.trim()}`;
+    }
+
+    const ai = getVertexClient();
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.1-flash-tts-preview',
+      contents: [{ role: 'user', parts: [{ text: steeredInput }] }],
+      config: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: selectedVoice,
+            }
+          }
+        }
+      } as any
+    });
+
+    const candidate = response.candidates?.[0];
+    const part = candidate?.content?.parts?.find((p: any) => p.inlineData);
+
+    if (!part || !part.inlineData?.data) {
+      return { ok: false, error: "Gemini TTS model did not return audio data" };
+    }
+
+    const mimeType = part.inlineData.mimeType || 'audio/pcm;rate=24000';
+    const rawBase64 = part.inlineData.data;
+
+    let sampleRate = 24000;
+    const rateMatch = mimeType.match(/rate=(\d+)/i);
+    if (rateMatch && rateMatch[1]) {
+      sampleRate = parseInt(rateMatch[1], 10);
+    }
+
+    const audioDataUrl = pcmBase64ToWavDataUrl(rawBase64, sampleRate);
+
+    return {
+      ok: true,
+      audioData: audioDataUrl,
+      mimeType: 'audio/wav',
+    };
+  } catch (error: any) {
+    console.error("[Vertex AI TTS Error]:", error);
+    return {
+      ok: false,
+      error: `TTS generation failed: ${error?.message || String(error)}`,
     };
   }
 }

@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { handleVertexChat, handleVertexDiary } from './vertexHandler';
+import { handleVertexChat, handleVertexDiary, handleVertexTTS } from './vertexHandler';
 import { VERTEX_PASSCODE, GCP_CONFIG } from '../constants';
 
 export async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
@@ -101,6 +101,30 @@ export async function handleGeminiApiMiddleware(
       }
     } catch (err: any) {
       console.error('[API Error /diary]:', err);
+      sendJson(res, 400, { error: err.message || 'Invalid request body' });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url === '/api/gemini/tts') {
+    try {
+      const payload = await parseJsonBody(req);
+      if (!isPasscodeValid(req, payload)) {
+        sendJson(res, 401, {
+          error: "Built-in Cloud (Vertex AI) is locked behind password protection. Please enter the passcode in Settings.",
+          code: "LOCKED"
+        });
+        return;
+      }
+
+      const result = await handleVertexTTS(payload);
+      if (result.ok) {
+        sendJson(res, 200, { audioData: result.audioData, mimeType: result.mimeType });
+      } else {
+        sendJson(res, 500, { error: result.error });
+      }
+    } catch (err: any) {
+      console.error('[API Error /tts]:', err);
       sendJson(res, 400, { error: err.message || 'Invalid request body' });
     }
     return;

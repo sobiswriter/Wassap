@@ -16,7 +16,8 @@ import {
   Clock,
   Settings as SettingsIcon,
   PlusCircle,
-  Cloud
+  Cloud,
+  Volume2
 } from 'lucide-react';
 
 interface GuidePanelProps {
@@ -70,7 +71,7 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
           </div>
           <div className="ml-auto hidden sm:flex items-center gap-2 px-3 py-1 bg-[#e7fce3] dark:bg-[#064a3d] rounded-full border border-[#00a884]/20">
              <div className="w-2 h-2 bg-[#00a884] rounded-full animate-pulse"></div>
-             <span className="text-[calc(var(--msg-font-size)-4px)] font-bold text-[#00a884] uppercase tracking-widest">Version 1.6.0 Live</span>
+             <span className="text-[calc(var(--msg-font-size)-4px)] font-bold text-[#00a884] uppercase tracking-widest">Version 1.7.0 Live</span>
           </div>
         </div>
       </div>
@@ -144,12 +145,19 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
                   icon={MousePointer2}
                   title="Double-Tap Magic"
                   description="Double-tap any message to enter Selection Mode. Fast, sleek, and lets you manage the chat without long-presses."
-                  tag="New"
+                  tag="Sleek"
                 />
                 <GuideCard 
                   icon={Mic}
-                  title="Voice Notes"
-                  description="Hold the Microphone icon to record audio. Your personas actually hear you and respond back in character!"
+                  title="AI Voice Notes & Replies"
+                  description="Personas can now reply with authentic WhatsApp voice cards! Experience real waveforms, speed pills (1x, 1.5x, 2x), speaker avatars, and collapsible transcripts."
+                  tag="V1.7.0"
+                />
+                <GuideCard 
+                  icon={Volume2}
+                  title="30-Voice Persona Lab"
+                  description="Assign any of the 30 Gemini-TTS voices in their profile editor. Adjust voice frequency, test real-time audio previews, or enable 'Voice-for-Voice' mirroring."
+                  tag="V1.7.0"
                 />
                 <GuideCard 
                   icon={Clock}

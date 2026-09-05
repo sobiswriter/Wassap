@@ -86,6 +86,14 @@ export interface HumaneSettings {
   moodValue: number; // 0 to 100
 }
 
+export type VoiceNoteFrequency = 'off' | 'occasional' | 'frequent' | 'always';
+
+export interface PersonaVoiceSettings {
+  voiceName: string; // e.g. 'Aoede' or 'Fenrir'
+  frequency: VoiceNoteFrequency;
+  voiceForVoice: boolean; // default: true
+}
+
 export interface Chat {
   id: string;
   name: string;
@@ -106,6 +114,7 @@ export interface Chat {
   schedule?: PersonaSchedule;
   automation?: PersonaAutomation;
   humaneSettings?: HumaneSettings;
+  voiceSettings?: PersonaVoiceSettings;
 }
 
 export interface UserProfile {

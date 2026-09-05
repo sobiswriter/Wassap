@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, Camera, Link as LinkIcon, Save, Info, Globe, Check, 
   Users, Trash2, Eraser, Settings, ChevronDown, ChevronRight, 
-  Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays, Smile, Download, Upload
+  Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays, Smile, Download, Upload,
+  Mic, Volume2, Loader2, Play
 } from 'lucide-react';
-import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate, AppSettings } from '../types';
+import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate, AppSettings, PersonaVoiceSettings, VoiceNoteFrequency } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey, getAppNow, getAppDateKey } from '../utils/dates';
-import { DEFAULT_TEMPLATES } from '../constants';
+import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TTS_VOICE_DETAILS } from '../constants';
+import { generateGeminiVoiceNote } from '../services/geminiService';
 
 interface ProfilePanelProps {
   chat: Chat;
@@ -61,9 +63,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       varyMessageLength: false,
       moodSliderEnabled: false,
       moodValue: 50
-    }
-    // Handle migration for old saved data
-    // Delete minHours/maxHours if they exist
+    },
+    voiceSettings: chat.voiceSettings || { ...DEFAULT_VOICE_SETTINGS }
   });
 
   const [customTemplates, setCustomTemplates] = useState<PersonaTemplate[]>([]);
@@ -80,6 +81,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSentience, setShowSentience] = useState(false);
   const [showHumane, setShowHumane] = useState(false);
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlValue, setUrlValue] = useState(chat.avatar);
@@ -117,7 +120,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
         varyMessageLength: false,
         moodSliderEnabled: false,
         moodValue: 50
-      }
+      },
+      voiceSettings: chat.voiceSettings || { ...DEFAULT_VOICE_SETTINGS }
     });
     
     // Normalize existing data if it used minHours
@@ -920,6 +924,181 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   </div>
 
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Voice Note Settings Section */}
+        {!chat.isGroup && (
+          <div className="mt-2 app-panel shadow-sm border-b app-border">
+            <div
+              className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-black/5 transition-colors"
+              onClick={() => setShowVoiceSettings(!showVoiceSettings)}
+            >
+              <div className="flex items-center gap-3">
+                <Mic size={20} className="text-[#00a884]" />
+                <div>
+                  <h4 className="text-[calc(var(--msg-font-size)+0.5px)] text-primary font-medium">Voice Settings</h4>
+                  <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary">
+                    {formData.voiceSettings?.frequency === 'off' 
+                      ? 'Off · Plain text only' 
+                      : `${formData.voiceSettings?.voiceName || 'Aoede'} · ${formData.voiceSettings?.frequency || 'off'}`}
+                  </p>
+                </div>
+              </div>
+              {showVoiceSettings ? <ChevronDown size={20} className="text-secondary" /> : <ChevronRight size={20} className="text-secondary" />}
+            </div>
+
+            {showVoiceSettings && (
+              <div className="px-6 py-6 space-y-6 border-t app-border bg-gray-50/50 dark:bg-black/10">
+                {/* Assigned Voice (Dropdown) */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Assigned Voice</label>
+                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Gemini TTS voice model</p>
+                    </div>
+
+                    {/* Preview Voice Button */}
+                    <button
+                      type="button"
+                      disabled={isPreviewingVoice}
+                      onClick={async () => {
+                        setIsPreviewingVoice(true);
+                        try {
+                          const sampleText = `Hey! This is ${formData.name}. [laughs] I can now send you voice notes right here on WhatsApp!`;
+                          const res = await generateGeminiVoiceNote(
+                            sampleText,
+                            formData.voiceSettings?.voiceName || 'Aoede',
+                            settings,
+                            {
+                              name: formData.name,
+                              speechStyle: formData.speechStyle,
+                              role: formData.role
+                            }
+                          );
+                          if (res.ok && res.audioDataUrl) {
+                            const audio = new Audio(res.audioDataUrl);
+                            audio.play().catch(e => console.error("Audio preview failed:", e));
+                          } else {
+                            alert(res.error || "Unable to generate voice preview. Check API key/Vertex connection.");
+                          }
+                        } catch (err: any) {
+                          alert("Preview failed: " + (err?.message || err));
+                        } finally {
+                          setIsPreviewingVoice(false);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00a884]/10 hover:bg-[#00a884]/20 text-[#00a884] rounded-lg text-[calc(var(--msg-font-size)-2px)] font-semibold transition-colors disabled:opacity-50"
+                    >
+                      {isPreviewingVoice ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} fill="currentColor" />}
+                      <span>Preview</span>
+                    </button>
+                  </div>
+
+                  <select
+                    value={formData.voiceSettings?.voiceName || 'Aoede'}
+                    onChange={(e) => {
+                      const newVoice = e.target.value;
+                      const updatedVoiceSettings: PersonaVoiceSettings = {
+                        ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                        voiceName: newVoice
+                      };
+                      setFormData(p => ({
+                        ...p,
+                        voiceSettings: updatedVoiceSettings
+                      }));
+                      onUpdate({ voiceSettings: updatedVoiceSettings });
+                    }}
+                    className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2.5 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
+                  >
+                    <optgroup label="Female Voices (14)">
+                      {GEMINI_TTS_VOICES.female.map(v => {
+                        const detail = GEMINI_TTS_VOICE_DETAILS[v];
+                        return (
+                          <option key={v} value={v}>
+                            {v} — {detail?.trait || 'Female'}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                    <optgroup label="Male Voices (16)">
+                      {GEMINI_TTS_VOICES.male.map(v => {
+                        const detail = GEMINI_TTS_VOICE_DETAILS[v];
+                        return (
+                          <option key={v} value={v}>
+                            {v} — {detail?.trait || 'Male'}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  </select>
+                </div>
+
+                {/* Voice Note Frequency (Dropdown) */}
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Voice Note Frequency</label>
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">How often this persona sends voice notes instead of text</p>
+                  </div>
+
+                  <select
+                    value={formData.voiceSettings?.frequency || 'off'}
+                    onChange={(e) => {
+                      const newFreq = e.target.value as VoiceNoteFrequency;
+                      const updatedVoiceSettings: PersonaVoiceSettings = {
+                        ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                        frequency: newFreq
+                      };
+                      setFormData(p => ({
+                        ...p,
+                        voiceSettings: updatedVoiceSettings
+                      }));
+                      onUpdate({ voiceSettings: updatedVoiceSettings });
+                    }}
+                    className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2.5 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
+                  >
+                    <option value="off">Off (Never send voice notes; plain text only)</option>
+                    <option value="occasional">Occasional (~20% chance of replying via voice note)</option>
+                    <option value="frequent">Frequent (~50% chance of replying via voice note)</option>
+                    <option value="always">Always Voice (100% of messages are voice notes)</option>
+                  </select>
+                </div>
+
+                {/* Voice-for-Voice Mirroring (Toggle Switch) */}
+                <div className="flex items-center justify-between pt-2 border-t app-border">
+                  <div>
+                    <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">"Voice-for-Voice" Mirroring</h5>
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">
+                      Reply with a voice note whenever you send one (unless Frequency is Off)
+                    </p>
+                  </div>
+                  <div
+                    onClick={() => {
+                      const newMirror = !(formData.voiceSettings?.voiceForVoice ?? true);
+                      const updatedVoiceSettings: PersonaVoiceSettings = {
+                        ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                        voiceForVoice: newMirror
+                      };
+                      setFormData(p => ({
+                        ...p,
+                        voiceSettings: updatedVoiceSettings
+                      }));
+                      onUpdate({ voiceSettings: updatedVoiceSettings });
+                    }}
+                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors shrink-0 ml-3 ${
+                      (formData.voiceSettings?.voiceForVoice ?? true) ? 'bg-[#00a884]' : 'bg-gray-400'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
+                        (formData.voiceSettings?.voiceForVoice ?? true) ? 'left-[22px]' : 'left-[2px]'
+                      }`}
+                    />
+                  </div>
+                </div>
+
               </div>
             )}
           </div>

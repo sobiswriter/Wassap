@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.6.0)
+# Wassap Persona Simulation (v1.7.0)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.6.0-brightgreen)
+![Version](https://img.shields.io/badge/version-1.7.0-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -38,8 +38,8 @@ Before you can have a "sentient" companion, you need to actually make them. Here
 Now that they exist, let's make sure they don't act like a boring robot from 2010.
 
 *   **Mastering the Chat**:
-    *   **Double-Tap Magic**: See a message you want to delete or reply to? Don't faff around with long-presses. Just **double-tap** it to enter selection mode. Fast, sleek, and cool. ⚡
-    *   **Voice Notes**: Sometimes typing is too much work. Hold that **Microphone** icon and speak your heart out. They’ll hear you and talk back. 🎙️
+    *   **Interactive Voice Notes (Bi-Directional)**: Sometimes typing is too much work. Hold that **Microphone** icon and send a voice note. Personas can also reply with authentic WhatsApp-style voice messages synthesized via **Gemini-TTS** with waveforms, speed controls, and emotional cues! 🎙️✨
+    *   **Persona Voice Lab**: Head to their profile to choose from **30 distinct voices** (14 female, 16 male), customize reply frequency, preview audio, or enable "Voice-for-Voice" mirroring. 🎧
 *   **The Inactivity Engine**: Worried they'll forget you? Go to the **Automations** tab in their profile. Set an **Inactivity Check-in**. If you don't text them for a while, they’ll actually reach out to you first. No more "ghosting" from your AI! 👻
 *   **Catch-Up Logic**: If you miss a scheduled greeting while the app was closed, they’ll proactively apologize and catch you up when you log back in. It’s like they were waiting for you. 🕰️
 
@@ -59,6 +59,27 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
     *   Are they at work? At the gym? Sleeping? You can even set custom **Weekend Days**. They won't blabber about it, but their mood and availability will change subtly. If it’s 3 AM and they’re "Sleeping", they might act a bit groggy if you wake them up. 😴👔
 
 ---
+
+### 🌟 What's New in v1.7.0 (The "AI Voice Note Replies & Gemini-TTS" Update)
+*   **Authentic AI Voice Note Replies**: Personas can now reply with real, dynamic voice notes rendered with WhatsApp-style voice cards:
+    *   **Circular Green Play/Pause**: Smooth audio playback with interactive audio state management.
+    *   **Interactive Waveform Scrubber**: Click or drag across the audio waveform bars to scrub through messages with visual progress tracking.
+    *   **Dual Duration Timer**: Displays total duration before playback and counts elapsed time during playback.
+    *   **Speed Pill**: Toggle between **1x**, **1.5x**, and **2x** playback speeds on the fly.
+    *   **Speaker Avatar with Green Mic Badge**: Displays the persona's avatar with WhatsApp's iconic green microphone indicator.
+    *   **"View Transcript" Toggle**: Collapsible inline transcript showing the cleaned spoken text for accessibility and convenience.
+*   **30 Gemini-TTS Voices with Personality Traits**: Full support for all 30 Google Gemini-TTS prebuilt voices across female and male models:
+    *   **Female Voices (14)**: *Aoede* (Breezy & Natural), *Kore* (Firm & Confident), *Zephyr* (Bright & Cheerful), *Leda* (Youthful & Warm), *Despina* (Gentle & Smooth), *Callirrhoe* (Playful & Melodic), *Autonoe* (Assertive & Expressive), *Achernar* (Crisp & Articulate), *Erinome* (Soft & Relaxed), *Gacrux* (Mature & Measured), *Laomedeia* (Friendly & Engaging), *Pulcherrima* (Lively & Dynamic), *Sulafat* (Calm & Poised), *Vindemiatrix* (Polished & Professional).
+    *   **Male Voices (16)**: *Puck* (Upbeat & Lively), *Charon* (Deep & Informative), *Fenrir* (Energetic & Passionate), *Achird* (Warm & Friendly), *Algenib* (Confident & Bold), *Algieba* (Refined & Smooth), *Alnilam* (Resonant & Authoritative), *Enceladus* (Husky & Intense), *Iapetus* (Casual & Easygoing), *Orus* (Firm & Grounded), *Rasalgethi* (Rich & Baritone), *Sadachbia* (Gentle & Reassuring), *Sadaltager* (Distinct & Steady), *Schedar* (Deep & Expressive), *Umbriel* (Subtle & Quiet), *Zubenelgenubi* (Vibrant & Animated).
+*   **Prompt Steering & Expressive Speech Directives**: Adheres to Google Cloud's official Gemini-TTS prompt steering engine, directing each voice's pitch, speed, and emotional inflection to match the persona's role and speech style.
+*   **Expressive Emotional Cues**: Supports inline performance modifiers like `[laughs]`, `[sighs]`, `[whispers]`, and `[gasps]`—synthesized naturally in audio and cleanly stripped from UI transcripts.
+*   **Persona-Specific Voice Settings**:
+    *   **Voice Selector**: Pick any of the 30 Gemini voices with real-time trait indicators and instant auto-save.
+    *   **Voice Frequency**: Choose from *Off (Never)*, *Occasional (~20%)*, *Frequent (~50%)*, or *Always Voice (100%)*.
+    *   **"Voice-for-Voice" Mirroring**: Toggles automatic voice replies whenever you send a voice note to the persona.
+    *   **In-Panel Voice Preview**: Audition each voice directly from the profile editor before chatting.
+*   **Dual-Engine Audio Generation**: Seamlessly works with both Built-in Cloud (Vertex AI credits) and Custom API Key (Gemini AI Studio).
+*   **Fail-Safe Graceful Fallback**: If audio synthesis times out or errors, automatically falls back to clean, polished text delivery.
 
 ### 🌟 What's New in v1.6.0 (The "Cloud Credits & Dual Provider" Update)
 *   **Dual AI Provider Architecture**: Choose between **Built-in Cloud (Vertex AI)** using server credits or **Custom API Key (Gemini AI Studio)** stored safely in browser `localStorage`.

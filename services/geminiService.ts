@@ -1,7 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { UserProfile, AppSettings, HumaneSettings } from "../types";
-import { DEFAULT_MODEL, VERTEX_PASSCODE } from "../constants";
+import { DEFAULT_MODEL, VERTEX_PASSCODE, getVoiceDescriptor } from "../constants";
 import { getAppTimeContext } from "../utils/dates";
+import { pcmBase64ToWavDataUrl } from "../utils/audio";
 
 export async function checkVertexConnectionStatus(): Promise<{
   ok: boolean;
@@ -88,13 +89,50 @@ async function fetchVertexDiary(payload: any): Promise<string> {
   }
 }
 
+async function fetchVertexTTS(payload: {
+  text: string;
+  voiceName: string;
+  stylePrompt?: string;
+  personaName?: string;
+  speechStyle?: string;
+}): Promise<{ ok: boolean; audioData?: string; error?: string }> {
+  try {
+    const res = await fetch('/api/gemini/tts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-vertex-passcode': VERTEX_PASSCODE,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      console.error("Non-JSON response from Vertex backend for TTS:", res.status, text.slice(0, 300));
+      return { ok: false, error: `TTS server returned non-JSON (${res.status})` };
+    }
+
+    const data = await res.json();
+    if (!res.ok || !data.audioData) {
+      return { ok: false, error: data.error || "Vertex TTS generation failed." };
+    }
+
+    return { ok: true, audioData: data.audioData };
+  } catch (e: any) {
+    console.error("Failed to contact Vertex AI backend for TTS:", e);
+    return { ok: false, error: e.message || "Unable to connect to TTS server." };
+  }
+}
+
 export const getGeminiResponse = async (
   responder: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string; humaneSettings?: HumaneSettings },
   messageHistory: { text: string; sender: string; senderName?: string; image?: string; audio?: string }[],
   userProfile?: UserProfile,
   groupContext?: { groupName: string; otherMembers: string[] },
   settings?: AppSettings,
-  initiationContext?: string
+  initiationContext?: string,
+  isVoiceNoteReply?: boolean
 ) => {
   const provider = settings?.aiProvider || 'vertex';
 
@@ -118,6 +156,7 @@ export const getGeminiResponse = async (
       },
       clientTimeContext: getAppTimeContext(settings),
       initiationContext,
+      isVoiceNoteReply,
     });
   }
 
@@ -240,6 +279,11 @@ React to it organically in your next text message to the User. Let your text be 
       }
     }
 
+    const voiceNotePrompt = isVoiceNoteReply ? `
+VOICE NOTE RECORDING INSTRUCTIONS:
+You are recording a real voice note. You can expressively use inline brackets for delivery and emotion such as [whispers], [laughs], [sighs], [excited], [pauses] where natural to breathe life into the voice.
+` : '';
+
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}
 ${groupPrompt}
@@ -249,6 +293,7 @@ ${notesContext}
 ${groundingPrompt}
 ${initiationPrompt}
 ${eventInstruction}
+${voiceNotePrompt}
 
 Instructions:
 1. If an initiation INTENT or CONTEXT is provided above, follow its prioritization directive.
@@ -368,5 +413,105 @@ DIARY ENTRY BY ${persona.name}:`;
   } catch (error: any) {
     console.error("Diary generation error:", error);
     return "I'm having trouble reflecting on today right now...";
+  }
+};
+
+export const generateGeminiVoiceNote = async (
+  textWithCues: string,
+  voiceName: string,
+  settings?: AppSettings,
+  personaContext?: {
+    name?: string;
+    speechStyle?: string;
+    role?: string;
+  }
+): Promise<{ ok: boolean; audioDataUrl?: string; error?: string }> => {
+  const provider = settings?.aiProvider || 'vertex';
+
+  if (!textWithCues || !textWithCues.trim()) {
+    return { ok: false, error: "Text is empty for voice note generation." };
+  }
+
+  const selectedVoice = voiceName || 'Aoede';
+  const voiceDescriptor = getVoiceDescriptor(selectedVoice);
+  const traitDesc = voiceDescriptor?.stylePrompt || voiceDescriptor?.trait || 'natural and expressive';
+
+  // Construct Google Cloud recommended style prompt steering if not already styled
+  let steeredInput = textWithCues.trim();
+  const hasExistingDirective = steeredInput.startsWith('Say the following') || steeredInput.startsWith('TTS the following');
+
+  if (!hasExistingDirective) {
+    const promptParts = [
+      personaContext?.name ? `as ${personaContext.name}` : '',
+      `with a ${traitDesc} vocal tone`,
+      personaContext?.speechStyle ? `(speech style: ${personaContext.speechStyle})` : ''
+    ].filter(Boolean).join(' ');
+
+    steeredInput = `Say the following in a natural WhatsApp voice note ${promptParts}: ${textWithCues.trim()}`;
+  }
+
+  // Option A: Vertex AI (Built-in Server Credits)
+  if (provider === 'vertex') {
+    if (!settings?.isVertexUnlocked) {
+      return { ok: false, error: "Built-in Cloud (Vertex AI) is locked. Passcode required in Settings." };
+    }
+    const res = await fetchVertexTTS({
+      text: steeredInput,
+      voiceName: selectedVoice,
+      stylePrompt: traitDesc,
+      personaName: personaContext?.name,
+      speechStyle: personaContext?.speechStyle
+    });
+    if (res.ok && res.audioData) {
+      return { ok: true, audioDataUrl: res.audioData };
+    }
+    return { ok: false, error: res.error || "Vertex TTS generation failed." };
+  }
+
+  // Option B: Custom API Key (Gemini AI Studio)
+  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+
+  if (!finalKey) {
+    return { ok: false, error: "API Key not configured. Enter your Gemini AI Studio API key in Settings." };
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: finalKey });
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.1-flash-tts-preview',
+      contents: [{ role: 'user', parts: [{ text: steeredInput }] }],
+      config: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: selectedVoice,
+            }
+          }
+        }
+      } as any
+    });
+
+    const candidate = response.candidates?.[0];
+    const part = candidate?.content?.parts?.find((p: any) => p.inlineData);
+
+    if (!part || !part.inlineData?.data) {
+      return { ok: false, error: "Gemini TTS did not return audio data." };
+    }
+
+    const mimeType = part.inlineData.mimeType || 'audio/pcm;rate=24000';
+    const rawBase64 = part.inlineData.data;
+
+    let sampleRate = 24000;
+    const rateMatch = mimeType.match(/rate=(\d+)/i);
+    if (rateMatch && rateMatch[1]) {
+      sampleRate = parseInt(rateMatch[1], 10);
+    }
+
+    const audioDataUrl = pcmBase64ToWavDataUrl(rawBase64, sampleRate);
+    return { ok: true, audioDataUrl };
+  } catch (error: any) {
+    console.error("Gemini AI Studio TTS error:", error);
+    return { ok: false, error: error?.message || "TTS generation error." };
   }
 };

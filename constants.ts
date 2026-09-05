@@ -1,5 +1,75 @@
 
-import { Chat, PersonaTemplate } from './types';
+import { Chat, PersonaTemplate, PersonaVoiceSettings } from './types';
+
+export interface VoiceDetail {
+  name: string;
+  gender: 'female' | 'male';
+  trait: string;
+  stylePrompt: string;
+}
+
+export const GEMINI_TTS_VOICE_DETAILS: Record<string, VoiceDetail> = {
+  // Female Voices (14)
+  Achernar: { name: 'Achernar', gender: 'female', trait: 'Crisp & Articulate', stylePrompt: 'crisp, clear, and articulate' },
+  Aoede: { name: 'Aoede', gender: 'female', trait: 'Breezy & Natural', stylePrompt: 'breezy, relaxed, and natural' },
+  Autonoe: { name: 'Autonoe', gender: 'female', trait: 'Assertive & Expressive', stylePrompt: 'assertive, lively, and expressive' },
+  Callirrhoe: { name: 'Callirrhoe', gender: 'female', trait: 'Playful & Melodic', stylePrompt: 'playful, melodic, and cheerful' },
+  Despina: { name: 'Despina', gender: 'female', trait: 'Gentle & Smooth', stylePrompt: 'gentle, sweet, and smooth' },
+  Erinome: { name: 'Erinome', gender: 'female', trait: 'Soft & Relaxed', stylePrompt: 'soft, warm, and relaxed' },
+  Gacrux: { name: 'Gacrux', gender: 'female', trait: 'Mature & Measured', stylePrompt: 'mature, composed, and measured' },
+  Kore: { name: 'Kore', gender: 'female', trait: 'Firm & Confident', stylePrompt: 'firm, strong, and confident' },
+  Laomedeia: { name: 'Laomedeia', gender: 'female', trait: 'Friendly & Engaging', stylePrompt: 'friendly, upbeat, and engaging' },
+  Leda: { name: 'Leda', gender: 'female', trait: 'Youthful & Warm', stylePrompt: 'youthful, caring, and warm' },
+  Pulcherrima: { name: 'Pulcherrima', gender: 'female', trait: 'Lively & Dynamic', stylePrompt: 'lively, animated, and dynamic' },
+  Sulafat: { name: 'Sulafat', gender: 'female', trait: 'Calm & Poised', stylePrompt: 'calm, elegant, and poised' },
+  Vindemiatrix: { name: 'Vindemiatrix', gender: 'female', trait: 'Polished & Professional', stylePrompt: 'polished, clear, and professional' },
+  Zephyr: { name: 'Zephyr', gender: 'female', trait: 'Bright & Cheerful', stylePrompt: 'bright, cheerful, and fast-paced' },
+
+  // Male Voices (16)
+  Achird: { name: 'Achird', gender: 'male', trait: 'Warm & Friendly', stylePrompt: 'warm, approachable, and friendly' },
+  Algenib: { name: 'Algenib', gender: 'male', trait: 'Confident & Bold', stylePrompt: 'confident, bold, and energetic' },
+  Algieba: { name: 'Algieba', gender: 'male', trait: 'Refined & Smooth', stylePrompt: 'refined, smooth, and pleasant' },
+  Alnilam: { name: 'Alnilam', gender: 'male', trait: 'Resonant & Authoritative', stylePrompt: 'resonant, authoritative, and steady' },
+  Charon: { name: 'Charon', gender: 'male', trait: 'Deep & Informative', stylePrompt: 'deep, calm, and informative' },
+  Enceladus: { name: 'Enceladus', gender: 'male', trait: 'Husky & Intense', stylePrompt: 'husky, intense, and dramatic' },
+  Fenrir: { name: 'Fenrir', gender: 'male', trait: 'Energetic & Passionate', stylePrompt: 'energetic, passionate, and excitable' },
+  Iapetus: { name: 'Iapetus', gender: 'male', trait: 'Casual & Easygoing', stylePrompt: 'casual, easygoing, and relaxed' },
+  Orus: { name: 'Orus', gender: 'male', trait: 'Firm & Grounded', stylePrompt: 'firm, calm, and grounded' },
+  Puck: { name: 'Puck', gender: 'male', trait: 'Upbeat & Lively', stylePrompt: 'upbeat, lively, and playful' },
+  Rasalgethi: { name: 'Rasalgethi', gender: 'male', trait: 'Rich & Baritone', stylePrompt: 'rich, deep baritone, and steady' },
+  Sadachbia: { name: 'Sadachbia', gender: 'male', trait: 'Gentle & Reassuring', stylePrompt: 'gentle, reassuring, and kind' },
+  Sadaltager: { name: 'Sadaltager', gender: 'male', trait: 'Distinct & Steady', stylePrompt: 'distinct, steady, and clear' },
+  Schedar: { name: 'Schedar', gender: 'male', trait: 'Deep & Expressive', stylePrompt: 'deep, expressive, and thoughtful' },
+  Umbriel: { name: 'Umbriel', gender: 'male', trait: 'Subtle & Quiet', stylePrompt: 'subtle, quiet, and reflective' },
+  Zubenelgenubi: { name: 'Zubenelgenubi', gender: 'male', trait: 'Vibrant & Animated', stylePrompt: 'vibrant, animated, and spirited' },
+};
+
+export const getVoiceDescriptor = (voiceName?: string): VoiceDetail => {
+  if (voiceName && GEMINI_TTS_VOICE_DETAILS[voiceName]) {
+    return GEMINI_TTS_VOICE_DETAILS[voiceName];
+  }
+  return GEMINI_TTS_VOICE_DETAILS['Aoede'];
+};
+
+export const GEMINI_TTS_VOICES = {
+  female: [
+    'Achernar', 'Aoede', 'Autonoe', 'Callirrhoe', 'Despina', 
+    'Erinome', 'Gacrux', 'Kore', 'Laomedeia', 'Leda', 
+    'Pulcherrima', 'Sulafat', 'Vindemiatrix', 'Zephyr'
+  ],
+  male: [
+    'Achird', 'Algenib', 'Algieba', 'Alnilam', 'Charon', 
+    'Enceladus', 'Fenrir', 'Iapetus', 'Orus', 'Puck', 
+    'Rasalgethi', 'Sadachbia', 'Sadaltager', 'Schedar', 
+    'Umbriel', 'Zubenelgenubi'
+  ]
+};
+
+export const DEFAULT_VOICE_SETTINGS: PersonaVoiceSettings = {
+  voiceName: 'Aoede',
+  frequency: 'off',
+  voiceForVoice: true,
+};
 
 export const INITIAL_CHATS: Chat[] = [
   {
@@ -12,6 +82,11 @@ export const INITIAL_CHATS: Chat[] = [
     role: 'Brother',
     speechStyle: 'Sarcastic, direct, protective but annoying.',
     about: 'Busy with work, dont call.',
+    voiceSettings: {
+      voiceName: 'Puck',
+      frequency: 'occasional',
+      voiceForVoice: true
+    },
     messages: [
       { id: 'm1', text: 'hey Big bro, sup', sender: 'me', timestamp: '17:37', status: 'read' },
       { id: 'm2', text: 'The ceiling. What do you want now, money? 🙄', sender: 'other', timestamp: '17:37' },
@@ -31,6 +106,11 @@ export const INITIAL_CHATS: Chat[] = [
     role: 'Mother',
     speechStyle: 'Caring, lots of emojis, slightly repetitive.',
     about: 'Family first ❤️',
+    voiceSettings: {
+      voiceName: 'Leda',
+      frequency: 'occasional',
+      voiceForVoice: true
+    },
     messages: [
       { id: 'mom1', text: 'Beta, did you eat? Call me when you are free.', sender: 'other', timestamp: '13:20' },
       { id: 'mom2', text: 'Yes mom, just finished lunch.', sender: 'me', timestamp: '13:45', status: 'read' },
@@ -53,6 +133,11 @@ export const INITIAL_CHATS: Chat[] = [
     status: 'offline',
     role: 'Sister',
     speechStyle: 'Gen-Z slang, dramatic, fast typer.',
+    voiceSettings: {
+      voiceName: 'Zephyr',
+      frequency: 'occasional',
+      voiceForVoice: true
+    },
     messages: [
       { id: 'sis1', text: 'You stole my hoodie again!! I am telling Mom.', sender: 'other', timestamp: '14:00' },
       { id: 'sis2', text: 'I didn\'t steal it, I borrowed it lol.', sender: 'me', timestamp: '14:30', status: 'read' },
@@ -91,6 +176,11 @@ export const INITIAL_CHATS: Chat[] = [
     role: 'Girlfriend',
     speechStyle: 'Affectionate, uses "babe", lots of hearts.',
     about: 'Loving life with my favorite person.',
+    voiceSettings: {
+      voiceName: 'Aoede',
+      frequency: 'occasional',
+      voiceForVoice: true
+    },
     messages: [
       { id: 'mg1', text: 'Miss you! Can\'t wait for dinner tonight ❤️', sender: 'other', timestamp: '11:00' },
       { id: 'mg2', text: 'Me too babe! 7pm?', sender: 'me', timestamp: '11:30', status: 'read' },
@@ -111,6 +201,11 @@ export const INITIAL_CHATS: Chat[] = [
     status: 'offline',
     role: 'Best Friend',
     speechStyle: 'Casual, gamer talk, lots of "bro" and "chill".',
+    voiceSettings: {
+      voiceName: 'Charon',
+      frequency: 'occasional',
+      voiceForVoice: true
+    },
     messages: [
       { id: 't1', text: 'Bro, the new game is out. Jumping on Discord in 5?', sender: 'other', timestamp: '12:45' },
       { id: 't2', text: 'Sweet, just need to finish this work.', sender: 'me', timestamp: '13:00', status: 'read' },
@@ -127,6 +222,11 @@ export const INITIAL_CHATS: Chat[] = [
     role: 'AI Assistant',
     speechStyle: 'Professional, helpful, creative, and strictly logical.',
     about: 'Your AI companion for everything.',
+    voiceSettings: {
+      voiceName: 'Achernar',
+      frequency: 'occasional',
+      voiceForVoice: true
+    },
     messages: [
       { id: 'ai1', text: 'I can help you plan your next trip or generate images. What\'s on your mind?', sender: 'other', timestamp: '11:00' },
       { id: 'ai2', text: 'Can you tell me a joke?', sender: 'me', timestamp: '11:45', status: 'read' },

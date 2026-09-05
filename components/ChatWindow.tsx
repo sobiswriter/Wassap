@@ -6,6 +6,7 @@ import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessag
 import { getGeminiDiaryEntry } from '../services/geminiService';
 import { getMedia } from '../utils/storage';
 import { Sparkles, Loader2 } from 'lucide-react';
+import { VoiceNotePlayer } from './VoiceNotePlayer';
 
 interface ChatWindowProps {
   chat: Chat | null;
@@ -236,12 +237,13 @@ const MessageBubble = React.memo<{
   message: Message; 
   highlight?: boolean; 
   isGroup?: boolean; 
+  chatAvatar?: string;
   onReply?: (message: Message) => void;
   selected?: boolean;
   onToggleSelect?: (message: Message) => void;
   selectionMode?: boolean;
   isConsecutive?: boolean;
-}>(({ message, highlight, isGroup, onReply, selected, onToggleSelect, selectionMode, isConsecutive }) => {
+}>(({ message, highlight, isGroup, chatAvatar, onReply, selected, onToggleSelect, selectionMode, isConsecutive }) => {
   const isMe = message.sender === 'me';
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
@@ -358,22 +360,26 @@ const MessageBubble = React.memo<{
         )}
 
         {message.attachment?.type === 'audio' && (
-          <div className="p-2 flex items-center justify-between min-w-[200px] gap-2">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: isMe ? '#eaffe4' : 'rgba(0,0,0,0.05)' }}>
-               {isMe ? <User size={20} className="text-[#00a884]" /> : <User size={20} className="text-secondary" />}
-            </div>
-            {mediaSrc && <audio controls src={mediaSrc} className="w-[200px] h-10 outline-none" />}
+          <div className="p-1 pb-0">
+            <VoiceNotePlayer
+              src={mediaSrc || message.attachment?.data || ''}
+              seedId={message.id}
+              transcript={message.text}
+              isMe={isMe}
+              avatar={isMe ? undefined : chatAvatar}
+              senderName={isMe ? 'You' : (message.senderName || 'Voice Note')}
+            />
           </div>
         )}
 
         <div className="px-2 py-1 flex flex-col relative">
-          {message.text && (
+          {(!message.attachment || message.attachment.type !== 'audio') && message.text && (
             <p className={`text-[length:var(--msg-font-size)] text-primary whitespace-pre-wrap break-words pr-12 ${hasAttachment ? 'pt-1 pb-4' : 'pb-3'}`}>
               {formatMessageText(message.text)}
             </p>
           )}
 
-          <div className={`flex items-center gap-1 self-end ${message.text ? 'absolute bottom-1 right-2' : 'mt-1 mb-0.5 mr-1'}`}>
+          <div className={`flex items-center gap-1 self-end ${(!message.attachment || message.attachment.type !== 'audio') && message.text ? 'absolute bottom-1 right-2' : 'mt-1 mb-0.5 mr-1'}`}>
             <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
             {isMe && (
               <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
@@ -717,6 +723,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                 message={msg}
                 highlight={!!searchTerm}
                 isGroup={chat.isGroup}
+                chatAvatar={
+                  msg.sender === 'me'
+                    ? undefined
+                    : (chat.isGroup
+                        ? (allChats.find(c => c.id === msg.senderId || c.name === msg.senderName)?.avatar || chat.avatar)
+                        : chat.avatar)
+                }
                 onReply={onReply}
                 selected={selectedMessageIds.includes(msg.id)}
                 onToggleSelect={(m) => {

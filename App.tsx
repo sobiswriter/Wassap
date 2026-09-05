@@ -13,10 +13,32 @@ import { MobileNavigation } from './components/MobileNavigation';
 import { GuidePanel } from './components/GuidePanel';
 import { UpdatesPanel } from './components/UpdatesPanel';
 import { INITIAL_CHATS } from './constants';
-import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus } from './types';
-import { getGeminiResponse } from './services/geminiService';
+import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus, PersonaVoiceSettings } from './types';
+import { getGeminiResponse, generateGeminiVoiceNote } from './services/geminiService';
 import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext, getAppNow, getAppDateKey, getAppFormattedTime } from './utils/dates';
+import { cleanSpokenTranscript } from './utils/audio';
+import { saveMedia, getMedia } from './utils/storage';
 import { MobileActionFAB } from './components/MobileActionFAB';
+
+// Helper to determine if a persona should reply with a voice note
+const shouldReplyWithVoiceNote = (
+  voiceSettings?: PersonaVoiceSettings,
+  userSentVoiceNote = false
+): boolean => {
+  if (!voiceSettings) return false;
+  const frequency = voiceSettings.frequency || 'off';
+  if (frequency === 'off') return false;
+
+  const voiceForVoice = voiceSettings.voiceForVoice ?? true;
+  if (userSentVoiceNote && voiceForVoice) {
+    return true;
+  }
+
+  if (frequency === 'always') return true;
+  if (frequency === 'frequent') return Math.random() < 0.5;
+  if (frequency === 'occasional') return Math.random() < 0.2;
+  return false;
+};
 
 // Module-level pointer to active settings to ensure global consistency across time formatting
 let globalActiveSettings: AppSettings | undefined = undefined;
@@ -368,6 +390,24 @@ const convertTo24Hour = (timeStr: string) => {
   return `${String(hrNum).padStart(2, '0')}:${min}`;
 };
 
+const getPersonaDefaultVoice = (chat: Partial<Chat>): string => {
+  if (chat.voiceSettings?.voiceName) return chat.voiceSettings.voiceName;
+  const idMap: Record<string, string> = {
+    '1': 'Puck',     // Big Bro
+    '2': 'Leda',     // Mom
+    '3': 'Zephyr',   // Sis
+    '4': 'Aoede',    // My girl
+    '5': 'Charon',   // Tom
+    '6': 'Achernar', // Meta AI
+  };
+  if (chat.id && idMap[chat.id]) return idMap[chat.id];
+  const combined = `${chat.role || ''} ${chat.name || ''}`.toLowerCase();
+  if (combined.includes('brother') || combined.includes('bro') || combined.includes('father') || combined.includes('dad') || combined.includes('boy') || combined.includes('man') || combined.includes('guy')) {
+    return 'Puck';
+  }
+  return 'Aoede';
+};
+
 const App: React.FC = () => {
   const [chats, setChats] = useState<Chat[]>(() => {
     const saved = localStorage.getItem('whatsapp_chats');
@@ -375,21 +415,34 @@ const App: React.FC = () => {
       try {
         const parsedChats = JSON.parse(saved);
         if (Array.isArray(parsedChats) && parsedChats.length > 0) {
-          return parsedChats.map(chat => ({
-            ...chat,
-            lastMessageTime: convertTo24Hour(chat?.lastMessageTime || ''),
-            messages: (Array.isArray(chat?.messages) ? chat.messages : []).map(msg => {
-              const cleanMsg = {
-                ...msg,
-                timestamp: convertTo24Hour(msg?.timestamp || '')
-              };
-              // Strip heavy legacy Base64 image data from localStorage to keep state light and prevent startup freezes
-              if (cleanMsg.image && cleanMsg.image.length > 500) {
-                delete (cleanMsg as any).image;
-              }
-              return cleanMsg;
-            })
-          }));
+          return parsedChats.map(chat => {
+            const defaultVoice = getPersonaDefaultVoice(chat);
+            const voiceSettings = chat.voiceSettings ? {
+              ...chat.voiceSettings,
+              voiceName: chat.voiceSettings.voiceName || defaultVoice
+            } : {
+              voiceName: defaultVoice,
+              frequency: 'off' as const,
+              voiceForVoice: true
+            };
+
+            return {
+              ...chat,
+              voiceSettings,
+              lastMessageTime: convertTo24Hour(chat?.lastMessageTime || ''),
+              messages: (Array.isArray(chat?.messages) ? chat.messages : []).map(msg => {
+                const cleanMsg = {
+                  ...msg,
+                  timestamp: convertTo24Hour(msg?.timestamp || '')
+                };
+                // Strip heavy legacy Base64 image data from localStorage to keep state light and prevent startup freezes
+                if (cleanMsg.image && cleanMsg.image.length > 500) {
+                  delete (cleanMsg as any).image;
+                }
+                return cleanMsg;
+              })
+            };
+          });
         }
       } catch (e) {
         console.error("Failed to parse chats safely", e);
@@ -828,6 +881,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
       await new Promise(resolve => setTimeout(resolve, thinkingDelay));
 
       const timeGapContext = getTimeGapAndFrequencyContext(targetChat.messages, true);
+      const isVoiceNote = shouldReplyWithVoiceNote(targetChat.voiceSettings, false);
 
       const response = await getGeminiResponse(
         { ...targetChat },
@@ -835,10 +889,90 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
         settings.shareUserInfo ? user : undefined,
         undefined,
         settings,
-        combinePersonaContexts(context, buildScheduleContext(targetChat), timeGapContext)
+        combinePersonaContexts(context, buildScheduleContext(targetChat), timeGapContext),
+        isVoiceNote
       );
 
-      const chunks = splitMessage(response);
+      if (isVoiceNote) {
+        const voiceToUse = targetChat.voiceSettings?.voiceName || getPersonaDefaultVoice(targetChat);
+        const ttsRes = await generateGeminiVoiceNote(
+          response,
+          voiceToUse,
+          settings,
+          {
+            name: targetChat.name,
+            speechStyle: targetChat.speechStyle,
+            role: targetChat.role
+          }
+        );
+
+        if (ttsRes.ok && ttsRes.audioDataUrl) {
+          const mediaId = `media-${Date.now()}`;
+          try {
+            await saveMedia(mediaId, ttsRes.audioDataUrl);
+          } catch (err) {
+            console.error("Failed to save automated voice note to IndexedDB", err);
+          }
+
+          const cleanedTranscript = cleanSpokenTranscript(response);
+          const recordingDelay = Math.min(Math.max(cleanedTranscript.length * 25, 2000), 5000);
+          await new Promise(resolve => setTimeout(resolve, recordingDelay));
+
+          const aiMsg: Message = {
+            id: `${Date.now()}-vn`,
+            text: cleanedTranscript,
+            sender: 'other',
+            date: getDateKey(),
+            timestamp: getFormattedTime(),
+            timestampEpoch: getAppNow(settingsRef.current).getTime(),
+            status: 'delivered',
+            attachment: {
+              name: 'Voice Note',
+              data: '',
+              type: 'audio',
+              mediaId
+            },
+            mediaId
+          };
+
+          setChats(prev => prev.map(c => {
+            if (c.id === chatId) {
+              return {
+                ...c,
+                messages: [...c.messages, aiMsg],
+                lastMessage: '🎤 Voice message',
+                lastMessageTime: aiMsg.timestamp,
+                unreadCount: (c.unreadCount || 0) + 1
+              };
+            }
+            return c;
+          }));
+
+          playIncomingMessageSound();
+
+          const isFocusingChat = !document.hidden && activeChatId === targetChat.id;
+          if (settings.enableNotifications && !isFocusingChat) {
+            if (document.hidden) {
+              document.title = `(1) New Voice Message - ${targetChat.name}`;
+            }
+            showNotification(targetChat.name, {
+              body: '🎤 Voice message',
+              icon: targetChat.avatar,
+              tag: targetChat.id,
+              silentUpdate: false
+            });
+          }
+
+          setChatStatus(chatId, 'online');
+          setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
+          return;
+        } else {
+          console.warn("Automated voice note generation failed, falling back to text:", ttsRes.error);
+        }
+      }
+
+      const cleanedResponse = cleanSpokenTranscript(response);
+      const chunks = splitMessage(cleanedResponse);
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
@@ -1202,6 +1336,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         let lastMsg = text || 'Attachment';
         if (attachment?.type === 'image') lastMsg = '📷 Photo' + (text ? `: ${text}` : '');
         if (attachment?.type === 'document') lastMsg = '📄 Document' + (text ? `: ${text}` : '');
+        if (attachment?.type === 'audio') lastMsg = '🎤 Voice message';
         if (isEvent) lastMsg = `🎬 Event: ${text}`;
 
         return {
@@ -1324,16 +1459,104 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         };
       }));
 
+      // Check if user sent a voice note
+      const lastUserMsg = [...updatedHistory].reverse().find(m => m.sender === 'me');
+      const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio';
+      const isVoiceNote = shouldReplyWithVoiceNote(chat.voiceSettings, userSentVoiceNote);
+
       const response = await getGeminiResponse(
         { ...chat },
         hydratedHistory,
         settings.shareUserInfo ? user : undefined,
         undefined,
         settings,
-        memoryContext
+        memoryContext,
+        isVoiceNote
       );
 
-      const chunks = splitMessage(response);
+      if (isVoiceNote) {
+        setChatStatus(chatId, 'recording audio...' as any);
+        const voiceToUse = chat.voiceSettings?.voiceName || getPersonaDefaultVoice(chat);
+        const ttsRes = await generateGeminiVoiceNote(
+          response,
+          voiceToUse,
+          settings,
+          {
+            name: chat.name,
+            speechStyle: chat.speechStyle,
+            role: chat.role
+          }
+        );
+
+        if (ttsRes.ok && ttsRes.audioDataUrl) {
+          const mediaId = `media-${Date.now()}`;
+          try {
+            await saveMedia(mediaId, ttsRes.audioDataUrl);
+          } catch (err) {
+            console.error("Failed to save voice note to IndexedDB", err);
+          }
+
+          const cleanedTranscript = cleanSpokenTranscript(response);
+
+          // Simulated realistic delay for finishing voice note
+          const recordingDelay = Math.min(Math.max(cleanedTranscript.length * 25, 2000), 5000);
+          await new Promise(resolve => setTimeout(resolve, recordingDelay));
+
+          const aiMsg: Message = {
+            id: `${Date.now()}-vn`,
+            text: cleanedTranscript,
+            sender: 'other',
+            date: getDateKey(),
+            timestamp: getFormattedTime(),
+            timestampEpoch: Date.now(),
+            status: 'delivered',
+            attachment: {
+              name: 'Voice Note',
+              data: '',
+              type: 'audio',
+              mediaId
+            },
+            mediaId
+          };
+
+          setChats(prev => prev.map(c => {
+            if (c.id === chatId) {
+              return {
+                ...c,
+                messages: [...c.messages, aiMsg],
+                lastMessage: '🎤 Voice message',
+                lastMessageTime: aiMsg.timestamp,
+                unreadCount: (c.unreadCount || 0) + 1
+              };
+            }
+            return c;
+          }));
+
+          playIncomingMessageSound();
+
+          const isFocusingChat = !document.hidden && activeChatId === chat.id;
+          if (settings.enableNotifications && !isFocusingChat) {
+            if (document.hidden) {
+              document.title = `(1) New Voice Message - ${chat.name}`;
+            }
+            showNotification(chat.name, {
+              body: '🎤 Voice message',
+              icon: chat.avatar,
+              tag: chat.id,
+              silentUpdate: false
+            });
+          }
+
+          setChatStatus(chatId, 'online');
+          setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
+          return;
+        } else {
+          console.warn("TTS generation failed, falling back to clean text response:", ttsRes.error);
+        }
+      }
+
+      const cleanedResponse = cleanSpokenTranscript(response);
+      const chunks = splitMessage(cleanedResponse);
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
@@ -1472,6 +1695,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           };
         }));
 
+        const lastUserMsg = [...currentHistory].reverse().find(m => m.sender === 'me');
+        const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio';
+        const isVoiceNote = shouldReplyWithVoiceNote(persona.voiceSettings, userSentVoiceNote);
+
         const responseText = await getGeminiResponse(
           { ...persona },
           hydratedGroupHistory,
@@ -1481,10 +1708,79 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             otherMembers: group.memberIds?.filter(id => id !== responderId).map(id => chats.find(c => c.id === id)?.name || '') || []
           },
           settings,
-          combinePersonaContexts(memoryContext, buildScheduleContext(persona))
+          combinePersonaContexts(memoryContext, buildScheduleContext(persona)),
+          isVoiceNote
         );
 
-        const chunks = splitMessage(responseText);
+        if (isVoiceNote) {
+          setChatStatus(group.id, 'recording audio...' as any);
+          const voiceToUse = persona.voiceSettings?.voiceName || getPersonaDefaultVoice(persona);
+          const ttsRes = await generateGeminiVoiceNote(
+            responseText,
+            voiceToUse,
+            settings,
+            {
+              name: persona.name,
+              speechStyle: persona.speechStyle,
+              role: persona.role
+            }
+          );
+
+          if (ttsRes.ok && ttsRes.audioDataUrl) {
+            const mediaId = `media-${Date.now()}`;
+            try {
+              await saveMedia(mediaId, ttsRes.audioDataUrl);
+            } catch (err) {
+              console.error("Failed to save group voice note to IndexedDB", err);
+            }
+
+            const cleanedTranscript = cleanSpokenTranscript(responseText);
+            const recordingDelay = Math.min(Math.max(cleanedTranscript.length * 25, 2000), 5000);
+            await new Promise(resolve => setTimeout(resolve, recordingDelay));
+
+            const aiMsg: Message = {
+              id: `${Date.now()}-${i}-vn`,
+              text: cleanedTranscript,
+              sender: 'other',
+              senderName: persona.name,
+              senderId: persona.id,
+              date: getDateKey(),
+              timestamp: getFormattedTime(),
+              timestampEpoch: Date.now(),
+              status: 'delivered',
+              attachment: {
+                name: 'Voice Note',
+                data: '',
+                type: 'audio',
+                mediaId
+              },
+              mediaId
+            };
+
+            currentHistory.push(aiMsg);
+
+            setChats(prev => prev.map(c => {
+              if (c.id === group.id) {
+                return {
+                  ...c,
+                  messages: [...c.messages, aiMsg],
+                  lastMessage: `${persona.name}: 🎤 Voice message`,
+                  lastMessageTime: aiMsg.timestamp,
+                  unreadCount: (c.unreadCount || 0) + 1
+                };
+              }
+              return c;
+            }));
+
+            playIncomingMessageSound();
+            continue;
+          } else {
+            console.warn("Group persona TTS generation failed, falling back to clean text:", ttsRes.error);
+          }
+        }
+
+        const cleanedResponse = cleanSpokenTranscript(responseText);
+        const chunks = splitMessage(cleanedResponse);
 
         for (let j = 0; j < chunks.length; j++) {
           const chunk = chunks[j];
