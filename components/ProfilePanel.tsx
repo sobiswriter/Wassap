@@ -326,7 +326,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
         <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">{title}</h5>
         <button
           onClick={() => addScheduleBlock(kind)}
-          className="flex items-center gap-1 text-[calc(var(--msg-font-size)-2px)] text-[#00a884] font-medium hover:bg-black/5 rounded px-2 py-1"
+          className="flex items-center gap-1 text-[calc(var(--msg-font-size)-2px)] text-[#21c063] font-medium hover:bg-black/5 rounded px-2 py-1"
         >
           <Plus size={14} /> Add
         </button>
@@ -366,7 +366,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   );
 
   const labelClass = "text-[calc(var(--msg-font-size)-0.5px)] text-[#008069] font-medium block mb-2 uppercase tracking-tight";
-  const inputClass = "w-full outline-none text-[calc(var(--msg-font-size)+1.5px)] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1";
+  const inputClass = "w-full outline-none text-[calc(var(--msg-font-size)+1.5px)] border-b app-border focus:border-[#21c063] pb-1.5 transition-all bg-transparent text-primary py-1";
 
   const groupMembers = chat.isGroup
     ? chat.memberIds?.map(id => allChats.find(c => c.id === id)).filter(Boolean) as Chat[]
@@ -415,11 +415,11 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
             <img src={formData.avatar} alt={formData.name} className="w-48 h-48 rounded-full object-cover shadow-md border-4 border-white dark:border-[#222d34]" />
             <div className="absolute inset-0 bg-black/40 rounded-full flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity gap-2">
               <div className="flex gap-4">
-                <div onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center hover:text-[#00a884] cursor-pointer">
+                <div onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center hover:text-[#21c063] cursor-pointer">
                   <Camera size={20} />
                   <span className="text-[calc(var(--msg-font-size)-4.5px)] uppercase font-bold mt-1">Upload</span>
                 </div>
-                <div onClick={() => setShowUrlInput(!showUrlInput)} className="flex flex-col items-center hover:text-[#00a884] cursor-pointer">
+                <div onClick={() => setShowUrlInput(!showUrlInput)} className="flex flex-col items-center hover:text-[#21c063] cursor-pointer">
                   <LinkIcon size={20} />
                   <span className="text-[calc(var(--msg-font-size)-4.5px)] uppercase font-bold mt-1">Link</span>
                 </div>
@@ -430,8 +430,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
           {showUrlInput && (
             <div className="w-full px-10 mb-5">
-              <div className="flex items-center gap-2 border-b border-[#00a884] pb-1">
-                <Globe size={16} className="text-[#00a884] shrink-0" />
+              <div className="flex items-center gap-2 border-b border-[#21c063] pb-1">
+                <Globe size={16} className="text-[#21c063] shrink-0" />
                 <input
                   type="text"
                   className="flex-1 outline-none text-[calc(var(--msg-font-size)-0.5px)] bg-transparent text-primary px-1 font-medium"
@@ -440,7 +440,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   onChange={(e) => setUrlValue(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleApplyUrl()}
                 />
-                <button onClick={handleApplyUrl} className="text-[#00a884]"><Check size={18} strokeWidth={3} /></button>
+                <button onClick={handleApplyUrl} className="text-[#21c063]"><Check size={18} strokeWidth={3} /></button>
               </div>
             </div>
           )}
@@ -531,7 +531,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                         localStorage.setItem('whatsapp_custom_templates', JSON.stringify(updated));
                       }
                     }}
-                    className="text-[calc(var(--msg-font-size)-2px)] bg-[#00a884] text-white px-2 py-0.5 rounded hover:bg-[#008f6f]"
+                    className="text-[calc(var(--msg-font-size)-2px)] bg-[#21c063] text-white px-2 py-0.5 rounded hover:bg-[#008f6f]"
                   >
                     Save
                   </button>
@@ -540,7 +540,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
               <textarea
                 value={formData.systemInstruction}
                 onChange={(e) => setFormData(prev => ({ ...prev, systemInstruction: e.target.value }))}
-                className="w-full min-h-[140px] outline-none text-[calc(var(--msg-font-size)+0.5px)] resize-none bg-[#f9f9f9] dark:bg-[#2a3942] p-3 rounded border app-border focus:border-[#00a884] transition-all text-primary leading-relaxed shadow-sm"
+                className="w-full min-h-[140px] outline-none text-[calc(var(--msg-font-size)+0.5px)] resize-none bg-[#f9f9f9] dark:bg-[#2a3942] p-3 rounded border app-border focus:border-[#21c063] transition-all text-primary leading-relaxed shadow-sm"
                 placeholder="Detailed instructions for the AI behavior..."
               />
             </div>
@@ -558,7 +558,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
             </div>
             <div className="divide-y app-border">
               <div className="px-6 py-3 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#202c33] flex items-center justify-center text-[#00a884] font-bold shrink-0">You</div>
+                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#202c33] flex items-center justify-center text-[#21c063] font-bold shrink-0">You</div>
                 <span className="text-[calc(var(--msg-font-size)+0.5px)] text-primary">You</span>
                 <span className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary ml-auto">Group Admin</span>
               </div>
@@ -598,14 +598,14 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   </div>
                   <div
                     onClick={() => setFormData(prev => ({ ...prev, memoryEnabled: !prev.memoryEnabled }))}
-                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.memoryEnabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.memoryEnabled ? 'bg-[#21c063]' : 'bg-gray-400'}`}
                   >
                     <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${formData.memoryEnabled ? 'left-[22px]' : 'left-[2px]'}`} />
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-[#00a884]">
+                  <div className="flex items-center gap-2 text-[#21c063]">
                     <Plus size={16} />
                     <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium">Add Manual Memory</h5>
                   </div>
@@ -638,7 +638,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   />
                   <button
                     onClick={handleCreateMemory}
-                    className="w-full bg-[#00a884] hover:bg-[#008f6f] text-white font-medium py-2 rounded transition-colors flex items-center justify-center gap-2 text-[calc(var(--msg-font-size)-1.5px)]"
+                    className="w-full bg-[#21c063] hover:bg-[#008f6f] text-white font-medium py-2 rounded transition-colors flex items-center justify-center gap-2 text-[calc(var(--msg-font-size)-1.5px)]"
                   >
                     <Save size={16} /> Add Memory
                   </button>
@@ -690,7 +690,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                           />
                           <div className="flex justify-end gap-2">
                             <button onClick={() => setEditingMemoryId(null)} className="px-3 py-1 text-secondary hover:bg-black/10 rounded text-[calc(var(--msg-font-size)-2px)]">Cancel</button>
-                            <button onClick={() => handleUpdateMemory(memory)} className="px-3 py-1 bg-[#00a884] text-white rounded text-[calc(var(--msg-font-size)-2px)]">Save</button>
+                            <button onClick={() => handleUpdateMemory(memory)} className="px-3 py-1 bg-[#21c063] text-white rounded text-[calc(var(--msg-font-size)-2px)]">Save</button>
                           </div>
                         </>
                       ) : (
@@ -707,7 +707,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                                   setEditMemoryTitle(memory.title);
                                   setEditMemorySummary(memory.summary);
                                 }}
-                                className="p-1.5 text-secondary hover:text-[#00a884] hover:bg-black/5 rounded"
+                                className="p-1.5 text-secondary hover:text-[#21c063] hover:bg-black/5 rounded"
                               >
                                 <Edit3 size={15} />
                               </button>
@@ -750,7 +750,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   </div>
                   <div
                     onClick={() => setFormData(prev => ({ ...prev, schedule: { ...prev.schedule, enabled: !prev.schedule.enabled } }))}
-                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.schedule.enabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.schedule.enabled ? 'bg-[#21c063]' : 'bg-gray-400'}`}
                   >
                     <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${formData.schedule.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
                   </div>
@@ -780,7 +780,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                             }}
                             className={`px-3 py-1.5 rounded-full text-[calc(var(--msg-font-size)-2.5px)] font-medium transition-all border ${
                               isWeekend 
-                                ? 'bg-[#00a884] text-white border-[#00a884] shadow-sm' 
+                                ? 'bg-[#21c063] text-white border-[#21c063] shadow-sm' 
                                 : 'bg-white dark:bg-[#202c33] text-secondary border-app-border hover:bg-black/5'
                             }`}
                           >
@@ -835,7 +835,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   </div>
                   <div
                     onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, enabled: !p.humaneSettings!.enabled } }))}
-                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.enabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.enabled ? 'bg-[#21c063]' : 'bg-gray-400'}`}
                   >
                     <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
                   </div>
@@ -851,7 +851,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     </div>
                     <div
                       onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, banRoboticLanguage: !p.humaneSettings!.banRoboticLanguage } }))}
-                      className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.banRoboticLanguage ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                      className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.banRoboticLanguage ? 'bg-[#21c063]' : 'bg-gray-400'}`}
                     >
                       <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.banRoboticLanguage ? 'left-[18px]' : 'left-[2px]'}`} />
                     </div>
@@ -865,7 +865,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     </div>
                     <div
                       onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, humanImperfections: !p.humaneSettings!.humanImperfections } }))}
-                      className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.humanImperfections ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                      className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.humanImperfections ? 'bg-[#21c063]' : 'bg-gray-400'}`}
                     >
                       <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.humanImperfections ? 'left-[18px]' : 'left-[2px]'}`} />
                     </div>
@@ -879,7 +879,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     </div>
                     <div
                       onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, varyMessageLength: !p.humaneSettings!.varyMessageLength } }))}
-                      className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.varyMessageLength ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                      className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.varyMessageLength ? 'bg-[#21c063]' : 'bg-gray-400'}`}
                     >
                       <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.varyMessageLength ? 'left-[18px]' : 'left-[2px]'}`} />
                     </div>
@@ -894,7 +894,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                       </div>
                       <div
                         onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, moodSliderEnabled: !p.humaneSettings!.moodSliderEnabled } }))}
-                        className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.moodSliderEnabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                        className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.moodSliderEnabled ? 'bg-[#21c063]' : 'bg-gray-400'}`}
                       >
                         <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.moodSliderEnabled ? 'left-[18px]' : 'left-[2px]'}`} />
                       </div>
@@ -908,7 +908,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                           max="100"
                           value={formData.humaneSettings?.moodValue}
                           onChange={(e) => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, moodValue: parseInt(e.target.value) } }))}
-                          className="w-full accent-[#00a884] h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                          className="w-full accent-[#21c063] h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
                         />
                         <div className="text-center font-medium text-[calc(var(--msg-font-size)-1px)] text-primary">
                           {(() => {
@@ -940,7 +940,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
               onClick={() => setShowVoiceSettings(!showVoiceSettings)}
             >
               <div className="flex items-center gap-3">
-                <Mic size={20} className="text-[#00a884]" />
+                <Mic size={20} className="text-[#21c063]" />
                 <div>
                   <h4 className="text-[calc(var(--msg-font-size)+0.5px)] text-primary font-medium">Voice Settings</h4>
                   <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary">
@@ -993,7 +993,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                           setIsPreviewingVoice(false);
                         }
                       }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00a884]/10 hover:bg-[#00a884]/20 text-[#00a884] rounded-lg text-[calc(var(--msg-font-size)-2px)] font-semibold transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#21c063]/10 hover:bg-[#21c063]/20 text-[#21c063] rounded-lg text-[calc(var(--msg-font-size)-2px)] font-semibold transition-colors disabled:opacity-50"
                     >
                       {isPreviewingVoice ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} fill="currentColor" />}
                       <span>Preview</span>
@@ -1091,7 +1091,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                       onUpdate({ voiceSettings: updatedVoiceSettings });
                     }}
                     className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors shrink-0 ml-3 ${
-                      (formData.voiceSettings?.voiceForVoice ?? true) ? 'bg-[#00a884]' : 'bg-gray-400'
+                      (formData.voiceSettings?.voiceForVoice ?? true) ? 'bg-[#21c063]' : 'bg-gray-400'
                     }`}
                   >
                     <div
@@ -1115,7 +1115,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
               onClick={() => setShowImageSettings(!showImageSettings)}
             >
               <div className="flex items-center gap-3">
-                <Camera size={20} className="text-[#00a884]" />
+                <Camera size={20} className="text-[#21c063]" />
                 <div>
                   <h4 className="text-[calc(var(--msg-font-size)+0.5px)] text-primary font-medium">In-Chat Photo Generation (@img)</h4>
                   <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">
@@ -1156,7 +1156,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
                 <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg text-[calc(var(--msg-font-size)-2.5px)] text-secondary leading-relaxed">
                   <p className="font-medium text-primary mb-1">📸 How @img works:</p>
-                  <p>Send a message containing <code className="bg-[#00a884]/10 text-[#00a884] px-1 py-0.5 rounded font-mono">@img</code> in this chat. The persona will automatically evaluate the conversation context, generate an unposed authentic photo (or selfie using their avatar as reference), and send it with an in-character caption!</p>
+                  <p>Send a message containing <code className="bg-[#21c063]/10 text-[#21c063] px-1 py-0.5 rounded font-mono">@img</code> in this chat. The persona will automatically evaluate the conversation context, generate an unposed authentic photo (or selfie using their avatar as reference), and send it with an in-character caption!</p>
                 </div>
               </div>
             )}
@@ -1186,7 +1186,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   </div>
                   <div
                     onClick={() => setFormData(p => ({ ...p, automation: { ...p.automation, enabled: !p.automation.enabled } }))}
-                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.automation.enabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                    className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.automation.enabled ? 'bg-[#21c063]' : 'bg-gray-400'}`}
                   >
                     <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${formData.automation.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
                   </div>
@@ -1202,7 +1202,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                       </div>
                       <div
                         onClick={() => setFormData(p => ({ ...p, automation: { ...p.automation, inactivity: { ...p.automation.inactivity, enabled: !p.automation.inactivity.enabled } } }))}
-                        className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.automation.inactivity.enabled ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                        className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.automation.inactivity.enabled ? 'bg-[#21c063]' : 'bg-gray-400'}`}
                       >
                         <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.automation.inactivity.enabled ? 'left-[18px]' : 'left-[2px]'}`} />
                       </div>
@@ -1281,8 +1281,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                           if (t.isTriggeredToday) {
                             if (isNormal) {
                               stateLabel = "Completed on time";
-                              stateColor = "border-[#00a884]/50 bg-[#00a884]/5 shadow-[#00a884]/10";
-                              badgeColor = "bg-[#00a884]";
+                              stateColor = "border-[#21c063]/50 bg-[#21c063]/5 shadow-[#21c063]/10";
+                              badgeColor = "bg-[#21c063]";
                               Icon = Check;
                             } else if (isCatchup) {
                               stateLabel = "Caught up (was missed)";
@@ -1383,7 +1383,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                           const newTrig = { id: Date.now().toString(), context: 'New Greeting', startTime: '08:00', endTime: '09:00' };
                           setFormData(p => ({ ...p, automation: { ...p.automation, timeTriggers: [...p.automation.timeTriggers, newTrig] } }));
                         }}
-                        className="w-full flex items-center justify-center gap-2 text-[calc(var(--msg-font-size)-1.5px)] text-[#00a884] font-medium py-2 hover:bg-black/5 rounded transition-colors"
+                        className="w-full flex items-center justify-center gap-2 text-[calc(var(--msg-font-size)-1.5px)] text-[#21c063] font-medium py-2 hover:bg-black/5 rounded transition-colors"
                       >
                         <Plus size={16} /> Add Trigger
                       </button>
@@ -1412,7 +1412,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
           <button
             onClick={handleSave}
-            className="w-full bg-[#00a884] text-white py-3 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-[#005c4b] transition-colors shadow-sm active:scale-95 uppercase text-[calc(var(--msg-font-size)-0.5px)]"
+            className="w-full bg-[#21c063] text-white py-3 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-[#005c4b] transition-colors shadow-sm active:scale-95 uppercase text-[calc(var(--msg-font-size)-0.5px)]"
           >
             <Save size={18} />
             Save Changes

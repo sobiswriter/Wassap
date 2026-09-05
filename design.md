@@ -12,29 +12,29 @@ Wassap uses a class-based dark mode (`.dark`) driven by CSS custom properties an
 
 | Token / Usage | Light Mode (`:root`) | Dark Mode (`.dark`) | Notes |
 | :--- | :--- | :--- | :--- |
-| **Page Outer Background** | `#eae6df` | `#0c1317` | Neutral desktop surrounding backdrop |
-| **Chat Viewport Background** | `#efeae2` | `#0b141a` | Main conversation scroll area |
-| **Primary Panel Background** | `#ffffff` | `#111b21` | Sidebar, modals, popovers |
-| **Header Background** | `#f0f2f5` | `#202c33` | Top navigation and chat title bar |
-| **Input Footer Background** | `#f0f2f5` | `#202c33` | Message composer bottom bar |
-| **Borders & Dividers** | `#e9edef` | `#222d34` | 1px clean separation lines |
+| **Page Outer Background** | `#eae6df` | `#0b1014` | Deeper, ultra-dark native WhatsApp backdrop |
+| **Chat Viewport Background** | `#efeae2` | `#0b1014` | Main conversation scroll area |
+| **Primary Panel Background** | `#ffffff` | `#0b1014` | Sidebar, modals, popovers, mobile list |
+| **Header Background** | `#f0f2f5` | `#182229` / `#0b1014` | Top navigation and chat title bar |
+| **Input Footer Background** | `#f0f2f5` | `#182229` | Message composer bottom bar |
+| **Borders & Dividers** | `#e9edef` | `#1f2c34` | 1px clean separation lines |
 | **Primary Text** | `#111b21` | `#e9edef` | Contact names, message body text |
 | **Secondary Text** | `#667781` | `#8696a0` | Timestamps, status, last seen, subtitles |
 | **Outgoing Bubble (User)** | `#d9fdd3` | `#005c4b` | Light pale green / dark pine green |
-| **Incoming Bubble (Persona)**| `#ffffff` | `#202c33` | Pure white / dark slate grey |
+| **Incoming Bubble (Persona)**| `#ffffff` | `#182229` | Pure white / dark charcoal slate |
 | **Encryption Notice Box** | `#fff9c2` (text `#54656f`) | `#182229` (text `#8696a0`) | Security disclaimer pill |
-| **Selection Overlay** | `rgba(0, 168, 132, 0.1)` | `rgba(0, 168, 132, 0.15)` | Double-tap / multi-select state |
+| **Selection Overlay** | `rgba(33, 192, 99, 0.1)` | `rgba(33, 192, 99, 0.15)` | Double-tap / multi-select state |
 
 ### B. Iconic WhatsApp Brand Colors
 
 ```css
 /* Core Brand Tones */
---wa-green-primary:   #25D366; /* Vibrant WhatsApp Green */
---wa-teal-accent:      #00A884; /* Active buttons, send icon, toggles */
---wa-teal-dark:        #128C7E; /* Header accents, legacy branding */
---wa-blue-ticks:       #53BDEB; /* Double read checkmarks */
---wa-danger-red:       #EA0038; /* Delete, destructive confirmations */
---wa-voice-mic-badge:  #00A884; /* Green mic badge on voice note avatars */
+--wa-green-primary:   #21C063; /* Verdant Pulse - Official WhatsApp Accent */
+--wa-green-hover:     #1EB05B; /* Hover & Active state */
+--wa-dark-bg:         #0B1014; /* Authentic WhatsApp Android/iOS Ultra Dark */
+--wa-blue-ticks:      #53BDEB; /* Double read checkmarks */
+--wa-danger-red:      #EA0038; /* Delete, destructive confirmations */
+--wa-active-pill:     #103629; /* Dark forest green active tab capsule */
 ```
 
 ---

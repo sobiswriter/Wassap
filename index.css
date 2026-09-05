@@ -17,6 +17,8 @@
     --encryption-text: #54656f;
     --bubble-me: #d9fdd3;
     --bubble-other: #ffffff;
+    --whatsapp-green: #21c063;
+    --whatsapp-green-hover: #1eb05b;
     --msg-font-size: 14.5px;
     --input-font-size: 17px;
 }
@@ -41,11 +43,12 @@
 }
 
 .dark ::-webkit-scrollbar-thumb {
-    background: #374045;
+    background: #233138;
+    border-radius: 10px;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-    background: #465157;
+    background: #374248;
 }
 
 /* Base Styles */
@@ -72,20 +75,22 @@ body {
 }
 
 .dark {
-    --chat-bg: #0b141a;
+    --chat-bg: #0b1014;
     --chat-wallpaper: url('/images/dark.png');
-    --chat-wallpaper-opacity: 0.06;
-    --border-color: #222d34;
-    --panel-bg: #111b21;
-    --header-bg: #202c33;
+    --chat-wallpaper-opacity: 0.05;
+    --border-color: #1f2c34;
+    --panel-bg: #0b1014;
+    --header-bg: #182229;
     --text-primary: #e9edef;
     --text-secondary: #8696a0;
-    --bg-secondary: #111b21;
+    --bg-secondary: #0b1014;
     --encryption-bg: #182229;
     --encryption-text: #8696a0;
     --bubble-me: #005c4b;
-    --bubble-other: #202c33;
-    background-color: #0c1317;
+    --bubble-other: #182229;
+    --whatsapp-green: #21c063;
+    --whatsapp-green-hover: #1eb05b;
+    background-color: #0b1014;
     color: var(--text-primary);
 }
 

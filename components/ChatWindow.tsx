@@ -67,7 +67,7 @@ const DateDivider: React.FC<{ dateKey: string; onClick?: () => void }> = ({ date
       onClick={onClick}
       disabled={!onClick}
       title={onClick ? 'Save this day as a memory' : undefined}
-      className={`app-header text-secondary text-[10px] sm:text-[12px] px-3 py-1 sm:px-4 sm:py-1.5 rounded-full font-medium transition-all ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#00a884]' : 'pointer-events-none opacity-90'}`}
+      className={`app-header text-secondary text-[10px] sm:text-[12px] px-3 py-1 sm:px-4 sm:py-1.5 rounded-full font-medium transition-all ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#21c063]' : 'pointer-events-none opacity-90'}`}
     >
       {formatChatDividerLabel(dateKey)}
     </button>
@@ -174,7 +174,7 @@ const DateMemoryModal: React.FC<{
             <button
               onClick={handleGenerateDiary}
               disabled={isGenerating || capturedMessages.length === 0}
-              className="flex items-center gap-1.5 text-[calc(var(--msg-font-size)-2.5px)] text-[#00a884] font-bold hover:bg-[#00a884]/10 px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              className="flex items-center gap-1.5 text-[calc(var(--msg-font-size)-2.5px)] text-[#21c063] font-bold hover:bg-[#21c063]/10 px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none"
             >
               {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
               Generate AI Diary
@@ -189,7 +189,7 @@ const DateMemoryModal: React.FC<{
           />
           <button
             onClick={handleSave}
-            className="w-full bg-[#00a884] hover:bg-[#008f6f] text-white font-medium py-2.5 rounded transition-colors flex items-center justify-center gap-2"
+            className="w-full bg-[#21c063] hover:bg-[#008f6f] text-white font-medium py-2.5 rounded transition-colors flex items-center justify-center gap-2"
           >
             <Save size={16} /> Compress & Save
           </button>
@@ -206,10 +206,10 @@ const formatMessageText = (text: string) => {
   
   return parts.map((part, index) => {
     if (part.startsWith('```') && part.endsWith('```')) {
-      return <code key={index} className="font-mono bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-[calc(var(--msg-font-size)-1.5px)] text-[#00a884] block my-1 whitespace-pre-wrap">{part.slice(3, -3)}</code>;
+      return <code key={index} className="font-mono bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-[calc(var(--msg-font-size)-1.5px)] text-[#21c063] block my-1 whitespace-pre-wrap">{part.slice(3, -3)}</code>;
     }
     if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={index} className="font-mono bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded text-[calc(var(--msg-font-size)-1.5px)] text-[#00a884]">{part.slice(1, -1)}</code>;
+      return <code key={index} className="font-mono bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded text-[calc(var(--msg-font-size)-1.5px)] text-[#21c063]">{part.slice(1, -1)}</code>;
     }
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={index} className="font-bold">{part.slice(2, -2)}</strong>;
@@ -297,7 +297,7 @@ const MessageBubble = React.memo<{
 
   return (
     <div 
-      className={`flex w-full group/bubble px-1 ${isConsecutive ? 'py-[0.5px]' : 'py-[2px]'} transition-colors duration-200 ${selected ? 'bg-[#00a884]/25 dark:bg-white/10 selection-highlight' : ''} ${isMe ? 'justify-end' : 'justify-start'}`}
+      className={`flex w-full group/bubble px-1 ${isConsecutive ? 'py-[0.5px]' : 'py-[2px]'} transition-colors duration-200 ${selected ? 'bg-[#21c063]/25 dark:bg-white/10 selection-highlight' : ''} ${isMe ? 'justify-end' : 'justify-start'}`}
       onClick={() => {
         if (!onToggleSelect) return;
         const now = Date.now();
@@ -330,7 +330,7 @@ const MessageBubble = React.memo<{
           isMediaMessage
             ? 'media-message-bubble'
             : 'max-w-[85%] sm:max-w-[75%]'
-        } p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto my-[2px] ${highlight ? 'ring-2 ring-[#00a884]' : ''} ${!isConsecutive ? (isMe ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
+        } p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto my-[2px] ${highlight ? 'ring-2 ring-[#21c063]' : ''} ${!isConsecutive ? (isMe ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
         style={{ 
           backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)',
           ...(isMediaMessage ? { width: 'fit-content', maxWidth: '330px' } : {})
@@ -351,7 +351,7 @@ const MessageBubble = React.memo<{
                )}
                {message.replyToMessage.attachment?.type === 'audio' && (
                  <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
-                   <Mic size={13} className="text-[#00a884]" />
+                   <Mic size={13} className="text-[#21c063]" />
                    <span>Voice message</span>
                  </span>
                )}
@@ -419,14 +419,14 @@ const MessageBubble = React.memo<{
           <>
             {message.attachment?.type === 'document' && (
               <div className="p-2 flex items-center gap-3 bg-black/5 dark:bg-black/20 rounded-md mb-1 border border-black/5 hover:bg-black/10 transition-colors cursor-pointer group">
-                <div className="w-12 h-12 bg-[#00a884] rounded flex items-center justify-center text-white shadow-sm shrink-0 group-hover:scale-105 transition-transform">
+                <div className="w-12 h-12 bg-[#21c063] rounded flex items-center justify-center text-white shadow-sm shrink-0 group-hover:scale-105 transition-transform">
                   <FileText size={24} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[calc(var(--msg-font-size)-0.5px)] text-primary font-medium truncate">{message.attachment.name}</p>
                   <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary uppercase font-bold tracking-tighter">Document</p>
                 </div>
-                <Download size={20} className="text-secondary cursor-pointer hover:text-[#00a884] transition-colors" />
+                <Download size={20} className="text-secondary cursor-pointer hover:text-[#21c063] transition-colors" />
               </div>
             )}
 
@@ -580,7 +580,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
   );
 
   const getGroupMembersLabel = () => {
-    if (chat.status === 'typing...') return <span className="text-[#00a884] font-medium italic animate-pulse">typing...</span>;
+    if (chat.status === 'typing...') return <span className="text-[#21c063] font-medium italic animate-pulse">typing...</span>;
     if (!chat.isGroup || !chat.memberIds) {
       if (chat.status === 'offline') {
         const lastMsgTime = chat.messages.filter(m => m.sender === 'other').pop()?.timestamp || chat.lastMessageTime || '12:00 PM';
@@ -695,14 +695,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
           <div className="flex items-center gap-4 md:gap-6 text-secondary relative">
             <button
               onClick={() => setShowSearch(!showSearch)}
-              className={`p-2 rounded-full transition-colors ${showSearch ? 'bg-black/5 text-[#00a884]' : 'hover:bg-black/5 text-secondary hover:text-primary'}`}
+              className={`p-2 rounded-full transition-colors ${showSearch ? 'bg-black/5 text-[#21c063]' : 'hover:bg-black/5 text-secondary hover:text-primary'}`}
             >
               <Search size={20} />
             </button>
             <div className="relative" ref={menuRef}>
               <button 
                 onClick={() => setShowMenu(!showMenu)}
-                className={`p-2 -mr-2 rounded-full transition-colors ${showMenu ? 'bg-black/5 text-[#00a884]' : 'hover:bg-black/5 text-secondary hover:text-primary'}`}
+                className={`p-2 -mr-2 rounded-full transition-colors ${showMenu ? 'bg-black/5 text-[#21c063]' : 'hover:bg-black/5 text-secondary hover:text-primary'}`}
               >
                 <MoreVertical size={20} />
               </button>
@@ -743,7 +743,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
 
       {showSearch && (
         <div className="app-header border-b app-border px-4 py-2 flex items-center gap-3 animate-in slide-in-from-top duration-200 shadow-sm z-20 shrink-0">
-          <div className="flex-1 bg-[#f0f2f5] dark:bg-[#202c33] rounded-lg px-3 py-1.5 flex items-center gap-3 border app-border focus-within:ring-1 focus-within:ring-[#00a884]/20">
+          <div className="flex-1 bg-[#f0f2f5] dark:bg-[#202c33] rounded-lg px-3 py-1.5 flex items-center gap-3 border app-border focus-within:ring-1 focus-within:ring-[#21c063]/20">
             <Search size={16} className="text-secondary" />
             <input
               type="text"

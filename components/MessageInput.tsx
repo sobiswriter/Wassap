@@ -241,7 +241,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
               <button
                 onClick={handleTriggerEvent}
                 disabled={!eventText.trim() && !eventImage}
-                className="w-full bg-[#00a884] hover:bg-[#008f6f] text-white font-medium py-3 rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none shadow-md"
+                className="w-full bg-[#21c063] hover:bg-[#1eb05b] text-white font-medium py-3 rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none shadow-md"
               >
                 Make it Happen
               </button>
@@ -265,14 +265,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                 <img src={stagedAttachment.data} className="w-full h-full object-cover" alt="preview" />
               </div>
             ) : (
-              <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#111b21] rounded-lg border app-border p-2">
-                <FileText className="text-[#00a884] mb-2" size={40} />
+              <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#182229] rounded-lg border app-border p-2">
+                <FileText className="text-[#21c063] mb-2" size={40} />
                 <span className="text-[calc(var(--input-font-size)-6px)] text-[#667781] text-center line-clamp-2 w-full leading-tight">{stagedAttachment.name}</span>
               </div>
             )}
             {stagedAttachment.type === 'audio' && (
-              <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#111b21] rounded-lg border app-border p-2">
-                <WhatsAppMicIcon className="text-[#00a884] mb-2" size={40} />
+              <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#182229] rounded-lg border app-border p-2">
+                <WhatsAppMicIcon className="text-[#21c063] mb-2" size={40} />
                 <span className="text-[calc(var(--input-font-size)-6px)] text-[#667781] text-center w-full leading-tight">Audio Note recorded</span>
               </div>
             )}
@@ -290,10 +290,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
       {/* Reply Banner Area */}
       {replyingTo && (
-        <div className="bg-[#f0f2f5] dark:bg-[#202c33] border-t app-border px-3 py-2 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-300">
-           <div className="flex-1 bg-black/5 dark:bg-black/20 border-l-4 border-[#00a884] rounded p-2 relative pr-8 overflow-hidden">
+        <div className="bg-[#f0f2f5] dark:bg-[#182229] border-t app-border px-3 py-2 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-300">
+           <div className="flex-1 bg-black/5 dark:bg-black/20 border-l-4 border-[#21c063] rounded p-2 relative pr-8 overflow-hidden">
              <button onClick={onCancelReply} className="absolute right-2 top-2 text-secondary hover:text-primary"><X size={16}/></button>
-             <p className="text-[calc(var(--input-font-size)-4px)] text-[#00a884] font-medium mb-0.5 truncate">
+             <p className="text-[calc(var(--input-font-size)-4px)] text-[#21c063] font-medium mb-0.5 truncate">
                {replyingTo.sender === 'me' ? 'You' : (replyingTo.senderName || chatName || 'Contact')}
              </p>
              <div className="text-[calc(var(--input-font-size)-5px)] text-secondary flex items-center gap-1.5 truncate">
@@ -305,7 +305,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                )}
                {replyingTo.attachment?.type === 'audio' && (
                  <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
-                   <Mic size={13} className="text-[#00a884]" />
+                   <Mic size={13} className="text-[#21c063]" />
                    <span>Voice message</span>
                  </span>
                )}
@@ -322,11 +322,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileSelection(e, 'image')} />
         <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.doc,.docx,.txt,.md" onChange={(e) => handleFileSelection(e, 'document')} />
 
-        <div className="flex-1 bg-white dark:bg-[#2a3942] rounded-[24px] flex items-end shadow-[0_1px_2px_rgba(11,20,26,.1)] overflow-hidden min-h-[48px]">
+        <div className="flex-1 bg-white dark:bg-[#233138] rounded-[24px] flex items-end shadow-[0_1px_2px_rgba(11,20,26,.1)] overflow-hidden min-h-[48px]">
           <div className="relative p-[12px] pl-[14px] shrink-0" ref={emojiRef}>
             <button
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className={`transition-colors flex items-center justify-center ${showEmojiPicker ? 'text-[#00a884]' : 'text-[#8696a0] hover:text-[#00a884]'}`}
+              className={`transition-colors flex items-center justify-center ${showEmojiPicker ? 'text-[#21c063]' : 'text-[#8696a0] hover:text-[#21c063]'}`}
             >
               <Smile size={26} strokeWidth={2} />
             </button>
@@ -355,7 +355,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
           <div className="relative p-[12px] pr-4 shrink-0 flex items-center gap-[18px] text-[#8696a0]" ref={attachRef}>
             <button
               onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-              className={`transition-transform duration-200 hover:text-black/60 dark:hover:text-white/80 ${showAttachmentMenu ? 'text-[#00a884] -rotate-45' : ''}`}
+              className={`transition-transform duration-200 hover:text-black/60 dark:hover:text-white/80 ${showAttachmentMenu ? 'text-[#21c063] -rotate-45' : ''}`}
             >
               <Paperclip size={24} strokeWidth={2} className="rotate-[135deg]" />
             </button>
@@ -372,14 +372,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
           {text.trim() || stagedAttachment ? (
             <button
               onClick={handleSend}
-              className="w-full h-full bg-[#25d366] dark:bg-[#00a884] hover:bg-[#00a884] dark:hover:bg-[#008f6f] rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-[0_1px_3px_rgba(0,0,0,0.1)]"
+              className="w-full h-full bg-[#21c063] hover:bg-[#1eb05b] rounded-full flex items-center justify-center text-[#0b1014] transition-all active:scale-95 shadow-[0_2px_8px_rgba(33,192,99,0.3)]"
             >
               <SendHorizontal size={24} fill="currentColor" strokeWidth={1} className="ml-1" />
             </button>
           ) : (
             <button
               onClick={isRecording ? stopRecording : startRecording}
-              className={`w-full h-full rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-[0_1px_3px_rgba(0,0,0,0.1)] ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-[#25d366] dark:bg-[#00a884] hover:bg-[#00a884] dark:hover:bg-[#008f6f]'}`}
+              className={`w-full h-full rounded-full flex items-center justify-center text-[#0b1014] transition-all active:scale-95 shadow-[0_2px_8px_rgba(33,192,99,0.3)] ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse text-white' : 'bg-[#21c063] hover:bg-[#1eb05b]'}`}
             >
               {isRecording ? <Square size={18} fill="currentColor" /> : <WhatsAppMicIcon size={24} className="ml-[1px]" />}
             </button>
@@ -453,7 +453,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         {/* Emoji Picker (Absolute) */}
         {showEmojiPicker && (
           <div ref={emojiMenuRef} className="absolute bottom-[60px] left-2 md:left-4 w-[calc(100vw-16px)] md:w-[320px] h-[340px] app-panel shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200 border app-border z-[100]">
-            <div className="p-3 bg-gray-50 dark:bg-[#202c33] text-[calc(var(--msg-font-size)-1.5px)] font-medium text-[#00a884] border-b app-border">
+            <div className="p-3 bg-gray-50 dark:bg-[#182229] text-[calc(var(--msg-font-size)-1.5px)] font-medium text-[#21c063] border-b app-border">
               RECENTLY USED
             </div>
             <div className="flex-1 overflow-y-auto p-3 grid grid-cols-7 sm:grid-cols-8 gap-1">

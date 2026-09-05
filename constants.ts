@@ -245,7 +245,7 @@ export const COLORS = {
   footerBg: '#f0f2f5',
   textPrimary: '#111b21',
   textSecondary: '#667781',
-  whatsappGreen: '#00a884',
+  whatsappGreen: '#21c063',
   incomingIcon: '#53bdeb',
 };
 

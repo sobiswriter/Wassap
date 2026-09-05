@@ -791,10 +791,13 @@ const App: React.FC = () => {
   const unreadTotal = chats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
   useEffect(() => {
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]') || document.getElementById('theme-color-meta');
     if (settings.theme === 'dark') {
       document.documentElement.classList.add('dark');
+      if (metaThemeColor) metaThemeColor.setAttribute('content', '#0b1014');
     } else {
       document.documentElement.classList.remove('dark');
+      if (metaThemeColor) metaThemeColor.setAttribute('content', '#ffffff');
     }
   }, [settings.theme]);
 
@@ -2179,10 +2182,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-[#f0f2f5] dark:bg-[#0c1317] overflow-hidden p-0">
+    <div className="h-screen w-full flex flex-col bg-[#f0f2f5] dark:bg-[#0b1014] overflow-hidden p-0">
       {/* Top Title Bar */}
       <div className="hidden md:flex h-[30px] app-panel items-center px-3 gap-2 shrink-0 border-b app-border select-none">
-        <div className="bg-[#25d366] p-[2px] rounded flex items-center justify-center">
+        <div className="bg-[#21c063] p-[2px] rounded flex items-center justify-center">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
             <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.767 5.767 0 1.267.405 2.436 1.096 3.389l-.711 2.597 2.659-.697a5.733 5.733 0 0 0 2.723.678c3.181 0 5.767-2.586 5.767-5.767 0-3.181-2.586-5.767-5.767-5.767zm3.39 8.136c-.147.414-.733.754-1.011.802-.278.048-.543.085-1.545-.303-1.002-.387-1.649-1.398-1.698-1.464-.048-.066-.401-.532-.401-1.022 0-.49.255-.731.345-.83.09-.099.198-.122.264-.122.066 0 .132.001.189.004.057.002.132-.023.208.156.075.18.255.621.28.669.024.047.04.103.01.16-.03.057-.045.094-.09.146-.045.052-.094.113-.137.151-.047.042-.094.085-.042.174.052.09.231.382.495.617.34.303.623.396.711.439.088.042.141.033.193-.028.052-.061.222-.259.283-.349.061-.088.122-.075.208-.042.085.033.543.255.637.302.094.047.156.071.18.113.023.042.023.245-.124.659zM12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
           </svg>
@@ -2190,7 +2193,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         <span className="text-[calc(var(--msg-font-size)-2.5px)] font-semibold text-secondary">WhatsApp</span>
       </div>
 
-      <div className="flex-1 flex overflow-hidden bg-white dark:bg-[#111b21] relative">
+      <div className="flex-1 flex overflow-hidden bg-white dark:bg-[#0b1014] relative">
         <div className={`hidden md:block`}>
           <Sidebar
             userAvatar={user.avatar}
@@ -2249,7 +2252,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           {isMobile && <MobileNavigation unreadCount={unreadTotal} onGuideClick={() => setShowGuide(true)} onUpdatesClick={() => setShowUpdates(true)} />}
         </div>
 
-        <div className={`${isMobile && activeView === 'list' ? 'hidden' : 'flex'} flex-1 flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b141a]`}>
+        <div className={`${isMobile && activeView === 'list' ? 'hidden' : 'flex'} flex-1 flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b1014]`}>
           <ChatWindow
             chat={activeChat}
             allChats={chats}

@@ -32,14 +32,14 @@ const ChatListItem = React.memo<ChatListItemProps>(({ chat, isActive, onSelect }
     <div className="flex-1 min-w-0">
       <div className="flex justify-between items-baseline">
         <h3 className="text-[calc(var(--msg-font-size)+2.5px)] text-primary font-normal truncate">{chat.name}</h3>
-        <span className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">{chat.lastMessageTime}</span>
+        <span className={`text-[calc(var(--msg-font-size)-2.5px)] ${chat.unreadCount ? 'text-[#21c063] font-semibold' : 'text-secondary'}`}>{chat.lastMessageTime}</span>
       </div>
       <div className="flex justify-between items-center mt-0.5">
         <p className={`text-[calc(var(--msg-font-size)-0.5px)] truncate flex-1 ${chat.unreadCount ? 'text-primary font-semibold' : 'text-secondary'}`}>
           {chat.lastMessage}
         </p>
         {chat.unreadCount ? (
-          <span className="bg-[#25d366] text-white text-[calc(var(--msg-font-size)-2.5px)] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
+          <span className="bg-[#21c063] text-[#0b1014] text-[calc(var(--msg-font-size)-2.5px)] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
             {chat.unreadCount}
           </span>
         ) : null}
@@ -132,26 +132,26 @@ export const ChatList: React.FC<ChatListProps> = ({
       />
 
       {isMobile ? (
-        <div className="p-3 flex justify-between items-center shrink-0">
-          <h1 className="text-[calc(var(--msg-font-size)+9.5px)] font-semibold text-[#25d366] dark:text-white tracking-tight">WhatsApp</h1>
+        <div className="pt-[max(env(safe-area-inset-top),10px)] pb-3 px-4 flex justify-between items-center shrink-0 bg-white dark:bg-[#0b1014] transition-colors">
+          <h1 className="text-[22px] font-semibold text-[#21c063] dark:text-white tracking-tight">WhatsApp</h1>
           <div className="flex gap-4 items-center relative" ref={mobileMenuRef}>
              <button
                onClick={() => setShowScannerModal(true)}
-               className="text-primary hover:text-[#00a884] p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+               className="text-primary hover:text-[#21c063] p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                title="Scan code"
              >
                <ScanLine className="w-6 h-6 stroke-[1.5px]" />
              </button>
              <button
                onClick={() => cameraInputRef.current?.click()}
-               className="text-primary hover:text-[#00a884] p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+               className="text-primary hover:text-[#21c063] p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                title="Camera / Gallery"
              >
                <Camera className="w-6 h-6 stroke-[1.5px]" />
              </button>
              <button
                onClick={() => setShowMobileMenu(!showMobileMenu)}
-               className="text-primary hover:text-[#00a884] p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+               className="text-primary hover:text-[#21c063] p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                title="More options"
              >
                <MoreVertical className="w-6 h-6 stroke-[1.5px]" />
@@ -159,25 +159,25 @@ export const ChatList: React.FC<ChatListProps> = ({
 
              {/* Mobile WhatsApp 3-Dots Dropdown */}
              {showMobileMenu && (
-               <div className="absolute right-0 top-9 w-[190px] bg-white dark:bg-[#202c33] shadow-2xl rounded-lg py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 origin-top-right border app-border">
+               <div className="absolute right-0 top-9 w-[190px] bg-white dark:bg-[#182229] shadow-2xl rounded-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 origin-top-right border border-[#e9edef] dark:border-[#1f2c34]">
                  <button
                    onClick={() => { onAddPersona(); setShowMobileMenu(false); }}
                    className="w-full text-left px-4 py-2.5 text-[length:var(--msg-font-size)] text-primary hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-3 transition-colors cursor-pointer"
                  >
-                   <UserPlus size={18} className="text-[#00a884]" />
+                   <UserPlus size={18} className="text-[#21c063]" />
                    <span>New contact</span>
                  </button>
                  <button
                    onClick={() => { onAddGroup(); setShowMobileMenu(false); }}
                    className="w-full text-left px-4 py-2.5 text-[length:var(--msg-font-size)] text-primary hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-3 transition-colors cursor-pointer"
                  >
-                   <Users size={18} className="text-[#00a884]" />
+                   <Users size={18} className="text-[#21c063]" />
                    <span>New group</span>
                  </button>
                  {onOpenSettings && (
                    <button
                      onClick={() => { onOpenSettings(); setShowMobileMenu(false); }}
-                     className="w-full text-left px-4 py-2.5 text-[length:var(--msg-font-size)] text-primary hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-3 transition-colors border-t app-border mt-1 pt-2 cursor-pointer"
+                     className="w-full text-left px-4 py-2.5 text-[length:var(--msg-font-size)] text-primary hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-3 transition-colors border-t border-[#e9edef] dark:border-[#1f2c34] mt-1 pt-2 cursor-pointer"
                    >
                      <Settings size={18} className="text-secondary" />
                      <span>Settings</span>
@@ -219,11 +219,11 @@ export const ChatList: React.FC<ChatListProps> = ({
 
       {/* Search */}
       <div className="px-3 pb-2 pt-1">
-        <div className={`relative flex items-center ${isMobile ? 'bg-[#f0f2f5] dark:bg-[#202c33] rounded-full' : 'app-header rounded-lg'} px-3 py-1.5`}>
+        <div className={`relative flex items-center ${isMobile ? 'bg-[#f0f2f5] dark:bg-[#182229] rounded-full' : 'app-header rounded-lg'} px-3 py-1.5`}>
           {isMobile ? (
              <div className="mr-3 w-[22px] h-[22px] rounded-full border-[3px] p-[1px] bg-clip-border flex-shrink-0"
                   style={{ background: 'linear-gradient(45deg, #00d2ff 0%, #3a7bd5 50%, #8e2de2 100%)', borderColor: 'transparent' }}>
-                <div className="w-full h-full rounded-full bg-[#f0f2f5] dark:bg-[#202c33]"></div>
+                <div className="w-full h-full rounded-full bg-[#f0f2f5] dark:bg-[#182229]"></div>
              </div>
           ) : (
              <Search className="text-secondary w-4 h-4 mr-4" />
@@ -245,8 +245,8 @@ export const ChatList: React.FC<ChatListProps> = ({
             key={f}
             onClick={() => setFilter(f)}
             className={`px-4 py-1.5 rounded-full text-[calc(var(--msg-font-size)-0.5px)] font-medium transition-colors ${filter === f
-              ? 'bg-[#d8fdd2] text-[#105e4b] dark:bg-[#0a332c] dark:text-[#25d366]'
-              : 'bg-[#f0f2f5] dark:bg-[#202c33] text-secondary hover:bg-black/5 dark:hover:bg-white/5'
+              ? 'bg-[#d8fdd2] text-[#105e4b] dark:bg-[#103629] dark:text-[#21c063] font-semibold'
+              : 'bg-[#f0f2f5] dark:bg-[#182229] text-secondary hover:bg-black/5 dark:hover:bg-white/5'
               }`}
           >
             {f}
@@ -269,10 +269,10 @@ export const ChatList: React.FC<ChatListProps> = ({
       {/* Scanner Modal */}
       {showScannerModal && (
         <div className="fixed inset-0 bg-black/80 z-[3000] flex flex-col items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-sm bg-white dark:bg-[#111b21] rounded-2xl overflow-hidden shadow-2xl border app-border flex flex-col">
+          <div className="w-full max-w-sm bg-white dark:bg-[#182229] rounded-2xl overflow-hidden shadow-2xl border app-border flex flex-col">
             <div className="p-4 border-b app-border flex items-center justify-between">
               <div className="flex items-center gap-2 text-primary font-semibold">
-                <QrCode size={20} className="text-[#00a884]" />
+                <QrCode size={20} className="text-[#21c063]" />
                 <span>Scan code</span>
               </div>
               <button 
@@ -284,13 +284,13 @@ export const ChatList: React.FC<ChatListProps> = ({
             </div>
 
             <div className="p-6 flex flex-col items-center justify-center">
-              <div className="relative w-52 h-52 rounded-2xl border-2 border-dashed border-[#00a884]/60 bg-black/5 dark:bg-black/40 flex flex-col items-center justify-center overflow-hidden">
-                <div className="absolute top-2 left-2 w-6 h-6 border-t-4 border-l-4 border-[#00a884] rounded-tl" />
-                <div className="absolute top-2 right-2 w-6 h-6 border-t-4 border-r-4 border-[#00a884] rounded-tr" />
-                <div className="absolute bottom-2 left-2 w-6 h-6 border-b-4 border-l-4 border-[#00a884] rounded-bl" />
-                <div className="absolute bottom-2 right-2 w-6 h-6 border-b-4 border-r-4 border-[#00a884] rounded-br" />
+              <div className="relative w-52 h-52 rounded-2xl border-2 border-dashed border-[#21c063]/60 bg-black/5 dark:bg-black/40 flex flex-col items-center justify-center overflow-hidden">
+                <div className="absolute top-2 left-2 w-6 h-6 border-t-4 border-l-4 border-[#21c063] rounded-tl" />
+                <div className="absolute top-2 right-2 w-6 h-6 border-t-4 border-r-4 border-[#21c063] rounded-tr" />
+                <div className="absolute bottom-2 left-2 w-6 h-6 border-b-4 border-l-4 border-[#21c063] rounded-bl" />
+                <div className="absolute bottom-2 right-2 w-6 h-6 border-b-4 border-r-4 border-[#21c063] rounded-br" />
                 
-                <ScanLine size={48} className="text-[#00a884] animate-pulse mb-2" />
+                <ScanLine size={48} className="text-[#21c063] animate-pulse mb-2" />
                 <p className="text-[11px] text-secondary text-center px-4">Align QR code within frame</p>
               </div>
               <p className="text-xs text-secondary text-center mt-4">
@@ -304,7 +304,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                   window.open('https://lens.google.com/', '_blank');
                   setShowScannerModal(false);
                 }}
-                className="w-full py-2.5 px-4 bg-[#00a884] hover:bg-[#008f6f] text-white rounded-xl font-medium text-sm flex items-center justify-center gap-2 shadow transition-colors cursor-pointer"
+                className="w-full py-2.5 px-4 bg-[#21c063] hover:bg-[#1eb05b] text-[#0b1014] rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow transition-colors cursor-pointer"
               >
                 <ExternalLink size={16} />
                 <span>Open Google Lens / Scanner</span>
@@ -317,7 +317,7 @@ export const ChatList: React.FC<ChatListProps> = ({
       {/* Photo Share Modal from Camera Icon */}
       {photoToShare && (
         <div className="fixed inset-0 bg-black/85 z-[3000] flex flex-col items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white dark:bg-[#111b21] rounded-2xl overflow-hidden shadow-2xl border app-border flex flex-col max-h-[90vh]">
+          <div className="w-full max-w-md bg-white dark:bg-[#182229] rounded-2xl overflow-hidden shadow-2xl border app-border flex flex-col max-h-[90vh]">
             <div className="p-4 border-b app-border flex items-center justify-between">
               <h3 className="text-primary font-semibold text-base">Send photo</h3>
               <button 
@@ -340,7 +340,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                 <select
                   value={selectedRecipientId}
                   onChange={(e) => setSelectedRecipientId(e.target.value)}
-                  className="w-full bg-white dark:bg-[#202c33] border app-border rounded-xl px-3 py-2 text-sm text-primary outline-none cursor-pointer"
+                  className="w-full bg-white dark:bg-[#233138] border app-border rounded-xl px-3 py-2 text-sm text-primary outline-none cursor-pointer"
                 >
                   {chats.map(c => (
                     <option key={c.id} value={c.id}>
@@ -356,7 +356,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                   value={photoCaption}
                   onChange={(e) => setPhotoCaption(e.target.value)}
                   placeholder="Add a caption..."
-                  className="w-full bg-black/5 dark:bg-[#202c33] border app-border rounded-xl px-4 py-2.5 text-sm text-primary outline-none placeholder-secondary"
+                  className="w-full bg-black/5 dark:bg-[#233138] border app-border rounded-xl px-4 py-2.5 text-sm text-primary outline-none placeholder-secondary"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       handleSendSharedPhoto();
@@ -375,7 +375,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                 </button>
                 <button
                   onClick={handleSendSharedPhoto}
-                  className="px-5 py-2 bg-[#00a884] hover:bg-[#008f6f] text-white rounded-xl text-sm font-medium flex items-center gap-2 shadow-md transition-colors cursor-pointer"
+                  className="px-5 py-2 bg-[#21c063] hover:bg-[#1eb05b] text-[#0b1014] rounded-xl text-sm font-semibold flex items-center gap-2 shadow-md transition-colors cursor-pointer"
                 >
                   <span>Send</span>
                   <SendHorizontal size={16} />

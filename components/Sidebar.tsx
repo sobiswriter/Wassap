@@ -31,25 +31,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ userAvatar, onUserProfileClick
           <div className="bg-black/5 dark:bg-white/10 p-2 rounded-full">
             <MessageSquareText className="text-primary w-6 h-6" />
           </div>
-          <div className="absolute top-1 right-1 bg-[#25d366] text-white text-[calc(var(--msg-font-size)-4.5px)] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#202c33]">28</div>
+          <div className="absolute top-1 right-1 bg-[#21c063] text-[#0b1014] text-[calc(var(--msg-font-size)-4.5px)] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#182229]">28</div>
         </div>
 
         {/* Calls */}
         <div className="p-2 relative cursor-pointer group hover:bg-black/5 rounded-lg transition-colors">
           <Phone className="text-secondary w-6 h-6" />
-          <div className="absolute top-1 right-1 bg-[#ea0038] text-white text-[calc(var(--msg-font-size)-4.5px)] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#202c33]">3</div>
+          <div className="absolute top-1 right-1 bg-[#ea0038] text-white text-[calc(var(--msg-font-size)-4.5px)] rounded-full w-[18px] h-[18px] flex items-center justify-center font-bold border-2 border-[#f0f2f5] dark:border-[#182229]">3</div>
         </div>
 
         {/* Updates (Changelog) */}
         <div className="p-2 relative cursor-pointer group hover:bg-black/5 rounded-lg transition-colors" onClick={onUpdatesClick}>
           <CircleDashed className="text-secondary w-6 h-6" />
-          <div className="absolute top-2 right-2 bg-[#00a884] w-2.5 h-2.5 rounded-full border-2 border-[#f0f2f5] dark:border-[#202c33] animate-pulse"></div>
+          <div className="absolute top-2 right-2 bg-[#21c063] w-2.5 h-2.5 rounded-full border-2 border-[#f0f2f5] dark:border-[#182229] animate-pulse"></div>
         </div>
 
         {/* Channels */}
         <div className="p-2 relative cursor-pointer group hover:bg-black/5 rounded-lg transition-colors">
           <Radio className="text-secondary w-6 h-6" />
-          <div className="absolute top-2 right-2 bg-[#25d366] w-2.5 h-2.5 rounded-full border-2 border-[#f0f2f5] dark:border-[#202c33]"></div>
+          <div className="absolute top-2 right-2 bg-[#21c063] w-2.5 h-2.5 rounded-full border-2 border-[#f0f2f5] dark:border-[#182229]"></div>
         </div>
 
         {/* Communities (Guide) */}
