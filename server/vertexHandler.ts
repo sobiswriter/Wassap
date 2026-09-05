@@ -518,6 +518,7 @@ export interface ImageSynthesisResult {
   caption: string;
   action_and_setting: string;
   is_persona_subject: boolean;
+  user_wants_posed?: boolean;
 }
 
 export async function handleVertexImageSynthesis(
