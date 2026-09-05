@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Plus, MoreVertical, Users, UserPlus, Camera, ScanLine, MessageSquarePlus, X, SendHorizontal, ExternalLink, QrCode, Settings } from 'lucide-react';
 import { Chat, FilterType } from '../types';
+import { compressImage } from '../utils/imageCompressor';
 
 interface ChatListProps {
   chats: Chat[];
@@ -85,17 +86,25 @@ export const ChatList: React.FC<ChatListProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleCameraFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCameraFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
+    try {
+      const dataUrl = await compressImage(file, 1280, 0.78);
       setPhotoToShare(dataUrl);
       setSelectedRecipientId(activeChatId || chats[0]?.id || '');
       setPhotoCaption('');
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn("Falling back to uncompressed image read:", err);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setPhotoToShare(dataUrl);
+        setSelectedRecipientId(activeChatId || chats[0]?.id || '');
+        setPhotoCaption('');
+      };
+      reader.readAsDataURL(file);
+    }
     e.target.value = '';
   };
 

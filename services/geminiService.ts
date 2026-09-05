@@ -31,6 +31,41 @@ export async function checkVertexConnectionStatus(): Promise<{
   }
 }
 
+/**
+ * Sanitizes messageHistory to prevent Vercel Serverless Function 413 (FUNCTION_PAYLOAD_TOO_LARGE).
+ * - Caps history to the most recent 30 messages.
+ * - Retains raw base64 data only for the last 2 media messages (which the multimodal API processes).
+ * - Replaces older base64 image/audio strings with lightweight '[ATTACHED]' placeholders so
+ *   text prompt cues like '[IMAGE ATTACHED]' still fire accurately without sending megabytes of dead payload.
+ */
+export function sanitizeHistoryForVertex(
+  messageHistory: { text: string; sender: string; senderName?: string; image?: string; audio?: string; isEvent?: boolean }[]
+) {
+  if (!Array.isArray(messageHistory)) return [];
+
+  const recent = messageHistory.slice(-30);
+
+  const mediaIndices = new Set<number>();
+  for (let i = recent.length - 1; i >= 0; i--) {
+    if (recent[i].image || recent[i].audio) {
+      mediaIndices.add(i);
+      if (mediaIndices.size >= 2) break;
+    }
+  }
+
+  return recent.map((m, idx) => {
+    const keepMediaData = mediaIndices.has(idx);
+    return {
+      text: m.text,
+      sender: m.sender,
+      senderName: m.senderName,
+      isEvent: m.isEvent,
+      image: keepMediaData ? m.image : (m.image ? '[ATTACHED]' : undefined),
+      audio: keepMediaData ? m.audio : (m.audio ? '[ATTACHED]' : undefined),
+    };
+  });
+}
+
 async function fetchVertexChat(payload: any): Promise<string> {
   try {
     const res = await fetch('/api/gemini/generate', {
@@ -41,6 +76,11 @@ async function fetchVertexChat(payload: any): Promise<string> {
       },
       body: JSON.stringify(payload),
     });
+
+    if (res.status === 413) {
+      console.error("Vercel 413 Payload Too Large encountered");
+      return "The message payload was too large for the server. The chat history was automatically trimmed. Please try sending again!";
+    }
 
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
@@ -143,7 +183,7 @@ export const getGeminiResponse = async (
     }
     return await fetchVertexChat({
       responder,
-      messageHistory,
+      messageHistory: sanitizeHistoryForVertex(messageHistory),
       userProfile,
       groupContext,
       settings: {
@@ -309,17 +349,17 @@ ${historyString}
 
 Response as ${responder.name}:`;
 
-    const recentMessagesWithMedia = messageHistory.slice(-5).filter(m => m.image || m.audio);
+    const recentMessagesWithMedia = messageHistory.slice(-5).filter(m => (m.image && m.image.startsWith('data:')) || (m.audio && m.audio.startsWith('data:')));
     const parts: any[] = [{ text: systemPrompt }];
 
     recentMessagesWithMedia.slice(-2).forEach(msg => {
-      if (msg.image) {
+      if (msg.image && msg.image.startsWith('data:')) {
         const base64Data = msg.image.split(',')[1] || msg.image;
         parts.push({
           inlineData: { mimeType: "image/jpeg", data: base64Data }
         });
       }
-      if (msg.audio) {
+      if (msg.audio && msg.audio.startsWith('data:')) {
         const base64Data = msg.audio.split(',')[1] || msg.audio;
         parts.push({
           inlineData: { mimeType: "audio/webm", data: base64Data }
@@ -363,7 +403,11 @@ export const getGeminiDiaryEntry = async (
     }
     return await fetchVertexDiary({
       persona,
-      messageHistory,
+      messageHistory: (messageHistory || []).slice(-40).map(m => ({
+        text: m.text,
+        sender: m.sender,
+        senderName: m.senderName,
+      })),
       startDate,
       endDate,
       settings: { selectedModel: settings?.selectedModel },
@@ -604,7 +648,11 @@ export async function synthesizeImageContextAndCaption(
         body: JSON.stringify({
           persona,
           userPrompt,
-          messageHistory,
+          messageHistory: (messageHistory || []).slice(-10).map(m => ({
+            text: m.text,
+            sender: m.sender,
+            senderName: m.senderName,
+          })),
           userProfile,
           settings: { selectedModel: settings?.selectedModel },
         }),

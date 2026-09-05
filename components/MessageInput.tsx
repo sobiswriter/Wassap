@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Camera, MapPin, User, Headphones, BarChart, Calendar, Sparkles, Mic, Square, Sticker } from 'lucide-react';
 import { FileAttachment, Message } from '../types';
+import { compressImage } from '../utils/imageCompressor';
 
 interface MessageInputProps {
   onSendMessage: (text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean) => void;
@@ -118,9 +119,27 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     inputRef.current?.focus();
   };
 
-  const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'document') => {
+  const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'document') => {
     const file = e.target.files?.[0];
     if (file) {
+      if (type === 'image') {
+        try {
+          const compressedDataUrl = await compressImage(file, 1280, 0.78);
+          setStagedAttachment({
+            name: file.name,
+            data: compressedDataUrl,
+            type: 'image',
+            size: file.size
+          });
+          setShowAttachmentMenu(false);
+          e.target.value = '';
+          inputRef.current?.focus();
+          return;
+        } catch (err) {
+          console.warn("Failed to compress attached image, falling back to raw:", err);
+        }
+      }
+
       const reader = new FileReader();
       reader.onloadend = () => {
         setStagedAttachment({
@@ -208,12 +227,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                 ref={eventImageInputRef} 
                 className="hidden" 
                 accept="image/*" 
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => setEventImage({ name: file.name, data: reader.result as string, type: 'image', size: file.size });
-                    reader.readAsDataURL(file);
+                    try {
+                      const compressed = await compressImage(file, 1280, 0.78);
+                      setEventImage({ name: file.name, data: compressed, type: 'image', size: file.size });
+                    } catch (err) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => setEventImage({ name: file.name, data: reader.result as string, type: 'image', size: file.size });
+                      reader.readAsDataURL(file);
+                    }
                   }
                   e.target.value = '';
                 }} 

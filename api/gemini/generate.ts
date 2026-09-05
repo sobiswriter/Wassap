@@ -361,17 +361,19 @@ ${historyString}
 
 Response as ${responder.name}:`;
 
-    const recentMessagesWithMedia = (messageHistory || []).slice(-5).filter(m => m.image || m.audio);
+    const recentMessagesWithMedia = (messageHistory || [])
+      .slice(-5)
+      .filter(m => (m.image && m.image.startsWith('data:')) || (m.audio && m.audio.startsWith('data:')));
     const parts: any[] = [{ text: systemPrompt }];
 
     recentMessagesWithMedia.slice(-2).forEach(msg => {
-      if (msg.image) {
+      if (msg.image && msg.image.startsWith('data:')) {
         const base64Data = msg.image.split(',')[1] || msg.image;
         parts.push({
           inlineData: { mimeType: "image/jpeg", data: base64Data }
         });
       }
-      if (msg.audio) {
+      if (msg.audio && msg.audio.startsWith('data:')) {
         const base64Data = msg.audio.split(',')[1] || msg.audio;
         parts.push({
           inlineData: { mimeType: "audio/webm", data: base64Data }
