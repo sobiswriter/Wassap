@@ -88,6 +88,8 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
   };
 };
 
+let handleNotificationChatSelectGlobal: ((id: string) => void) | null = null;
+
 const avatarCache = new Map<string, string>();
 
 // Helper to format rich reply context for AI prompts
@@ -205,6 +207,10 @@ const showNotification = async (title: string, options: NotificationOptions & { 
     n.onclick = () => {
       window.focus();
       n.close();
+      const targetId = (notificationOptions.data && notificationOptions.data.chatId) || notificationOptions.tag;
+      if (targetId && typeof handleNotificationChatSelectGlobal === 'function') {
+        handleNotificationChatSelectGlobal(targetId);
+      }
     };
     setTimeout(() => n.close(), 10000);
   } catch (e) {
@@ -2197,13 +2203,27 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     setShowProfilePanel(false);
     setShowNewChatPanel(false);
     setShowNewGroupPanel(false);
+    setShowSettingsPopover(false);
+    setShowGuide(false);
+    setShowUpdates(false);
+    setShowUserProfilePanel(false);
+    setShowCalendarWidget(false);
     setChatSearchTerm('');
     setReplyingTo(null);
+    setActiveView('chat');
     if (isMobile) {
       window.history.pushState({ view: 'chat' }, '');
-      setActiveView('chat');
     }
   };
+
+  useEffect(() => {
+    handleNotificationChatSelectGlobal = (id: string) => {
+      handleChatSelect(id);
+    };
+    return () => {
+      handleNotificationChatSelectGlobal = null;
+    };
+  }, []);
 
   const handleBack = () => {
     // Instead of setActiveView, use history back to trigger popstate
@@ -2310,12 +2330,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
                 const testChat = chats[0];
                 const senderName = testChat ? testChat.name : 'Wassap Notification';
                 const avatar = testChat ? testChat.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';
+                const targetId = testChat ? testChat.id : '1';
 
                 await showNotification(senderName, {
-                  body: 'Desktop and Mobile notifications are working perfectly!',
+                  body: 'Desktop and Mobile notifications are working perfectly! Tap to open this chat.',
                   icon: avatar,
                   badge: '/badge.svg',
-                  tag: 'test-notification'
+                  tag: targetId,
+                  data: testChat ? buildNotificationPersonaData(testChat, userRef.current, settingsRef.current) : { chatId: targetId }
                 });
               }}
             />

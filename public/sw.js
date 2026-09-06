@@ -310,21 +310,29 @@ self.addEventListener('notificationclick', (event) => {
 
   // 3. User tapped the notification card body or a regular open button -> Open/Focus chat window
   event.notification.close();
+  const targetChatId = (event.notification.data && event.notification.data.chatId) || event.notification.tag || '';
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       if (clientList.length > 0) {
         let focusedClient = null;
         for (let i = 0; i < clientList.length; i++) {
-          clientList[i].postMessage({ type: 'OPEN_CHAT', chatId: chatId });
+          clientList[i].postMessage({ type: 'OPEN_CHAT', chatId: targetChatId });
           if ('focus' in clientList[i]) {
             focusedClient = clientList[i];
           }
         }
         if (focusedClient) {
+          // Re-send shortly after focusing so backgrounded/suspended tabs receive it once active
+          setTimeout(() => {
+            try {
+              focusedClient.postMessage({ type: 'OPEN_CHAT', chatId: targetChatId });
+            } catch (e) {}
+          }, 150);
           return focusedClient.focus();
         }
       } else if (clients.openWindow) {
-        const url = '/?chatId=' + encodeURIComponent(chatId || '');
+        const url = '/?chatId=' + encodeURIComponent(targetChatId || '');
         return clients.openWindow(url);
       }
     })

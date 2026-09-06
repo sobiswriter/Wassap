@@ -173,6 +173,11 @@ Wassap/
     - **IndexedDB State Synchronization**: Upgraded `whatsapp_media_db` (v2) in `utils/storage.ts` to include `synced_chats` and `pending_messages` stores. `App.tsx` automatically merges pending background turns upon startup or tab visibility change.
     - **Continuous Multi-Turn Replies**: Every reply notification posted retains interactive `{ action: 'reply', type: 'text' }` action buttons, enabling infinite back-and-forth chat without ever opening the app interface.
     - **Instant Notification Shade Dismissal**: `event.notification.close()` is called immediately on reply submission, preventing stuck spinners or hanging input fields.
+    - **Direct Persona Opening on Notification Click**:
+      - Resolved desktop fallback `new Notification()` which previously only focused the window without selecting the target chat.
+      - Service Worker now resolves `targetChatId` from `notification.data.chatId` or `tag` and re-dispatches `OPEN_CHAT` right after focusing client window so asleep tabs properly navigate.
+      - Enhanced `handleChatSelect` to dismiss all active modals/overlays (`SettingsPopover`, `UserProfile`, `CalendarNotes`, `Guide`, `Updates`) and activate the chat viewport across desktop and mobile.
+      - Connected Settings test notification to a valid persona chat target.
 
 ---
 
