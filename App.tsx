@@ -29,9 +29,7 @@ import { cleanSpokenTranscript } from './utils/audio';
 import { 
   saveMedia, 
   getMedia, 
-  saveSyncedChats, 
-  getBackgroundPendingMessages, 
-  clearAllBackgroundPendingMessages 
+  deleteMedia 
 } from './utils/storage';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
@@ -530,8 +528,19 @@ const App: React.FC = () => {
     }));
   });
 
-  const [activeChatId, setActiveChatId] = useState<string>('');
-  const [activeView, setActiveView] = useState<'list' | 'chat'>('list');
+  const getInitialChatId = (): string => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('chatId') || '';
+    } catch {
+      return '';
+    }
+  };
+
+  const initialChatId = getInitialChatId();
+  const [activeChatId, setActiveChatId] = useState<string>(initialChatId);
+  const [activeView, setActiveView] = useState<'list' | 'chat'>(initialChatId ? 'chat' : 'list');
+  const handleChatSelectRef = React.useRef<(id: string) => void>(() => {});
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
   const [showNewChatPanel, setShowNewChatPanel] = useState(false);
@@ -580,8 +589,7 @@ const App: React.FC = () => {
         const { type, chatId } = event.data || {};
         if (type === 'OPEN_CHAT' && chatId) {
           activeNotificationSoundChatsRef.current.delete(chatId);
-          handleChatSelect(chatId);
-          setActiveView('chat');
+          handleChatSelectRef.current(chatId);
         } else if (type === 'INLINE_REPLY' && chatId && event.data.text) {
           const text = event.data.text;
           const targetChat = chatsRef.current.find(c => c.id === chatId);
@@ -720,12 +728,11 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Clear title notification and sync pending background messages when tab becomes visible
+  // Clear title notification when tab becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         document.title = 'Wassap';
-        syncPendingBackgroundMessages();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -798,50 +805,8 @@ const App: React.FC = () => {
         })
       }));
       localStorage.setItem('whatsapp_chats', JSON.stringify(sanitizedChats));
-      saveSyncedChats(sanitizedChats);
     } catch (e) {
       console.warn("Throttled localStorage save failed safely:", e);
-    }
-  };
-
-  const syncPendingBackgroundMessages = async () => {
-    try {
-      const pending = await getBackgroundPendingMessages();
-      if (!pending || pending.length === 0) return;
-
-      setChats(prev => {
-        let hasChanges = false;
-        const updated = prev.map(chat => {
-          const chatPending = pending.filter(p => p.chatId === chat.id);
-          if (chatPending.length === 0) return chat;
-
-          const existingIds = new Set(chat.messages.map(m => m.id));
-          const newMsgs = chatPending
-            .map(p => p.message)
-            .filter(m => m && !existingIds.has(m.id));
-
-          if (newMsgs.length === 0) return chat;
-
-          hasChanges = true;
-          const lastMsg = newMsgs[newMsgs.length - 1];
-          return {
-            ...chat,
-            messages: [...chat.messages, ...newMsgs],
-            lastMessage: lastMsg.text || chat.lastMessage,
-            lastMessageTime: lastMsg.timestamp || chat.lastMessageTime,
-            unreadCount: (chat.unreadCount || 0) + newMsgs.filter(m => m.sender === 'other').length
-          };
-        });
-
-        if (hasChanges) {
-          saveChatsNow(updated);
-        }
-        return hasChanges ? updated : prev;
-      });
-
-      await clearAllBackgroundPendingMessages();
-    } catch (err) {
-      console.warn('Failed to sync background pending messages:', err);
     }
   };
 
@@ -1338,7 +1303,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
   // Initial Startup Catch-Up
   useEffect(() => {
-    syncPendingBackgroundMessages();
     const timer = setTimeout(() => runAutomationChecks(true), 2000);
     return () => clearTimeout(timer);
   }, []);
@@ -1352,6 +1316,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     if (urlChatId) {
       handleChatSelect(urlChatId);
       setActiveView('chat');
+      window.history.replaceState({}, document.title, window.location.pathname);
 
       if (urlReplyText) {
         window.history.replaceState({}, '', window.location.pathname);
@@ -2216,7 +2181,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }
   };
 
+  handleChatSelectRef.current = handleChatSelect;
+
   useEffect(() => {
+    handleChatSelectRef.current = handleChatSelect;
     handleNotificationChatSelectGlobal = (id: string) => {
       handleChatSelect(id);
     };

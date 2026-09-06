@@ -166,18 +166,15 @@ Wassap/
     - **Diary & Image Synthesis Payloads**: Sliced and stripped dead media fields from `messageHistory` before sending to `/api/gemini/diary` and `/api/gemini/image-synthesize`.
     - **Vercel 413 Graceful Handling**: Added specific 413 error status detection with helpful user feedback instead of cryptic failure.
 - [x] **v1.7.6**:
-  - **Schemeless 100% Background Native Notification Direct Replies**:
-    - **No Window Popup / Focus Stealing**: Removed `focusedClient.focus()` and `clients.openWindow()` from `public/sw.js` during inline reply actions, allowing the user to reply from the OS notification shade without launching or focusing the Wassap window.
-    - **Background Window Dispatch**: If the app is alive in the background (minimized tab, screen locked, or inactive window), `sw.js` routes replies via `postMessage` with `keepBackground: true`. `App.tsx` updates state silently and triggers the persona's AI pipeline without stealing view focus.
-    - **Headless Service Worker Engine**: If the app is closed entirely (`clientList.length === 0`), `sw.js` acts headlessly via `event.waitUntil`, using metadata bundled in `event.notification.data`, calling `/api/gemini/generate` (or Custom API Key REST endpoint) directly, appending new messages to IndexedDB `pending_messages`, and posting the persona's reply notification with sound/vibration.
-    - **IndexedDB State Synchronization**: Upgraded `whatsapp_media_db` (v2) in `utils/storage.ts` to include `synced_chats` and `pending_messages` stores. `App.tsx` automatically merges pending background turns upon startup or tab visibility change.
-    - **Continuous Multi-Turn Replies**: Every reply notification posted retains interactive `{ action: 'reply', type: 'text' }` action buttons, enabling infinite back-and-forth chat without ever opening the app interface.
-    - **Instant Notification Shade Dismissal**: `event.notification.close()` is called immediately on reply submission, preventing stuck spinners or hanging input fields.
+  - **Schemeless 100% Background Native Notification Direct Replies & Bulletproof Direct Persona Navigation**:
+    - **No Window Popup / Focus Stealing**: Service worker `INLINE_REPLY` dispatches directly via `postMessage` to existing client windows without calling `focus()` or `openWindow()`, allowing the user to reply from the OS notification shade without popping open the app.
+    - **Background Window Dispatch**: `App.tsx` handles `INLINE_REPLY` by creating the user message, running persona response generation (including memory, schedules, and natural chunk splitting), and dispatching follow-up notifications entirely in the background.
     - **Direct Persona Opening on Notification Click**:
-      - Resolved desktop fallback `new Notification()` which previously only focused the window without selecting the target chat.
-      - Service Worker now resolves `targetChatId` from `notification.data.chatId` or `tag` and re-dispatches `OPEN_CHAT` right after focusing client window so asleep tabs properly navigate.
-      - Enhanced `handleChatSelect` to dismiss all active modals/overlays (`SettingsPopover`, `UserProfile`, `CalendarNotes`, `Guide`, `Updates`) and activate the chat viewport across desktop and mobile.
-      - Connected Settings test notification to a valid persona chat target.
+      - Fixed `notificationclick` user-activation bug where premature `notification.close()` outside `event.waitUntil` consumed Android/Chrome's transient activation and blocked `clients.openWindow()` / `client.focus()`.
+      - Tapping notification card checks open windows, switches view to persona via `OPEN_CHAT`, and focuses. If no window is active, opens `/?chatId=...`.
+      - Added URL parameter support on mount in `App.tsx` to automatically select persona and open chat view when launched via `/?chatId=...`, followed by clean URL replacement.
+    - **IndexedDB Stabilization**: Restored single-responsibility `whatsapp_media_db` (v2) dedicated to `media_store` with `onversionchange` auto-closing and blocked prevention. Eliminated version downgrades and deadlocks that previously caused persona responses and typing indicators to hang.
+    - **Direct Persona Opening on Desktop Fallback**: Desktop `new Notification()` fallback now navigates straight to persona on click.
 
 ---
 
