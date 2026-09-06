@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.7.5`
+- **Current Version**: `v1.7.6`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -165,7 +165,14 @@ Wassap/
     - **Smart History Sanitization**: Added `sanitizeHistoryForVertex()` in `services/geminiService.ts` to cap history at 30 messages and replace older base64 image and audio blobs with lightweight `'[ATTACHED]'` placeholders. Only the last 2 active media items (which Gemini multimodal consumes) keep their data. Drops payload sizes from >5MB down to ~200KB.
     - **Diary & Image Synthesis Payloads**: Sliced and stripped dead media fields from `messageHistory` before sending to `/api/gemini/diary` and `/api/gemini/image-synthesize`.
     - **Vercel 413 Graceful Handling**: Added specific 413 error status detection with helpful user feedback instead of cryptic failure.
-    - **Function Timeout Extension**: Configured `"functions": { "api/gemini/*.ts": { "maxDuration": 60 } }` in `vercel.json` to raise the serverless timeout limit from 10s default to 60s, preventing `504 FUNCTION_INVOCATION_TIMEOUT` during complex image generation or peak load.
+- [x] **v1.7.6**:
+  - **Schemeless 100% Background Native Notification Direct Replies**:
+    - **No Window Popup / Focus Stealing**: Removed `focusedClient.focus()` and `clients.openWindow()` from `public/sw.js` during inline reply actions, allowing the user to reply from the OS notification shade without launching or focusing the Wassap window.
+    - **Background Window Dispatch**: If the app is alive in the background (minimized tab, screen locked, or inactive window), `sw.js` routes replies via `postMessage` with `keepBackground: true`. `App.tsx` updates state silently and triggers the persona's AI pipeline without stealing view focus.
+    - **Headless Service Worker Engine**: If the app is closed entirely (`clientList.length === 0`), `sw.js` acts headlessly via `event.waitUntil`, using metadata bundled in `event.notification.data`, calling `/api/gemini/generate` (or Custom API Key REST endpoint) directly, appending new messages to IndexedDB `pending_messages`, and posting the persona's reply notification with sound/vibration.
+    - **IndexedDB State Synchronization**: Upgraded `whatsapp_media_db` (v2) in `utils/storage.ts` to include `synced_chats` and `pending_messages` stores. `App.tsx` automatically merges pending background turns upon startup or tab visibility change.
+    - **Continuous Multi-Turn Replies**: Every reply notification posted retains interactive `{ action: 'reply', type: 'text' }` action buttons, enabling infinite back-and-forth chat without ever opening the app interface.
+    - **Instant Notification Shade Dismissal**: `event.notification.close()` is called immediately on reply submission, preventing stuck spinners or hanging input fields.
 
 ---
 

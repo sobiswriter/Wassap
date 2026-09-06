@@ -26,7 +26,13 @@ import {
 } from './services/geminiService';
 import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext, getAppNow, getAppDateKey, getAppFormattedTime } from './utils/dates';
 import { cleanSpokenTranscript } from './utils/audio';
-import { saveMedia, getMedia } from './utils/storage';
+import { 
+  saveMedia, 
+  getMedia, 
+  saveSyncedChats, 
+  getBackgroundPendingMessages, 
+  clearAllBackgroundPendingMessages 
+} from './utils/storage';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
 // Helper to determine if a persona should reply with a voice note
@@ -49,10 +55,38 @@ const shouldReplyWithVoiceNote = (
   return false;
 };
 
-// Module-level pointer to active settings to ensure global consistency across time formatting
+// Module-level pointer to active settings and user profile to ensure global consistency across time formatting and notification payloads
 let globalActiveSettings: AppSettings | undefined = undefined;
+let globalActiveUser: UserProfile | undefined = undefined;
 const getFormattedTime = () => getAppFormattedTime(globalActiveSettings);
 const getDateKey = () => getAppDateKey(globalActiveSettings);
+
+const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, overrideSettings?: AppSettings) => {
+  const currentSettings = overrideSettings || globalActiveSettings;
+  const currentUser = overrideUser || globalActiveUser;
+  return {
+    chatId: chat.id,
+    chatName: chat.name,
+    chatAvatar: chat.avatar,
+    isGroup: !!chat.isGroup,
+    instruction: chat.systemInstruction,
+    role: chat.role,
+    speechStyle: chat.speechStyle,
+    about: chat.about,
+    humaneSettings: chat.humaneSettings,
+    voiceSettings: chat.voiceSettings,
+    model: currentSettings?.selectedModel || 'gemini-3.8-flash',
+    provider: currentSettings?.aiProvider || 'vertex',
+    customApiKey: currentSettings?.apiKey,
+    userName: currentUser?.name || 'You',
+    userAbout: currentUser?.about || '',
+    recentMessages: (chat.messages || []).slice(-8).map(m => ({
+      text: m.text,
+      sender: m.sender,
+      senderName: m.senderName
+    }))
+  };
+};
 
 const avatarCache = new Map<string, string>();
 
@@ -513,7 +547,7 @@ const App: React.FC = () => {
   useEffect(() => { chatsRef.current = chats; }, [chats]);
 
 
-  const sendNotificationWithChimeRule = (chatId: string, title: string, avatar: string, bodyText: string) => {
+  const sendNotificationWithChimeRule = (chatId: string, title: string, avatar: string, bodyText: string, extraData?: any) => {
     const isFirstInChain = !activeNotificationSoundChatsRef.current.has(chatId);
     
     if (isFirstInChain) {
@@ -521,11 +555,15 @@ const App: React.FC = () => {
       activeNotificationSoundChatsRef.current.add(chatId);
     }
 
+    const targetChat = chatsRef.current.find(c => c.id === chatId);
+    const personaData = extraData || (targetChat ? buildNotificationPersonaData(targetChat, userRef.current, settingsRef.current) : undefined);
+
     showNotification(title, {
       body: bodyText,
       icon: avatar,
       tag: chatId,
-      silentUpdate: !isFirstInChain
+      silentUpdate: !isFirstInChain,
+      data: personaData
     });
   };
 
@@ -660,10 +698,15 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       localStorage.setItem('whatsapp_user', JSON.stringify(user));
+      globalActiveUser = user;
     } catch (e) {
       console.warn("Failed to save user profile to localStorage:", e);
     }
   }, [user]);
+  globalActiveUser = user;
+
+  const userRef = React.useRef<UserProfile>(user);
+  useEffect(() => { userRef.current = user; }, [user]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -671,11 +714,12 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Clear title notification when tab becomes visible
+  // Clear title notification and sync pending background messages when tab becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         document.title = 'Wassap';
+        syncPendingBackgroundMessages();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -748,8 +792,50 @@ const App: React.FC = () => {
         })
       }));
       localStorage.setItem('whatsapp_chats', JSON.stringify(sanitizedChats));
+      saveSyncedChats(sanitizedChats);
     } catch (e) {
       console.warn("Throttled localStorage save failed safely:", e);
+    }
+  };
+
+  const syncPendingBackgroundMessages = async () => {
+    try {
+      const pending = await getBackgroundPendingMessages();
+      if (!pending || pending.length === 0) return;
+
+      setChats(prev => {
+        let hasChanges = false;
+        const updated = prev.map(chat => {
+          const chatPending = pending.filter(p => p.chatId === chat.id);
+          if (chatPending.length === 0) return chat;
+
+          const existingIds = new Set(chat.messages.map(m => m.id));
+          const newMsgs = chatPending
+            .map(p => p.message)
+            .filter(m => m && !existingIds.has(m.id));
+
+          if (newMsgs.length === 0) return chat;
+
+          hasChanges = true;
+          const lastMsg = newMsgs[newMsgs.length - 1];
+          return {
+            ...chat,
+            messages: [...chat.messages, ...newMsgs],
+            lastMessage: lastMsg.text || chat.lastMessage,
+            lastMessageTime: lastMsg.timestamp || chat.lastMessageTime,
+            unreadCount: (chat.unreadCount || 0) + newMsgs.filter(m => m.sender === 'other').length
+          };
+        });
+
+        if (hasChanges) {
+          saveChatsNow(updated);
+        }
+        return hasChanges ? updated : prev;
+      });
+
+      await clearAllBackgroundPendingMessages();
+    } catch (err) {
+      console.warn('Failed to sync background pending messages:', err);
     }
   };
 
@@ -1002,7 +1088,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
               body: '🎤 Voice message',
               icon: targetChat.avatar,
               tag: targetChat.id,
-              silentUpdate: false
+              silentUpdate: false,
+              data: buildNotificationPersonaData(targetChat, userRef.current, settingsRef.current)
             });
           }
 
@@ -1067,7 +1154,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
             body: stackedTurnText,
             icon: targetChat.avatar,
             tag: chatId,
-            silentUpdate: !isFirstChunkOfTurn
+            silentUpdate: !isFirstChunkOfTurn,
+            data: buildNotificationPersonaData(targetChat, userRef.current, settingsRef.current)
           });
         }
 
@@ -1244,6 +1332,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
   // Initial Startup Catch-Up
   useEffect(() => {
+    syncPendingBackgroundMessages();
     const timer = setTimeout(() => runAutomationChecks(true), 2000);
     return () => clearTimeout(timer);
   }, []);
@@ -1637,6 +1726,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
                 icon: chat.avatar,
                 tag: chat.id,
                 silentUpdate: false,
+                data: buildNotificationPersonaData(chat, userRef.current, settingsRef.current)
               });
             }
 
@@ -1773,7 +1863,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               body: '🎤 Voice message',
               icon: chat.avatar,
               tag: chat.id,
-              silentUpdate: false
+              silentUpdate: false,
+              data: buildNotificationPersonaData(chat, userRef.current, settingsRef.current)
             });
           }
 
@@ -1839,7 +1930,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             body: stackedTurnText,
             icon: chat.avatar,
             tag: chat.id,
-            silentUpdate: !isFirstChunkOfTurn
+            silentUpdate: !isFirstChunkOfTurn,
+            data: buildNotificationPersonaData(chat, userRef.current, settingsRef.current)
           });
         }
 
@@ -2068,7 +2160,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               body: stackedTurnText,
               icon: personaAvatar,
               tag: group.id,
-              silentUpdate: !isFirstChunkOfTurn
+              silentUpdate: !isFirstChunkOfTurn,
+              data: buildNotificationPersonaData(group, userRef.current, settingsRef.current)
             });
           }
 
