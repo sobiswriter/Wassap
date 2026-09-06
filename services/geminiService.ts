@@ -39,7 +39,7 @@ export async function checkVertexConnectionStatus(): Promise<{
  *   text prompt cues like '[IMAGE ATTACHED]' still fire accurately without sending megabytes of dead payload.
  */
 export function sanitizeHistoryForVertex(
-  messageHistory: { text: string; sender: string; senderName?: string; image?: string; audio?: string; isEvent?: boolean }[]
+  messageHistory: { text: string; sender: string; senderName?: string; image?: string; audio?: string; isEvent?: boolean; eventTitle?: string }[]
 ) {
   if (!Array.isArray(messageHistory)) return [];
 
@@ -60,6 +60,7 @@ export function sanitizeHistoryForVertex(
       sender: m.sender,
       senderName: m.senderName,
       isEvent: m.isEvent,
+      eventTitle: (m as any).eventTitle,
       image: keepMediaData ? m.image : (m.image ? '[ATTACHED]' : undefined),
       audio: keepMediaData ? m.audio : (m.audio ? '[ATTACHED]' : undefined),
     };
@@ -215,7 +216,8 @@ export const getGeminiResponse = async (
       .map(m => {
         if ((m as any).isEvent) {
           const imgTag = m.image ? "[IMAGE ATTACHED TO EVENT]" : "";
-          return `[ENVIRONMENTAL EVENT OCCURS]: *${m.text || ''}* ${imgTag}`.trim();
+          const titleStr = (m as any).eventTitle ? ` (${(m as any).eventTitle})` : '';
+          return `[ENVIRONMENTAL EVENT OCCURS${titleStr}]: *${m.text || ''}* ${imgTag}`.trim();
         }
         const name = m.sender === 'me' ? (userProfile?.name || 'User') : (m.senderName || responder.name);
         const imgTag = m.image ? "[IMAGE ATTACHED]" : "";

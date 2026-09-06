@@ -1394,7 +1394,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
 
 
-  const sendMessageToChat = async (targetChat: Chat, text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean) => {
+  const sendMessageToChat = async (targetChat: Chat, text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean, eventTitle?: string) => {
     if (leftOnReadTimeoutsRef.current[targetChat.id]) {
       clearTimeout(leftOnReadTimeoutsRef.current[targetChat.id]);
       delete leftOnReadTimeoutsRef.current[targetChat.id];
@@ -1435,6 +1435,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       status: 'sent',
       replyToMessage: replyTo,
       isEvent,
+      eventTitle: isEvent ? eventTitle : undefined,
       isImageRequest
     };
 
@@ -1446,7 +1447,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         if (attachment?.type === 'image') lastMsg = '📷 Photo' + (displayText ? `: ${displayText}` : '');
         if (attachment?.type === 'document') lastMsg = '📄 Document' + (displayText ? `: ${displayText}` : '');
         if (attachment?.type === 'audio') lastMsg = '🎤 Voice message';
-        if (isEvent) lastMsg = `🎬 Event: ${displayText}`;
+        if (isEvent) lastMsg = `🎬 Event: ${eventTitle || displayText}`;
         if (isImageRequest) lastMsg = `📷 Photo request: ${displayText}`;
 
         return {
@@ -1531,9 +1532,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }
   };
 
-  const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean) => {
+  const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean, eventTitle?: string) => {
     if (!activeChat) return;
-    await sendMessageToChat(activeChat, text, attachment, replyTo, isEvent);
+    await sendMessageToChat(activeChat, text, attachment, replyTo, isEvent, eventTitle);
   };
 
   const handleSendPhotoToChat = async (targetChatId: string, fileData: string, caption?: string) => {

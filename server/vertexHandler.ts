@@ -27,6 +27,7 @@ export interface ChatPayload {
     image?: string;
     audio?: string;
     isEvent?: boolean;
+    eventTitle?: string;
   }[];
   userProfile?: UserProfile;
   groupContext?: { groupName: string; otherMembers: string[] };
@@ -172,7 +173,8 @@ export async function handleVertexChat(payload: ChatPayload): Promise<{ ok: bool
       .map(m => {
         if ((m as any).isEvent) {
           const imgTag = m.image ? "[IMAGE ATTACHED TO EVENT]" : "";
-          return `[ENVIRONMENTAL EVENT OCCURS]: *${m.text || ''}* ${imgTag}`.trim();
+          const titleStr = (m as any).eventTitle ? ` (${(m as any).eventTitle})` : '';
+          return `[ENVIRONMENTAL EVENT OCCURS${titleStr}]: *${m.text || ''}* ${imgTag}`.trim();
         }
         const name = m.sender === 'me' ? (userProfile?.name || 'User') : (m.senderName || responder.name);
         const imgTag = m.image ? "[IMAGE ATTACHED]" : "";

@@ -24,6 +24,7 @@ export interface Message {
   attachment?: FileAttachment;
   replyToMessage?: Message;
   isEvent?: boolean;
+  eventTitle?: string;
   timestampEpoch?: number;
   isImageRequest?: boolean;
 }

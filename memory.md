@@ -65,6 +65,18 @@
   - Wrapped modals in `<React.Suspense fallback={null}>`.
   - **Results**: Main entry bundle size plummeted from **755 kB down to 153 kB** (47.5 kB gzip), cutting initial load time and eliminating all bundle size warnings.
 
+### 5. Story Event Trigger & Message Bubble Redesign
+- **Trigger Event Modal (`components/MessageInput.tsx`)**:
+  - Upgraded to a sleek, modern, centered floating card with smooth backdrop blur (`fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm`).
+  - Added dedicated **Event Title** input (`eventTitle?: string` on `Message` model) with optional status and automatic derivation fallback (first 5 words of scenario description or default "Story Event").
+  - Added interactive **Quick Idea inspiration chips** (`🚪 Doorbell Rings`, `⚡ Power Outage`, `📱 Urgent Call`, `☕ Spilled Drink`) that populate title and description in one tap.
+  - Sleek gradient action button (`Make it Happen 🎬`).
+- **Event Message Bubble in Chat (`components/ChatWindow.tsx`)**:
+  - **Fixed Duplicate Text Bug**: Eliminated previous duplicate `{message.text}` rendering where both title and description repeated identical copy.
+  - **Sleek Glassmorphic Card**: Ambient amber glow with gold badge (`🎬 Story Event`), bold title, and narrative italic description.
+  - **Expandable / Clickable on Long Descriptions**: Long scenarios (>75 chars) are cleanly clamped to 2 lines with a smooth "Read more / Show less" toggle and card tap to prevent stretching out chat viewports.
+  - **AI Prompt Integration**: Passes `[ENVIRONMENTAL EVENT OCCURS (Title)]: *description*` in `geminiService.ts`, `vertexHandler.ts`, and `api/gemini/generate.ts` for deep scenario immersion.
+
 ---
 
 ## 🏛️ Architecture & Key Components

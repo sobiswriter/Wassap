@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Search, MoreVertical, CheckCheck, Check, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic } from 'lucide-react';
+import { Search, MoreVertical, CheckCheck, Check, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp } from 'lucide-react';
 import { Chat, MemoryBubble, Message, AppSettings } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, getMessageTimestampEpoch, isDateInRange, normalizeDateKey } from '../utils/dates';
@@ -251,6 +251,7 @@ const MessageBubble = React.memo<{
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
   const [mediaData, setMediaData] = useState<string | null>(null);
+  const [isEventExpanded, setIsEventExpanded] = useState(false);
   const lastTap = useRef(0);
 
   useEffect(() => {
@@ -274,21 +275,79 @@ const MessageBubble = React.memo<{
   const isMediaMessage = Boolean(mediaSrc && message.attachment?.type !== 'audio');
 
   if (message.isEvent) {
+    const trimmedText = message.text ? message.text.trim() : '';
+    const displayTitle = message.eventTitle || (
+      trimmedText 
+        ? (trimmedText.split(/\s+/).slice(0, 5).join(' ') + (trimmedText.split(/\s+/).length > 5 ? '...' : '')) 
+        : 'Story Event'
+    );
+    // Don't duplicate text if description is identical to the title
+    const hasDistinctDescription = Boolean(trimmedText && trimmedText !== displayTitle);
+    const isLongDescription = Boolean(trimmedText && trimmedText.length > 75);
+
     return (
-      <div className="flex justify-center w-full my-4 px-4 select-none">
-        <div className="bg-[#ffe8c6] dark:bg-[#2b2416] text-[#714d00] dark:text-[#f3c669] border border-[#fbd38d] dark:border-[#52411e] px-4 py-2 rounded-lg text-[calc(var(--msg-font-size)-1px)] shadow-sm max-w-[85%] sm:max-w-[75%] text-center leading-relaxed">
-          <span className="font-semibold mr-1.5">🎬 Event:</span>
-          {message.text}
+      <div className="flex justify-center w-full my-3 px-3 select-none animate-in fade-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => {
+            if (isLongDescription) setIsEventExpanded(prev => !prev);
+          }}
+          className={`group/event relative overflow-hidden transition-all duration-300 ${
+            isLongDescription ? 'cursor-pointer hover:border-amber-500/50 active:scale-[0.99]' : ''
+          } bg-gradient-to-b from-amber-50/90 via-amber-50/60 to-orange-50/70 dark:from-[#1c262d] dark:via-[#182127] dark:to-[#131b20] backdrop-blur-md border border-amber-400/40 dark:border-amber-500/30 shadow-[0_4px_20px_rgba(245,158,11,0.09)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.45)] rounded-2xl p-4 w-full max-w-[88%] sm:max-w-[400px] text-center`}
+        >
+          {/* Subtle top ambient glow */}
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-32 h-10 bg-amber-500/15 dark:bg-amber-400/10 blur-xl pointer-events-none rounded-full" />
+
+          {/* Event Badge */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-bold tracking-wider uppercase bg-amber-500/15 dark:bg-amber-400/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 mb-2 shadow-xs">
+            <Sparkles size={12} className="text-amber-600 dark:text-amber-400 animate-pulse" />
+            <span>Story Event</span>
+          </div>
+
+          {/* Event Title */}
+          <h4 className="font-bold text-[calc(var(--msg-font-size)+1px)] text-gray-900 dark:text-amber-100 tracking-tight leading-snug px-2 mb-1">
+            {displayTitle}
+          </h4>
+
+          {/* Attached Image if any */}
           {mediaSrc && (
-             <img src={mediaSrc} alt="Event Context" className="rounded-xl w-full max-h-[300px] object-cover mb-3 shadow-sm border app-border z-10" />
+            <div className="my-2.5 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 shadow-sm group-hover/event:shadow-md transition-shadow">
+              <img 
+                src={mediaSrc} 
+                alt="Event scene" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onOpenImage) onOpenImage(mediaSrc, trimmedText, displayTitle, message.timestamp);
+                }}
+                className="w-full max-h-[240px] object-cover hover:opacity-95 transition-opacity cursor-pointer" 
+              />
+            </div>
           )}
-          {message.text && (
-            <p className="text-[calc(var(--msg-font-size)+1px)] text-center text-primary italic leading-relaxed z-10">
-              {message.text}
-            </p>
+
+          {/* Scenario Description */}
+          {hasDistinctDescription && (
+            <div className="mt-1 px-1">
+              <p 
+                className={`text-[calc(var(--msg-font-size)-1px)] text-gray-700 dark:text-gray-300 italic leading-relaxed transition-all duration-300 ${
+                  !isEventExpanded && isLongDescription ? 'line-clamp-2' : ''
+                }`}
+              >
+                "{trimmedText}"
+              </p>
+              
+              {/* Expand / Collapse Indicator */}
+              {isLongDescription && (
+                <div className="mt-1.5 flex items-center justify-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors">
+                  <span>{isEventExpanded ? 'Show less' : 'Read more'}</span>
+                  {isEventExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                </div>
+              )}
+            </div>
           )}
-          <div className="text-[calc(var(--msg-font-size)-4px)] text-secondary mt-3 z-10 font-medium">
-            {message.timestamp}
+
+          {/* Timestamp footer */}
+          <div className="text-[calc(var(--msg-font-size)-4px)] text-gray-400 dark:text-gray-400 mt-2.5 flex items-center justify-center gap-1 font-medium">
+            <span>{message.timestamp}</span>
           </div>
         </div>
       </div>
