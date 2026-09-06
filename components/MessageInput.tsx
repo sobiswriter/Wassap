@@ -37,9 +37,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   const audioChunksRef = useRef<Blob[]>([]);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const eventImageInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
   const emojiMenuRef = useRef<HTMLDivElement>(null);
@@ -119,7 +121,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     inputRef.current?.focus();
   };
 
-  const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'document') => {
+  const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'document' | 'audio') => {
     const file = e.target.files?.[0];
     if (file) {
       if (type === 'image') {
@@ -284,26 +286,27 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             >
               <X size={16} />
             </button>
-            {stagedAttachment.type === 'image' ? (
+            {stagedAttachment.type === 'image' && (
               <div className="relative w-32 h-32 overflow-hidden rounded-lg">
                 <img src={stagedAttachment.data} className="w-full h-full object-cover" alt="preview" />
               </div>
-            ) : (
+            )}
+            {stagedAttachment.type === 'document' && (
               <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#182229] rounded-lg border app-border p-2">
-                <FileText className="text-[#21c063] mb-2" size={40} />
-                <span className="text-[calc(var(--input-font-size)-6px)] text-[#667781] text-center line-clamp-2 w-full leading-tight">{stagedAttachment.name}</span>
+                <FileText className="text-[#7f66ff] mb-2" size={40} />
+                <span className="text-[calc(var(--input-font-size)-6px)] text-[#667781] text-center line-clamp-2 w-full leading-tight font-medium">{stagedAttachment.name}</span>
               </div>
             )}
             {stagedAttachment.type === 'audio' && (
               <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#182229] rounded-lg border app-border p-2">
-                <WhatsAppMicIcon className="text-[#21c063] mb-2" size={40} />
-                <span className="text-[calc(var(--input-font-size)-6px)] text-[#667781] text-center w-full leading-tight">Audio Note recorded</span>
+                <Headphones className="text-[#fe7a15] mb-2" size={40} />
+                <span className="text-[calc(var(--input-font-size)-6px)] text-[#667781] text-center line-clamp-2 w-full leading-tight font-medium">{stagedAttachment.name || 'Audio file'}</span>
               </div>
             )}
           </div>
           <div className="ml-5 mb-2 flex flex-col">
             <span className="text-[calc(var(--input-font-size)-2px)] text-primary font-semibold">
-              {stagedAttachment.type === 'image' ? 'Send Image' : stagedAttachment.type === 'audio' ? 'Send Voice Note' : 'Send Document'}
+              {stagedAttachment.type === 'image' ? 'Send Image' : stagedAttachment.type === 'audio' ? 'Send Audio' : 'Send Document'}
             </span>
             <span className="text-[calc(var(--input-font-size)-5px)] text-secondary italic">
               {stagedAttachment.type === 'image' ? 'Add a caption below' : stagedAttachment.name}
@@ -343,8 +346,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
       {/* Main Input Bar */}
       <div className="bg-transparent px-2 py-2 pb-3 flex items-end gap-[10px] relative transition-colors duration-300 w-full z-40">
+        <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleFileSelection(e, 'image')} />
         <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileSelection(e, 'image')} />
-        <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.doc,.docx,.txt,.md" onChange={(e) => handleFileSelection(e, 'document')} />
+        <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.doc,.docx,.txt,.md,.xlsx,.pptx" onChange={(e) => handleFileSelection(e, 'document')} />
+        <input type="file" ref={audioInputRef} className="hidden" accept="audio/*" onChange={(e) => handleFileSelection(e, 'audio')} />
 
         <div className="flex-1 bg-white dark:bg-[#233138] rounded-[24px] flex items-end shadow-[0_1px_2px_rgba(11,20,26,.1)] overflow-hidden min-h-[48px]">
           <div className="relative p-[12px] pl-[14px] shrink-0" ref={emojiRef}>
@@ -378,14 +383,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
           <div className="relative p-[12px] pr-4 shrink-0 flex items-center gap-[18px] text-[#8696a0]" ref={attachRef}>
             <button
+              type="button"
               onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
               className={`transition-transform duration-200 hover:text-black/60 dark:hover:text-white/80 ${showAttachmentMenu ? 'text-[#21c063] -rotate-45' : ''}`}
+              title="Attach"
             >
               <Paperclip size={24} strokeWidth={2} className="rotate-[135deg]" />
             </button>
             <button
-              onClick={() => imageInputRef.current?.click()}
-              className="transition-colors hover:text-black/60 dark:hover:text-white/80"
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="transition-colors hover:text-black/60 dark:hover:text-white/80 active:scale-95"
+              title="Camera"
             >
               <Camera size={24} strokeWidth={2} />
             </button>
@@ -410,65 +419,107 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
           )}
         </div>
 
-        {/* Attachment Menu (Absolute) */}
+        {/* Authentic WhatsApp Attachment Menu Sheet */}
         {showAttachmentMenu && (
           <div ref={attachMenuRef} className="absolute bottom-[60px] left-[10px] md:left-auto md:right-14 w-[calc(100vw-20px)] md:w-[360px] app-panel shadow-2xl rounded-[30px] p-6 px-4 animate-in zoom-in-95 duration-200 border app-border z-[100] origin-bottom sm:origin-bottom-right">
             <div className="grid grid-cols-4 gap-y-6 gap-x-2">
-              <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => imageInputRef.current?.click()}>
-                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <ImageIcon size={26} className="text-[#007bfc]" fill="currentColor" />
+              {/* Gallery */}
+              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); imageInputRef.current?.click(); }}>
+                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#ac44cf] to-[#bf59cf] shadow-[0_4px_12px_rgba(172,68,207,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                  <ImageIcon size={26} strokeWidth={2} />
                 </div>
-                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Gallery</span>
-              </div>
-              <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => imageInputRef.current?.click()}>
-                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Camera size={26} className="text-[#d3396d]" fill="currentColor" />
-                </div>
-                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Camera</span>
-              </div>
-              <div className="flex flex-col items-center gap-2 cursor-pointer group">
-                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <MapPin size={26} className="text-[#21bfa6]" fill="currentColor" />
-                </div>
-                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Location</span>
-              </div>
-              <div className="flex flex-col items-center gap-2 cursor-pointer group">
-                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <User size={26} className="text-[#00a4d4]" fill="currentColor" />
-                </div>
-                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Contact</span>
+                <span className="text-[12px] font-normal text-primary text-center">Gallery</span>
               </div>
 
-              <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => docInputRef.current?.click()}>
-                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <FileText size={26} className="text-[#7f66ff]" fill="currentColor" />
+              {/* Camera */}
+              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); cameraInputRef.current?.click(); }}>
+                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#d3396d] to-[#ec407a] shadow-[0_4px_12px_rgba(211,57,109,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                  <Camera size={26} strokeWidth={2} />
                 </div>
-                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Document</span>
-              </div>
-              <div className="flex flex-col items-center gap-2 cursor-pointer group">
-                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Headphones size={26} className="text-[#f0643b]" fill="currentColor" />
-                </div>
-                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Audio</span>
-              </div>
-              <div className="flex flex-col items-center gap-2 cursor-pointer group">
-                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <BarChart size={26} className="text-[#ffbc38]" strokeWidth={3} />
-                </div>
-                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Poll</span>
-              </div>
-              <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); setShowEventModal(true); }}>
-                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Calendar size={26} className="text-[#ff3b7c]" fill="currentColor" />
-                </div>
-                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">Event</span>
+                <span className="text-[12px] font-normal text-primary text-center">Camera</span>
               </div>
 
-              <div className="flex flex-col items-center gap-2 cursor-pointer group">
-                <div className="w-[56px] h-[56px] rounded-full bg-white dark:bg-[#1f2c34] border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Sparkles size={26} className="text-[#007bfc]" fill="currentColor" />
+              {/* Location */}
+              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => {
+                setShowAttachmentMenu(false);
+                if (navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                      const lat = pos.coords.latitude.toFixed(5);
+                      const lng = pos.coords.longitude.toFixed(5);
+                      onSendMessage(`📍 Live Location: https://maps.google.com/?q=${lat},${lng}`);
+                    },
+                    () => {
+                      onSendMessage('📍 Shared Location (Current GPS pin)');
+                    }
+                  );
+                } else {
+                  onSendMessage('📍 Shared Location (Current GPS pin)');
+                }
+              }}>
+                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#1ea952] to-[#25d366] shadow-[0_4px_12px_rgba(30,169,82,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                  <MapPin size={26} strokeWidth={2} />
                 </div>
-                <span className="text-[calc(var(--msg-font-size)-1.5px)] text-primary">AI Images</span>
+                <span className="text-[12px] font-normal text-primary text-center">Location</span>
+              </div>
+
+              {/* Contact */}
+              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => {
+                setShowAttachmentMenu(false);
+                onSendMessage('👤 Shared Contact Card');
+              }}>
+                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#009de2] to-[#00b0ff] shadow-[0_4px_12px_rgba(0,157,226,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                  <User size={26} strokeWidth={2} />
+                </div>
+                <span className="text-[12px] font-normal text-primary text-center">Contact</span>
+              </div>
+
+              {/* Document */}
+              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); docInputRef.current?.click(); }}>
+                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#7f66ff] to-[#9985ff] shadow-[0_4px_12px_rgba(127,102,255,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                  <FileText size={26} strokeWidth={2} />
+                </div>
+                <span className="text-[12px] font-normal text-primary text-center">Document</span>
+              </div>
+
+              {/* Audio */}
+              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); audioInputRef.current?.click(); }}>
+                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#fe7a15] to-[#ff9800] shadow-[0_4px_12px_rgba(254,122,21,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                  <Headphones size={26} strokeWidth={2} />
+                </div>
+                <span className="text-[12px] font-normal text-primary text-center">Audio</span>
+              </div>
+
+              {/* Poll */}
+              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => {
+                setShowAttachmentMenu(false);
+                setText('📊 Poll: ');
+                inputRef.current?.focus();
+              }}>
+                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#ffb300] to-[#ffc107] shadow-[0_4px_12px_rgba(255,179,0,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                  <BarChart size={26} strokeWidth={2.4} />
+                </div>
+                <span className="text-[12px] font-normal text-primary text-center">Poll</span>
+              </div>
+
+              {/* Event */}
+              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); setShowEventModal(true); }}>
+                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#e0537e] to-[#f06292] shadow-[0_4px_12px_rgba(224,83,126,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                  <Calendar size={26} strokeWidth={2} />
+                </div>
+                <span className="text-[12px] font-normal text-primary text-center">Event</span>
+              </div>
+
+              {/* AI Images */}
+              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => {
+                setShowAttachmentMenu(false);
+                setText('@image Send me a photo of ');
+                inputRef.current?.focus();
+              }}>
+                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#0066ff] to-[#00d2ff] shadow-[0_4px_12px_rgba(0,102,255,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                  <Sparkles size={26} strokeWidth={2} />
+                </div>
+                <span className="text-[12px] font-normal text-primary text-center">AI Images</span>
               </div>
             </div>
           </div>

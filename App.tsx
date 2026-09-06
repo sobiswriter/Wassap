@@ -177,6 +177,7 @@ const showNotification = async (title: string, options: NotificationOptions & { 
     badge: options.badge || '/badge.svg',
     renotify: !isSilent,
     silent: isSilent,
+    vibrate: isSilent ? undefined : [200, 100, 200],
     requireInteraction: false,
     actions: [
       { action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' },
@@ -632,9 +633,9 @@ const App: React.FC = () => {
             const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
 
             if (targetChat.isGroup) {
-              handleGroupResponse(targetChat, updatedMessages, combinedContexts);
+              handleGroupResponse(targetChat, updatedMessages, combinedContexts, true);
             } else {
-              handleSingleResponse(targetChat, updatedMessages, combinedContexts);
+              handleSingleResponse(targetChat, updatedMessages, combinedContexts, false, '', true);
             }
           }
         } else if (type === 'MARK_AS_READ' && chatId) {
@@ -1556,13 +1557,16 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     updatedHistory: Message[], 
     memoryContext?: string, 
     isImageRequest = false, 
-    imagePromptText = ''
+    imagePromptText = '',
+    isBackgroundReply = false
   ) => {
     const chatId = chat.id;
     try {
-      // 1. "Seen" Delay Simulation (Persona opens the app)
-      const seenDelay = 1000 + Math.random() * 1500;
-      await new Promise(resolve => setTimeout(resolve, seenDelay));
+      if (!isBackgroundReply) {
+        // 1. "Seen" Delay Simulation (Persona opens the app)
+        const seenDelay = 1000 + Math.random() * 1500;
+        await new Promise(resolve => setTimeout(resolve, seenDelay));
+      }
 
       // Mark user messages as read (Blue ticks appear BEFORE typing)
       setChats(prev => prev.map(c => {
@@ -1578,9 +1582,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         return c;
       }));
 
-      // 2. Initial "Thinking" Delay
-      const thinkingDelay = 500 + Math.random() * 1000;
-      await new Promise(resolve => setTimeout(resolve, thinkingDelay));
+      if (!isBackgroundReply) {
+        // 2. Initial "Thinking" Delay
+        const thinkingDelay = 500 + Math.random() * 1000;
+        await new Promise(resolve => setTimeout(resolve, thinkingDelay));
+      } else {
+        // Snappy human pause for notification reply (avoids background timer throttling)
+        await new Promise(resolve => setTimeout(resolve, 800));
+      }
 
       // Hydrate history with media data
       const hydratedHistory = await Promise.all(updatedHistory.map(async m => {
@@ -1854,12 +1863,15 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const chunk = chunks[i];
 
         // 3. Randomized Typing Duration
-        // Human typing: ~35ms to 55ms per character
-        const charEfficiency = 35 + Math.random() * 20; 
-        const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1500), 5000);
-
-        setChatStatus(chatId, 'typing...');
-        await new Promise(resolve => setTimeout(resolve, typingDuration));
+        if (!isBackgroundReply) {
+          const charEfficiency = 35 + Math.random() * 20; 
+          const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1500), 5000);
+          setChatStatus(chatId, 'typing...');
+          await new Promise(resolve => setTimeout(resolve, typingDuration));
+        } else {
+          // Minimal pause in background to avoid Android/Chrome timer throttling
+          await new Promise(resolve => setTimeout(resolve, 150));
+        }
 
         const aiMsg: Message = {
           id: `${Date.now()}-${i}`,
@@ -1901,18 +1913,20 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             body: stackedTurnText,
             icon: chat.avatar,
             tag: chat.id,
-            silentUpdate: !isFirstChunkOfTurn,
+            silentUpdate: isBackgroundReply ? false : !isFirstChunkOfTurn,
             data: buildNotificationPersonaData(chat, userRef.current, settingsRef.current)
           });
         }
 
-
-
         // 4. Randomized Inter-message Delay (simulating hitting 'send' and starting to type next)
         if (i < chunks.length - 1) {
-          setChatStatus(chatId, 'online');
-          const interDelay = 1200 + Math.random() * 1000;
-          await new Promise(resolve => setTimeout(resolve, interDelay));
+          if (!isBackgroundReply) {
+            setChatStatus(chatId, 'online');
+            const interDelay = 1200 + Math.random() * 1000;
+            await new Promise(resolve => setTimeout(resolve, interDelay));
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 150));
+          }
         }
       }
 
@@ -1930,13 +1944,22 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }
   };
 
-  const handleGroupResponse = async (group: Chat, updatedHistory: Message[], memoryContext?: string) => {
+  const handleGroupResponse = async (
+    group: Chat, 
+    updatedHistory: Message[], 
+    memoryContext?: string,
+    isBackgroundReply = false
+  ) => {
     const memberIds = [...(group.memberIds || [])];
     if (memberIds.length === 0) return;
 
-    // 1. Initial "Seen" Delay for the whole group (simulating someone opening the group)
-    const initialSeenDelay = 1200 + Math.random() * 2000;
-    await new Promise(resolve => setTimeout(resolve, initialSeenDelay));
+    if (!isBackgroundReply) {
+      // 1. Initial "Seen" Delay for the whole group (simulating someone opening the group)
+      const initialSeenDelay = 1200 + Math.random() * 2000;
+      await new Promise(resolve => setTimeout(resolve, initialSeenDelay));
+    } else {
+      await new Promise(resolve => setTimeout(resolve, 400));
+    }
 
     // Mark user messages as read
     setChats(prev => prev.map(c => {
@@ -1968,9 +1991,13 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       if (!persona) continue;
 
       try {
-        // 2. Persona-specific thinking/readiness delay
-        const delay = 1000 + (Math.random() * 3000);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        if (!isBackgroundReply) {
+          // 2. Persona-specific thinking/readiness delay
+          const delay = 1000 + (Math.random() * 3000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
 
         setChatStatus(group.id, 'typing...');
 
@@ -2080,11 +2107,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           const chunk = chunks[j];
 
           // 3. Randomized Typing Duration for group personas
-          const charEfficiency = 35 + Math.random() * 25; 
-          const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1500), 5000);
-
-          setChatStatus(group.id, 'typing...');
-          await new Promise(resolve => setTimeout(resolve, typingDuration));
+          if (!isBackgroundReply) {
+            const charEfficiency = 35 + Math.random() * 25; 
+            const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1500), 5000);
+            setChatStatus(group.id, 'typing...');
+            await new Promise(resolve => setTimeout(resolve, typingDuration));
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 150));
+          }
 
           const aiMsg: Message = {
             id: `${Date.now()}-${i}-${j}`,
@@ -2131,17 +2161,19 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               body: stackedTurnText,
               icon: personaAvatar,
               tag: group.id,
-              silentUpdate: !isFirstChunkOfTurn,
+              silentUpdate: isBackgroundReply ? false : !isFirstChunkOfTurn,
               data: buildNotificationPersonaData(group, userRef.current, settingsRef.current)
             });
           }
 
-
-
           if (j < chunks.length - 1) {
-            setChatStatus(group.id, 'online');
-            const interDelay = 1000 + Math.random() * 1200;
-            await new Promise(resolve => setTimeout(resolve, interDelay));
+            if (!isBackgroundReply) {
+              setChatStatus(group.id, 'online');
+              const interDelay = 1000 + Math.random() * 1200;
+              await new Promise(resolve => setTimeout(resolve, interDelay));
+            } else {
+              await new Promise(resolve => setTimeout(resolve, 150));
+            }
           }
         }
 

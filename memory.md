@@ -175,6 +175,16 @@ Wassap/
       - Added URL parameter support on mount in `App.tsx` to automatically select persona and open chat view when launched via `/?chatId=...`, followed by clean URL replacement.
     - **IndexedDB Stabilization**: Restored single-responsibility `whatsapp_media_db` (v2) dedicated to `media_store` with `onversionchange` auto-closing and blocked prevention. Eliminated version downgrades and deadlocks that previously caused persona responses and typing indicators to hang.
     - **Direct Persona Opening on Desktop Fallback**: Desktop `new Notification()` fallback now navigates straight to persona on click.
+- [x] **v1.7.7**:
+  - **Background Notification Turnaround Optimization**:
+    - **Timer Throttling Bypass**: Bypassed multi-stage `setTimeout` delays in `handleSingleResponse` and `handleGroupResponse` when processing `INLINE_REPLY` (`isBackgroundReply = true`). Reduced response time from 30-60+ seconds (caused by mobile Chromium inactive tab throttling) down to 2-3 seconds.
+    - **Vibration Alert**: Added `vibrate: [200, 100, 200]` and `silentUpdate: false` for inline reply notifications so the phone buzzes in the shade when the persona replies.
+  - **Native Camera Viewfinder in Message Input**:
+    - Added dedicated `<input type="file" ref={cameraInputRef} accept="image/*" capture="environment" />` connected to the camera button in the input bar. Tapping it directly opens the smartphone camera viewfinder instead of the gallery.
+  - **Authentic WhatsApp Attachment Menu**:
+    - Overhauled attachment sheet to authentic WhatsApp aesthetics: vibrant circular gradient badges with drop shadows and crisp centered white icons:
+      - Document (`#7f66ff` to `#9985ff`), Camera (`#d3396d` to `#ec407a`), Gallery (`#ac44cf` to `#bf59cf`), Audio (`#fe7a15` to `#ff9800`), Location (`#1ea952` to `#25d366`), Contact (`#009de2` to `#00b0ff`), Poll (`#ffb300` to `#ffc107`), Event (`#e0537e` to `#f06292`), AI Images (`#0066ff` to `#00d2ff`).
+    - Hooked up functional file pickers for **Document** (`.pdf,.doc,.docx,.txt,.md,.xlsx,.pptx`) and **Audio** (`audio/*`), with staged preview and in-chat playback / download.
 
 ---
 
