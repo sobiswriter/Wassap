@@ -226,7 +226,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
       {/* Event Modal */}
       {showEventModal && (
         <div 
-          className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[120] bg-black/50 flex items-center justify-center p-4 animate-in fade-in duration-150"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowEventModal(false);
@@ -236,18 +236,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             }
           }}
         >
-          <div className="bg-white dark:bg-[#1f2c34] border border-black/10 dark:border-white/10 shadow-2xl rounded-3xl w-full max-w-[420px] overflow-hidden text-primary animate-in zoom-in-95 duration-200 flex flex-col">
+          <div className="bg-white dark:bg-[#222e35] rounded-xl shadow-2xl w-full max-w-[380px] overflow-hidden text-primary border border-black/10 dark:border-white/10 animate-in zoom-in-95 duration-150 flex flex-col">
             {/* Header */}
-            <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-black/5 dark:border-white/5 bg-[#f8f9fa] dark:bg-[#182229]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-rose-500 flex items-center justify-center text-white shadow-md shadow-orange-500/20">
-                  <Sparkles size={20} className="animate-pulse" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-primary tracking-tight">Trigger Story Event</h3>
-                  <p className="text-[11px] text-secondary">Introduce a scenario to change the conversation</p>
-                </div>
-              </div>
+            <div className="px-5 py-3.5 flex items-center justify-between border-b border-black/10 dark:border-white/10 bg-[#f0f2f5] dark:bg-[#182229]">
+              <h3 className="text-[15px] font-medium text-primary">New Event</h3>
               <button 
                 onClick={() => {
                   setShowEventModal(false);
@@ -255,68 +247,37 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                   setEventText('');
                   setEventImage(null);
                 }} 
-                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 text-secondary hover:text-primary transition-colors"
+                className="text-secondary hover:text-primary p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Form Fields */}
-            <div className="p-5 space-y-3.5">
+            <div className="p-4 space-y-3.5">
               {/* Event Title */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-secondary uppercase tracking-wider">Event Title</label>
-                  <span className="text-[11px] text-secondary/70 italic">Optional (auto-derived if empty)</span>
-                </div>
+                <label className="text-[12px] font-medium text-secondary block mb-1">Event title (optional)</label>
                 <input
                   type="text"
                   value={eventTitle}
                   onChange={(e) => setEventTitle(e.target.value)}
-                  placeholder="e.g., Midnight Visitor, Power Outage..."
-                  maxLength={50}
-                  className="w-full bg-[#f0f2f5] dark:bg-[#111b21] border border-black/10 dark:border-white/10 rounded-xl px-3.5 py-2 text-sm text-primary placeholder:text-secondary/50 outline-none focus:border-amber-500/60 focus:ring-2 focus:ring-amber-500/20 transition-all"
+                  placeholder="e.g. Someone knocks on the door"
+                  maxLength={60}
+                  className="w-full bg-[#f0f2f5] dark:bg-[#111b21] border border-transparent focus:border-[#00a884] rounded-lg px-3 py-2 text-[14px] text-primary placeholder:text-secondary/50 outline-none transition-colors"
                 />
               </div>
 
-              {/* Scenario Description */}
+              {/* Description */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-secondary uppercase tracking-wider">Scenario Description</label>
-                  <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">What happens</span>
-                </div>
+                <label className="text-[12px] font-medium text-secondary block mb-1">Description</label>
                 <textarea
                   value={eventText}
                   onChange={(e) => setEventText(e.target.value)}
-                  placeholder="Describe what happens... (e.g. A loud thud echoes upstairs, or someone taps your shoulder)"
+                  placeholder="Describe what happens..."
                   rows={3}
-                  className="w-full bg-[#f0f2f5] dark:bg-[#111b21] border border-black/10 dark:border-white/10 rounded-xl px-3.5 py-2 text-sm text-primary placeholder:text-secondary/50 outline-none focus:border-amber-500/60 focus:ring-2 focus:ring-amber-500/20 transition-all resize-none leading-relaxed"
+                  className="w-full bg-[#f0f2f5] dark:bg-[#111b21] border border-transparent focus:border-[#00a884] rounded-lg px-3 py-2 text-[14px] text-primary placeholder:text-secondary/50 outline-none transition-colors resize-none leading-relaxed"
                 />
-              </div>
-
-              {/* Inspiration Chips */}
-              <div className="space-y-1.5">
-                <span className="text-[11px] text-secondary font-medium">Quick ideas:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { title: '🚪 Doorbell Rings', desc: 'A loud doorbell rings as a courier leaves a mysterious unlabeled box on the porch.' },
-                    { title: '⚡ Power Outage', desc: 'The lights violently flicker and plunge the room into pitch darkness with a thunderstorm outside.' },
-                    { title: '📱 Urgent Call', desc: 'Your phone buzzes vigorously with an incoming call marked "Urgent - Private Number".' },
-                    { title: '☕ Spilled Drink', desc: 'An accidental bump knocks over a hot beverage across the entire table!' },
-                  ].map((preset, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setEventTitle(preset.title.replace(/^[\p{Emoji}\s]+/u, ''));
-                        setEventText(preset.desc);
-                      }}
-                      className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-amber-500/15 hover:text-amber-600 dark:hover:text-amber-400 text-secondary border border-black/5 dark:border-white/5 hover:border-amber-500/30 transition-all active:scale-95"
-                    >
-                      {preset.title}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* Hidden file input */}
@@ -341,42 +302,53 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                 }} 
               />
 
-              {/* Image Preview or Upload Button */}
+              {/* Image Preview or Attachment Trigger */}
               {eventImage ? (
-                <div className="relative rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 group shadow-sm">
-                  <img src={eventImage.data} className="w-full h-28 object-cover" alt="Event scene preview" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button 
-                      type="button"
-                      onClick={() => setEventImage(null)}
-                      className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-lg transition-transform active:scale-90"
-                      title="Remove image"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+                <div className="relative rounded-lg overflow-hidden border border-black/10 dark:border-white/10 group">
+                  <img src={eventImage.data} className="w-full h-24 object-cover" alt="Event preview" />
+                  <button 
+                    type="button"
+                    onClick={() => setEventImage(null)}
+                    className="absolute top-1.5 right-1.5 bg-black/60 hover:bg-black/80 text-white p-1 rounded-full transition-colors shadow"
+                    title="Remove image"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
               ) : (
                 <button 
                   type="button"
                   onClick={() => eventImageInputRef.current?.click()}
-                  className="w-full py-2.5 border border-dashed border-black/15 dark:border-white/15 rounded-xl flex items-center justify-center gap-2 text-secondary hover:text-primary hover:border-amber-500/50 hover:bg-amber-500/5 transition-all text-xs font-medium"
+                  className="text-[13px] text-[#00a884] hover:text-[#008069] flex items-center gap-1.5 font-medium transition-colors pt-0.5"
                 >
-                  <ImageIcon size={16} className="text-amber-500" />
-                  <span>Attach Scene Image (Optional)</span>
+                  <ImageIcon size={16} />
+                  <span>Attach image (optional)</span>
                 </button>
               )}
 
-              {/* Action Button */}
-              <button
-                type="button"
-                onClick={handleTriggerEvent}
-                disabled={!eventText.trim() && !eventImage}
-                className="w-full mt-2 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:via-orange-600 hover:to-rose-600 active:scale-[0.98] text-white font-medium py-3 px-4 rounded-xl transition-all duration-200 disabled:opacity-40 disabled:pointer-events-none shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 text-sm"
-              >
-                <Sparkles size={16} />
-                <span>Make it Happen 🎬</span>
-              </button>
+              {/* Action Buttons */}
+              <div className="flex justify-end items-center gap-2 pt-2 border-t border-black/5 dark:border-white/5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEventModal(false);
+                    setEventTitle('');
+                    setEventText('');
+                    setEventImage(null);
+                  }}
+                  className="px-4 py-1.5 text-[13px] font-medium text-secondary hover:text-primary transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTriggerEvent}
+                  disabled={!eventText.trim() && !eventImage}
+                  className="px-5 py-1.5 text-[13px] font-medium text-white bg-[#00a884] hover:bg-[#008069] rounded-full disabled:opacity-40 disabled:pointer-events-none transition-colors shadow-sm"
+                >
+                  Send
+                </button>
+              </div>
             </div>
           </div>
         </div>

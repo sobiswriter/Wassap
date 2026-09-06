@@ -67,15 +67,17 @@
 
 ### 5. Story Event Trigger & Message Bubble Redesign
 - **Trigger Event Modal (`components/MessageInput.tsx`)**:
-  - Upgraded to a sleek, modern, centered floating card with smooth backdrop blur (`fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm`).
-  - Added dedicated **Event Title** input (`eventTitle?: string` on `Message` model) with optional status and automatic derivation fallback (first 5 words of scenario description or default "Story Event").
-  - Added interactive **Quick Idea inspiration chips** (`🚪 Doorbell Rings`, `⚡ Power Outage`, `📱 Urgent Call`, `☕ Spilled Drink`) that populate title and description in one tap.
-  - Sleek gradient action button (`Make it Happen 🎬`).
+  - Clean, minimalist WhatsApp Web dialog (`bg-white dark:bg-[#222e35] rounded-xl shadow-2xl w-full max-w-[380px]`).
+  - Strict professional design: Zero generic AI fluff, zero sparkles, zero preset idea chips.
+  - Form: Clean `Event title (optional)` input, `Description` textarea, optional image attachment button, and WhatsApp green `Send` button (`#00a884`).
+  - Fallback logic: If title is empty, it cleanly extracts the first 5 words of description or defaults to `"Event"`.
 - **Event Message Bubble in Chat (`components/ChatWindow.tsx`)**:
-  - **Fixed Duplicate Text Bug**: Eliminated previous duplicate `{message.text}` rendering where both title and description repeated identical copy.
-  - **Sleek Glassmorphic Card**: Ambient amber glow with gold badge (`🎬 Story Event`), bold title, and narrative italic description.
-  - **Expandable / Clickable on Long Descriptions**: Long scenarios (>75 chars) are cleanly clamped to 2 lines with a smooth "Read more / Show less" toggle and card tap to prevent stretching out chat viewports.
-  - **AI Prompt Integration**: Passes `[ENVIRONMENTAL EVENT OCCURS (Title)]: *description*` in `geminiService.ts`, `vertexHandler.ts`, and `api/gemini/generate.ts` for deep scenario immersion.
+  - **Authentic WhatsApp Event Card**: Clean rounded card (`bg-white dark:bg-[#1f2c34] border border-black/10 dark:border-white/10 rounded-xl p-3.5 shadow-sm max-w-[380px] text-left`).
+  - Minimalist green calendar tag: `Event` (`#00a884` with `Calendar` icon).
+  - Bold event title (`font-semibold text-primary`) with separate secondary description (`text-secondary`).
+  - **Clickable / Expandable Clamp**: Descriptions > 75 characters are cleanly clamped to 2 lines with a sleek `Read more / Show less` link and card tap toggle so long narratives never stretch the viewport.
+  - Minimalist bottom-right timestamp format matching WhatsApp native messages.
+  - **AI Prompt Integration**: Passes `[ENVIRONMENTAL EVENT OCCURS (Title)]: *description*` in `geminiService.ts`, `vertexHandler.ts`, and `api/gemini/generate.ts`.
 
 ---
 
