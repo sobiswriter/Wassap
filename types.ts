@@ -1,5 +1,5 @@
 
-export type MessageStatus = 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageStatus = 'sent' | 'delivered' | 'read' | 'failed' | 'pending';
 
 export interface FileAttachment {
   name: string;

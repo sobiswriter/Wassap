@@ -31,6 +31,14 @@ import {
   getMedia, 
   deleteMedia 
 } from './utils/storage';
+import { 
+  getPendingMessages, 
+  removePendingMessage, 
+  enqueuePendingMessage, 
+  getBackgroundExchanges, 
+  clearBackgroundExchanges 
+} from './utils/offlineQueue';
+import { WifiOff } from 'lucide-react';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
 // Helper to determine if a persona should reply with a voice note
@@ -543,6 +551,7 @@ const App: React.FC = () => {
   const [activeView, setActiveView] = useState<'list' | 'chat'>(initialChatId ? 'chat' : 'list');
   const handleChatSelectRef = React.useRef<(id: string) => void>(() => {});
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isOnline, setIsOnline] = useState<boolean>(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
   const [showNewChatPanel, setShowNewChatPanel] = useState(false);
   const [showNewGroupPanel, setShowNewGroupPanel] = useState(false);
@@ -1417,6 +1426,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     const cleanedText = isImageRequest ? text.replace(/@(img|image)\b/gi, '').trim() : text;
     const displayText = cleanedText || (isImageRequest ? 'Send a photo' : text);
 
+    const isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    const msgStatus: MessageStatus = isDeviceOnline ? 'sent' : 'pending';
+
     const userMsg: Message = {
       id: Date.now().toString(),
       text: displayText,
@@ -1432,7 +1444,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       date,
       timestamp,
       timestampEpoch: getAppNow(settingsRef.current).getTime(),
-      status: 'sent',
+      status: msgStatus,
       replyToMessage: replyTo,
       isEvent,
       eventTitle: isEvent ? eventTitle : undefined,
@@ -1459,6 +1471,12 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       }
       return chat;
     }));
+
+    if (!isDeviceOnline) {
+      // Save to offline queue so it will auto-send upon reconnection
+      await enqueuePendingMessage(targetChat.id, userMsg);
+      return;
+    }
 
     // Trigger AI response(s)
     if (isImageRequest || settings.enableTextStacking === false) {
@@ -1909,9 +1927,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             document.title = `(1) New Message - ${chat.name}`;
           }
           const stackedTurnText = chunks.slice(0, i + 1).join('\n');
+          const lastUserMsg = updatedHistory.filter(m => m.sender === 'me').pop();
+          const lastUserText = lastUserMsg?.text || '';
+          const notificationBodyText = (isBackgroundReply && lastUserText)
+            ? `You: ${lastUserText}\n${chat.name}: ${stackedTurnText}`
+            : stackedTurnText;
 
           showNotification(chat.name, {
-            body: stackedTurnText,
+            body: notificationBodyText,
             icon: chat.avatar,
             tag: chat.id,
             silentUpdate: isBackgroundReply ? false : !isFirstChunkOfTurn,
@@ -2157,9 +2180,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               document.title = `(1) New Message - ${group.name}`;
             }
             const stackedTurnText = chunks.slice(0, j + 1).join('\n');
+            const lastUserMsg = updatedHistory.filter(m => m.sender === 'me').pop();
+            const lastUserText = lastUserMsg?.text || '';
+            const notificationBodyText = (isBackgroundReply && lastUserText)
+              ? `You: ${lastUserText}\n${personaLabel}: ${stackedTurnText}`
+              : stackedTurnText;
 
             showNotification(`${group.name} - ${personaLabel}`, {
-              body: stackedTurnText,
+              body: notificationBodyText,
               icon: personaAvatar,
               tag: group.id,
               silentUpdate: isBackgroundReply ? false : !isFirstChunkOfTurn,
@@ -2225,6 +2253,132 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       handleNotificationChatSelectGlobal = null;
     };
   }, []);
+
+  // Sync background notification shade exchanges from IndexedDB into React chats state
+  const reconcileBackgroundExchanges = React.useCallback(async () => {
+    try {
+      const exchanges = await getBackgroundExchanges();
+      if (!exchanges || exchanges.length === 0) return;
+
+      setChats(prev => {
+        let hasChanges = false;
+        const updated = prev.map(chat => {
+          const matchingExchanges = exchanges.filter(e => e.chatId === chat.id);
+          if (matchingExchanges.length === 0) return chat;
+
+          const existingIds = new Set(chat.messages.map(m => m.id));
+          const newMessages: Message[] = [];
+
+          for (const ex of matchingExchanges) {
+            if (!existingIds.has(ex.userMessage.id)) {
+              newMessages.push(ex.userMessage);
+              existingIds.add(ex.userMessage.id);
+            }
+            for (const reply of ex.personaReplies) {
+              if (!existingIds.has(reply.id)) {
+                newMessages.push(reply);
+                existingIds.add(reply.id);
+              }
+            }
+          }
+
+          if (newMessages.length > 0) {
+            hasChanges = true;
+            const allMessages = [...chat.messages, ...newMessages];
+            const lastMsg = allMessages[allMessages.length - 1];
+            return {
+              ...chat,
+              lastMessage: lastMsg?.text || chat.lastMessage,
+              lastMessageTime: lastMsg?.timestamp || chat.lastMessageTime,
+              messages: allMessages
+            };
+          }
+          return chat;
+        });
+
+        return hasChanges ? updated : prev;
+      });
+
+      await clearBackgroundExchanges();
+    } catch (err) {
+      console.warn('Reconcile background exchanges failed:', err);
+    }
+  }, []);
+
+  // Flush queued messages when coming back online
+  const flushOfflineQueue = React.useCallback(async () => {
+    try {
+      const pendingItems = await getPendingMessages();
+      if (!pendingItems || pendingItems.length === 0) return;
+
+      for (const item of pendingItems) {
+        // Mark message as 'sent' in chats state
+        setChats(prev => prev.map(c => {
+          if (c.id === item.chatId) {
+            return {
+              ...c,
+              messages: c.messages.map(m => m.id === item.id ? { ...m, status: 'sent' as MessageStatus } : m)
+            };
+          }
+          return c;
+        }));
+
+        await removePendingMessage(item.id);
+
+        const targetChat = chatsRef.current.find(c => c.id === item.chatId);
+        if (targetChat) {
+          const updatedMessages = targetChat.messages.map(m => m.id === item.id ? { ...m, status: 'sent' as MessageStatus } : m);
+          const memoryContext = buildMemoryRecallContext(targetChat, item.message.text);
+          const scheduleContext = buildScheduleContext(targetChat);
+          const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false, settingsRef.current);
+          const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
+
+          if (targetChat.isGroup) {
+            handleGroupResponse(targetChat, updatedMessages, combinedContexts);
+          } else {
+            handleSingleResponse(targetChat, updatedMessages, combinedContexts, false, item.message.text);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Flush offline queue failed:', e);
+    }
+  }, []);
+
+  // Online / Offline & Background Reconciliation Lifecycle
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      flushOfflineQueue();
+      reconcileBackgroundExchanges();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial background reconciliation on mount
+    reconcileBackgroundExchanges();
+
+    // Reconcile whenever window becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        reconcileBackgroundExchanges();
+        if (navigator.onLine) {
+          flushOfflineQueue();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [flushOfflineQueue, reconcileBackgroundExchanges]);
 
   const handleBack = () => {
     // Instead of setActiveView, use history back to trigger popstate
@@ -2306,6 +2460,17 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         </div>
         <span className="text-[calc(var(--msg-font-size)-2.5px)] font-semibold text-secondary">WhatsApp</span>
       </div>
+
+      {/* Authentic WhatsApp Offline Banner */}
+      {!isOnline && (
+        <div className="bg-[#fed859] dark:bg-[#ffd279] text-[#111b21] px-4 py-2 flex items-center justify-between text-[13px] font-medium shadow-sm z-50 shrink-0 select-none animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2.5">
+            <WifiOff size={16} className="text-[#111b21] shrink-0 animate-pulse" />
+            <span>Connecting to Wassap... (Offline) — You can view all existing chats and queue messages</span>
+          </div>
+          <span className="text-[11px] opacity-80 font-normal hidden sm:inline">Will auto-send upon reconnect</span>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden bg-white dark:bg-[#0b1014] relative">
         <div className={`hidden md:block`}>

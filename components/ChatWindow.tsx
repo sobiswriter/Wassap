@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Search, MoreVertical, CheckCheck, Check, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
+import { Search, MoreVertical, CheckCheck, Check, Clock, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 import { Chat, MemoryBubble, Message, AppSettings } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, getMessageTimestampEpoch, isDateInRange, normalizeDateKey } from '../utils/dates';
@@ -471,7 +471,13 @@ const MessageBubble = React.memo<{
                 <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
                 {isMe && (
                   <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
-                    {message.status === 'sent' ? <Check size={16} /> : <CheckCheck size={16} />}
+                    {message.status === 'pending' ? (
+                      <Clock size={13} className="text-secondary/70 animate-pulse" />
+                    ) : message.status === 'sent' ? (
+                      <Check size={16} />
+                    ) : (
+                      <CheckCheck size={16} />
+                    )}
                   </span>
                 )}
               </div>
@@ -516,7 +522,13 @@ const MessageBubble = React.memo<{
                 <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
                 {isMe && (
                   <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
-                    {message.status === 'sent' ? <Check size={16} /> : <CheckCheck size={16} />}
+                    {message.status === 'pending' ? (
+                      <Clock size={13} className="text-secondary/70 animate-pulse" />
+                    ) : message.status === 'sent' ? (
+                      <Check size={16} />
+                    ) : (
+                      <CheckCheck size={16} />
+                    )}
                   </span>
                 )}
               </div>

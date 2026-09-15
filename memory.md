@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.7.6`
+- **Current Version**: `v1.7.8`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -189,16 +189,19 @@ Wassap/
       - Added URL parameter support on mount in `App.tsx` to automatically select persona and open chat view when launched via `/?chatId=...`, followed by clean URL replacement.
     - **IndexedDB Stabilization**: Restored single-responsibility `whatsapp_media_db` (v2) dedicated to `media_store` with `onversionchange` auto-closing and blocked prevention. Eliminated version downgrades and deadlocks that previously caused persona responses and typing indicators to hang.
     - **Direct Persona Opening on Desktop Fallback**: Desktop `new Notification()` fallback now navigates straight to persona on click.
-- [x] **v1.7.7**:
-  - **Background Notification Turnaround Optimization**:
-    - **Timer Throttling Bypass**: Bypassed multi-stage `setTimeout` delays in `handleSingleResponse` and `handleGroupResponse` when processing `INLINE_REPLY` (`isBackgroundReply = true`). Reduced response time from 30-60+ seconds (caused by mobile Chromium inactive tab throttling) down to 2-3 seconds.
-    - **Vibration Alert**: Added `vibrate: [200, 100, 200]` and `silentUpdate: false` for inline reply notifications so the phone buzzes in the shade when the persona replies.
-  - **Native Camera Viewfinder in Message Input**:
-    - Added dedicated `<input type="file" ref={cameraInputRef} accept="image/*" capture="environment" />` connected to the camera button in the input bar. Tapping it directly opens the smartphone camera viewfinder instead of the gallery.
-  - **Authentic WhatsApp Attachment Menu**:
-    - Overhauled attachment sheet to authentic WhatsApp aesthetics: vibrant circular gradient badges with drop shadows and crisp centered white icons:
-      - Document (`#7f66ff` to `#9985ff`), Camera (`#d3396d` to `#ec407a`), Gallery (`#ac44cf` to `#bf59cf`), Audio (`#fe7a15` to `#ff9800`), Location (`#1ea952` to `#25d366`), Contact (`#009de2` to `#00b0ff`), Poll (`#ffb300` to `#ffc107`), Event (`#e0537e` to `#f06292`), AI Images (`#0066ff` to `#00d2ff`).
-    - Hooked up functional file pickers for **Document** (`.pdf,.doc,.docx,.txt,.md,.xlsx,.pptx`) and **Audio** (`audio/*`), with staged preview and in-chat playback / download.
+- [x] **v1.7.8**:
+  - **Continuous Native Notification Shade Conversations**:
+    - **In-Shade Responsive Typing Feedback**: Submitting an inline reply from the OS notification shade immediately updates the notification to `You: "[replyText]"\n💬 [Name] is typing...` instead of closing into a blank void.
+    - **Multi-Turn Threaded Context**: Notification body reflects ongoing multi-turn conversational context (`You: ...\n[Persona]: ...`), preserving conversational awareness directly within Android / Windows notification shades.
+    - **Persistent In-Shade Reply Loop**: Notifications persistently retain the action buttons (`Reply` and `Mark as read`) after each persona turn, enabling full conversations without ever opening the app.
+    - **Service Worker Autonomous Background Execution**: If the browser tab is closed or killed by OS battery saver, `public/sw.js` autonomously executes the Gemini response, updates the notification shade, and logs the exchange into IndexedDB (`whatsapp_offline_db`).
+    - **Cross-Context Background Sync**: `App.tsx` reconciles `synced_background` on mount and on visibility change, seamlessly merging all notification-shade exchanges into chat history and `localStorage`.
+  - **Bulletproof Offline PWA Loading & Low-Connectivity Resilience**:
+    - **Fast-Timeout Navigation Strategy**: Added 1.5s network timeout with instant cached `/index.html` fallback in `sw.js`, eliminating 60-second freezes on flaky or 2G/subway networks.
+    - **Dynamic Asset & Font Caching**: Stale-while-revalidate caching for all Vite JS/CSS bundles, SVG icons, and Google Fonts.
+    - **Full Offline History Access**: Users can open the installed PWA offline, browse past chats, read previous conversations, and review media stored in IndexedDB.
+    - **Authentic WhatsApp Offline State**: Top amber warning banner (*"Connecting to Wassap... (Offline)"*) renders when offline.
+    - **Offline Outbox & Clock Icon (`pending`)**: Sending messages offline displays the authentic WhatsApp `Clock` icon (`status: 'pending'`) and enqueues to `whatsapp_offline_db.pending_outbox`. Upon network reconnection, messages automatically dispatch and change to sent ticks (`✓`), triggering persona replies.
 
 ---
 
