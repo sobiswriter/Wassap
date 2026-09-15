@@ -79,6 +79,23 @@
   - Minimalist bottom-right timestamp format matching WhatsApp native messages.
   - **AI Prompt Integration**: Passes `[ENVIRONMENTAL EVENT OCCURS (Title)]: *description*` in `geminiService.ts`, `vertexHandler.ts`, and `api/gemini/generate.ts`.
 
+### 6. Native Notification Shade Conversational Continuity & PWA Enhancements
+- **Notification Shade Inline Reply Continuity**:
+  - Full two-way dialogue support directly from the Android/system notification quick-reply shade without having to open the app.
+  - **Message Fragmentation in Notification Shade**:
+    - Ported full sentence and punctuation-aware `splitMessage` engine into `public/sw.js` (Service Worker scope).
+    - AI responses generated in the background (whether processed by the Service Worker or background tab in `App.tsx`) are realistically fragmented into distinct chunks rather than dispatched as a single wall of text.
+  - **Balanced, Snappy Stacking & Typing Delay Logic**:
+    - Respects the user's **Message Stacking** toggle and **Stacking Delay** setting from the app.
+    - If `enableTextStacking` is turned off in Settings, replies are immediate (`300ms - 600ms`).
+    - If enabled, uses a brisk reading pause (`800ms - 1500ms`), snappy typing speed proportional to chunk length (`chunk.length * 16ms`, clamped to `500ms - 1500ms`), and brief inter-chunk pauses (`400ms - 700ms`) so conversations stay fast and engaging without boring the user.
+  - **Clean Notification Hierarchy**:
+    - Streamlined notification display: removed redundant `You:` and `[Persona Name]:` prefixes inside notification bodies. Messages stack cleanly in the notification card without clutter.
+    - Removed synthetic "... is typing..." notification cards to keep shade clean and avoid notification spam.
+  - **Offline Storage & Synchronisation**:
+    - Full IndexedDB storage (`whatsapp_offline_db`) with `BACKGROUND_EXCHANGE_SYNC` broadcasts to keep client state and chats in sync across tabs and service workers.
+    - Zero warning banners or intrusive offline indicators, maintaining uninterrupted immersion.
+
 ---
 
 ## 🏛️ Architecture & Key Components

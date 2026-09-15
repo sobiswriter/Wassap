@@ -83,6 +83,8 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
     model: currentSettings?.selectedModel || 'gemini-3.8-flash',
     provider: currentSettings?.aiProvider || 'vertex',
     customApiKey: currentSettings?.apiKey,
+    enableTextStacking: currentSettings?.enableTextStacking !== false,
+    textStackingDelay: currentSettings?.textStackingDelay || 10,
     userName: currentUser?.name || 'You',
     userAbout: currentUser?.about || '',
     recentMessages: (chat.messages || []).slice(-8).map(m => ({
@@ -1627,8 +1629,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const thinkingDelay = 500 + Math.random() * 1000;
         await new Promise(resolve => setTimeout(resolve, thinkingDelay));
       } else {
-        // Snappy human pause for notification reply (avoids background timer throttling)
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // Snappy reading pause that respects user's enableTextStacking setting
+        const readingDelay = settings.enableTextStacking === false
+          ? 300 + Math.random() * 300
+          : 900 + Math.random() * 600;
+        await new Promise(resolve => setTimeout(resolve, readingDelay));
       }
 
       // Hydrate history with media data
@@ -1909,8 +1914,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           setChatStatus(chatId, 'typing...');
           await new Promise(resolve => setTimeout(resolve, typingDuration));
         } else {
-          // Minimal pause in background to avoid Android/Chrome timer throttling
-          await new Promise(resolve => setTimeout(resolve, 150));
+          // Snappy, realistic typing duration so user is never bored waiting
+          const typingDuration = settings.enableTextStacking === false
+            ? Math.min(Math.max(chunk.length * 10, 300), 800)
+            : Math.min(Math.max(chunk.length * 16, 500), 1500);
+          await new Promise(resolve => setTimeout(resolve, typingDuration));
         }
 
         const aiMsg: Message = {
@@ -1970,7 +1978,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             const interDelay = 1200 + Math.random() * 1000;
             await new Promise(resolve => setTimeout(resolve, interDelay));
           } else {
-            await new Promise(resolve => setTimeout(resolve, 150));
+            const interPause = settings.enableTextStacking === false
+              ? 250 + Math.random() * 200
+              : 400 + Math.random() * 300;
+            await new Promise(resolve => setTimeout(resolve, interPause));
           }
         }
       }
@@ -2041,7 +2052,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           const delay = 1000 + (Math.random() * 3000);
           await new Promise(resolve => setTimeout(resolve, delay));
         } else {
-          await new Promise(resolve => setTimeout(resolve, 300));
+          const groupDelay = settings.enableTextStacking === false
+            ? 300 + Math.random() * 300
+            : 800 + Math.random() * 500;
+          await new Promise(resolve => setTimeout(resolve, groupDelay));
         }
 
         setChatStatus(group.id, 'typing...');
@@ -2158,7 +2172,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             setChatStatus(group.id, 'typing...');
             await new Promise(resolve => setTimeout(resolve, typingDuration));
           } else {
-            await new Promise(resolve => setTimeout(resolve, 150));
+            const typingDuration = settings.enableTextStacking === false
+              ? Math.min(Math.max(chunk.length * 10, 300), 800)
+              : Math.min(Math.max(chunk.length * 16, 500), 1500);
+            await new Promise(resolve => setTimeout(resolve, typingDuration));
           }
 
           const aiMsg: Message = {
@@ -2222,7 +2239,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               const interDelay = 1000 + Math.random() * 1200;
               await new Promise(resolve => setTimeout(resolve, interDelay));
             } else {
-              await new Promise(resolve => setTimeout(resolve, 150));
+              const interPause = settings.enableTextStacking === false
+                ? 250 + Math.random() * 200
+                : 400 + Math.random() * 300;
+              await new Promise(resolve => setTimeout(resolve, interPause));
             }
           }
         }
