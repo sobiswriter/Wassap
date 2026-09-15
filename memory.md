@@ -191,16 +191,16 @@ Wassap/
     - **Direct Persona Opening on Desktop Fallback**: Desktop `new Notification()` fallback now navigates straight to persona on click.
 - [x] **v1.7.8**:
   - **Continuous Native Notification Shade Conversations**:
-    - **In-Shade Responsive Typing Feedback**: Submitting an inline reply from the OS notification shade immediately updates the notification to `You: "[replyText]"\n💬 [Name] is typing...` instead of closing into a blank void.
-    - **Multi-Turn Threaded Context**: Notification body reflects ongoing multi-turn conversational context (`You: ...\n[Persona]: ...`), preserving conversational awareness directly within Android / Windows notification shades.
+    - **Fully Autonomous Service Worker Execution (Open, Background, or Closed)**: Fixed the background tab reply issue where Chromium throttled background tab timers or `!isFocusingChat` suppressed notifications. The Service Worker directly executes the Gemini call within `event.waitUntil`, updates the notification shade, writes to IndexedDB, and broadcasts `BACKGROUND_EXCHANGE_SYNC` to any open window in real-time.
+    - **Clean Stacked Dialogue (No Name Prefixes)**: Removed `You:` and persona name prefixes from the notification body. Stacks conversation messages cleanly and naturally.
+    - **No Intermediate Typing Fluff**: Removed the `... is typing...` notification for a clean, prompt response turnaround.
     - **Persistent In-Shade Reply Loop**: Notifications persistently retain the action buttons (`Reply` and `Mark as read`) after each persona turn, enabling full conversations without ever opening the app.
-    - **Service Worker Autonomous Background Execution**: If the browser tab is closed or killed by OS battery saver, `public/sw.js` autonomously executes the Gemini response, updates the notification shade, and logs the exchange into IndexedDB (`whatsapp_offline_db`).
     - **Cross-Context Background Sync**: `App.tsx` reconciles `synced_background` on mount and on visibility change, seamlessly merging all notification-shade exchanges into chat history and `localStorage`.
   - **Bulletproof Offline PWA Loading & Low-Connectivity Resilience**:
     - **Fast-Timeout Navigation Strategy**: Added 1.5s network timeout with instant cached `/index.html` fallback in `sw.js`, eliminating 60-second freezes on flaky or 2G/subway networks.
     - **Dynamic Asset & Font Caching**: Stale-while-revalidate caching for all Vite JS/CSS bundles, SVG icons, and Google Fonts.
     - **Full Offline History Access**: Users can open the installed PWA offline, browse past chats, read previous conversations, and review media stored in IndexedDB.
-    - **Authentic WhatsApp Offline State**: Top amber warning banner (*"Connecting to Wassap... (Offline)"*) renders when offline.
+    - **Seamless Background Sync Without Banner**: Removed the immersion-breaking yellow banner. Wassap operates cleanly and silently queues offline messages.
     - **Offline Outbox & Clock Icon (`pending`)**: Sending messages offline displays the authentic WhatsApp `Clock` icon (`status: 'pending'`) and enqueues to `whatsapp_offline_db.pending_outbox`. Upon network reconnection, messages automatically dispatch and change to sent ticks (`✓`), triggering persona replies.
 
 ---

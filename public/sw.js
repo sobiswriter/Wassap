@@ -161,41 +161,7 @@ self.addEventListener('notificationclick', (event) => {
 
     event.waitUntil(
       (async () => {
-        // Immediate in-shade typing feedback! Keep notification alive with action buttons
-        try {
-          await self.registration.showNotification(chatName, {
-            body: `You: "${replyText}"\n💬 ${chatName} is typing...`,
-            icon: squareIcon,
-            badge: badgeIcon,
-            tag: targetChatId,
-            renotify: false,
-            silent: true,
-            data: notifData,
-            actions: [
-              { action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' },
-              { action: 'read', title: 'Mark as read' }
-            ]
-          });
-        } catch (e) {
-          console.warn('SW: immediate typing notification failed:', e);
-        }
-
-        // Check if an app window is open in background
-        const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-        if (clientList.length > 0) {
-          // App window is alive in the background: let it run the rich persona simulation & chunking!
-          clientList.forEach((client) => {
-            client.postMessage({
-              type: 'INLINE_REPLY',
-              chatId: targetChatId,
-              text: replyText,
-              keepBackground: true
-            });
-          });
-          return;
-        }
-
-        // App window is CLOSED or killed: Service Worker autonomously handles the conversation!
+        // Service Worker autonomously handles the conversation reliably in background!
         try {
           const recent = notifData.recentMessages || [];
           const history = [
@@ -262,8 +228,10 @@ self.addEventListener('notificationclick', (event) => {
           }
 
           if (!replyContent || typeof replyContent !== 'string') {
-            replyContent = "Got it! Let's talk soon.";
+            replyContent = "Got it! Talk soon.";
           }
+
+          const cleanReply = replyContent.trim();
 
           // Format current time
           const now = new Date();
@@ -283,22 +251,35 @@ self.addEventListener('notificationclick', (event) => {
 
           const personaMsg = {
             id: (Date.now() + 1).toString(),
-            text: replyContent.trim(),
+            text: cleanReply,
             sender: 'other',
             senderName: chatName,
             timestamp: timeStr,
             status: 'read'
           };
 
-          // Save to IndexedDB so React state will automatically reconcile when user launches app
+          // Save to IndexedDB so React state reconciles even if app is closed
           await saveBackgroundExchangeToIDB(targetChatId, userMsg, [personaMsg]);
 
-          // Assemble multi-turn conversation thread for the notification body
-          const threadedBody = `You: ${replyText}\n${chatName}: ${replyContent.trim()}`;
+          // Notify any open app window in real time
+          const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+          clientList.forEach((client) => {
+            try {
+              client.postMessage({
+                type: 'BACKGROUND_EXCHANGE_SYNC',
+                chatId: targetChatId,
+                userMessage: userMsg,
+                personaReplies: [personaMsg]
+              });
+            } catch (e) {}
+          });
+
+          // Stack clean dialogue without name prefixes
+          const threadedBody = `${replyText}\n${cleanReply}`;
 
           const updatedRecent = [
             ...history.slice(-6),
-            { text: replyContent.trim(), sender: 'other', senderName: chatName }
+            { text: cleanReply, sender: 'other', senderName: chatName }
           ];
 
           // Re-issue notification in shade with persona's answer, vibration, and persistent reply action!
@@ -322,7 +303,7 @@ self.addEventListener('notificationclick', (event) => {
         } catch (err) {
           console.error('SW: Autonomous reply handling failed:', err);
           await self.registration.showNotification(chatName, {
-            body: `You: "${replyText}"\n(Message queued. Tap to open)`,
+            body: `${replyText}\n(Message queued. Tap to open)`,
             icon: squareIcon,
             badge: badgeIcon,
             tag: targetChatId,

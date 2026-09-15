@@ -38,7 +38,6 @@ import {
   getBackgroundExchanges, 
   clearBackgroundExchanges 
 } from './utils/offlineQueue';
-import { WifiOff } from 'lucide-react';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
 // Helper to determine if a persona should reply with a voice note
@@ -600,6 +599,28 @@ const App: React.FC = () => {
         if (type === 'OPEN_CHAT' && chatId) {
           activeNotificationSoundChatsRef.current.delete(chatId);
           handleChatSelectRef.current(chatId);
+        } else if (type === 'BACKGROUND_EXCHANGE_SYNC' && chatId && event.data.userMessage && event.data.personaReplies) {
+          const { userMessage, personaReplies } = event.data;
+          setChats(prev => prev.map(c => {
+            if (c.id === chatId) {
+              const existingIds = new Set(c.messages.map(m => m.id));
+              const toAdd: Message[] = [];
+              if (!existingIds.has(userMessage.id)) toAdd.push(userMessage);
+              for (const r of personaReplies) {
+                if (!existingIds.has(r.id)) toAdd.push(r);
+              }
+              if (toAdd.length === 0) return c;
+              const allMsgs = [...c.messages, ...toAdd];
+              const last = allMsgs[allMsgs.length - 1];
+              return {
+                ...c,
+                lastMessage: last?.text || c.lastMessage,
+                lastMessageTime: last?.timestamp || c.lastMessageTime,
+                messages: allMsgs
+              };
+            }
+            return c;
+          }));
         } else if (type === 'INLINE_REPLY' && chatId && event.data.text) {
           const text = event.data.text;
           const targetChat = chatsRef.current.find(c => c.id === chatId);
@@ -1922,7 +1943,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         }
 
         const isFocusingChat = !document.hidden && activeChatId === chat.id;
-        if (settings.enableNotifications && !isFocusingChat) {
+        if (settings.enableNotifications && (!isFocusingChat || isBackgroundReply)) {
           if (document.hidden) {
             document.title = `(1) New Message - ${chat.name}`;
           }
@@ -1930,7 +1951,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           const lastUserMsg = updatedHistory.filter(m => m.sender === 'me').pop();
           const lastUserText = lastUserMsg?.text || '';
           const notificationBodyText = (isBackgroundReply && lastUserText)
-            ? `You: ${lastUserText}\n${chat.name}: ${stackedTurnText}`
+            ? `${lastUserText}\n${stackedTurnText}`
             : stackedTurnText;
 
           showNotification(chat.name, {
@@ -2173,7 +2194,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           }
 
           const isFocusingChat = !document.hidden && activeChatId === group.id;
-          if (settings.enableNotifications && !isFocusingChat) {
+          if (settings.enableNotifications && (!isFocusingChat || isBackgroundReply)) {
             const personaLabel = chats.find(c => c.id === responderId)?.name || 'Group Member';
             const personaAvatar = chats.find(c => c.id === responderId)?.avatar || group.avatar;
             if (document.hidden) {
@@ -2183,7 +2204,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             const lastUserMsg = updatedHistory.filter(m => m.sender === 'me').pop();
             const lastUserText = lastUserMsg?.text || '';
             const notificationBodyText = (isBackgroundReply && lastUserText)
-              ? `You: ${lastUserText}\n${personaLabel}: ${stackedTurnText}`
+              ? `${lastUserText}\n${stackedTurnText}`
               : stackedTurnText;
 
             showNotification(`${group.name} - ${personaLabel}`, {
@@ -2458,19 +2479,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.767 5.767 0 1.267.405 2.436 1.096 3.389l-.711 2.597 2.659-.697a5.733 5.733 0 0 0 2.723.678c3.181 0 5.767-2.586 5.767-5.767 0-3.181-2.586-5.767-5.767-5.767zm3.39 8.136c-.147.414-.733.754-1.011.802-.278.048-.543.085-1.545-.303-1.002-.387-1.649-1.398-1.698-1.464-.048-.066-.401-.532-.401-1.022 0-.49.255-.731.345-.83.09-.099.198-.122.264-.122.066 0 .132.001.189.004.057.002.132-.023.208.156.075.18.255.621.28.669.024.047.04.103.01.16-.03.057-.045.094-.09.146-.045.052-.094.113-.137.151-.047.042-.094.085-.042.174.052.09.231.382.495.617.34.303.623.396.711.439.088.042.141.033.193-.028.052-.061.222-.259.283-.349.061-.088.122-.075.208-.042.085.033.543.255.637.302.094.047.156.071.18.113.023.042.023.245-.124.659zM12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
           </svg>
         </div>
-        <span className="text-[calc(var(--msg-font-size)-2.5px)] font-semibold text-secondary">WhatsApp</span>
       </div>
-
-      {/* Authentic WhatsApp Offline Banner */}
-      {!isOnline && (
-        <div className="bg-[#fed859] dark:bg-[#ffd279] text-[#111b21] px-4 py-2 flex items-center justify-between text-[13px] font-medium shadow-sm z-50 shrink-0 select-none animate-in slide-in-from-top duration-300">
-          <div className="flex items-center gap-2.5">
-            <WifiOff size={16} className="text-[#111b21] shrink-0 animate-pulse" />
-            <span>Connecting to Wassap... (Offline) — You can view all existing chats and queue messages</span>
-          </div>
-          <span className="text-[11px] opacity-80 font-normal hidden sm:inline">Will auto-send upon reconnect</span>
-        </div>
-      )}
 
       <div className="flex-1 flex overflow-hidden bg-white dark:bg-[#0b1014] relative">
         <div className={`hidden md:block`}>
