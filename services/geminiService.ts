@@ -166,6 +166,157 @@ async function fetchVertexTTS(payload: {
   }
 }
 
+export const buildFullPersonaSystemPrompt = (
+  responder: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string; humaneSettings?: HumaneSettings },
+  messageHistory: { text: string; sender: string; senderName?: string; image?: string; audio?: string; isEvent?: boolean; eventTitle?: string }[],
+  userProfile?: UserProfile,
+  groupContext?: { groupName: string; otherMembers: string[] },
+  settings?: AppSettings,
+  initiationContext?: string,
+  clientTimeContext?: string,
+  isVoiceNoteReply?: boolean
+): string => {
+  const historyString = (messageHistory || [])
+    .map(m => {
+      if ((m as any).isEvent) {
+        const imgTag = m.image ? "[IMAGE ATTACHED TO EVENT]" : "";
+        const titleStr = (m as any).eventTitle ? ` (${(m as any).eventTitle})` : '';
+        return `[ENVIRONMENTAL EVENT OCCURS${titleStr}]: *${m.text || ''}* ${imgTag}`.trim();
+      }
+      const name = m.sender === 'me' ? (userProfile?.name || 'User') : (m.senderName || responder.name);
+      const imgTag = m.image ? "[IMAGE ATTACHED]" : "";
+      return `${name}: ${imgTag} ${m.text || ''}`.trim();
+    })
+    .join('\n');
+
+  const profileContext = [
+    `YOUR IDENTITY:`,
+    `Name: ${responder.name}`,
+    responder.about ? `About you: ${responder.about}` : '',
+    responder.role ? `Your Role: ${responder.role}` : '',
+    responder.speechStyle ? `Your Speech Style: ${responder.speechStyle}` : '',
+    responder.systemInstruction ? `Your Persona Guidelines: ${responder.systemInstruction}` : ''
+  ].filter(Boolean).join('\n');
+
+  const groupPrompt = groupContext ? `
+GROUP CHAT CONTEXT:
+This is a group chat called "${groupContext.groupName}".
+Other active participants in this chat include: ${groupContext.otherMembers.join(', ')}.
+You should interact naturally with BOTH the User and the other AI personas in the thread.
+Subtly acknowledge what others have said. Keep the conversation flowing.
+` : '';
+
+  const userContext = (userProfile && userProfile.name !== 'You') ? `
+USER INFORMATION (The person you are chatting with):
+Name: ${userProfile.name}
+About: ${userProfile.about}
+Current Status: ${userProfile.status}
+` : '';
+
+  const currentDateTimeStr = clientTimeContext || getAppTimeContext(settings);
+  const timeContext = settings?.shareTimeContext !== false ? `
+CURRENT SYSTEM DATE AND TIME:
+${currentDateTimeStr}
+CRITICAL RULE: Do NOT explicitly mention the exact system date or clock time (e.g. do not say "It is Thursday, June 25 at 17:51") in your messages unless the User specifically asks about it. Use this system timestamp only to silently adjust your context (e.g. knowing it's late at night). However, you are ENCOURAGED to naturally acknowledge relative time gaps (e.g. "since yesterday", "a few days ago") and chat frequency when relevant to the conversation.
+` : '';
+
+  const notesContext = (settings?.shareCalendarNotes && settings?.calendarNotes) ? `
+USER'S IMPORTANT DATES / NOTES FOR YOU:
+${settings.calendarNotes}
+` : '';
+
+  const groundingPrompt = settings?.useSearchGrounding ? `
+CRITICAL INSTRUCTION: Google Search Grounding is ENABLED. If the user asks for current events, facts, or tells you to check the web, you MUST use your Google Search tool to find the answer.
+IMPORTANT RULE: NEVER use formal citations (like [1], URLs, or "according to..."). Weave the facts you find naturally into your chat response as if you just looked it up on your phone. Keep your persona intact!
+` : '';
+
+  const isInitiationDirective = initiationContext && (
+    initiationContext.includes('[SCHEDULED INTERACTION]') ||
+    initiationContext.includes('[CATCH-UP REQUIRED]') ||
+    initiationContext.includes('[INACTIVITY CHECK-IN]') ||
+    initiationContext.includes('[MANUAL TEST]') ||
+    initiationContext.includes('[TIME GAP DETECTED]') ||
+    initiationContext.includes('[LEFT ON READ]') ||
+    initiationContext.includes('[CHAT FREQUENCY INFO]')
+  );
+
+  const initiationPrompt = initiationContext ? (isInitiationDirective ? `
+CRITICAL INSTRUCTION: You are re-initiating the conversation right now.
+${initiationContext.includes('[LEFT ON READ]')
+  ? `INTENT: The user just read your message (marked as read / blue ticks) but left you on read without replying. React naturally in character to being left on read (e.g. casual callout, banter, teasing, or question). Keep it concise (1 short sentence/line).`
+  : (initiationContext.includes('[SCHEDULED INTERACTION]') || initiationContext.includes('[CATCH-UP REQUIRED]') 
+    ? `INTENT: This is a scheduled interaction. You MUST prioritize this intent and address it immediately while remaining context-aware.` 
+    : `CONTEXT: This is a natural check-in. Prioritize the conversation history and flow while acknowledging the silence naturally.`)}
+Context/Directive details:
+${initiationContext}
+` : `
+ADDITIONAL CONTEXT & GUIDELINES:
+Use the following context as a SUBTLE background influence on your mood/availability. Do NOT announce this context directly to the User unless asked.
+${initiationContext}`) : '';
+
+  const eventInstruction = messageHistory.some((m: any) => m.isEvent) ? `
+SPECIAL ROLEPLAY RULE FOR EVENTS:
+If the last message is an [ENVIRONMENTAL EVENT OCCURS], do NOT treat it as a text message from the User. It is an objective event that genuinely just happened around you or to you.
+React to it organically in your next text message to the User. Let your text be a natural, spontaneous reaction to whatever the event was, reflecting your true persona's feelings about the situation. You can also include physical actions in asterisks if necessary.
+` : '';
+
+  let humaneInstructions = "";
+  if (responder.humaneSettings?.enabled) {
+    if (responder.humaneSettings.banRoboticLanguage) {
+      humaneInstructions += "\n- NEVER use robotic phrases like 'As an AI', 'I understand', 'How can I assist you', or 'That sounds great!'. React emotionally and naturally, not like a customer service bot.";
+    }
+    if (responder.humaneSettings.humanImperfections) {
+      humaneInstructions += "\n- Be realistically human: use casual abbreviations (e.g., tbh, idk, lol), don't always use perfect punctuation or capitalization, and allow for occasional natural conversational fillers (like 'umm', 'well', 'anyway').";
+    }
+    if (responder.humaneSettings.varyMessageLength) {
+      humaneInstructions += "\n- CRITICAL LENGTH RULE: Keep your total response EXTREMELY SHORT. You must write at most 1 to 2 very brief sentences, but mostly just 1 line. Since your response will be chopped up into individual rapid-fire texts, do NOT write long paragraphs.";
+    }
+    if (responder.humaneSettings.moodSliderEnabled) {
+      const mood = responder.humaneSettings.moodValue;
+      let moodState = "neutral";
+      if (mood <= 10) moodState = "very annoyed and hostile";
+      else if (mood <= 30) moodState = "annoyed and grumpy";
+      else if (mood <= 45) moodState = "indifferent and dismissive";
+      else if (mood <= 55) moodState = "tranquil and okay";
+      else if (mood <= 70) moodState = "good and positive";
+      else if (mood <= 90) moodState = "happy and warm";
+      else moodState = "very excited and thrilled";
+      
+      humaneInstructions += `\n- MOOD OVERRIDE: Your current emotional state is "${moodState}". Let this heavily influence your tone, reactions, and word choice in this response.`;
+    }
+  }
+
+  const voiceNotePrompt = isVoiceNoteReply ? `
+VOICE NOTE RECORDING INSTRUCTIONS:
+You are recording a real voice note. You can expressively use inline brackets for delivery and emotion such as [whispers], [laughs], [sighs], [excited], [pauses] where natural to breathe life into the voice.
+` : '';
+
+  return `You are ${responder.name}. 
+${profileContext}
+${groupPrompt}
+${userContext}
+${timeContext}
+${notesContext}
+${groundingPrompt}
+${initiationPrompt}
+${eventInstruction}
+${voiceNotePrompt}
+
+Instructions:
+1. If an initiation INTENT or CONTEXT is provided above, follow its prioritization directive.
+2. Breathe life into this persona! Maintain your unique personality and speech style at all times.
+3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
+4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
+5. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
+6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.' : 'Respond naturally without any strict length restrictions.'}
+7. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict ban on robotic language below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
+
+Conversation History:
+${historyString}
+
+Response as ${responder.name}:`;
+};
+
 export const getGeminiResponse = async (
   responder: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string; humaneSettings?: HumaneSettings },
   messageHistory: { text: string; sender: string; senderName?: string; image?: string; audio?: string }[],
@@ -210,146 +361,17 @@ export const getGeminiResponse = async (
 
   const ai = new GoogleGenAI({ apiKey: finalKey });
 
-
   try {
-    const historyString = messageHistory
-      .map(m => {
-        if ((m as any).isEvent) {
-          const imgTag = m.image ? "[IMAGE ATTACHED TO EVENT]" : "";
-          const titleStr = (m as any).eventTitle ? ` (${(m as any).eventTitle})` : '';
-          return `[ENVIRONMENTAL EVENT OCCURS${titleStr}]: *${m.text || ''}* ${imgTag}`.trim();
-        }
-        const name = m.sender === 'me' ? (userProfile?.name || 'User') : (m.senderName || responder.name);
-        const imgTag = m.image ? "[IMAGE ATTACHED]" : "";
-        return `${name}: ${imgTag} ${m.text || ''}`.trim();
-      })
-      .join('\n');
-
-    const profileContext = [
-      `YOUR IDENTITY:`,
-      `Name: ${responder.name}`,
-      responder.about ? `About you: ${responder.about}` : '',
-      responder.role ? `Your Role: ${responder.role}` : '',
-      responder.speechStyle ? `Your Speech Style: ${responder.speechStyle}` : '',
-      responder.systemInstruction ? `Your Persona Guidelines: ${responder.systemInstruction}` : ''
-    ].filter(Boolean).join('\n');
-
-    const groupPrompt = groupContext ? `
-GROUP CHAT CONTEXT:
-This is a group chat called "${groupContext.groupName}".
-Other active participants in this chat include: ${groupContext.otherMembers.join(', ')}.
-You should interact naturally with BOTH the User and the other AI personas in the thread.
-Subtly acknowledge what others have said. Keep the conversation flowing.
-` : '';
-
-    const userContext = (userProfile && userProfile.name !== 'You') ? `
-USER INFORMATION (The person you are chatting with):
-Name: ${userProfile.name}
-About: ${userProfile.about}
-Current Status: ${userProfile.status}
-` : '';
-
-    const timeContext = settings?.shareTimeContext !== false ? `
-CURRENT SYSTEM DATE AND TIME:
-${getAppTimeContext(settings)}
-CRITICAL RULE: Do NOT explicitly mention the exact system date or clock time (e.g. do not say "It is Thursday, June 25 at 17:51") in your messages unless the User specifically asks about it. Use this system timestamp only to silently adjust your context (e.g. knowing it's late at night). However, you are ENCOURAGED to naturally acknowledge relative time gaps (e.g. "since yesterday", "a few days ago") and chat frequency when relevant to the conversation.
-` : '';
-
-    const notesContext = (settings?.shareCalendarNotes && settings?.calendarNotes) ? `
-USER'S IMPORTANT DATES / NOTES FOR YOU:
-${settings.calendarNotes}
-` : '';
-
-    const groundingPrompt = settings?.useSearchGrounding ? `
-CRITICAL INSTRUCTION: Google Search Grounding is ENABLED. If the user asks for current events, facts, or tells you to check the web, you MUST use your Google Search tool to find the answer.
-IMPORTANT RULE: NEVER use formal citations (like [1], URLs, or "according to..."). Weave the facts you find naturally into your chat response as if you just looked it up on your phone. Keep your persona intact!
-` : '';
-
-    const isInitiationDirective = initiationContext && (
-      initiationContext.includes('[SCHEDULED INTERACTION]') ||
-      initiationContext.includes('[CATCH-UP REQUIRED]') ||
-      initiationContext.includes('[INACTIVITY CHECK-IN]') ||
-      initiationContext.includes('[MANUAL TEST]') ||
-      initiationContext.includes('[TIME GAP DETECTED]') ||
-      initiationContext.includes('[LEFT ON READ]') ||
-      initiationContext.includes('[CHAT FREQUENCY INFO]')
+    const systemPrompt = buildFullPersonaSystemPrompt(
+      responder,
+      messageHistory,
+      userProfile,
+      groupContext,
+      settings,
+      initiationContext,
+      undefined,
+      isVoiceNoteReply
     );
-
-    const initiationPrompt = initiationContext ? (isInitiationDirective ? `
-CRITICAL INSTRUCTION: You are re-initiating the conversation right now.
-${initiationContext.includes('[LEFT ON READ]')
-  ? `INTENT: The user just read your message (marked as read / blue ticks) but left you on read without replying. React naturally in character to being left on read (e.g. casual callout, banter, teasing, or question). Keep it concise (1 short sentence/line).`
-  : (initiationContext.includes('[SCHEDULED INTERACTION]') || initiationContext.includes('[CATCH-UP REQUIRED]') 
-    ? `INTENT: This is a scheduled interaction. You MUST prioritize this intent and address it immediately while remaining context-aware.` 
-    : `CONTEXT: This is a natural check-in. Prioritize the conversation history and flow while acknowledging the silence naturally.`)}
-Context/Directive details:
-${initiationContext}
-` : `
-ADDITIONAL CONTEXT & GUIDELINES:
-Use the following context as a SUBTLE background influence on your mood/availability. Do NOT announce this context directly to the User unless asked.
-${initiationContext}`) : '';
-
-    const eventInstruction = messageHistory.some((m: any) => m.isEvent) ? `
-SPECIAL ROLEPLAY RULE FOR EVENTS:
-If the last message is an [ENVIRONMENTAL EVENT OCCURS], do NOT treat it as a text message from the User. It is an objective event that genuinely just happened around you or to you.
-React to it organically in your next text message to the User. Let your text be a natural, spontaneous reaction to whatever the event was, reflecting your true persona's feelings about the situation. You can also include physical actions in asterisks if necessary.
-` : '';
-
-    let humaneInstructions = "";
-    if (responder.humaneSettings?.enabled) {
-      if (responder.humaneSettings.banRoboticLanguage) {
-        humaneInstructions += "\n- NEVER use robotic phrases like 'As an AI', 'I understand', 'How can I assist you', or 'That sounds great!'. React emotionally and naturally, not like a customer service bot.";
-      }
-      if (responder.humaneSettings.humanImperfections) {
-        humaneInstructions += "\n- Be realistically human: use casual abbreviations (e.g., tbh, idk, lol), don't always use perfect punctuation or capitalization, and allow for occasional natural conversational fillers (like 'umm', 'well', 'anyway').";
-      }
-      if (responder.humaneSettings.varyMessageLength) {
-        humaneInstructions += "\n- CRITICAL LENGTH RULE: Keep your total response EXTREMELY SHORT. You must write at most 1 to 2 very brief sentences, but mostly just 1 line. Since your response will be chopped up into individual rapid-fire texts, do NOT write long paragraphs.";
-      }
-      if (responder.humaneSettings.moodSliderEnabled) {
-        const mood = responder.humaneSettings.moodValue;
-        let moodState = "neutral";
-        if (mood <= 10) moodState = "very annoyed and hostile";
-        else if (mood <= 30) moodState = "annoyed and grumpy";
-        else if (mood <= 45) moodState = "indifferent and dismissive";
-        else if (mood <= 55) moodState = "tranquil and okay";
-        else if (mood <= 70) moodState = "good and positive";
-        else if (mood <= 90) moodState = "happy and warm";
-        else moodState = "very excited and thrilled";
-        
-        humaneInstructions += `\n- MOOD OVERRIDE: Your current emotional state is "${moodState}". Let this heavily influence your tone, reactions, and word choice in this response.`;
-      }
-    }
-
-    const voiceNotePrompt = isVoiceNoteReply ? `
-VOICE NOTE RECORDING INSTRUCTIONS:
-You are recording a real voice note. You can expressively use inline brackets for delivery and emotion such as [whispers], [laughs], [sighs], [excited], [pauses] where natural to breathe life into the voice.
-` : '';
-
-    const systemPrompt = `You are ${responder.name}. 
-${profileContext}
-${groupPrompt}
-${userContext}
-${timeContext}
-${notesContext}
-${groundingPrompt}
-${initiationPrompt}
-${eventInstruction}
-${voiceNotePrompt}
-
-Instructions:
-1. If an initiation INTENT or CONTEXT is provided above, follow its prioritization directive.
-2. Breathe life into this persona! Maintain your unique personality and speech style at all times.
-3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
-4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
-5. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
-6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.' : 'Respond naturally without any strict length restrictions.'}
-7. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict ban on robotic language below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
-
-Conversation History:
-${historyString}
-
-Response as ${responder.name}:`;
 
     const recentMessagesWithMedia = messageHistory.slice(-5).filter(m => (m.image && m.image.startsWith('data:')) || (m.audio && m.audio.startsWith('data:')));
     const parts: any[] = [{ text: systemPrompt }];

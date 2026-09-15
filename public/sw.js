@@ -309,7 +309,21 @@ self.addEventListener('notificationclick', (event) => {
 
     event.waitUntil(
       (async () => {
-        // Service Worker autonomously handles the conversation reliably in background!
+        // First check if an active app window is open to handle with full live in-memory React state
+        const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+        if (clientList && clientList.length > 0) {
+          const client = clientList.find(c => c.visibilityState === 'visible' || c.focused) || clientList[0];
+          if (client) {
+            client.postMessage({
+              type: 'INLINE_REPLY',
+              chatId: targetChatId,
+              text: replyText
+            });
+            return;
+          }
+        }
+
+        // Otherwise, Service Worker autonomously handles the conversation reliably in background!
         try {
           // 1. Snappy reading delay that respects user's enableTextStacking setting
           const readingDelay = notifData.enableTextStacking === false
@@ -320,7 +334,7 @@ self.addEventListener('notificationclick', (event) => {
           const recent = notifData.recentMessages || [];
           const history = [
             ...recent,
-            { text: replyText, sender: 'me', senderName: 'You' }
+            { text: replyText, sender: 'me', senderName: notifData.userName || 'You' }
           ];
 
           let replyContent = '';
@@ -328,30 +342,29 @@ self.addEventListener('notificationclick', (event) => {
           const customApiKey = notifData.customApiKey;
 
           if (provider === 'custom' && customApiKey) {
-            // Direct Gemini AI Studio call
+            // Direct Gemini AI Studio call with full persona identity, user profile, and system prompt
             const model = notifData.model || 'gemini-2.5-flash';
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${customApiKey}`;
-            const contents = history.map(m => ({
-              role: m.sender === 'me' ? 'user' : 'model',
-              parts: [{ text: m.text }]
-            }));
-            const systemInstruction = notifData.instruction ? {
-              parts: [{ text: notifData.instruction }]
-            } : undefined;
+            
+            let promptToSend = '';
+            if (notifData.fullSystemPrompt) {
+              promptToSend = `${notifData.fullSystemPrompt}\n${notifData.userName || 'You'}: ${replyText}\n\nResponse as ${chatName}:`;
+            } else {
+              promptToSend = `${notifData.instruction || ''}\n\nUser: ${replyText}\n\nResponse as ${chatName}:`;
+            }
 
             const apiRes = await fetch(url, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                contents,
-                systemInstruction,
+                contents: [{ parts: [{ text: promptToSend }] }],
                 generationConfig: { temperature: 0.85, maxOutputTokens: 800 }
               })
             });
             const apiJson = await apiRes.json();
             replyContent = apiJson.candidates?.[0]?.content?.parts?.[0]?.text || '';
           } else {
-            // Vertex / Serverless Proxy Call
+            // Vertex / Serverless Proxy Call with complete context
             const payload = {
               responder: {
                 name: chatName,
@@ -362,10 +375,22 @@ self.addEventListener('notificationclick', (event) => {
                 humaneSettings: notifData.humaneSettings
               },
               messageHistory: history,
-              userProfile: {
+              userProfile: notifData.userProfile || {
                 name: notifData.userName || 'You',
-                about: notifData.userAbout || ''
+                about: notifData.userAbout || '',
+                status: notifData.userStatus || 'Online'
               },
+              groupContext: notifData.groupContext,
+              settings: notifData.settings || {
+                selectedModel: notifData.model,
+                useSearchGrounding: notifData.useSearchGrounding,
+                shareTimeContext: notifData.shareTimeContext !== false,
+                shareCalendarNotes: notifData.shareCalendarNotes,
+                calendarNotes: notifData.calendarNotes,
+                clientTimeContext: notifData.clientTimeContext
+              },
+              clientTimeContext: notifData.clientTimeContext,
+              initiationContext: notifData.timeGapContext,
               passcode: 'Ness2020'
             };
 
@@ -444,7 +469,7 @@ self.addEventListener('notificationclick', (event) => {
               data: {
                 ...notifData,
                 recentMessages: [
-                  ...history.slice(-6),
+                  ...history.slice(-35),
                   ...chunks.slice(0, i + 1).map(c => ({ text: c, sender: 'other', senderName: chatName }))
                 ]
               },

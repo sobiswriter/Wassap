@@ -22,9 +22,10 @@ import {
   synthesizeImageContextAndCaption, 
   generatePersonaImage, 
   generatePersonaImageExcuse, 
-  resolveAvatarBase64 
+  resolveAvatarBase64,
+  buildFullPersonaSystemPrompt 
 } from './services/geminiService';
-import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext, getAppNow, getAppDateKey, getAppFormattedTime } from './utils/dates';
+import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext, getAppNow, getAppDateKey, getAppFormattedTime, getAppTimeContext } from './utils/dates';
 import { cleanSpokenTranscript } from './utils/audio';
 import { 
   saveMedia, 
@@ -60,15 +61,46 @@ const shouldReplyWithVoiceNote = (
   return false;
 };
 
-// Module-level pointer to active settings and user profile to ensure global consistency across time formatting and notification payloads
+// Module-level pointer to active settings, chats, and user profile to ensure global consistency across time formatting and notification payloads
 let globalActiveSettings: AppSettings | undefined = undefined;
 let globalActiveUser: UserProfile | undefined = undefined;
+let globalActiveChats: Chat[] = [];
 const getFormattedTime = () => getAppFormattedTime(globalActiveSettings);
 const getDateKey = () => getAppDateKey(globalActiveSettings);
 
-const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, overrideSettings?: AppSettings) => {
+const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, overrideSettings?: AppSettings, overrideChats?: Chat[]) => {
   const currentSettings = overrideSettings || globalActiveSettings;
   const currentUser = overrideUser || globalActiveUser;
+  const currentChats = overrideChats || globalActiveChats;
+  const clientTimeContext = getAppTimeContext(currentSettings);
+  const timeGapContext = getTimeGapAndFrequencyContext(chat.messages || [], false, currentSettings) || '';
+
+  const recentMessages = (chat.messages || []).slice(-35).map(m => ({
+    id: m.id,
+    text: m.text,
+    sender: m.sender,
+    senderName: m.senderName || (m.sender === 'me' ? (currentUser?.name || 'You') : chat.name),
+    timestamp: m.timestamp,
+    date: m.date,
+    isEvent: (m as any).isEvent,
+    eventTitle: (m as any).eventTitle
+  }));
+
+  const groupContext = chat.isGroup ? {
+    groupName: chat.name,
+    otherMembers: (chat.memberIds || []).filter(id => id !== chat.id).map(id => currentChats.find(c => c.id === id)?.name || id)
+  } : undefined;
+
+  const fullSystemPrompt = buildFullPersonaSystemPrompt(
+    chat,
+    recentMessages,
+    currentUser,
+    groupContext,
+    currentSettings,
+    timeGapContext,
+    clientTimeContext
+  );
+
   return {
     chatId: chat.id,
     chatName: chat.name,
@@ -85,13 +117,31 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
     customApiKey: currentSettings?.apiKey,
     enableTextStacking: currentSettings?.enableTextStacking !== false,
     textStackingDelay: currentSettings?.textStackingDelay || 10,
+    clientTimeContext,
+    shareTimeContext: currentSettings?.shareTimeContext !== false,
+    shareCalendarNotes: !!currentSettings?.shareCalendarNotes,
+    calendarNotes: currentSettings?.calendarNotes || '',
+    useSearchGrounding: !!currentSettings?.useSearchGrounding,
+    timeGapContext,
+    groupContext,
+    fullSystemPrompt,
     userName: currentUser?.name || 'You',
     userAbout: currentUser?.about || '',
-    recentMessages: (chat.messages || []).slice(-8).map(m => ({
-      text: m.text,
-      sender: m.sender,
-      senderName: m.senderName
-    }))
+    userStatus: currentUser?.status || 'Online',
+    userProfile: {
+      name: currentUser?.name || 'You',
+      about: currentUser?.about || '',
+      status: currentUser?.status || 'Online'
+    },
+    settings: {
+      selectedModel: currentSettings?.selectedModel || 'gemini-3.8-flash',
+      useSearchGrounding: currentSettings?.useSearchGrounding,
+      shareTimeContext: currentSettings?.shareTimeContext !== false,
+      shareCalendarNotes: currentSettings?.shareCalendarNotes,
+      calendarNotes: currentSettings?.calendarNotes,
+      clientTimeContext
+    },
+    recentMessages
   };
 };
 
@@ -570,7 +620,7 @@ const App: React.FC = () => {
   const aiRespondingChatsRef = React.useRef<Set<string>>(new Set());
   const pendingTimeGapsRef = React.useRef<Record<string, string | undefined>>({});
   const leftOnReadTimeoutsRef = React.useRef<Record<string, number>>({});
-  useEffect(() => { chatsRef.current = chats; }, [chats]);
+  useEffect(() => { chatsRef.current = chats; globalActiveChats = chats; }, [chats]);
 
 
   const sendNotificationWithChimeRule = (chatId: string, title: string, avatar: string, bodyText: string, extraData?: any) => {

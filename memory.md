@@ -92,6 +92,16 @@
   - **Clean Notification Hierarchy**:
     - Streamlined notification display: removed redundant `You:` and `[Persona Name]:` prefixes inside notification bodies. Messages stack cleanly in the notification card without clutter.
     - Removed synthetic "... is typing..." notification cards to keep shade clean and avoid notification spam.
+  - **Full Conversational Context & History Parity**:
+    - **Active Window Delegation**: When the app is open (even in the background), `public/sw.js` delegates inline notification replies directly to `App.tsx` via `INLINE_REPLY` postMessage, utilizing the live in-memory React chat state, media hydration, memory recall, and timing calculations.
+    - **Autonomous Full-Context Parity**: When the app is closed, `public/sw.js` now receives the full contextual payload:
+      - Extended rolling history window up to 35 messages (`slice(-35)`), completely resolving the previous 6-8 message memory loss bug.
+      - Exact `clientTimeContext` (local/simulated user system time, e.g. "Tuesday, September 15, 2026, 10:35 PM").
+      - `timeGapContext` (relative time elapsed: "last chatted yesterday", "been 4 hours", etc.).
+      - Full `settings` (`shareTimeContext`, `shareCalendarNotes`, `calendarNotes`, `useSearchGrounding`).
+      - Full `userProfile` (`name`, `about`, `status`).
+      - Group context (`groupName`, `otherMembers`).
+      - `buildFullPersonaSystemPrompt`: Unified system prompt builder in `services/geminiService.ts` used by both in-app chats and notification Custom API/Vertex calls.
   - **Offline Storage & Synchronisation**:
     - Full IndexedDB storage (`whatsapp_offline_db`) with `BACKGROUND_EXCHANGE_SYNC` broadcasts to keep client state and chats in sync across tabs and service workers.
     - Zero warning banners or intrusive offline indicators, maintaining uninterrupted immersion.
