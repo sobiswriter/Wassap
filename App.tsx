@@ -23,7 +23,9 @@ import {
   generatePersonaImage, 
   generatePersonaImageExcuse, 
   resolveAvatarBase64,
-  buildFullPersonaSystemPrompt 
+  buildFullPersonaSystemPrompt,
+  isRawErrorMessage,
+  getInCharacterNetworkGlitchExcuse
 } from './services/geminiService';
 import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext, getAppNow, getAppDateKey, getAppFormattedTime, getAppTimeContext } from './utils/dates';
 import { cleanSpokenTranscript } from './utils/audio';
@@ -550,28 +552,40 @@ const App: React.FC = () => {
               voiceForVoice: true
             };
 
+            const healedMessages = (Array.isArray(chat?.messages) ? chat.messages : []).map(msg => {
+              const cleanMsg = {
+                ...msg,
+                senderName: msg.senderName || (msg.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined)),
+                timestamp: convertTo24Hour(msg?.timestamp || '')
+              };
+              if (cleanMsg.replyToMessage && !cleanMsg.replyToMessage.senderName) {
+                cleanMsg.replyToMessage = {
+                  ...cleanMsg.replyToMessage,
+                  senderName: cleanMsg.replyToMessage.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined)
+                };
+              }
+              // Auto-heal legacy raw error bubbles that were saved from transient rate limits/glitches
+              if (isRawErrorMessage(cleanMsg.text)) {
+                cleanMsg.text = getInCharacterNetworkGlitchExcuse(chat);
+              }
+              // Strip heavy legacy Base64 image data from localStorage to keep state light and prevent startup freezes
+              if (cleanMsg.image && cleanMsg.image.length > 500) {
+                delete (cleanMsg as any).image;
+              }
+              return cleanMsg;
+            });
+
+            let healedLastMessage = chat.lastMessage;
+            if (isRawErrorMessage(healedLastMessage)) {
+              healedLastMessage = healedMessages[healedMessages.length - 1]?.text || "Hey!";
+            }
+
             return {
               ...chat,
               voiceSettings,
+              lastMessage: healedLastMessage,
               lastMessageTime: convertTo24Hour(chat?.lastMessageTime || ''),
-              messages: (Array.isArray(chat?.messages) ? chat.messages : []).map(msg => {
-                const cleanMsg = {
-                  ...msg,
-                  senderName: msg.senderName || (msg.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined)),
-                  timestamp: convertTo24Hour(msg?.timestamp || '')
-                };
-                if (cleanMsg.replyToMessage && !cleanMsg.replyToMessage.senderName) {
-                  cleanMsg.replyToMessage = {
-                    ...cleanMsg.replyToMessage,
-                    senderName: cleanMsg.replyToMessage.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined)
-                  };
-                }
-                // Strip heavy legacy Base64 image data from localStorage to keep state light and prevent startup freezes
-                if (cleanMsg.image && cleanMsg.image.length > 500) {
-                  delete (cleanMsg as any).image;
-                }
-                return cleanMsg;
-              })
+              messages: healedMessages
             };
           });
         }
@@ -1065,7 +1079,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
       const timeGapContext = getTimeGapAndFrequencyContext(targetChat.messages, true);
       const isVoiceNote = shouldReplyWithVoiceNote(targetChat.voiceSettings, false);
 
-      const response = await getGeminiResponse(
+      let response = await getGeminiResponse(
         { ...targetChat },
         hydratedHistory,
         settings.shareUserInfo ? user : undefined,
@@ -1074,6 +1088,10 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
         combinePersonaContexts(context, buildScheduleContext(targetChat), timeGapContext),
         isVoiceNote
       );
+
+      if (!response || isRawErrorMessage(response)) {
+        response = getInCharacterNetworkGlitchExcuse(targetChat);
+      }
 
       if (isVoiceNote) {
         const voiceToUse = targetChat.voiceSettings?.voiceName || getPersonaDefaultVoice(targetChat);
@@ -1858,7 +1876,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio';
       const isVoiceNote = shouldReplyWithVoiceNote(chat.voiceSettings, userSentVoiceNote);
 
-      const response = await getGeminiResponse(
+      let response = await getGeminiResponse(
         { ...chat },
         hydratedHistory,
         settings.shareUserInfo ? user : undefined,
@@ -1867,6 +1885,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         memoryContext,
         isVoiceNote
       );
+
+      if (!response || isRawErrorMessage(response)) {
+        response = getInCharacterNetworkGlitchExcuse(chat, lastUserMsg?.text);
+      }
 
       if (isVoiceNote) {
         setChatStatus(chatId, 'recording audio...' as any);
@@ -2129,7 +2151,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio';
         const isVoiceNote = shouldReplyWithVoiceNote(persona.voiceSettings, userSentVoiceNote);
 
-        const responseText = await getGeminiResponse(
+        let responseText = await getGeminiResponse(
           { ...persona },
           hydratedGroupHistory,
           settings.shareUserInfo ? user : undefined,
@@ -2141,6 +2163,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           combinePersonaContexts(memoryContext, buildScheduleContext(persona)),
           isVoiceNote
         );
+
+        if (!responseText || isRawErrorMessage(responseText)) {
+          responseText = getInCharacterNetworkGlitchExcuse(persona, lastUserMsg?.text);
+        }
 
         if (isVoiceNote) {
           setChatStatus(group.id, 'recording audio...' as any);

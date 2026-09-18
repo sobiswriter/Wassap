@@ -281,6 +281,53 @@ const splitMessage = (text) => {
   return [text];
 };
 
+const isRawErrorMessage = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  return (
+    text.startsWith('Vertex AI error:') ||
+    text.includes('"RESOURCE_EXHAUSTED"') ||
+    text.includes('Please refer to https://cloud.google.com/vertex-ai') ||
+    text.startsWith('{"error":') ||
+    text.startsWith('Unable to connect to the built-in Vertex AI server') ||
+    text.startsWith('Vertex AI server returned HTML or non-JSON')
+  );
+};
+
+const getGlitchExcuse = (notifData, userLastText) => {
+  const combinedContext = [
+    notifData?.speechStyle || '',
+    notifData?.about || '',
+    notifData?.instruction || '',
+    notifData?.chatName || '',
+    userLastText || ''
+  ].join(' ').toLowerCase();
+
+  const isHinglish =
+    /hinglish|hindi|desi|indian|urdu/i.test(combinedContext) ||
+    /\b(hai|kya|toh|nahi|batao|kaho|arre|yaar|kar|rahe|tha|thi|the|mera|meri|tum|aap|haan|acha|mat|bhi|sach|kuch|kaise|suno|bolo|dekh|raha|rahi|samjhe|samjha|kumbhkaran)\b/i.test(combinedContext);
+
+  const hinglishExcuses = [
+    "Arre network issue ho gaya tha mere side se 😅 ek baar wapas bolo?",
+    "Sry yaar, message glitch kar gaya tha shayad... kya keh rahe the?",
+    "Arre wifi cut ho gaya tha ek sec ke liye! Kya bola tumne?",
+    "Sorry phone thoda hang ho gaya tha mera abhi haha, kya bol rahe the wapas bhejna!",
+    "Arey message theek se nahi aaya mere paas, firse bolo na?",
+    "Sorry network drop ho gaya tha achanak se 🥲 wapas batao kya bola?"
+  ];
+
+  const englishExcuses = [
+    "Sorry, my wifi just cut out for a second! 😅 What were you saying?",
+    "Ugh, network glitch on my end! Could you say that again?",
+    "Wait, my phone completely froze for a moment haha. What did you just text?",
+    "Sorry, connection dropped for a sec! Send that again please?",
+    "Argh my signal vanished for a moment! What were you saying?",
+    "Sorry message didn't come through properly on my side, what was that?"
+  ];
+
+  const pool = isHinglish ? hinglishExcuses : englishExcuses;
+  return pool[Math.floor(Math.random() * pool.length)];
+};
+
 // Native OS Notification Click & Continuous Inline Reply Handler
 self.addEventListener('notificationclick', (event) => {
   const action = event.action;
@@ -331,7 +378,7 @@ self.addEventListener('notificationclick', (event) => {
             : 900 + Math.random() * 600;
           await new Promise(r => setTimeout(r, readingDelay));
 
-          const recent = notifData.recentMessages || [];
+          const recent = (notifData.recentMessages || []).filter(m => !isRawErrorMessage(m?.text));
           const history = [
             ...recent,
             { text: replyText, sender: 'me', senderName: notifData.userName || 'You' }
@@ -406,8 +453,8 @@ self.addEventListener('notificationclick', (event) => {
             replyContent = apiJson.text || apiJson.candidates?.[0]?.content?.parts?.[0]?.text || '';
           }
 
-          if (!replyContent || typeof replyContent !== 'string') {
-            replyContent = "Got it! Talk soon.";
+          if (!replyContent || typeof replyContent !== 'string' || isRawErrorMessage(replyContent)) {
+            replyContent = getGlitchExcuse(notifData, replyText);
           }
 
           const cleanReply = replyContent.trim();
@@ -505,8 +552,9 @@ self.addEventListener('notificationclick', (event) => {
           });
         } catch (err) {
           console.error('SW: Autonomous reply handling failed:', err);
+          const excuse = getGlitchExcuse(notifData, replyText);
           await self.registration.showNotification(chatName, {
-            body: `${replyText}\n(Message queued. Tap to open)`,
+            body: excuse,
             icon: squareIcon,
             badge: badgeIcon,
             tag: targetChatId,

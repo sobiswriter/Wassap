@@ -229,6 +229,20 @@ Wassap/
     - **Full Offline History Access**: Users can open the installed PWA offline, browse past chats, read previous conversations, and review media stored in IndexedDB.
     - **Seamless Background Sync Without Banner**: Removed the immersion-breaking yellow banner. Wassap operates cleanly and silently queues offline messages.
     - **Offline Outbox & Clock Icon (`pending`)**: Sending messages offline displays the authentic WhatsApp `Clock` icon (`status: 'pending'`) and enqueues to `whatsapp_offline_db.pending_outbox`. Upon network reconnection, messages automatically dispatch and change to sent ticks (`✓`), triggering persona replies.
+- [x] **v1.7.9**:
+  - **Elimination of Raw Technical Error Leaks & In-Character Resilience**:
+    - **Root Cause Resolution**: Addressed raw Vertex AI JSON errors (`{"error":{"code":429,"message":"Resource exhausted...","status":"RESOURCE_EXHAUSTED"}}`) that were previously split by `splitMessage` and rendered as ugly green bubbles.
+    - **Autonomous Retry & Model Fallback Pipeline**:
+      - Implemented a 3-attempt retry loop with exponential backoff (`1.2s` -> `2.5s` + jitter) across Vercel Serverless (`api/gemini/generate.ts`), local dev server (`server/vertexHandler.ts`), and client-side Custom API Studio (`services/geminiService.ts`).
+      - On retry after rate limits or transient overloads, automatically steps down to lighter, high-quota models (`gemini-2.5-flash`).
+    - **Authentic WhatsApp In-Character Network Excuses**:
+      - If transient API or network errors persist after all retries, the backend and client never dump raw stack traces or JSON. Instead, `getInCharacterNetworkGlitchExcuse()` generates natural WhatsApp messages matching the persona's speech style, about info, and language context (e.g. Hinglish: *"Arre network issue ho gaya tha mere side se 😅 ek baar wapas bolo?"* / English: *"Sorry, my wifi just cut out for a second! 😅 What were you saying?"*).
+    - **Prompt Context & History Sanitization**:
+      - Filtered out `isRawErrorMessage` from `sanitizeHistoryForVertex()` and `buildFullPersonaSystemPrompt()` so past glitches never poison prompt history or degrade future conversational quality.
+    - **State Auto-Healing on Startup (`App.tsx`)**:
+      - During initial `localStorage` hydration, any legacy chats containing raw JSON errors or `RESOURCE_EXHAUSTED` strings in message history or `lastMessage` previews are automatically healed into natural in-character replies.
+    - **Service Worker Notification Shade Error Shield (`public/sw.js`)**:
+      - Filtered notification history and wrapped background autonomous replies with `getGlitchExcuse()`, preventing raw technical errors from appearing in native OS notification cards.
 
 ---
 

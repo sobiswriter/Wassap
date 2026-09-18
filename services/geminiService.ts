@@ -43,7 +43,8 @@ export function sanitizeHistoryForVertex(
 ) {
   if (!Array.isArray(messageHistory)) return [];
 
-  const recent = messageHistory.slice(-30);
+  const cleanHistory = messageHistory.filter(m => !isRawErrorMessage(m?.text));
+  const recent = cleanHistory.slice(-30);
 
   const mediaIndices = new Set<number>();
   for (let i = recent.length - 1; i >= 0; i--) {
@@ -67,38 +68,152 @@ export function sanitizeHistoryForVertex(
   });
 }
 
-async function fetchVertexChat(payload: any): Promise<string> {
-  try {
-    const res = await fetch('/api/gemini/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-vertex-passcode': VERTEX_PASSCODE,
-      },
-      body: JSON.stringify(payload),
-    });
+export function isTransientError(error: any): boolean {
+  const errStr = (typeof error === 'string' ? error : (error?.message || String(error) || '')).toLowerCase();
+  const status = error?.status || error?.statusCode || error?.code;
+  return (
+    status === 429 ||
+    status === 503 ||
+    status === 500 ||
+    status === 502 ||
+    status === 504 ||
+    errStr.includes('429') ||
+    errStr.includes('503') ||
+    errStr.includes('resource_exhausted') ||
+    errStr.includes('resource exhausted') ||
+    errStr.includes('rate limit') ||
+    errStr.includes('quota exceeded') ||
+    errStr.includes('unavailable') ||
+    errStr.includes('internal error') ||
+    errStr.includes('overloaded') ||
+    errStr.includes('timeout') ||
+    errStr.includes('econnreset') ||
+    errStr.includes('etimedout') ||
+    errStr.includes('fetch failed')
+  );
+}
 
-    if (res.status === 413) {
-      console.error("Vercel 413 Payload Too Large encountered");
-      return "The message payload was too large for the server. The chat history was automatically trimmed. Please try sending again!";
-    }
+export function getInCharacterNetworkGlitchExcuse(
+  persona?: { name?: string; speechStyle?: string; role?: string; about?: string; systemInstruction?: string; humaneSettings?: any },
+  userLastText?: string
+): string {
+  const combinedContext = [
+    persona?.speechStyle || '',
+    persona?.about || '',
+    persona?.systemInstruction || '',
+    persona?.name || '',
+    userLastText || ''
+  ].join(' ').toLowerCase();
 
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await res.text();
-      console.error("Non-JSON response from Vertex backend:", res.status, text.slice(0, 300));
-      return `Vertex AI server returned HTML or non-JSON (${res.status}). Please verify the Vercel serverless deployment or switch to 'Custom API Key' in Settings.`;
-    }
+  const isHinglish =
+    /hinglish|hindi|desi|indian|urdu/i.test(combinedContext) ||
+    /\b(hai|kya|toh|nahi|batao|kaho|arre|yaar|kar|rahe|tha|thi|the|mera|meri|tum|aap|haan|acha|mat|bhi|sach|kuch|kaise|suno|bolo|dekh|raha|rahi|samjhe|samjha|kumbhkaran)\b/i.test(combinedContext);
 
-    const data = await res.json();
-    if (!res.ok || !data.text) {
-      return data.error || "Vertex AI server encountered an error. Please try again or switch to 'Custom API Key' in Settings.";
+  const hinglishExcuses = [
+    "Arre network issue ho gaya tha mere side se 😅 ek baar wapas bolo?",
+    "Sry yaar, message glitch kar gaya tha shayad... kya keh rahe the?",
+    "Arre wifi cut ho gaya tha ek sec ke liye! Kya bola tumne?",
+    "Sorry phone thoda hang ho gaya tha mera abhi haha, kya bol rahe the wapas bhejna!",
+    "Arey message theek se nahi aaya mere paas, firse bolo na?",
+    "Sorry network drop ho gaya tha achanak se 🥲 wapas batao kya bola?"
+  ];
+
+  const englishExcuses = [
+    "Sorry, my wifi just cut out for a second! 😅 What were you saying?",
+    "Ugh, network glitch on my end! Could you say that again?",
+    "Wait, my phone completely froze for a moment haha. What did you just text?",
+    "Sorry, connection dropped for a sec! Send that again please?",
+    "Argh my signal vanished for a moment! What were you saying?",
+    "Sorry message didn't come through properly on my side, what was that?"
+  ];
+
+  const pool = isHinglish ? hinglishExcuses : englishExcuses;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+export function isRawErrorMessage(text?: string): boolean {
+  if (!text) return false;
+  return (
+    text.startsWith('Vertex AI error:') ||
+    text.includes('"RESOURCE_EXHAUSTED"') ||
+    text.includes('Please refer to https://cloud.google.com/vertex-ai') ||
+    text.startsWith('{"error":') ||
+    text.startsWith('Unable to connect to the built-in Vertex AI server') ||
+    text.startsWith('Vertex AI server returned HTML or non-JSON')
+  );
+}
+
+async function fetchVertexChat(payload: any, maxRetries = 2): Promise<string> {
+  const lastUserText = payload?.messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
+
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      const res = await fetch('/api/gemini/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-vertex-passcode': VERTEX_PASSCODE,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.status === 413) {
+        console.error("Vercel 413 Payload Too Large encountered");
+        if (payload?.messageHistory && payload.messageHistory.length > 6) {
+          payload.messageHistory = payload.messageHistory.slice(-6);
+          continue;
+        }
+        return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
+      }
+
+      if (res.status === 429 || res.status === 503 || res.status === 502 || res.status === 504) {
+        console.warn(`[Vertex Chat HTTP ${res.status}] Attempt ${attempt}/${maxRetries + 1}. Retrying...`);
+        if (attempt <= maxRetries) {
+          const delay = attempt === 1 ? 1400 : 2800;
+          await new Promise(r => setTimeout(r, delay + Math.random() * 500));
+          continue;
+        }
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error("Non-JSON response from Vertex backend:", res.status, text.slice(0, 300));
+        if (attempt <= maxRetries) {
+          await new Promise(r => setTimeout(r, 1200));
+          continue;
+        }
+        return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
+      }
+
+      const data = await res.json();
+      if (!res.ok || !data.text) {
+        console.warn(`[Vertex AI Server Response Alert]:`, data?.error);
+        if (attempt <= maxRetries && isTransientError(data?.error)) {
+          const delay = attempt === 1 ? 1400 : 2800;
+          await new Promise(r => setTimeout(r, delay + Math.random() * 500));
+          continue;
+        }
+        return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
+      }
+
+      // Check if text itself accidentally contains raw error string
+      if (isRawErrorMessage(data.text)) {
+        return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
+      }
+
+      return data.text;
+    } catch (e: any) {
+      console.warn(`[Vertex Chat Network Error Attempt ${attempt}/${maxRetries + 1}]:`, e);
+      if (attempt <= maxRetries) {
+        await new Promise(r => setTimeout(r, 1400 + Math.random() * 500));
+        continue;
+      }
+      return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
     }
-    return data.text;
-  } catch (e: any) {
-    console.error("Failed to contact Vertex AI backend:", e);
-    return "Unable to connect to the built-in Vertex AI server. Please verify your connection or switch to 'Custom API Key' in Settings.";
   }
+
+  return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
 }
 
 async function fetchVertexDiary(payload: any): Promise<string> {
@@ -177,6 +292,7 @@ export const buildFullPersonaSystemPrompt = (
   isVoiceNoteReply?: boolean
 ): string => {
   const historyString = (messageHistory || [])
+    .filter(m => !isRawErrorMessage(m?.text))
     .map(m => {
       if ((m as any).isEvent) {
         const imgTag = m.image ? "[IMAGE ATTACHED TO EVENT]" : "";
@@ -396,19 +512,55 @@ export const getGeminiResponse = async (
       config.tools = [{ googleSearch: {} }];
     }
 
-    const response = await ai.models.generateContent({
-      model: settings?.selectedModel || DEFAULT_MODEL,
-      contents: [{ role: 'user', parts }],
-      config,
-    });
+    const lastUserText = messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
+    const maxRetries = 2;
 
-    return response.text || "...";
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        // On retries after a rate limit or server issue, fallback to a lighter model
+        let modelToUse = settings?.selectedModel || DEFAULT_MODEL;
+        if (attempt > 1) {
+          modelToUse = 'gemini-2.5-flash';
+        }
+
+        const response = await ai.models.generateContent({
+          model: modelToUse,
+          contents: [{ role: 'user', parts }],
+          config,
+        });
+
+        const replyText = response.text?.trim();
+        if (replyText && !isRawErrorMessage(replyText)) {
+          return replyText;
+        }
+
+        if (attempt <= maxRetries) {
+          await new Promise(r => setTimeout(r, 1200 * attempt));
+          continue;
+        }
+        return getInCharacterNetworkGlitchExcuse(responder, lastUserText);
+      } catch (error: any) {
+        console.warn(`[Custom Gemini API Attempt ${attempt}/${maxRetries + 1} Error]:`, error);
+        if (error.status === 401 || error.status === 403) {
+          return "Invalid API Key. Please check your settings.";
+        }
+        if (attempt <= maxRetries && isTransientError(error)) {
+          const delay = attempt === 1 ? 1200 : 2500;
+          await new Promise(r => setTimeout(r, delay + Math.random() * 400));
+          continue;
+        }
+        return getInCharacterNetworkGlitchExcuse(responder, lastUserText);
+      }
+    }
+
+    return getInCharacterNetworkGlitchExcuse(responder, lastUserText);
   } catch (error: any) {
     console.error("Connection error:", error);
-    if (error.status === 401 || error.status === 403) {
+    if (error?.status === 401 || error?.status === 403) {
       return "Invalid API Key. Please check your settings.";
     }
-    return "Connection issues... please try again.";
+    const lastUserText = messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
+    return getInCharacterNetworkGlitchExcuse(responder, lastUserText);
   }
 };
 

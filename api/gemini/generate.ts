@@ -212,6 +212,81 @@ function getVertexClient() {
   });
 }
 
+function isRawErrorMessage(text?: string): boolean {
+  if (!text) return false;
+  return (
+    text.startsWith('Vertex AI error:') ||
+    text.includes('"RESOURCE_EXHAUSTED"') ||
+    text.includes('Please refer to https://cloud.google.com/vertex-ai') ||
+    text.startsWith('{"error":') ||
+    text.startsWith('Unable to connect to the built-in Vertex AI server') ||
+    text.startsWith('Vertex AI server returned HTML or non-JSON')
+  );
+}
+
+function isTransientError(error: any): boolean {
+  const errStr = (typeof error === 'string' ? error : (error?.message || String(error) || '')).toLowerCase();
+  const status = error?.status || error?.statusCode || error?.code;
+  return (
+    status === 429 ||
+    status === 503 ||
+    status === 500 ||
+    status === 502 ||
+    status === 504 ||
+    errStr.includes('429') ||
+    errStr.includes('503') ||
+    errStr.includes('resource_exhausted') ||
+    errStr.includes('resource exhausted') ||
+    errStr.includes('rate limit') ||
+    errStr.includes('quota exceeded') ||
+    errStr.includes('unavailable') ||
+    errStr.includes('internal error') ||
+    errStr.includes('overloaded') ||
+    errStr.includes('timeout') ||
+    errStr.includes('econnreset') ||
+    errStr.includes('etimedout') ||
+    errStr.includes('fetch failed')
+  );
+}
+
+function getInCharacterGlitchMessage(
+  responder?: { name?: string; speechStyle?: string; role?: string; about?: string; systemInstruction?: string; humaneSettings?: any },
+  userLastText?: string
+): string {
+  const combinedContext = [
+    responder?.speechStyle || '',
+    responder?.about || '',
+    responder?.systemInstruction || '',
+    responder?.name || '',
+    userLastText || ''
+  ].join(' ').toLowerCase();
+
+  const isHinglish =
+    /hinglish|hindi|desi|indian|urdu/i.test(combinedContext) ||
+    /\b(hai|kya|toh|nahi|batao|kaho|arre|yaar|kar|rahe|tha|thi|the|mera|meri|tum|aap|haan|acha|mat|bhi|sach|kuch|kaise|suno|bolo|dekh|raha|rahi|samjhe|samjha|kumbhkaran)\b/i.test(combinedContext);
+
+  const hinglishExcuses = [
+    "Arre network issue ho gaya tha mere side se 😅 ek baar wapas bolo?",
+    "Sry yaar, message glitch kar gaya tha shayad... kya keh rahe the?",
+    "Arre wifi cut ho gaya tha ek sec ke liye! Kya bola tumne?",
+    "Sorry phone thoda hang ho gaya tha mera abhi haha, kya bol rahe the wapas bhejna!",
+    "Arey message theek se nahi aaya mere paas, firse bolo na?",
+    "Sorry network drop ho gaya tha achanak se 🥲 wapas batao kya bola?"
+  ];
+
+  const englishExcuses = [
+    "Sorry, my wifi just cut out for a second! 😅 What were you saying?",
+    "Ugh, network glitch on my end! Could you say that again?",
+    "Wait, my phone completely froze for a moment haha. What did you just text?",
+    "Sorry, connection dropped for a sec! Send that again please?",
+    "Argh my signal vanished for a moment! What were you saying?",
+    "Sorry message didn't come through properly on my side, what was that?"
+  ];
+
+  const pool = isHinglish ? hinglishExcuses : englishExcuses;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function resolveVertexModel(selectedModel?: string): string {
   if (!selectedModel) return 'gemini-3.8-flash';
   return selectedModel.trim();
@@ -223,6 +298,7 @@ async function handleVertexChat(payload: ChatPayload): Promise<{ ok: boolean; te
     const ai = getVertexClient();
 
     const historyString = (messageHistory || [])
+      .filter(m => !isRawErrorMessage(m?.text))
       .map(m => {
         if ((m as any).isEvent) {
           const imgTag = m.image ? "[IMAGE ATTACHED TO EVENT]" : "";
@@ -363,19 +439,17 @@ ${historyString}
 
 Response as ${responder.name}:`;
 
-    const recentMessagesWithMedia = (messageHistory || [])
-      .slice(-5)
-      .filter(m => (m.image && m.image.startsWith('data:')) || (m.audio && m.audio.startsWith('data:')));
+    const recentMessagesWithMedia = (messageHistory || []).slice(-5).filter(m => m.image || m.audio);
     const parts: any[] = [{ text: systemPrompt }];
 
     recentMessagesWithMedia.slice(-2).forEach(msg => {
-      if (msg.image && msg.image.startsWith('data:')) {
+      if (msg.image) {
         const base64Data = msg.image.split(',')[1] || msg.image;
         parts.push({
           inlineData: { mimeType: "image/jpeg", data: base64Data }
         });
       }
-      if (msg.audio && msg.audio.startsWith('data:')) {
+      if (msg.audio) {
         const base64Data = msg.audio.split(',')[1] || msg.audio;
         parts.push({
           inlineData: { mimeType: "audio/webm", data: base64Data }
@@ -388,39 +462,82 @@ Response as ${responder.name}:`;
       config.tools = [{ googleSearch: {} }];
     }
 
-    const modelToUse = resolveVertexModel(settings?.selectedModel);
+    const lastUserText = messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
+    const maxRetries = 2;
+    let lastError: any = null;
 
-    const response = await ai.models.generateContent({
-      model: modelToUse,
-      contents: [{ role: 'user', parts }],
-      config,
-    });
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        let modelToUse = resolveVertexModel(settings?.selectedModel);
+        // Fallback model on retry to recover from rate-limits (429) or transient overloads
+        if (attempt > 1) {
+          modelToUse = 'gemini-2.5-flash';
+        }
 
-    return {
-      ok: true,
-      text: response.text || "...",
-    };
-  } catch (error: any) {
-    console.error("[Vertex AI Error]:", error);
+        const response = await ai.models.generateContent({
+          model: modelToUse,
+          contents: [{ role: 'user', parts }],
+          config,
+        });
 
-    const errMessage = error?.message || String(error);
-    if (errMessage.includes('invalid_grant') || errMessage.includes('Could not load the default credentials')) {
-      return {
-        ok: false,
-        error: "Vertex AI authentication failed on the server: Google Cloud credentials are missing or invalid in this environment. In your Vercel Project Settings > Environment Variables, please add 'GCP_SERVICE_ACCOUNT_KEY' (your Service Account JSON key) or set 'GEMINI_API_KEY', or switch to 'Custom API Key' in Settings."
-      };
+        const replyText = response.text?.trim();
+        if (replyText && !isRawErrorMessage(replyText)) {
+          return {
+            ok: true,
+            text: replyText,
+          };
+        }
+
+        if (attempt <= maxRetries) {
+          await new Promise(r => setTimeout(r, 1200 * attempt));
+          continue;
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[handleVertexChat Attempt ${attempt}/${maxRetries + 1} Error]:`, err?.message || err);
+
+        const errMessage = err?.message || String(err);
+        if (errMessage.includes('invalid_grant') || errMessage.includes('Could not load the default credentials')) {
+          return {
+            ok: false,
+            error: "Vertex AI authentication failed on the server: Google Cloud credentials are missing or invalid in this environment. In your Vercel Project Settings > Environment Variables, please add 'GCP_SERVICE_ACCOUNT_KEY' (your Service Account JSON key) or set 'GEMINI_API_KEY', or switch to 'Custom API Key' in Settings."
+          };
+        }
+
+        if (err?.status === 401 || err?.status === 403 || errMessage.includes('PERMISSION_DENIED')) {
+          return {
+            ok: false,
+            error: `Google Cloud Vertex AI permission denied for project '${process.env.VERTEX_PROJECT_ID || DEFAULT_GCP_PROJECT}'. Ensure Vertex AI API is enabled and billing is active, or switch to 'Custom API Key' in Settings.`
+          };
+        }
+
+        if (attempt <= maxRetries && isTransientError(err)) {
+          const delay = attempt === 1 ? 1200 : 2500;
+          await new Promise(r => setTimeout(r, delay + Math.random() * 400));
+          continue;
+        }
+        break;
+      }
     }
 
-    if (error?.status === 401 || error?.status === 403 || errMessage.includes('PERMISSION_DENIED')) {
+    // If retries exhausted or transient error occurred, return authentic in-character excuse!
+    if (isTransientError(lastError) || !lastError) {
       return {
-        ok: false,
-        error: `Google Cloud Vertex AI permission denied for project '${process.env.VERTEX_PROJECT_ID || DEFAULT_GCP_PROJECT}'. Ensure Vertex AI API is enabled and billing is active, or switch to 'Custom API Key' in Settings.`
+        ok: true,
+        text: getInCharacterGlitchMessage(responder, lastUserText),
       };
     }
 
     return {
       ok: false,
-      error: `Vertex AI error: ${errMessage}`
+      error: `Vertex AI error: ${lastError?.message || String(lastError)}`
+    };
+  } catch (error: any) {
+    console.error("[Vertex AI Fatal Error]:", error);
+    const lastUserText = payload?.messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
+    return {
+      ok: true,
+      text: getInCharacterGlitchMessage(payload?.responder, lastUserText),
     };
   }
 }
