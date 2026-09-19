@@ -14,7 +14,7 @@ const NewChatPanel = React.lazy(() => import('./components/NewChatPanel').then(m
 const NewGroupPanel = React.lazy(() => import('./components/NewGroupPanel').then(m => ({ default: m.NewGroupPanel })));
 const UserProfilePanel = React.lazy(() => import('./components/UserProfilePanel').then(m => ({ default: m.UserProfilePanel })));
 const CalendarNotesWidget = React.lazy(() => import('./components/CalendarNotesWidget').then(m => ({ default: m.CalendarNotesWidget })));
-import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL } from './constants';
+import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL, GEMINI_TTS_VOICE_DETAILS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus, PersonaVoiceSettings } from './types';
 import { 
   getGeminiResponse, 
@@ -1725,13 +1725,28 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         setChatStatus(chatId, 'typing...');
         const userPrompt = imagePromptText || updatedHistory.slice().reverse().find(m => m.sender === 'me')?.text || 'Send me a photo';
 
+        // Detect persona gender for prompt realism and pronoun alignment
+        let personaGender: string | undefined;
+        if (chat.voiceSettings?.voiceName && GEMINI_TTS_VOICE_DETAILS[chat.voiceSettings.voiceName]) {
+          personaGender = GEMINI_TTS_VOICE_DETAILS[chat.voiceSettings.voiceName].gender;
+        } else {
+          const textToCheck = `${chat.name} ${chat.role || ''} ${chat.about || ''}`.toLowerCase();
+          if (/\b(brother|bro|dad|father|boy|man|guy|boyfriend|husband|son|uncle|grandpa|grandfather)\b/.test(textToCheck)) {
+            personaGender = 'male';
+          } else if (/\b(sister|sis|mom|mother|girl|woman|lady|girlfriend|wife|daughter|aunt|grandma|grandmother)\b/.test(textToCheck)) {
+            personaGender = 'female';
+          }
+        }
+
         // Step 1: Context & Caption Synthesizer
+        const timeCtx = getAppTimeContext(settings);
         const synthRes = await synthesizeImageContextAndCaption(
           { ...chat },
           userPrompt,
           hydratedHistory,
           settings.shareUserInfo ? user : undefined,
-          settings
+          settings,
+          timeCtx
         );
 
         if (synthRes.ok && synthRes.result) {
@@ -1762,6 +1777,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             avatarMimeType: avatarMime,
             avatarUrl: chat.avatar,
             settings,
+            personaGender,
+            personaName: chat.name,
+            personaRole: chat.role,
           });
 
           if (imgRes.ok && imgRes.imageDataUrl) {

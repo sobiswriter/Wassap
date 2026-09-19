@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.7.8`
+- **Current Version**: `v1.8.0`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -14,31 +14,31 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. In-Chat Authentic Smartphone Photo Generation (`@img` / `@image`)
+### 1. In-Chat Authentic Smartphone Photo Generation (`@img` / `@image`) Overhaul (`v1.8.0`)
 - **Trigger**: Typing `@img` or `@image` anywhere in the message input (e.g. *"send a selfie @img"*, *"show me your lunch @img"*). The tag is automatically stripped before displaying in the chat bubble.
-- **Pipeline**:
+- **Investigation & Root Causes Resolved**:
+  1. *Transient Rate Limits & Lack of Retries*: Rapid back-to-back triggers previously hit 429 quota or timeouts with zero retries, immediately falling back to `generatePersonaImageExcuse`. Added exponential backoff retry loops (up to 3 attempts with 1.2s - 3s backoffs) in both serverless endpoints and client service.
+  2. *Bare `@img` vs `@image [query]` Discrepancy*: Bare `@img` defaults to `"Send a photo"`, causing the synthesizer to select `"selfie"` or `"candid"` with avatar reference conditioning (`[Input Image 1]`), which was prone to Vertex AI face-matching and safety filter blocks. In contrast, `@image [query]` (e.g. food, desk) chose `"pov"` which skips reference images.
+  3. *Gender Pronoun Misalignment*: Synthesis and generation previously hardcoded female pronouns (`"She is..."`, `"her face"`, `"same woman"`), causing severe prompt-image contradictions for male personas (Big Bro, Best Friend, Dad). Now dynamically resolves gender from `GEMINI_TTS_VOICE_DETAILS` (`male` vs `female`), persona role, and name.
+  4. *Safety Filter Handling & Reference Resilience*: If reference-image face conditioning triggers safety filter blocks, the system automatically simplifies the prompt, strips the reference image, and retries with a natural snapshot prompt instead of instantly falling back to an excuse.
+  5. *Time-of-Day Context Injection*: The client time context (`getAppTimeContext(settings)`) is now injected into synthesis, ensuring night photos generate cozy lamp/ambient lighting instead of daytime sunlight.
+  6. *Broken Imagen Fallback Fixed*: Catch-block fallback previously passed `gemini-3.1-flash-lite-image` to `generateImages` (which only supports Imagen models). Fixed model to `imagen-3.0-generate-002`.
+- **Pipeline Architecture**:
   1. **Step 1 (Context & Caption Synthesizer)**:
      - Calls `/api/gemini/image-synthesize` (or `server/vertexHandler.ts`).
-     - Uses `gemini-3.8-flash` or `gemini-3.5-flash-lite`.
-     - Analyzes user intent, persona profile, mood, and recent chat history.
-     - **Priority Rules**:
-       1. *User Query First*: Explicit user instructions strictly dictate the subject.
-       2. *Recent History Secondary*: If generic, pulls from ongoing chat context.
-       3. *Everyday Fallback*: Never defaults to bed; picks realistic moments (couch, passenger seat, kitchen counter, cafe, study desk).
-     - Returns JSON: `{ mode: "selfie" | "candid" | "pov", user_wants_posed: boolean, caption: string, action_and_setting: string }`.
+     - Models: `gemini-3.8-flash` (attempt 1) with fallback to `gemini-2.5-flash` (attempt 2).
+     - Incorporates `clientTimeContext`, persona mood, and message history.
+     - Strict priority hierarchy: (1) Explicit user query, (2) Conversation history context for generic queries (`@img`, `@image`, `"Send a photo"`), (3) Time-appropriate everyday situations (couch, desk, kitchen, passenger seat).
   2. **Step 2 (Image Generation Engine)**:
      - Calls `/api/gemini/image-generate` (or local handler).
-     - Uses `gemini-3.1-flash-lite-image` (default) or `gemini-3.1-flash-image`.
-     - Aspect ratio set to `3:4` portrait format.
-     - **Modes**:
-       - **Mode A (`"selfie"`)**: Front-facing mobile lens, arm extended, persona avatar attached as `[Input Image 1]` subject reference, flat natural light, zero beauty filter.
-       - **Mode B (`"candid"`)**: Third-person unposed shot sent on WhatsApp with avatar reference, awkward angles, mid-action or looking away. If `user_wants_posed` is true, dynamically switches to casual direct-to-camera smile.
-       - **Mode C (`"pov"`)**: First-person casual snapshot of surroundings/food/desk without subject reference.
+     - Models: `gemini-3.1-flash-lite-image` (attempt 1) -> `gemini-3.1-flash-image` (attempt 2) -> `imagen-3.0-generate-002` (generateImages fallback).
+     - Aspect ratio set to `3:4` portrait mobile format.
+     - Dynamic gender pronouns (`He/She`, `his/her`, `same man/woman`).
+     - Neutral mobile photo phrasing (removed trademarked terms like "Snapchat" that could trigger content filters).
   3. **Step 3 (Fail-Safe Excuse Generator)**:
-     - If image generation fails, times out, or triggers safety filters, calls `/api/gemini/image-excuse`.
-     - The persona replies with an authentic in-character excuse (e.g., *"My camera app just crashed!"*).
+     - If all attempts fail or are permanently blocked, calls `/api/gemini/image-excuse` to keep immersion intact with natural in-character text excuses.
 - **UI & Display**:
-  - WhatsApp-native media bubble (`.media-message-bubble`) with `fit-content` max 330px width to eliminate blank whitespace.
+  - WhatsApp-native media bubble (`.media-message-bubble`) with `fit-content` max 330px width.
   - Image and caption are rendered together inside the exact same message card.
   - Clicking any image opens the `ImageLightboxModal` (full-screen blurred background, metadata, download button).
 

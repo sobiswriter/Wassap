@@ -191,6 +191,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const mode = payload.mode || (payload.is_persona_subject ? 'selfie' : 'pov');
     const isSubject = mode === 'selfie' || mode === 'candid';
 
+    const gender = (payload.personaGender || payload.gender || '').toLowerCase();
+    const isMale = gender === 'male' || gender === 'man' || gender === 'boy' || gender === 'brother' || gender === 'bro' || gender === 'father' || gender === 'dad' || gender === 'guy';
+    const subjPronoun = isMale ? 'He' : 'She';
+    const possPronoun = isMale ? 'his' : 'her';
+    const personLabel = isMale ? 'same man' : 'same woman';
+
     let avatarBase64 = payload.avatarBase64;
     let avatarMimeType = payload.avatarMimeType || 'image/jpeg';
 
@@ -216,15 +222,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
 
     const ai = getVertexClient();
-    const modelToUse = model || 'gemini-3.1-flash-lite-image';
+    const hasAvatar = Boolean(avatarBase64 && avatarBase64.trim().length > 100);
+    const referenceDirective = hasAvatar
+      ? `Use [Input Image 1] as the subject reference (identical face, exact facial structure, hair, and eye shape). `
+      : `Depict the persona realistically (${payload.personaName ? `${payload.personaName}, ` : ''}${payload.personaRole || 'authentic persona'}). `;
 
     let parts: any[] = [];
     let promptText = '';
 
     if (mode === 'selfie') {
-      promptText = `Use [Input Image 1] as the subject reference (identical face, exact facial structure, hair, and eye shape). A spontaneous, casual amateur selfie taken on a smartphone front-facing camera. She is ${action_and_setting}. Arm extended holding the phone at a slight, natural angle; the shot is slightly off-center and imperfectly framed. Natural, flat indoor lighting or screen glare illuminating her face—strictly no studio rim lighting or warm glam glow. Casual relaxed expression, half-smile or candid smirk (not an Instagram model pose). Authentic smartphone front-lens compression, subtle motion blur around edges, faint digital camera grain. Raw unedited Snapchat/WhatsApp front camera snap, zero beauty filter, zero cinematic styling.`;
+      promptText = `${referenceDirective}A spontaneous, casual amateur selfie taken on a smartphone front-facing camera. ${subjPronoun} is ${action_and_setting}. Arm extended holding the phone at a slight, natural angle; the shot is slightly off-center and imperfectly framed. Natural, flat indoor lighting or screen glare illuminating ${possPronoun} face—strictly no studio rim lighting or warm glam glow. Casual relaxed expression, half-smile or candid smirk (not an Instagram model pose). Authentic smartphone front-lens compression, subtle motion blur around edges, faint digital camera grain. Raw unedited mobile front camera photo, zero beauty filter, zero cinematic styling.`;
 
-      if (avatarBase64) {
+      if (hasAvatar) {
         const cleanBase64 = avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64;
         parts.push({
           inlineData: {
@@ -236,12 +245,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       parts.push({ text: promptText });
     } else if (mode === 'candid') {
       if (payload.user_wants_posed) {
-        promptText = `Use [Input Image 1] as the subject reference (same woman, exact same facial features, hair, and skin tone). A casual, amateur smartphone snapshot of her ${action_and_setting}. She is posing casually for someone taking her photo on a phone, looking directly toward the camera with a natural, unforced expression. Shot on an everyday smartphone, slightly imperfect composition, authentic room/outdoor lighting. Realistic skin texture, natural soft focus, raw unedited mobile photo.`;
+        promptText = `${referenceDirective}A casual, amateur smartphone snapshot of ${isMale ? 'him' : 'her'} ${action_and_setting}. ${subjPronoun} is posing casually for someone taking ${possPronoun} photo on a phone, looking directly toward the camera with a natural, unforced expression (${personLabel}, identical facial features and skin tone). Shot on an everyday smartphone, slightly imperfect composition, authentic room/outdoor lighting. Realistic skin texture, natural soft focus, raw unedited mobile photo.`;
       } else {
-        promptText = `Use [Input Image 1] as the subject reference (same woman, exact same facial features, hair, and skin tone). A natural, unposed amateur photo of her ${action_and_setting}. Captured quickly on an everyday smartphone, feels accidental rather than staged. Composition is slightly imperfect: off-center framing, awkward angle (either slightly too low or tilted, horizon not completely straight, or part of her body slightly cropped out of frame). She is mid-action or looking away casually (looking at her phone, lost in thought, or reaching for something—not aware of or posing for the camera). Uneven realistic lighting [e.g., flat fluorescent lighting, harsh daylight with one side slightly overblown, or fading low light with subtle grain]. Focus is naturally soft or slightly missed rather than razor-sharp, with subtle motion blur from quick movement. An uncurated, unedited raw capture sent over chat.`;
+        promptText = `${referenceDirective}A natural, unposed amateur photo of ${isMale ? 'him' : 'her'} ${action_and_setting} (${personLabel}, identical facial features and skin tone). Captured quickly on an everyday smartphone, feels accidental rather than staged. Composition is slightly imperfect: off-center framing, awkward angle (either slightly too low or tilted, horizon not completely straight, or part of the body slightly cropped out of frame). ${subjPronoun} is mid-action or looking away casually (looking at phone, lost in thought, or reaching for something—not aware of or posing for the camera). Uneven realistic lighting [e.g., flat fluorescent lighting, harsh daylight with one side slightly overblown, or fading low light with subtle grain]. Focus is naturally soft or slightly missed rather than razor-sharp, with subtle motion blur from quick movement. An uncurated, unedited raw capture sent over chat.`;
       }
 
-      if (avatarBase64) {
+      if (hasAvatar) {
         const cleanBase64 = avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64;
         parts.push({
           inlineData: {
@@ -252,78 +261,113 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       }
       parts.push({ text: promptText });
     } else {
-      promptText = `A casual amateur first-person POV photo taken on a smartphone of ${action_and_setting}. Documentary everyday realism, flat natural light or harsh indoor fluorescent bulbs. Slightly off-center angle, real clutter in the background, believable phone lens depth. An accidental 2-second snapshot, no editorial color grading, zero artistic styling.`;
+      // mode === 'pov'
+      promptText = `A casual amateur first-person POV photo taken on a smartphone of ${action_and_setting}. Documentary everyday realism, flat natural light or indoor lighting. Slightly off-center angle, real clutter in the background, believable phone lens depth. An accidental 2-second snapshot, no editorial color grading, zero artistic styling.`;
       parts.push({ text: promptText });
     }
 
     let generatedBase64: string | undefined;
     let generatedMime = 'image/jpeg';
+    const maxRetries = 2;
+    let lastError: any = null;
 
-    try {
-      const response = await ai.models.generateContent({
-        model: modelToUse,
-        contents: [{ role: 'user', parts }],
-        config: {
-          responseModalities: ["IMAGE"],
-          aspectRatio: "3:4",
-          imageConfig: {
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        let currentModel = model || 'gemini-3.1-flash-lite-image';
+        if (attempt === 2) {
+          currentModel = 'gemini-3.1-flash-image';
+        }
+
+        const response = await ai.models.generateContent({
+          model: currentModel,
+          contents: [{ role: 'user', parts }],
+          config: {
+            responseModalities: ["IMAGE"],
             aspectRatio: "3:4",
-          },
-        } as any,
-      });
-
-      const candidate = response.candidates?.[0];
-      if (candidate?.finishReason === 'SAFETY' || (response.promptFeedback as any)?.blockReason) {
-        sendJson(res, 500, {
-          blocked: true,
-          error: "Image generation triggered safety filter.",
+            imageConfig: {
+              aspectRatio: "3:4",
+            },
+          } as any,
         });
-        return;
-      }
 
-      if (candidate?.content?.parts) {
-        for (const p of candidate.content.parts) {
-          if (p.inlineData?.data) {
-            generatedBase64 = p.inlineData.data;
-            generatedMime = p.inlineData.mimeType || 'image/jpeg';
-            break;
+        const candidate = response.candidates?.[0];
+        if (candidate?.finishReason === 'SAFETY' || (response.promptFeedback as any)?.blockReason) {
+          console.warn(`[Vertex AI Image Gen Attempt ${attempt}] Safety filter flagged.`);
+          if (attempt <= maxRetries) {
+            // Simplify prompt on safety retry to avoid human reference trigger
+            parts = [{ text: `A casual amateur smartphone photo of ${action_and_setting}. Natural everyday lighting, authentic mobile snapshot.` }];
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
+          }
+          sendJson(res, 500, {
+            blocked: true,
+            error: "Image generation triggered safety filter.",
+          });
+          return;
+        }
+
+        if (candidate?.content?.parts) {
+          for (const p of candidate.content.parts) {
+            if (p.inlineData?.data) {
+              generatedBase64 = p.inlineData.data;
+              generatedMime = p.inlineData.mimeType || 'image/jpeg';
+              break;
+            }
           }
         }
-      }
-    } catch (genContentErr: any) {
-      console.warn("[Vertex AI generateContent for image failed, checking generateImages fallback]:", genContentErr?.message);
-      
-      const errMsg = String(genContentErr?.message || '');
-      if (errMsg.includes('SAFETY') || errMsg.includes('blocked') || errMsg.includes('IMAGE_SAFETY')) {
-        sendJson(res, 500, { blocked: true, error: "Image generation blocked by safety filters." });
-        return;
-      }
 
-      if (typeof (ai.models as any).generateImages === 'function') {
-        try {
-          const imgResult = await (ai.models as any).generateImages({
-            model: modelToUse,
-            prompt: promptText,
-            config: {
-              numberOfImages: 1,
-              outputMimeType: 'image/jpeg',
-              aspectRatio: '3:4',
-            },
-          });
-          const b64 = imgResult?.generatedImages?.[0]?.image?.imageBytes;
-          if (b64) {
-            generatedBase64 = b64;
-            generatedMime = 'image/jpeg';
+        if (generatedBase64) {
+          break;
+        }
+      } catch (genContentErr: any) {
+        lastError = genContentErr;
+        console.warn(`[Vertex AI Image Gen Attempt ${attempt}/${maxRetries + 1} Error]:`, genContentErr?.message || genContentErr);
+
+        const errMsg = String(genContentErr?.message || '');
+        if (errMsg.includes('SAFETY') || errMsg.includes('IMAGE_SAFETY')) {
+          if (attempt <= maxRetries) {
+            parts = [{ text: `A casual amateur smartphone photo of ${action_and_setting}. Natural everyday lighting, authentic mobile snapshot.` }];
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
           }
-        } catch (imgErr) {
-          console.warn("[Vertex AI generateImages fallback error]:", imgErr);
+          sendJson(res, 500, { blocked: true, error: "Image generation blocked by safety filters." });
+          return;
+        }
+
+        // Secondary fallback attempt with Imagen (imagen-3.0-generate-002)
+        if (typeof (ai.models as any).generateImages === 'function') {
+          try {
+            const imgResult = await (ai.models as any).generateImages({
+              model: 'imagen-3.0-generate-002',
+              prompt: promptText,
+              config: {
+                numberOfImages: 1,
+                outputMimeType: 'image/jpeg',
+                aspectRatio: '3:4',
+              },
+            });
+            const b64 = imgResult?.generatedImages?.[0]?.image?.imageBytes;
+            if (b64) {
+              generatedBase64 = b64;
+              generatedMime = 'image/jpeg';
+              break;
+            }
+          } catch (imgErr) {
+            console.warn("[Imagen generateImages fallback error]:", imgErr);
+          }
+        }
+
+        if (attempt <= maxRetries) {
+          const delay = attempt === 1 ? 1500 : 3000;
+          await new Promise(r => setTimeout(r, delay + Math.random() * 500));
+          continue;
         }
       }
     }
 
     if (!generatedBase64) {
       sendJson(res, 500, {
-        error: "No image was returned by the image generation model.",
+        error: lastError?.message || "No image was returned by the image generation model.",
       });
       return;
     }

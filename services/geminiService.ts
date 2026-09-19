@@ -801,7 +801,8 @@ export async function synthesizeImageContextAndCaption(
   userPrompt: string,
   messageHistory: { text: string; sender: string; senderName?: string }[],
   userProfile?: UserProfile,
-  settings?: AppSettings
+  settings?: AppSettings,
+  clientTimeContext?: string
 ): Promise<{ ok: boolean; result?: SynthesizeImageContextResult; error?: string }> {
   const provider = settings?.aiProvider || 'vertex';
 
@@ -814,34 +815,50 @@ export async function synthesizeImageContextAndCaption(
       };
     }
 
-    try {
-      const res = await fetch('/api/gemini/image-synthesize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-vertex-passcode': VERTEX_PASSCODE,
-        },
-        body: JSON.stringify({
-          persona,
-          userPrompt,
-          messageHistory: (messageHistory || []).slice(-10).map(m => ({
-            text: m.text,
-            sender: m.sender,
-            senderName: m.senderName,
-          })),
-          userProfile,
-          settings: { selectedModel: settings?.selectedModel },
-        }),
-      });
+    const maxRetries = 2;
+    let lastError: any = null;
 
-      const data = await res.json();
-      if (res.ok && data.result) {
-        return { ok: true, result: data.result };
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        const res = await fetch('/api/gemini/image-synthesize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-vertex-passcode': VERTEX_PASSCODE,
+          },
+          body: JSON.stringify({
+            persona,
+            userPrompt,
+            messageHistory: (messageHistory || []).slice(-10).map(m => ({
+              text: m.text,
+              sender: m.sender,
+              senderName: m.senderName,
+            })),
+            userProfile,
+            settings: { selectedModel: settings?.selectedModel },
+            clientTimeContext,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.result) {
+          return { ok: true, result: data.result };
+        }
+        lastError = data.error || 'Failed to synthesize photo context.';
+        if (attempt <= maxRetries) {
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+          continue;
+        }
+        return { ok: false, error: lastError };
+      } catch (e: any) {
+        lastError = e.message || 'Unable to connect to synthesis endpoint.';
+        console.warn(`[Synthesize Fetch Attempt ${attempt}] Error:`, e);
+        if (attempt <= maxRetries) {
+          await new Promise(r => setTimeout(r, 1200 * attempt));
+          continue;
+        }
+        return { ok: false, error: lastError };
       }
-      return { ok: false, error: data.error || 'Failed to synthesize photo context.' };
-    } catch (e: any) {
-      console.error("Error calling /api/gemini/image-synthesize:", e);
-      return { ok: false, error: e.message || 'Unable to connect to synthesis endpoint.' };
     }
   }
 
@@ -858,6 +875,14 @@ export async function synthesizeImageContextAndCaption(
       .map(m => `${m.sender === 'me' ? 'User' : (m.senderName || persona.name)}: ${m.text || ''}`)
       .join('\n');
 
+    const moodDesc = persona.humaneSettings?.enabled && persona.humaneSettings?.moodSliderEnabled
+      ? `Persona Mood Value (0-100): ${persona.humaneSettings.moodValue}`
+      : 'Persona Mood: Natural and conversational';
+
+    const timeContextPrompt = clientTimeContext
+      ? `\nCURRENT SYSTEM DATE & TIME CONTEXT:\n${clientTimeContext}\nCRITICAL LIGHTING & TIME RULE: The photo setting and lighting MUST realistically match this current time of day. If it is late at night or evening, use realistic indoor room lighting, bedside/desk lamp illumination, or cozy dim ambiance (never bright sunlight). If daytime, use natural room daylight or outdoor daylight.\n`
+      : '';
+
     const synthesisPrompt = `You are a Context & Caption Synthesizer for an authentic, smartphone-style photo exchange in a messaging app.
 The persona who will send the photo is:
 Name: ${persona.name}
@@ -865,29 +890,30 @@ About: ${persona.about || 'N/A'}
 Role: ${persona.role || 'N/A'}
 Speech Style: ${persona.speechStyle || 'Casual WhatsApp texting'}
 System Guidelines: ${persona.systemInstruction || 'N/A'}
-
+${moodDesc}
+${timeContextPrompt}
 Recent Chat History:
 ${historySnippet || '(No prior messages)'}
 
 User Request / Current Prompt:
-"${userPrompt}"
+"${userPrompt || 'Send me a photo'}"
 
 TASK:
-Analyze the conversation and user request according to the following STRICT priority order:
+Determine what kind of photo the persona should send, following this strict PRIORITY HIERARCHY:
 
 1. USER QUERY FIRST (HIGHEST PRIORITY):
-   If the user asks for something specific (e.g. "show me what you're eating", "send a pic of your dog", "show me your outfit", "selfie please"), follow their EXACT instruction above everything else.
+   If the user asks for something specific (e.g., "show me what you're eating", "send a pic of your dog", "show me your outfit", "send a selfie"), follow their exact instruction above everything else!
 
 2. RECENT HISTORY (SECONDARY):
-   Only use conversation history if the user's request is generic (e.g., "send an @image", "@img", or "show me you"), and the chat naturally mentions a current activity, food, or place.
+   If the user's request is generic (e.g., "send a photo", "send me a photo", "send an @image", "@img", "photo please", "send one", or "show me you"), inspect the recent conversation history. If the chat naturally mentions a current activity, food, drink, or place, align the photo to that ongoing conversation!
 
 3. RANDOM EVERYDAY VARIETY (FALLBACK):
-   If no specific activity was recently discussed or requested, randomly pick from one of these realistic everyday situations:
+   If no specific activity was recently discussed or requested, randomly pick from one of these realistic everyday situations matching the current time of day:
    - Living room couch browsing phone/laptop
    - Sitting in a car passenger seat
    - Kitchen counter making tea/coffee
    - Desk/study space with notebooks or laptop
-   - Waiting outdoors at a bus stop or cafe table
+   - Waiting outdoors or relaxing in a quiet room
    (DO NOT default to bed unless specifically mentioned in chat).
 
 OUTPUT REQUIREMENTS:
@@ -896,25 +922,54 @@ OUTPUT REQUIREMENTS:
    - "candid": Third-person snapshot of the persona (e.g., taken quickly on a phone camera or propped up).
    - "pov": Food, objects, views, surroundings, pets, scenery, laptop, desk (first-person POV snapshot, NO person subject).
 2. "caption": string
-   - A realistic, in-character text comment matching the persona's tone, current mood, speech style, and photo context (e.g. 'Excuse the bed hair haha, literally just woke up', 'Look what just arrived!', 'Having this right now, send me yours too!').
+   - A realistic, in-character text comment matching the persona's tone, current mood, speech style, and photo context (e.g. 'Excuse the messy hair haha, literally just woke up', 'Look what just arrived!', 'Having this right now, send me yours too!').
    - NEVER sound robotic or assistant-like. Keep it casual like a real WhatsApp message.
 3. "action_and_setting": string
-   - A concise, context-aware description of the action and environment (e.g. 'sitting on the living room couch with a mug', 'eating ramen at a cozy street food stall with steam rising', 'at a study desk with an open laptop and notebook').
+   - A concise, context-aware description of the action and environment (e.g. 'sitting on the living room couch with a mug under warm lamp light', 'eating ramen at a cozy street food stall with steam rising', 'at a study desk with an open laptop and notebook').
 4. "user_wants_posed": boolean
    - If the user explicitly asks for a specific pose (e.g., 'look at the camera', 'smile', 'pose nicely', 'stand straight', 'pose for me', 'just a simple of u standing and posing'), set user_wants_posed: true and reflect that exact request in action_and_setting.
    - Otherwise, default user_wants_posed: false.
 
 Return ONLY a valid JSON object with keys "mode", "user_wants_posed", "caption", and "action_and_setting".`;
 
-    const response = await ai.models.generateContent({
-      model: settings?.selectedModel || DEFAULT_MODEL,
-      contents: [{ role: 'user', parts: [{ text: synthesisPrompt }] }],
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
+    const maxRetries = 2;
+    let responseText = "{}";
 
-    const responseText = response.text || "{}";
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        let modelToUse = settings?.selectedModel || DEFAULT_MODEL;
+        if (attempt > 1) {
+          modelToUse = 'gemini-2.5-flash';
+        }
+
+        const response = await ai.models.generateContent({
+          model: modelToUse,
+          contents: [{ role: 'user', parts: [{ text: synthesisPrompt }] }],
+          config: {
+            responseMimeType: "application/json",
+          },
+        });
+
+        responseText = response.text || "{}";
+        if (responseText && responseText.trim() !== "{}") {
+          break;
+        }
+
+        if (attempt <= maxRetries) {
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+          continue;
+        }
+      } catch (err: any) {
+        console.warn(`[Studio Synthesize Attempt ${attempt}/${maxRetries + 1} Error]:`, err?.message || err);
+        if (attempt <= maxRetries) {
+          const delay = attempt === 1 ? 1200 : 2500;
+          await new Promise(r => setTimeout(r, delay + Math.random() * 400));
+          continue;
+        }
+        throw err;
+      }
+    }
+
     let parsed: any;
     try {
       parsed = JSON.parse(responseText);
@@ -953,6 +1008,9 @@ export async function generatePersonaImage(options: {
   avatarMimeType?: string;
   avatarUrl?: string;
   settings?: AppSettings;
+  personaGender?: string;
+  personaName?: string;
+  personaRole?: string;
 }): Promise<{ ok: boolean; imageDataUrl?: string; error?: string; blocked?: boolean }> {
   const { model, action_and_setting, avatarBase64, avatarMimeType, avatarUrl, settings } = options;
   const mode: ImageGenerationMode = options.mode || (options.is_persona_subject ? 'selfie' : 'pov');
@@ -966,37 +1024,66 @@ export async function generatePersonaImage(options: {
       return { ok: false, error: "Built-in Cloud (Vertex AI) is locked. Enter passcode in Settings." };
     }
 
-    try {
-      const res = await fetch('/api/gemini/image-generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-vertex-passcode': VERTEX_PASSCODE,
-        },
-        body: JSON.stringify({
-          model: modelToUse,
-          mode,
-          is_persona_subject: isSubject,
-          user_wants_posed: options.user_wants_posed,
-          action_and_setting,
-          avatarBase64,
-          avatarMimeType,
-          avatarUrl,
-        }),
-      });
+    const maxRetries = 2;
+    let lastError: any = null;
 
-      const data = await res.json();
-      if (res.ok && data.imageData) {
-        return { ok: true, imageDataUrl: data.imageData };
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        const res = await fetch('/api/gemini/image-generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-vertex-passcode': VERTEX_PASSCODE,
+          },
+          body: JSON.stringify({
+            model: modelToUse,
+            mode,
+            is_persona_subject: isSubject,
+            user_wants_posed: options.user_wants_posed,
+            action_and_setting,
+            avatarBase64,
+            avatarMimeType,
+            avatarUrl,
+            personaGender: options.personaGender,
+            personaName: options.personaName,
+            personaRole: options.personaRole,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.imageData) {
+          return { ok: true, imageDataUrl: data.imageData };
+        }
+
+        if (data.blocked) {
+          return {
+            ok: false,
+            error: data.error || "Image generation blocked by safety filters.",
+            blocked: true,
+          };
+        }
+
+        lastError = data.error || "Failed to generate image.";
+        if (attempt <= maxRetries) {
+          const delay = attempt === 1 ? 1500 : 3000;
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+
+        return {
+          ok: false,
+          error: lastError,
+          blocked: false,
+        };
+      } catch (e: any) {
+        console.error(`[Image Gen Fetch Attempt ${attempt}] Error:`, e);
+        lastError = e.message || "Failed to connect to image generation endpoint.";
+        if (attempt <= maxRetries) {
+          await new Promise(r => setTimeout(r, 1500 * attempt));
+          continue;
+        }
+        return { ok: false, error: lastError };
       }
-      return {
-        ok: false,
-        error: data.error || "Failed to generate image.",
-        blocked: data.blocked,
-      };
-    } catch (e: any) {
-      console.error("Error calling /api/gemini/image-generate:", e);
-      return { ok: false, error: e.message || "Failed to connect to image generation endpoint." };
     }
   }
 
@@ -1008,70 +1095,147 @@ export async function generatePersonaImage(options: {
 
   try {
     const ai = new GoogleGenAI({ apiKey: finalKey });
+
+    const gender = (options.personaGender || '').toLowerCase();
+    const isMale = gender === 'male' || gender === 'man' || gender === 'boy' || gender === 'brother' || gender === 'bro' || gender === 'father' || gender === 'dad' || gender === 'guy';
+    const subjPronoun = isMale ? 'He' : 'She';
+    const possPronoun = isMale ? 'his' : 'her';
+    const personLabel = isMale ? 'same man' : 'same woman';
+
+    const hasAvatar = Boolean(avatarBase64 && avatarBase64.trim().length > 100);
+    const referenceDirective = hasAvatar
+      ? `Use [Input Image 1] as the subject reference (identical face, exact facial structure, hair, and eye shape). `
+      : `Depict the persona realistically (${options.personaName ? `${options.personaName}, ` : ''}${options.personaRole || 'authentic persona'}). `;
+
     let parts: any[] = [];
     let promptText = '';
 
     if (mode === 'selfie') {
-      promptText = `Use [Input Image 1] as the subject reference (identical face, exact facial structure, hair, and eye shape). A spontaneous, casual amateur selfie taken on a smartphone front-facing camera. She is ${action_and_setting}. Arm extended holding the phone at a slight, natural angle; the shot is slightly off-center and imperfectly framed. Natural, flat indoor lighting or screen glare illuminating her face—strictly no studio rim lighting or warm glam glow. Casual relaxed expression, half-smile or candid smirk (not an Instagram model pose). Authentic smartphone front-lens compression, subtle motion blur around edges, faint digital camera grain. Raw unedited Snapchat/WhatsApp front camera snap, zero beauty filter, zero cinematic styling.`;
+      promptText = `${referenceDirective}A spontaneous, casual amateur selfie taken on a smartphone front-facing camera. ${subjPronoun} is ${action_and_setting}. Arm extended holding the phone at a slight, natural angle; the shot is slightly off-center and imperfectly framed. Natural, flat indoor lighting or screen glare illuminating ${possPronoun} face—strictly no studio rim lighting or warm glam glow. Casual relaxed expression, half-smile or candid smirk (not an Instagram model pose). Authentic smartphone front-lens compression, subtle motion blur around edges, faint digital camera grain. Raw unedited mobile front camera photo, zero beauty filter, zero cinematic styling.`;
 
-      if (avatarBase64) {
+      if (hasAvatar) {
         parts.push({
           inlineData: {
             mimeType: avatarMimeType || 'image/jpeg',
-            data: avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64,
+            data: avatarBase64!.includes(',') ? avatarBase64!.split(',')[1] : avatarBase64!,
           }
         });
       }
       parts.push({ text: promptText });
     } else if (mode === 'candid') {
       if (options.user_wants_posed) {
-        promptText = `Use [Input Image 1] as the subject reference (same woman, exact same facial features, hair, and skin tone). A casual, amateur smartphone snapshot of her ${action_and_setting}. She is posing casually for someone taking her photo on a phone, looking directly toward the camera with a natural, unforced expression. Shot on an everyday smartphone, slightly imperfect composition, authentic room/outdoor lighting. Realistic skin texture, natural soft focus, raw unedited mobile photo.`;
+        promptText = `${referenceDirective}A casual, amateur smartphone snapshot of ${isMale ? 'him' : 'her'} ${action_and_setting}. ${subjPronoun} is posing casually for someone taking ${possPronoun} photo on a phone, looking directly toward the camera with a natural, unforced expression (${personLabel}, identical facial features and skin tone). Shot on an everyday smartphone, slightly imperfect composition, authentic room/outdoor lighting. Realistic skin texture, natural soft focus, raw unedited mobile photo.`;
       } else {
-        promptText = `Use [Input Image 1] as the subject reference (same woman, exact same facial features, hair, and skin tone). A natural, unposed amateur photo of her ${action_and_setting}. Captured quickly on an everyday smartphone, feels accidental rather than staged. Composition is slightly imperfect: off-center framing, awkward angle (either slightly too low or tilted, horizon not completely straight, or part of her body slightly cropped out of frame). She is mid-action or looking away casually (looking at her phone, lost in thought, or reaching for something—not aware of or posing for the camera). Uneven realistic lighting [e.g., flat fluorescent lighting, harsh daylight with one side slightly overblown, or fading low light with subtle grain]. Focus is naturally soft or slightly missed rather than razor-sharp, with subtle motion blur from quick movement. An uncurated, unedited raw capture sent over chat.`;
+        promptText = `${referenceDirective}A natural, unposed amateur photo of ${isMale ? 'him' : 'her'} ${action_and_setting} (${personLabel}, identical facial features and skin tone). Captured quickly on an everyday smartphone, feels accidental rather than staged. Composition is slightly imperfect: off-center framing, awkward angle (either slightly too low or tilted, horizon not completely straight, or part of the body slightly cropped out of frame). ${subjPronoun} is mid-action or looking away casually (looking at phone, lost in thought, or reaching for something—not aware of or posing for the camera). Uneven realistic lighting [e.g., flat fluorescent lighting, harsh daylight with one side slightly overblown, or fading low light with subtle grain]. Focus is naturally soft or slightly missed rather than razor-sharp, with subtle motion blur from quick movement. An uncurated, unedited raw capture sent over chat.`;
       }
 
-      if (avatarBase64) {
+      if (hasAvatar) {
         parts.push({
           inlineData: {
             mimeType: avatarMimeType || 'image/jpeg',
-            data: avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64,
+            data: avatarBase64!.includes(',') ? avatarBase64!.split(',')[1] : avatarBase64!,
           }
         });
       }
       parts.push({ text: promptText });
     } else {
       // mode === 'pov'
-      promptText = `A casual amateur first-person POV photo taken on a smartphone of ${action_and_setting}. Documentary everyday realism, flat natural light or harsh indoor fluorescent bulbs. Slightly off-center angle, real clutter in the background, believable phone lens depth. An accidental 2-second snapshot, no editorial color grading, zero artistic styling.`;
+      promptText = `A casual amateur first-person POV photo taken on a smartphone of ${action_and_setting}. Documentary everyday realism, flat natural light or indoor lighting. Slightly off-center angle, real clutter in the background, believable phone lens depth. An accidental 2-second snapshot, no editorial color grading, zero artistic styling.`;
       parts.push({ text: promptText });
     }
 
-    const response = await ai.models.generateContent({
-      model: modelToUse,
-      contents: [{ role: 'user', parts }],
-      config: {
-        responseModalities: ["IMAGE"],
-        aspectRatio: "3:4",
-        imageConfig: {
-          aspectRatio: "3:4",
-        },
-      } as any,
-    });
+    let generatedDataUrl: string | undefined;
+    const maxRetries = 2;
+    let lastError: any = null;
 
-    const candidate = response.candidates?.[0];
-    if (candidate?.finishReason === 'SAFETY') {
-      return { ok: false, blocked: true, error: "Prompt triggered safety filter." };
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        let currentModel = modelToUse;
+        if (attempt === 2 && currentModel === 'gemini-3.1-flash-lite-image') {
+          currentModel = 'gemini-3.1-flash-image';
+        }
+
+        const response = await ai.models.generateContent({
+          model: currentModel,
+          contents: [{ role: 'user', parts }],
+          config: {
+            responseModalities: ["IMAGE"],
+            aspectRatio: "3:4",
+            imageConfig: {
+              aspectRatio: "3:4",
+            },
+          } as any,
+        });
+
+        const candidate = response.candidates?.[0];
+        if (candidate?.finishReason === 'SAFETY') {
+          console.warn(`[Studio Image Gen Attempt ${attempt}] Safety filter flagged.`);
+          if (attempt <= maxRetries) {
+            // Simplify prompt on safety retry to avoid human reference trigger
+            parts = [{ text: `A casual amateur smartphone photo of ${action_and_setting}. Natural everyday lighting, authentic mobile snapshot.` }];
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
+          }
+          return { ok: false, blocked: true, error: "Prompt triggered safety filter." };
+        }
+
+        const part = candidate?.content?.parts?.find((p: any) => p.inlineData?.data);
+        if (part && part.inlineData?.data) {
+          const mime = part.inlineData.mimeType || 'image/jpeg';
+          generatedDataUrl = `data:${mime};base64,${part.inlineData.data}`;
+          break;
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[Studio Image Gen Attempt ${attempt}/${maxRetries + 1} Error]:`, err?.message || err);
+        const errStr = err?.message || String(err);
+        if (errStr.includes('SAFETY') || errStr.includes('blocked')) {
+          if (attempt <= maxRetries) {
+            parts = [{ text: `A casual amateur smartphone photo of ${action_and_setting}. Natural everyday lighting, authentic mobile snapshot.` }];
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
+          }
+          return { ok: false, blocked: true, error: errStr };
+        }
+
+        // Secondary fallback attempt with Imagen (imagen-3.0-generate-002)
+        if (typeof (ai.models as any).generateImages === 'function') {
+          try {
+            const imgResult = await (ai.models as any).generateImages({
+              model: 'imagen-3.0-generate-002',
+              prompt: promptText,
+              config: {
+                numberOfImages: 1,
+                outputMimeType: 'image/jpeg',
+                aspectRatio: '3:4',
+              },
+            });
+            const b64 = imgResult?.generatedImages?.[0]?.image?.imageBytes;
+            if (b64) {
+              generatedDataUrl = `data:image/jpeg;base64,${b64}`;
+              break;
+            }
+          } catch (imgErr) {
+            console.warn("[Studio Imagen generateImages fallback error]:", imgErr);
+          }
+        }
+
+        if (attempt <= maxRetries) {
+          const delay = attempt === 1 ? 1500 : 3000;
+          await new Promise(r => setTimeout(r, delay + Math.random() * 500));
+          continue;
+        }
+      }
     }
 
-    const part = candidate?.content?.parts?.find((p: any) => p.inlineData?.data);
-    if (part && part.inlineData?.data) {
-      const mime = part.inlineData.mimeType || 'image/jpeg';
+    if (generatedDataUrl) {
       return {
         ok: true,
-        imageDataUrl: `data:${mime};base64,${part.inlineData.data}`,
+        imageDataUrl: generatedDataUrl,
       };
     }
 
-    return { ok: false, error: "No image received from Gemini." };
+    return { ok: false, error: lastError?.message || "No image received from Gemini." };
   } catch (err: any) {
     console.error("Studio image generation error:", err);
     const errStr = err?.message || String(err);

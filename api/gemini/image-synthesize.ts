@@ -188,6 +188,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
 
     const { persona, userPrompt, messageHistory, settings } = payload;
+    const clientTimeContext = payload.clientTimeContext || settings?.clientTimeContext;
     const ai = getVertexClient();
 
     const historySnippet = (messageHistory || [])
@@ -199,6 +200,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       ? `Persona Mood Value (0-100): ${persona.humaneSettings.moodValue}`
       : 'Persona Mood: Natural and conversational';
 
+    const timeContextPrompt = clientTimeContext
+      ? `\nCURRENT SYSTEM DATE & TIME CONTEXT:\n${clientTimeContext}\nCRITICAL LIGHTING & TIME RULE: The photo setting and lighting MUST realistically match this current time of day. If it is late at night or evening, use realistic indoor room lighting, bedside/desk lamp illumination, or cozy dim ambiance (never bright sunlight). If daytime, use natural room daylight or outdoor daylight.\n`
+      : '';
+
     const synthesisPrompt = `You are a Context & Caption Synthesizer for an authentic, smartphone-style photo exchange in a messaging app.
 The persona who will send the photo is:
 Name: ${persona?.name || 'Friend'}
@@ -207,7 +212,7 @@ Role: ${persona?.role || 'N/A'}
 Speech Style: ${persona?.speechStyle || 'Casual WhatsApp texting'}
 System Guidelines: ${persona?.systemInstruction || 'N/A'}
 ${moodDesc}
-
+${timeContextPrompt}
 Recent Chat History:
 ${historySnippet || '(No prior messages)'}
 
@@ -221,15 +226,15 @@ Determine what kind of photo the persona should send, following this strict PRIO
    If the user asks for something specific (e.g., "show me what you're eating", "send a pic of your dog", "show me your outfit", "send a selfie"), follow their exact instruction above everything else!
 
 2. RECENT HISTORY (SECONDARY):
-   Only use conversation history if the user's request is generic (e.g., "send an @image", "@img", or "show me you"), and the chat naturally mentions a current activity, food, or place.
+   If the user's request is generic (e.g., "send a photo", "send me a photo", "send an @image", "@img", "photo please", "send one", or "show me you"), inspect the recent conversation history. If the chat naturally mentions a current activity, food, drink, or place, align the photo to that ongoing conversation!
 
 3. RANDOM EVERYDAY VARIETY (FALLBACK):
-   If no specific activity was recently discussed or requested, randomly pick from one of these realistic everyday situations:
+   If no specific activity was recently discussed or requested, randomly pick from one of these realistic everyday situations matching the current time of day:
    - Living room couch browsing phone/laptop
    - Sitting in a car passenger seat
    - Kitchen counter making tea/coffee
    - Desk/study space with notebooks or laptop
-   - Waiting outdoors at a bus stop or cafe table
+   - Waiting outdoors or relaxing in a quiet room
    (DO NOT default to bed unless specifically mentioned in chat).
 
 OUTPUT REQUIREMENTS:
@@ -238,26 +243,54 @@ OUTPUT REQUIREMENTS:
    - "candid": Third-person snapshot of the persona (e.g., taken quickly on a phone camera or propped up).
    - "pov": Food, objects, views, surroundings, pets, scenery, laptop, desk (first-person POV snapshot, NO person subject).
 2. "caption": string
-   - A realistic, in-character text comment matching the persona's tone, current mood, speech style, and photo context (e.g. 'Excuse the bed hair haha, literally just woke up', 'Look what just arrived!', 'Having this right now, send me yours too!').
+   - A realistic, in-character text comment matching the persona's tone, current mood, speech style, and photo context (e.g. 'Excuse the messy hair haha, literally just woke up', 'Look what just arrived!', 'Having this right now, send me yours too!').
    - NEVER sound robotic or assistant-like. Keep it casual like a real WhatsApp message.
 3. "action_and_setting": string
-   - A concise, context-aware description of the action and environment (e.g. 'sitting on the living room couch with a mug', 'eating ramen at a cozy street food stall with steam rising', 'at a study desk with an open laptop and notebook').
+   - A concise, context-aware description of the action and environment (e.g. 'sitting on the living room couch with a mug under warm lamp light', 'eating ramen at a cozy street food stall with steam rising', 'at a study desk with an open laptop and notebook').
 4. "user_wants_posed": boolean
    - If the user explicitly asks for a specific pose (e.g., 'look at the camera', 'smile', 'pose nicely', 'stand straight', 'pose for me', 'just a simple of u standing and posing'), set user_wants_posed: true and reflect that exact request in action_and_setting.
    - Otherwise, default user_wants_posed: false.
 
 Return ONLY a valid JSON object with keys "mode", "user_wants_posed", "caption", and "action_and_setting".`;
 
-    const modelToUse = settings?.selectedModel || 'gemini-3.8-flash';
-    const response = await ai.models.generateContent({
-      model: modelToUse,
-      contents: [{ role: 'user', parts: [{ text: synthesisPrompt }] }],
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
+    const maxRetries = 2;
+    let responseText = "{}";
 
-    const responseText = response.text || "{}";
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        let modelToUse = settings?.selectedModel || 'gemini-3.8-flash';
+        if (attempt > 1) {
+          modelToUse = 'gemini-2.5-flash';
+        }
+
+        const response = await ai.models.generateContent({
+          model: modelToUse,
+          contents: [{ role: 'user', parts: [{ text: synthesisPrompt }] }],
+          config: {
+            responseMimeType: "application/json",
+          },
+        });
+
+        responseText = response.text || "{}";
+        if (responseText && responseText.trim() !== "{}") {
+          break;
+        }
+
+        if (attempt <= maxRetries) {
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+          continue;
+        }
+      } catch (err: any) {
+        console.warn(`[Image Synthesize Attempt ${attempt}/${maxRetries + 1} Error]:`, err?.message || err);
+        if (attempt <= maxRetries) {
+          const delay = attempt === 1 ? 1200 : 2500;
+          await new Promise(r => setTimeout(r, delay + Math.random() * 400));
+          continue;
+        }
+        throw err;
+      }
+    }
+
     let parsed: any;
     try {
       parsed = JSON.parse(responseText);
