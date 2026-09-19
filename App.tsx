@@ -960,34 +960,79 @@ const App: React.FC = () => {
   };
 
   const buildMemoryRecallContext = (chat: Chat, text: string) => {
-    if (!chat.memoryEnabled || !/[\\\/]rem\b/i.test(text)) return undefined;
-
+    const isExplicitRecall = /[@\\\/]rem\b/i.test(text);
     const memories = chat.memoryBubbles || [];
-    if (memories.length === 0) {
+
+    // If not explicit recall and no memories exist, no context needed
+    if (!isExplicitRecall && memories.length === 0) return undefined;
+
+    if (isExplicitRecall && memories.length === 0) {
       return `[MEMORY RECALL]
-The user invoked \\rem, but this chat has no saved memory bubbles yet. Acknowledge that naturally and continue the conversation without pretending to remember a saved day.`;
+The user specifically invoked memory recall (@rem) asking to remember past shared moments, but this chat has no saved diary memories yet.
+Acknowledge this naturally and warmly in-character (e.g. "Wait, I don't think we have that written down in our diary yet! Tell me more about it" or similar warm in-character response). Do not sound robotic, and do not mention "database" or "@rem".`;
     }
 
-    const query = text.replace(/[\\\/]rem\b/i, '').trim().toLowerCase();
-    const matchedMemories = query
-      ? memories.filter(memory =>
-          memory.title.toLowerCase().includes(query) ||
-          memory.summary.toLowerCase().includes(query) ||
-          memory.startDate.includes(query) ||
-          memory.endDate.includes(query)
-        )
-      : memories;
+    // Extract query and clean command
+    const rawQuery = text.replace(/[@\\\/]rem\b/gi, '').trim().toLowerCase();
 
-    const selectedMemories = (matchedMemories.length > 0 ? matchedMemories : memories).slice(-4);
-    const memoryText = selectedMemories.map(memory => [
-      `Title: ${memory.title}`,
-      `When: ${formatDateRangeLabel(memory.startDate, memory.endDate)}`,
-      `Memory: ${memory.summary}`
+    // Common conversational stopwords to ignore
+    const STOP_WORDS = new Set([
+      'do', 'you', 'remember', 'rem', 'what', 'we', 'when', 'did', 'the', 'a', 'an',
+      'in', 'on', 'at', 'about', 'our', 'my', 'your', 'me', 'us', 'that', 'this', 'day',
+      'time', 'incident', 'incidents', 'happen', 'happened', 'talked', 'tell', 'talk', 'of'
+    ]);
+
+    const queryTokens = rawQuery
+      .split(/[^a-z0-9_-]+/)
+      .filter(t => t.length > 2 && !STOP_WORDS.has(t));
+
+    let rankedMemories: MemoryBubble[] = [];
+
+    if (queryTokens.length > 0) {
+      // Score memories by keyword relevance
+      const scored = memories.map(memory => {
+        let score = 0;
+        const titleLower = (memory.title || '').toLowerCase();
+        const summaryLower = (memory.summary || '').toLowerCase();
+        const dateStr = `${memory.startDate} ${memory.endDate}`;
+
+        for (const token of queryTokens) {
+          if (titleLower.includes(token)) score += 5;
+          if (dateStr.includes(token)) score += 4;
+          if (summaryLower.includes(token)) score += 2;
+        }
+
+        // Exact phrase bonus
+        if (rawQuery.length > 3 && (titleLower.includes(rawQuery) || summaryLower.includes(rawQuery))) {
+          score += 10;
+        }
+
+        return { memory, score };
+      });
+
+      // Filter to memories with positive scores and sort descending
+      rankedMemories = scored
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(item => item.memory);
+    }
+
+    // If query didn't match specific memories, or no query was provided with @rem, use the most recent memories
+    const selectedMemories = (rankedMemories.length > 0 ? rankedMemories : memories).slice(-4);
+
+    const memoryText = selectedMemories.map((memory, idx) => [
+      `[DIARY ENTRY #${idx + 1}: "${memory.title}"]`,
+      `Date(s): ${formatDateRangeLabel(memory.startDate, memory.endDate)}`,
+      `Persona's Diary Reflection: ${memory.summary}`
     ].join('\n')).join('\n\n');
 
     return `[MEMORY RECALL]
-The user invoked a recall command (/rem). Use the saved memory context below as emotional and factual background, then reply in-character like this is something you naturally remember. Do not mention databases or settings unless the user asks.
+The user specifically invoked memory recall (@rem) asking to remember past shared incidents/moments.
+You MUST actively remember and reflect upon the specific details from your private diary entries below.
+Speak from personal memory and emotional intimacy, reflecting on what you wrote in your diary about this day.
+Do NOT mention "database", "@rem", or "system".
 
+SAVED RELEVANT DIARY ENTRIES:
 ${memoryText}`;
   };
 
@@ -996,6 +1041,7 @@ ${memoryText}`;
       if (chat.id !== chatId) return chat;
       return {
         ...chat,
+        memoryEnabled: true,
         memoryBubbles: [...(chat.memoryBubbles || []), memory]
       };
     }));
@@ -1514,8 +1560,16 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }
 
     const isImageRequest = !isEvent && /@(img|image)\b/i.test(text);
-    const cleanedText = isImageRequest ? text.replace(/@(img|image)\b/gi, '').trim() : text;
-    const displayText = cleanedText || (isImageRequest ? 'Send a photo' : text);
+    const isMemoryRecall = !isEvent && !isImageRequest && /[@\\\/]rem\b/i.test(text);
+
+    let cleanedText = text;
+    if (isImageRequest) {
+      cleanedText = text.replace(/@(img|image)\b/gi, '').trim();
+    } else if (isMemoryRecall) {
+      cleanedText = text.replace(/[@\\\/]rem\b/gi, '').trim();
+    }
+
+    const displayText = cleanedText || (isImageRequest ? 'Send a photo' : isMemoryRecall ? 'Do you remember?' : text);
 
     const isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     const msgStatus: MessageStatus = isDeviceOnline ? 'sent' : 'pending';
@@ -1539,7 +1593,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       replyToMessage: replyTo,
       isEvent,
       eventTitle: isEvent ? eventTitle : undefined,
-      isImageRequest
+      isImageRequest,
+      isMemoryRecall
     };
 
     setReplyingTo(null);
@@ -1552,6 +1607,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         if (attachment?.type === 'audio') lastMsg = '🎤 Voice message';
         if (isEvent) lastMsg = `🎬 Event: ${eventTitle || displayText}`;
         if (isImageRequest) lastMsg = `📷 Photo request: ${displayText}`;
+        if (isMemoryRecall) lastMsg = `💭 Remember: ${displayText}`;
 
         return {
           ...chat,
@@ -1570,8 +1626,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }
 
     // Trigger AI response(s)
-    if (isImageRequest || settings.enableTextStacking === false) {
-      const memoryContext = buildMemoryRecallContext(targetChat, displayText);
+    if (isImageRequest || isMemoryRecall || settings.enableTextStacking === false) {
+      const memoryContext = buildMemoryRecallContext(targetChat, text);
       const scheduleContext = buildScheduleContext(targetChat);
       const timeGapContext = getTimeGapAndFrequencyContext([...targetChat.messages, userMsg], false, settingsRef.current);
       const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
@@ -2576,12 +2632,69 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
   const handleClearChat = () => {
     if (!activeChatId) return;
+    const targetChat = chatsRef.current.find(c => c.id === activeChatId);
+    if (targetChat) {
+      for (const msg of targetChat.messages) {
+        const mediaId = msg.mediaId || msg.attachment?.mediaId;
+        if (mediaId) {
+          deleteMedia(mediaId).catch(() => {});
+        }
+      }
+    }
     setChats(prev => prev.map(c => c.id === activeChatId ? {
       ...c,
       messages: [],
       lastMessage: '',
       lastMessageTime: ''
     } : c));
+  };
+
+  const handleDeleteMessages = async (chatId: string, messageIds: string[]) => {
+    if (!messageIds || messageIds.length === 0) return;
+    const targetChat = chatsRef.current.find(c => c.id === chatId);
+    if (!targetChat) return;
+
+    // Clean up media in IndexedDB
+    for (const id of messageIds) {
+      const msg = targetChat.messages.find(m => m.id === id);
+      const mediaId = msg?.mediaId || msg?.attachment?.mediaId;
+      if (mediaId) {
+        try {
+          await deleteMedia(mediaId);
+        } catch (e) {
+          console.warn("Failed to delete media from IndexedDB:", e);
+        }
+      }
+    }
+
+    // Filter messages & recalculate lastMessage and lastMessageTime
+    setChats(prev => prev.map(chat => {
+      if (chat.id === chatId) {
+        const remaining = chat.messages.filter(m => !messageIds.includes(m.id));
+        const lastMsg = remaining[remaining.length - 1];
+        let newLastMessage = '';
+        if (lastMsg) {
+          if (lastMsg.attachment) {
+            newLastMessage = lastMsg.attachment.type === 'image' ? '📷 Photo' : 
+                             lastMsg.attachment.type === 'audio' ? '🎤 Voice message' : '📎 Attachment';
+          } else {
+            newLastMessage = lastMsg.text || '';
+          }
+        }
+        return {
+          ...chat,
+          messages: remaining,
+          lastMessage: newLastMessage,
+          lastMessageTime: lastMsg ? (lastMsg.timestamp || '') : '',
+        };
+      }
+      return chat;
+    }));
+
+    // Clear replyingTo if the replied-to message was among the deleted ones
+    if (replyingTo && messageIds.includes(replyingTo.id)) {
+      setReplyingTo(null);
+    }
   };
 
   return (
@@ -2672,6 +2785,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onAddContact={() => setShowNewChatPanel(true)}
             onReply={setReplyingTo}
             onSaveMemory={handleSaveMemory}
+            onDeleteMessages={handleDeleteMessages}
             settings={settings}
           />
           {activeChat && (!isMobile || !showProfilePanel) && (

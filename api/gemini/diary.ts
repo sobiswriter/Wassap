@@ -180,54 +180,76 @@ function resolveVertexModel(selectedModel?: string): string {
 }
 
 async function handleVertexDiary(payload: DiaryPayload): Promise<{ ok: boolean; text?: string; error?: string }> {
-  try {
-    const { persona, messageHistory, startDate, endDate, settings } = payload;
-    const ai = getVertexClient();
+  const { persona, messageHistory, startDate, endDate, settings } = payload;
+  const ai = getVertexClient();
 
-    const historyString = (messageHistory || [])
-      .map(m => {
-        const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
-        return `${name}: ${m.text || ''}`.trim();
-      })
-      .join('\n');
+  const historyString = (messageHistory || [])
+    .map(m => {
+      const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
+      return `${name}: ${m.text || ''}`.trim();
+    })
+    .join('\n');
 
-    const diaryPrompt = `
-You are ${persona.name}. 
-ABOUT YOU: ${persona.about || ''}
-ROLE: ${persona.role || ''}
-STYLE: ${persona.speechStyle || ''}
-NOTES: ${persona.systemInstruction || ''}
+  const dateLabel = startDate === endDate ? startDate : `${startDate} to ${endDate}`;
+
+  const diaryPrompt = `You are ${persona.name}.
+ABOUT YOU: ${persona.about || 'N/A'}
+ROLE: ${persona.role || 'N/A'}
+STYLE: ${persona.speechStyle || 'Authentic personal voice'}
+NOTES: ${persona.systemInstruction || 'N/A'}
 
 TASK:
-Write a personal diary entry for ${startDate === endDate ? startDate : `${startDate} to ${endDate}`}.
-In this diary entry, summarize the interaction you had with the User today based on the conversation history provided below.
-CRITICAL: Include your personal feelings, thoughts, and reflections on the interaction as this persona. 
-Make it feel like a private, emotional entry in your own personal journal.
+Write an intimate, personal diary entry in your private journal for ${dateLabel}.
+Reflect on your time, conversations, and interactions with the User today.
 
-CONVERSATION HISTORY:
-${historyString}
+GUIDELINES FOR THIS DIARY ENTRY:
+1. Write in the FIRST PERSON ("I", "my") completely in character as ${persona.name}.
+2. This is your SECRET, PRIVATE DIARY. Reveal your honest inner feelings, private thoughts you might have held back in text, little moments that made you smile, pause, or worry, and what this person means to you.
+3. NEVER write a mechanical transcript or bullet-point summary (do NOT say "At 14:02 User said...", "First we discussed X, then Y"). Instead, write like a real person writing in a notebook before going to sleep.
+4. Mention specific highlights or inside jokes from today's conversation naturally woven into your emotional reflection.
+5. End with a thoughtful concluding sentence, a wish for tomorrow, or an unspoken sentiment.
 
-DIARY ENTRY BY ${persona.name}:`;
+TODAY'S CONVERSATION:
+${historyString || '(No text exchanged today, but we spent quiet time connected)'}
 
-    const modelToUse = resolveVertexModel(settings?.selectedModel);
+PRIVATE DIARY ENTRY BY ${persona.name}:`;
 
-    const response = await ai.models.generateContent({
-      model: modelToUse,
-      contents: [{ role: 'user', parts: [{ text: diaryPrompt }] }],
-    });
+  const primaryModel = resolveVertexModel(settings?.selectedModel);
+  const fallbackModels = [
+    primaryModel,
+    primaryModel !== 'gemini-2.5-flash' ? 'gemini-2.5-flash' : 'gemini-3.8-flash',
+    'gemini-2.5-flash-lite'
+  ];
 
-    return {
-      ok: true,
-      text: response.text || "I couldn't find the words today...",
-    };
-  } catch (error: any) {
-    console.error("[Vertex AI Diary Error]:", error);
-    const errMessage = error?.message || String(error);
-    return {
-      ok: false,
-      error: `Vertex AI Diary generation failed: ${errMessage}`,
-    };
+  let lastError: any = null;
+
+  for (let i = 0; i < fallbackModels.length; i++) {
+    const modelToUse = fallbackModels[i];
+    try {
+      const response = await ai.models.generateContent({
+        model: modelToUse,
+        contents: [{ role: 'user', parts: [{ text: diaryPrompt }] }],
+      });
+
+      if (response && response.text) {
+        return {
+          ok: true,
+          text: response.text.trim(),
+        };
+      }
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[Vertex Diary] Attempt ${i + 1} with model ${modelToUse} failed:`, err?.message || err);
+      if (i < fallbackModels.length - 1) {
+        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+      }
+    }
   }
+
+  return {
+    ok: false,
+    error: `Vertex AI Diary generation failed: ${lastError?.message || 'Unknown error'}`,
+  };
 }
 
 export default async function handler(req: IncomingMessage & { body?: any }, res: ServerResponse) {

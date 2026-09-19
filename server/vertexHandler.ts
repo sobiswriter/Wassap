@@ -300,6 +300,8 @@ CRITICAL INSTRUCTION: Google Search Grounding is ENABLED. If the user asks for c
 IMPORTANT RULE: NEVER use formal citations (like [1], URLs, or "according to..."). Weave the facts you find naturally into your chat response as if you just looked it up on your phone. Keep your persona intact!
 ` : '';
 
+    const isMemoryRecall = Boolean(initiationContext && initiationContext.includes('[MEMORY RECALL]'));
+
     const isInitiationDirective = initiationContext && (
       initiationContext.includes('[SCHEDULED INTERACTION]') ||
       initiationContext.includes('[CATCH-UP REQUIRED]') ||
@@ -307,16 +309,21 @@ IMPORTANT RULE: NEVER use formal citations (like [1], URLs, or "according to..."
       initiationContext.includes('[MANUAL TEST]') ||
       initiationContext.includes('[TIME GAP DETECTED]') ||
       initiationContext.includes('[LEFT ON READ]') ||
-      initiationContext.includes('[CHAT FREQUENCY INFO]')
+      initiationContext.includes('[CHAT FREQUENCY INFO]') ||
+      isMemoryRecall
     );
 
     const initiationPrompt = initiationContext ? (isInitiationDirective ? `
-CRITICAL INSTRUCTION: You are re-initiating the conversation right now.
-${initiationContext.includes('[LEFT ON READ]')
-  ? `INTENT: The user just read your message (marked as read / blue ticks) but left you on read without replying. React naturally in character to being left on read (e.g. casual callout, banter, teasing, or question). Keep it concise (1 short sentence/line).`
-  : (initiationContext.includes('[SCHEDULED INTERACTION]') || initiationContext.includes('[CATCH-UP REQUIRED]') 
-    ? `INTENT: This is a scheduled interaction. You MUST prioritize this intent and address it immediately while remaining context-aware.` 
-    : `CONTEXT: This is a natural check-in. Prioritize the conversation history and flow while acknowledging the silence naturally.`)}
+CRITICAL INSTRUCTION:
+${isMemoryRecall
+  ? `INTENT: The user specifically invoked a memory recall command (@rem) asking you to remember past shared moments, incidents, or diary memories.
+You MUST actively remember and reflect upon the specific diary memories and details provided below.
+Respond naturally in-character with genuine emotional warmth, nostalgia, humor, or teasing as fits your personality. Reflect on how you felt and what happened in your private diary entry. Do not pretend not to remember, and do NOT mention "database", "@rem", or "system".`
+  : (initiationContext.includes('[LEFT ON READ]')
+    ? `INTENT: The user just read your message (marked as read / blue ticks) but left you on read without replying. React naturally in character to being left on read (e.g. casual callout, banter, teasing, or question). Keep it concise (1 short sentence/line).`
+    : (initiationContext.includes('[SCHEDULED INTERACTION]') || initiationContext.includes('[CATCH-UP REQUIRED]') 
+      ? `INTENT: This is a scheduled interaction. You MUST prioritize this intent and address it immediately while remaining context-aware.` 
+      : `CONTEXT: This is a natural check-in. Prioritize the conversation history and flow while acknowledging the silence naturally.`))}
 Context/Directive details:
 ${initiationContext}
 ` : `
@@ -488,54 +495,76 @@ Response as ${responder.name}:`;
 }
 
 export async function handleVertexDiary(payload: DiaryPayload): Promise<{ ok: boolean; text?: string; error?: string }> {
-  try {
-    const { persona, messageHistory, startDate, endDate, settings } = payload;
-    const ai = getVertexClient();
+  const { persona, messageHistory, startDate, endDate, settings } = payload;
+  const ai = getVertexClient();
 
-    const historyString = (messageHistory || [])
-      .map(m => {
-        const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
-        return `${name}: ${m.text || ''}`.trim();
-      })
-      .join('\n');
+  const historyString = (messageHistory || [])
+    .map(m => {
+      const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
+      return `${name}: ${m.text || ''}`.trim();
+    })
+    .join('\n');
 
-    const diaryPrompt = `
-You are ${persona.name}. 
-ABOUT YOU: ${persona.about || ''}
-ROLE: ${persona.role || ''}
-STYLE: ${persona.speechStyle || ''}
-NOTES: ${persona.systemInstruction || ''}
+  const dateLabel = startDate === endDate ? startDate : `${startDate} to ${endDate}`;
+
+  const diaryPrompt = `You are ${persona.name}.
+ABOUT YOU: ${persona.about || 'N/A'}
+ROLE: ${persona.role || 'N/A'}
+STYLE: ${persona.speechStyle || 'Authentic personal voice'}
+NOTES: ${persona.systemInstruction || 'N/A'}
 
 TASK:
-Write a personal diary entry for ${startDate === endDate ? startDate : `${startDate} to ${endDate}`}.
-In this diary entry, summarize the interaction you had with the User today based on the conversation history provided below.
-CRITICAL: Include your personal feelings, thoughts, and reflections on the interaction as this persona. 
-Make it feel like a private, emotional entry in your own personal journal.
+Write an intimate, personal diary entry in your private journal for ${dateLabel}.
+Reflect on your time, conversations, and interactions with the User today.
 
-CONVERSATION HISTORY:
-${historyString}
+GUIDELINES FOR THIS DIARY ENTRY:
+1. Write in the FIRST PERSON ("I", "my") completely in character as ${persona.name}.
+2. This is your SECRET, PRIVATE DIARY. Reveal your honest inner feelings, private thoughts you might have held back in text, little moments that made you smile, pause, or worry, and what this person means to you.
+3. NEVER write a mechanical transcript or bullet-point summary (do NOT say "At 14:02 User said...", "First we discussed X, then Y"). Instead, write like a real person writing in a notebook before going to sleep.
+4. Mention specific highlights or inside jokes from today's conversation naturally woven into your emotional reflection.
+5. End with a thoughtful concluding sentence, a wish for tomorrow, or an unspoken sentiment.
 
-DIARY ENTRY BY ${persona.name}:`;
+TODAY'S CONVERSATION:
+${historyString || '(No text exchanged today, but we spent quiet time connected)'}
 
-    const modelToUse = resolveVertexModel(settings?.selectedModel);
+PRIVATE DIARY ENTRY BY ${persona.name}:`;
 
-    const response = await ai.models.generateContent({
-      model: modelToUse,
-      contents: [{ role: 'user', parts: [{ text: diaryPrompt }] }],
-    });
+  const primaryModel = resolveVertexModel(settings?.selectedModel);
+  const fallbackModels = [
+    primaryModel,
+    primaryModel !== 'gemini-2.5-flash' ? 'gemini-2.5-flash' : 'gemini-3.8-flash',
+    'gemini-2.5-flash-lite'
+  ];
 
-    return {
-      ok: true,
-      text: response.text || "I couldn't find the words today...",
-    };
-  } catch (error: any) {
-    console.error("[Vertex AI Diary Error]:", error);
-    const errMessage = error?.message || String(error);
-    return {
-      ok: false,
-      error: `Vertex AI Diary generation failed: ${errMessage}`,
-    };
+  let lastError: any = null;
+
+  for (let i = 0; i < fallbackModels.length; i++) {
+    const modelToUse = fallbackModels[i];
+    try {
+      const response = await ai.models.generateContent({
+        model: modelToUse,
+        contents: [{ role: 'user', parts: [{ text: diaryPrompt }] }],
+      });
+
+      if (response && response.text) {
+        return {
+          ok: true,
+          text: response.text.trim(),
+        };
+      }
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[Vertex Diary] Attempt ${i + 1} with model ${modelToUse} failed:`, err?.message || err);
+      if (i < fallbackModels.length - 1) {
+        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+      }
+    }
   }
+
+  return {
+    ok: false,
+    error: `Vertex AI Diary generation failed: ${lastError?.message || 'Unknown error'}`,
+  };
 }
 
 export async function handleVertexTTS(payload: TTSPayload): Promise<{ ok: boolean; audioData?: string; mimeType?: string; error?: string }> {
@@ -641,6 +670,35 @@ export interface ImageSynthesisResult {
   user_wants_posed?: boolean;
 }
 
+export const EVERYDAY_PHOTO_ACTIVITIES = [
+  "Brewing pour-over coffee or tea at the kitchen counter with a ceramic mug",
+  "Curled up on a couch reading a paperback book under warm ambient lamp light",
+  "Sitting at a table with over-ear headphones on, listening to music",
+  "Sketching or writing in a journal with a pen in a cozy room",
+  "Watering an indoor potted plant near a window",
+  "Petting a cat or dog sitting beside them on the rug",
+  "Holding a warm ceramic mug with both hands, looking out the window",
+  "Sipping an iced matcha or bubble tea through a straw",
+  "Enjoying a warm croissant or pastry at a small cafe table",
+  "Eating noodles or a snack bowl at a casual kitchen counter",
+  "Peeling an orange or fruit at the dining table with a half-smile",
+  "Resting chin in palm across a table with a cafe beverage in front",
+  "Working at a study desk with open notebook, pens, and laptop",
+  "Reviewing handwritten notes with highlighters spread out",
+  "Walking down a convenience store or market aisle holding a shopping basket",
+  "Sitting cross-legged on the lawn in a park with sunglasses",
+  "Leaning casually against a balcony or terrace railing taking in the breeze",
+  "Taking a casual mirror selfie in an elevator or hallway mirror with their phone",
+  "Propping phone against a mug on the table for a relaxed front-camera shot",
+  "Checking a phone notification with an amused smile while leaning back on the couch",
+  "Snapping a quick spontaneous front-camera selfie with messy casual hair",
+];
+
+export function getSuggestedActivitiesSample(count: number = 7): string[] {
+  const shuffled = [...EVERYDAY_PHOTO_ACTIVITIES].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+}
+
 export async function handleVertexImageSynthesis(
   payload: ImageSynthesisPayload
 ): Promise<{ ok: boolean; result?: ImageSynthesisResult; error?: string }> {
@@ -648,6 +706,7 @@ export async function handleVertexImageSynthesis(
     const { persona, userPrompt, messageHistory, settings } = payload;
     const clientTimeContext = payload.clientTimeContext || settings?.clientTimeContext;
     const ai = getVertexClient();
+    const sampledActivities = getSuggestedActivitiesSample(7);
 
     const historySnippet = (messageHistory || [])
       .slice(-6)
@@ -680,31 +739,30 @@ User Request / Current Prompt:
 TASK:
 Determine what kind of photo the persona should send, following this strict PRIORITY HIERARCHY:
 
+NATURAL ACTIVITY & POSE DIVERSITY:
+Ensure natural variety in the persona's actions, posture, and setting. A persona checking a phone or taking a mirror selfie is a natural everyday option, but they should also engage in diverse real-life activities (drinking coffee, snacking, reading, writing, relaxing outdoors). Choose an authentic action that fits their mood, persona, and time of day.
+Here is a fresh sample of everyday activity ideas for inspiration (pick one, blend them, or adapt naturally):
+${sampledActivities.map(a => `- ${a}`).join('\n')}
+
 1. USER QUERY FIRST (HIGHEST PRIORITY):
-   If the user asks for something specific (e.g., "show me what you're eating", "send a pic of your dog", "show me your outfit", "send a selfie"), follow their exact instruction above everything else!
+   If the user asks for something specific (e.g., "show me what you're eating", "send a pic of your dog", "show me your outfit", "send a selfie", "mirror selfie"), follow their exact instruction above everything else!
 
 2. RECENT HISTORY (SECONDARY):
    If the user's request is generic (e.g., "send a photo", "send me a photo", "send an @image", "@img", "photo please", "send one", or "show me you"), inspect the recent conversation history. If the chat naturally mentions a current activity, food, drink, or place, align the photo to that ongoing conversation!
 
-3. RANDOM EVERYDAY VARIETY (FALLBACK):
-   If no specific activity was recently discussed or requested, randomly pick from one of these realistic everyday situations matching the current time of day:
-   - Living room couch browsing phone/laptop
-   - Sitting in a car passenger seat
-   - Kitchen counter making tea/coffee
-   - Desk/study space with notebooks or laptop
-   - Waiting outdoors or relaxing in a quiet room
-   (DO NOT default to bed unless specifically mentioned in chat).
+3. DIVERSE EVERYDAY VARIETY (FALLBACK):
+   If no specific activity was recently discussed or requested, choose a believable everyday human activity suited to their persona, role, and current time of day from the inspiration list above or similar realistic everyday moments.
 
 OUTPUT REQUIREMENTS:
 1. "mode": "selfie" | "candid" | "pov"
-   - "selfie": User specifically asks to see her/him, front-facing camera selfie, face, or outfit where they hold the camera.
-   - "candid": Third-person snapshot of the persona (e.g., taken quickly on a phone camera or propped up).
+   - "selfie": User specifically asks to see her/him, front-facing camera selfie, face, mirror selfie, or outfit where they hold the camera.
+   - "candid": Third-person snapshot of the persona (e.g., taken quickly on a phone camera by someone else across the room, friend, or propped phone).
    - "pov": Food, objects, views, surroundings, pets, scenery, laptop, desk (first-person POV snapshot, NO person subject).
 2. "caption": string
    - A realistic, in-character text comment matching the persona's tone, current mood, speech style, and photo context (e.g. 'Excuse the messy hair haha, literally just woke up', 'Look what just arrived!', 'Having this right now, send me yours too!').
    - NEVER sound robotic or assistant-like. Keep it casual like a real WhatsApp message.
 3. "action_and_setting": string
-   - A concise, context-aware description of the action and environment (e.g. 'sitting on the living room couch with a mug under warm lamp light', 'eating ramen at a cozy street food stall with steam rising', 'at a study desk with an open laptop and notebook').
+   - A concise, context-aware description of the active action and environment (e.g. 'holding a warm mug sitting cross-legged on the couch under soft lamp light', 'taking a bite of ramen at a cozy street stall with steam rising', 'at a study desk writing in an open notebook with pens scattered around').
 4. "user_wants_posed": boolean
    - If the user explicitly asks for a specific pose (e.g., 'look at the camera', 'smile', 'pose nicely', 'stand straight', 'pose for me', 'just a simple of u standing and posing'), set user_wants_posed: true and reflect that exact request in action_and_setting.
    - Otherwise, default user_wants_posed: false.
@@ -848,7 +906,7 @@ export async function handleVertexImageGeneration(
     let promptText = '';
 
     if (mode === 'selfie') {
-      promptText = `${referenceDirective}A spontaneous, casual amateur selfie taken on a smartphone front-facing camera. ${subjPronoun} is ${action_and_setting}. Arm extended holding the phone at a slight, natural angle; the shot is slightly off-center and imperfectly framed. Natural, flat indoor lighting or screen glare illuminating ${possPronoun} face—strictly no studio rim lighting or warm glam glow. Casual relaxed expression, half-smile or candid smirk (not an Instagram model pose). Authentic smartphone front-lens compression, subtle motion blur around edges, faint digital camera grain. Raw unedited mobile front camera photo, zero beauty filter, zero cinematic styling.`;
+      promptText = `${referenceDirective}A spontaneous, casual amateur selfie taken on a smartphone front-facing camera. ${subjPronoun} is ${action_and_setting}. Arm extended holding the phone at a slight, natural angle; the shot is slightly off-center and imperfectly framed. Natural everyday indoor lighting, cozy ambient room light, or natural daylight illuminating ${possPronoun} face—strictly no studio rim lighting or artificial glam glow. Casual relaxed expression, half-smile or candid smirk (not an Instagram model pose). Authentic smartphone front-lens compression, subtle motion blur around edges, faint digital camera grain. Raw unedited mobile front camera photo, zero beauty filter, zero cinematic styling.`;
 
       if (hasAvatar) {
         const cleanBase64 = avatarBase64!.includes(',') ? avatarBase64!.split(',')[1] : avatarBase64!;
@@ -864,7 +922,7 @@ export async function handleVertexImageGeneration(
       if (payload.user_wants_posed) {
         promptText = `${referenceDirective}A casual, amateur smartphone snapshot of ${isMale ? 'him' : 'her'} ${action_and_setting}. ${subjPronoun} is posing casually for someone taking ${possPronoun} photo on a phone, looking directly toward the camera with a natural, unforced expression (${personLabel}, identical facial features and skin tone). Shot on an everyday smartphone, slightly imperfect composition, authentic room/outdoor lighting. Realistic skin texture, natural soft focus, raw unedited mobile photo.`;
       } else {
-        promptText = `${referenceDirective}A natural, unposed amateur photo of ${isMale ? 'him' : 'her'} ${action_and_setting} (${personLabel}, identical facial features and skin tone). Captured quickly on an everyday smartphone, feels accidental rather than staged. Composition is slightly imperfect: off-center framing, awkward angle (either slightly too low or tilted, horizon not completely straight, or part of the body slightly cropped out of frame). ${subjPronoun} is mid-action or looking away casually (looking at phone, lost in thought, or reaching for something—not aware of or posing for the camera). Uneven realistic lighting [e.g., flat fluorescent lighting, harsh daylight with one side slightly overblown, or fading low light with subtle grain]. Focus is naturally soft or slightly missed rather than razor-sharp, with subtle motion blur from quick movement. An uncurated, unedited raw capture sent over chat.`;
+        promptText = `${referenceDirective}A natural, unposed amateur photo of ${isMale ? 'him' : 'her'} ${action_and_setting} (${personLabel}, identical facial features and skin tone). Captured quickly on an everyday smartphone, feels accidental rather than staged. Composition is slightly imperfect: off-center framing, awkward angle (either slightly too low or tilted, horizon not completely straight, or part of the body slightly cropped out of frame). ${subjPronoun} is actively engaged in the setting, looking away, observing something across the room, lost in thought, reaching for an item, or laughing mid-moment (natural authentic body posture, hands occupied naturally with the activity, not aware of or posing for the camera). Uneven realistic lighting [e.g., flat room lighting, soft ambient lamp light, or natural window light with subtle grain]. Focus is naturally soft or slightly missed rather than razor-sharp, with subtle motion blur from quick movement. An uncurated, unedited raw capture sent over chat.`;
       }
 
       if (hasAvatar) {

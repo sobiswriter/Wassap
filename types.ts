@@ -27,6 +27,7 @@ export interface Message {
   eventTitle?: string;
   timestampEpoch?: number;
   isImageRequest?: boolean;
+  isMemoryRecall?: boolean;
 }
 
 export interface MemoryBubble {

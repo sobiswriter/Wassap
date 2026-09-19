@@ -161,7 +161,36 @@ function isPasscodeValid(req: IncomingMessage & { body?: any }, payload?: any): 
   return headerCode === VERTEX_PASSCODE || bodyCode === VERTEX_PASSCODE;
 }
 
-export default async function handler(req: IncomingMessage, res: ServerResponse) {
+const EVERYDAY_PHOTO_ACTIVITIES = [
+  "Brewing pour-over coffee or tea at the kitchen counter with a ceramic mug",
+  "Curled up on a couch reading a paperback book under warm ambient lamp light",
+  "Sitting at a table with over-ear headphones on, listening to music",
+  "Sketching or writing in a journal with a pen in a cozy room",
+  "Watering an indoor potted plant near a window",
+  "Petting a cat or dog sitting beside them on the rug",
+  "Holding a warm ceramic mug with both hands, looking out the window",
+  "Sipping an iced matcha or bubble tea through a straw",
+  "Enjoying a warm croissant or pastry at a small cafe table",
+  "Eating noodles or a snack bowl at a casual kitchen counter",
+  "Peeling an orange or fruit at the dining table with a half-smile",
+  "Resting chin in palm across a table with a cafe beverage in front",
+  "Working at a study desk with open notebook, pens, and laptop",
+  "Reviewing handwritten notes with highlighters spread out",
+  "Walking down a convenience store or market aisle holding a shopping basket",
+  "Sitting cross-legged on the lawn in a park with sunglasses",
+  "Leaning casually against a balcony or terrace railing taking in the breeze",
+  "Taking a casual mirror selfie in an elevator or hallway mirror with their phone",
+  "Propping phone against a mug on the table for a relaxed front-camera shot",
+  "Checking a phone notification with an amused smile while leaning back on the couch",
+  "Snapping a quick spontaneous front-camera selfie with messy casual hair",
+];
+
+function getSuggestedActivitiesSample(count: number = 7): string[] {
+  const shuffled = [...EVERYDAY_PHOTO_ACTIVITIES].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+}
+
+export default async function handler(req: IncomingMessage & { body?: any }, res: ServerResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-vertex-passcode, x-passcode');
@@ -190,6 +219,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const { persona, userPrompt, messageHistory, settings } = payload;
     const clientTimeContext = payload.clientTimeContext || settings?.clientTimeContext;
     const ai = getVertexClient();
+    const sampledActivities = getSuggestedActivitiesSample(7);
 
     const historySnippet = (messageHistory || [])
       .slice(-6)
@@ -222,31 +252,30 @@ User Request / Current Prompt:
 TASK:
 Determine what kind of photo the persona should send, following this strict PRIORITY HIERARCHY:
 
+NATURAL ACTIVITY & POSE DIVERSITY:
+Ensure natural variety in the persona's actions, posture, and setting. A persona checking a phone or taking a mirror selfie is a natural everyday option, but they should also engage in diverse real-life activities (drinking coffee, snacking, reading, writing, relaxing outdoors). Choose an authentic action that fits their mood, persona, and time of day.
+Here is a fresh sample of everyday activity ideas for inspiration (pick one, blend them, or adapt naturally):
+${sampledActivities.map(a => `- ${a}`).join('\n')}
+
 1. USER QUERY FIRST (HIGHEST PRIORITY):
-   If the user asks for something specific (e.g., "show me what you're eating", "send a pic of your dog", "show me your outfit", "send a selfie"), follow their exact instruction above everything else!
+   If the user asks for something specific (e.g., "show me what you're eating", "send a pic of your dog", "show me your outfit", "send a selfie", "mirror selfie"), follow their exact instruction above everything else!
 
 2. RECENT HISTORY (SECONDARY):
    If the user's request is generic (e.g., "send a photo", "send me a photo", "send an @image", "@img", "photo please", "send one", or "show me you"), inspect the recent conversation history. If the chat naturally mentions a current activity, food, drink, or place, align the photo to that ongoing conversation!
 
-3. RANDOM EVERYDAY VARIETY (FALLBACK):
-   If no specific activity was recently discussed or requested, randomly pick from one of these realistic everyday situations matching the current time of day:
-   - Living room couch browsing phone/laptop
-   - Sitting in a car passenger seat
-   - Kitchen counter making tea/coffee
-   - Desk/study space with notebooks or laptop
-   - Waiting outdoors or relaxing in a quiet room
-   (DO NOT default to bed unless specifically mentioned in chat).
+3. DIVERSE EVERYDAY VARIETY (FALLBACK):
+   If no specific activity was recently discussed or requested, choose a believable everyday human activity suited to their persona, role, and current time of day from the inspiration list above or similar realistic everyday moments.
 
 OUTPUT REQUIREMENTS:
 1. "mode": "selfie" | "candid" | "pov"
-   - "selfie": User specifically asks to see her/him, front-facing camera selfie, face, or outfit where they hold the camera.
-   - "candid": Third-person snapshot of the persona (e.g., taken quickly on a phone camera or propped up).
+   - "selfie": User specifically asks to see her/him, front-facing camera selfie, face, mirror selfie, or outfit where they hold the camera.
+   - "candid": Third-person snapshot of the persona (e.g., taken quickly on a phone camera by someone else across the room, friend, or propped phone).
    - "pov": Food, objects, views, surroundings, pets, scenery, laptop, desk (first-person POV snapshot, NO person subject).
 2. "caption": string
    - A realistic, in-character text comment matching the persona's tone, current mood, speech style, and photo context (e.g. 'Excuse the messy hair haha, literally just woke up', 'Look what just arrived!', 'Having this right now, send me yours too!').
    - NEVER sound robotic or assistant-like. Keep it casual like a real WhatsApp message.
 3. "action_and_setting": string
-   - A concise, context-aware description of the action and environment (e.g. 'sitting on the living room couch with a mug under warm lamp light', 'eating ramen at a cozy street food stall with steam rising', 'at a study desk with an open laptop and notebook').
+   - A concise, context-aware description of the active action and environment (e.g. 'holding a warm mug sitting cross-legged on the couch under soft lamp light', 'taking a bite of ramen at a cozy street stall with steam rising', 'at a study desk writing in an open notebook with pens scattered around').
 4. "user_wants_posed": boolean
    - If the user explicitly asks for a specific pose (e.g., 'look at the camera', 'smile', 'pose nicely', 'stand straight', 'pose for me', 'just a simple of u standing and posing'), set user_wants_posed: true and reflect that exact request in action_and_setting.
    - Otherwise, default user_wants_posed: false.

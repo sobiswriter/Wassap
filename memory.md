@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.8.0`
+- **Current Version**: `v1.8.2`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -14,7 +14,76 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. In-Chat Authentic Smartphone Photo Generation (`@img` / `@image`) Overhaul (`v1.8.0`)
+### 1. AI Diary Generation Overhaul & Pure Diary Storage (`v1.8.2`)
+- **Pure Diary Entry Storage**:
+  - Eliminated mechanical message transcripts from saved memories (`buildCapturedMemorySummary` previously built text logs like *"The interaction started around 14:02 with You saying '...' and ended with..."*).
+  - Memories now store **authentic, intimate diary entries written in the persona's private first-person voice**, capturing their genuine thoughts, unspoken feelings about the user, and reflections on their time together.
+- **Redesigned Journal Interface (`DateMemoryModal.tsx`)**:
+  - Transformed the plain memory modal into an elegant diary/journal entry card with book/quill theme, date header, and customizable entry title.
+  - Prominent **"Generate AI Diary"** action with live loading animations, multi-model retries, and instant editable journal reflection.
+  - One-click **"Save to Persona's Diary"** action.
+- **Multi-Model Diary Generation Pipeline**:
+  - Upgraded `api/gemini/diary.ts`, `server/vertexHandler.ts`, and `services/geminiService.ts`.
+  - Added multi-model fallback retry loops (`gemini-3.8-flash` -> `gemini-2.5-flash` -> `gemini-2.5-flash-lite`) with exponential backoffs to prevent transient rate limits or quota drops.
+  - Rich prompt instructing the persona to write a secret, private journal entry with vulnerability, genuine feelings, and memorable conversation highlights.
+
+### 2. `@rem` Memory Recall Command & Relevance Scoring (`v1.8.2`)
+- **Full Syntax Support (`@rem`, `/rem`, `\rem`)**:
+  - Updated regex across all message entry points (chat input, quick replies, service worker callbacks, URL parameters, offline queue) to `/[@\\\/]rem\b/i`.
+  - Cleaned `@rem` from user message bubbles (e.g. *"Do you remember Kyoto? @rem"* displays cleanly in the bubble as *"Do you remember Kyoto?"*).
+- **Intelligent Keyword & Token Relevance Scoring**:
+  - Replaced naive exact-substring matching with tokenized relevance scoring.
+  - Filters out conversational stopwords (`do`, `you`, `remember`, `what`, `when`, `did`, `about`, `our`, `in`, `at`, etc.).
+  - Scores memories by keyword matches across `title` (5 pts), `startDate`/`endDate` (4 pts), and `summary` diary entry (2 pts), with exact phrase bonuses (10 pts).
+  - Ranks and injects the highest-scoring diary memories. If the query is generic (e.g. bare `@rem`), brings up recent memories.
+- **Top-Priority System Prompt Directive**:
+  - Upgraded `buildFullPersonaSystemPrompt` in `geminiService.ts` and `vertexHandler.ts`.
+  - Treated `[MEMORY RECALL]` as a top-priority directive instructing the persona to actively bring up the specific recalled diary memory in-character with genuine emotional warmth, nostalgia, or teasing.
+  - Injected background awareness of recent diary entries so personas naturally remember past events even without explicit `@rem`.
+- **Auto-Enable Memory**:
+  - Saving a memory via `handleSaveMemory` automatically sets `memoryEnabled: true`.
+
+### 3. Balanced Photo Activities & Authentic Smartphone Realism (`v1.8.2`)
+- **Removed Strict Anti-Phone Prohibition**:
+  - Softened anti-phone rules so that using a phone (mirror selfie, checking a notification, propping phone on table) is a natural everyday option rather than forbidden.
+- **Dynamic Everyday Activity Sampler**:
+  - Introduced `EVERYDAY_PHOTO_ACTIVITIES` and `getSuggestedActivitiesSample(count)` across `api/gemini/image-synthesize.ts`, `server/vertexHandler.ts`, and `services/geminiService.ts`.
+  - Provides a fresh randomized set of 7 activities per synthesis request spanning domestic cozy, food & dining, study & creative, outdoor strolls, and casual selfies/tech.
+- **Preserved Raw Mobile Realism**:
+  - Retained authentic smartphone camera details: natural room/lamp lighting, realistic focal depth, slight handheld tilt, unposed candid framing.
+
+---
+
+### 4. Anti-Phone Cliché Overhaul & Diverse Candid Activities (`v1.8.1`)
+- **Problem**: Characters in candid snapshots were overwhelmingly generated holding, staring down at, or illuminated by a glowing smartphone screen.
+- **Root Causes**:
+  - Prompt templates in `image-generate.ts`, `vertexHandler.ts`, and `geminiService.ts` explicitly suggested `"(looking at phone, lost in thought, or reaching for something)"` and `"screen glare illuminating face"`.
+  - The fallback scenario list in `image-synthesize.ts` repeatedly recommended `"Living room couch browsing phone/laptop"`, biasing diffusion/Imagen models toward the screen-gazing cliché.
+- **Overhaul & Fixes**:
+  - Injected strict `CRITICAL ANTI-PHONE CLICHÉ RULE` across all synthesis prompts: The persona MUST NOT be holding, staring at, tapping, or illuminated by a smartphone/screen unless explicitly requested by the user.
+  - Implemented diverse, authentic everyday activities and poses:
+    - *Domestic cozy*: Brewing pour-over coffee/tea, holding a ceramic mug with both hands, reading a paperback novel, listening to over-ear headphones, sketching in a spiral notebook, tending to indoor houseplants.
+    - *Snacking & dining*: Sipping bubble tea through a straw, peeling a mandarin/orange, holding a warm pastry or croissant, resting chin in hand across a dining table.
+    - *Study & creative*: Writing in a journal with a pen, reviewing lecture notes, arranging study stationery, working on a craft.
+    - *Outdoor & casual*: Strolling down a grocery/convenience store aisle with a hand basket, sitting cross-legged on park lawn, resting against a balcony railing looking out at the neighborhood.
+  - Synchronized across: `api/gemini/image-synthesize.ts`, `api/gemini/image-generate.ts`, `server/vertexHandler.ts`, and `services/geminiService.ts`.
+
+### 2. Multi-Message Deletion & Storage Cleanup (`v1.8.1`)
+- **Action Toolbar Integration**: Added a **Delete** (`Trash2`) button directly to the existing multi-message selection header bar in `components/ChatWindow.tsx` (which appears on double-tap or selection mode).
+- **Confirmation Safety**: Integrated a WhatsApp-themed confirmation modal (`ConfirmationModal`) informing the user of the exact number of messages being removed before proceeding.
+- **IndexedDB Media Cleanup**: `handleDeleteMessages` in `App.tsx` inspects all deleted messages for `mediaId` or `attachment.mediaId` and immediately cleans up the corresponding image/audio blobs via `deleteMedia()` from IndexedDB to prevent orphaned storage bloat.
+- **Chat State Integrity**: Automatically recalculates the chat's `lastMessage` and `lastMessageTime` from the remaining messages. Clears active `replyingTo` state if the replied-to message was among those deleted. Added identical media blob cleanup to `handleClearChat`.
+
+### 3. Memory QOL: 1-Click "Save as Memory" from Selected Messages (`v1.8.1`)
+- **One-Click Memory Extraction**: Added a **Save as Memory** (`Sparkles`) button to the message selection toolbar alongside Reply, Copy, and Delete.
+- **Seamless Modal Flow**: Selecting meaningful messages (e.g., romantic moments, shared jokes, personal milestones) and tapping "Save as Memory" opens `DateMemoryModal` pre-populated with:
+  - The calculated date range spanning the earliest to latest selected message.
+  - The selected messages automatically passed as the highlighted message set.
+- Allows users to turn authentic in-chat interactions directly into permanent long-term persona memories with zero friction or manual date picking.
+
+---
+
+### 4. In-Chat Authentic Smartphone Photo Generation (`@img` / `@image`) Overhaul (`v1.8.0`)
 - **Trigger**: Typing `@img` or `@image` anywhere in the message input (e.g. *"send a selfie @img"*, *"show me your lunch @img"*). The tag is automatically stripped before displaying in the chat bubble.
 - **Investigation & Root Causes Resolved**:
   1. *Transient Rate Limits & Lack of Retries*: Rapid back-to-back triggers previously hit 429 quota or timeouts with zero retries, immediately falling back to `generatePersonaImageExcuse`. Added exponential backoff retry loops (up to 3 attempts with 1.2s - 3s backoffs) in both serverless endpoints and client service.
