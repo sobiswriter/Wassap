@@ -81,10 +81,60 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.8.3"
+              title="The Dual Audio & Sent Pop Update"
+              date="September 2026"
+              isLatest={true}
+              changes={[
+                "Sent Message Pop Sound: Integrated authentic WhatsApp low-pop audio effect (/msgsentpop.mp3) whenever you send messages, media, or voice notes.",
+                "Simultaneous Dual Web Audio: Preloaded Web Audio buffers for both sent pop and incoming chime (/whatapp.wav), allowing overlapping non-blocking playback with zero cutoffs.",
+                "In-App Foreground Guard: Sounds trigger strictly when using the app in foreground (!document.hidden), keeping background tabs and OS notifications quiet.",
+                "Offline PWA Pre-Caching: Cached new audio assets in Service Worker (wassap-shell-v4) for immediate offline and PWA operation."
+              ]}
+            />
+
+            <UpdateItem 
+              version="v1.8.2"
+              title="The AI Diary Overhaul & @rem Recall Update"
+              date="September 2026"
+              isLatest={false}
+              changes={[
+                "Pure AI Diary Storage: Overhauled memory creation to save pure, authentic first-person diary reflections of persona's unspoken feelings rather than mechanical chat logs.",
+                "Redesigned Journal Interface: Transformed memory capture into an elegant diary entry card with title customization and one-click 'Generate AI Diary'.",
+                "Intelligent @rem Recall: Tokenized scoring engine that filters stop words and ranks memories by relevance to past conversations with instant in-character reminiscing.",
+                "Balanced Photo Realism: Replaced strict anti-phone restrictions with a dynamic pool of authentic everyday activities (coffee, dining, study, park, selfies) preserving raw mobile camera aesthetics."
+              ]}
+            />
+
+            <UpdateItem 
+              version="v1.8.1"
+              title="Anti-Phone Cliché & Chat Management Update"
+              date="September 2026"
+              isLatest={false}
+              changes={[
+                "Diverse Candid Activities: Eliminated the screen-staring cliché in candid photos with domestic, creative, dining, and outdoor activities.",
+                "Multi-Message Deletion: Select and delete multiple messages with WhatsApp-styled confirmation modal and automatic IndexedDB media cleanup.",
+                "1-Click 'Save as Memory': Turn selected meaningful messages directly into a permanent Memory Bubble without manual date calculation."
+              ]}
+            />
+
+            <UpdateItem 
+              version="v1.8.0"
+              title="Authentic Smartphone Photo Generation Update"
+              date="September 2026"
+              isLatest={false}
+              changes={[
+                "In-Chat @img / @image: Type @img to prompt personas to send authentic selfies, candid snapshots, or POV photos matching conversation context.",
+                "2-Step Context Synthesizer: Analyzes intent, mood, time of day, and chat history before steering the image generation model.",
+                "In-Character Error Excuses: Graceful fail-safe excuses when camera or network issues occur."
+              ]}
+            />
+
+            <UpdateItem 
               version="v1.7.0"
               title="The AI Voice Notes & Gemini-TTS Update"
               date="September 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "AI Voice Note Replies: Personas can reply with authentic WhatsApp-style voice messages featuring waveforms, dual timers, and speed toggles (1x, 1.5x, 2x).",
                 "30 Prebuilt Gemini-TTS Voices: Choose between 14 female and 16 male voices, complete with distinct personality traits and acoustic profiles.",

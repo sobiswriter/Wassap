@@ -137,7 +137,7 @@
   - `public/manifest.json`: Full PWA metadata, `display: "standalone"`, `id: "/"`, `start_url: "/"`, `scope: "/"`, maskable SVG icons.
   - `index.html`: iOS Safari web-app-capable meta tags (`apple-mobile-web-app-capable`, `black-translucent` status bar, `apple-touch-icon`).
 - **Service Worker Caching (`public/sw.js`)**:
-  - Pre-caches core app shell (`/`, `/index.html`, `/manifest.json`, `/favicon.svg`, `/whatapp.wav`).
+  - Pre-caches core app shell (`/`, `/index.html`, `/manifest.json`, `/favicon.svg`, `/whatapp.wav`, `/msgsentpop.mp3`).
   - Stale-While-Revalidate caching for static assets.
   - Strictly bypasses `/api/` network requests so Gemini AI responses are always live.
   - Retains background push notification handling and inline quick-reply listeners.
@@ -328,6 +328,23 @@ Wassap/
       - During initial `localStorage` hydration, any legacy chats containing raw JSON errors or `RESOURCE_EXHAUSTED` strings in message history or `lastMessage` previews are automatically healed into natural in-character replies.
     - **Service Worker Notification Shade Error Shield (`public/sw.js`)**:
       - Filtered notification history and wrapped background autonomous replies with `getGlitchExcuse()`, preventing raw technical errors from appearing in native OS notification cards.
+- [x] **v1.8.0**:
+  - In-chat authentic smartphone photo generation (`@img` / `@image`) overhaul with 2-step synthesizer + generator pipeline.
+  - Three distinct realistic photo modes (`selfie`, `candid`, `pov`) with avatar reference conditioning, time-of-day lighting context, dynamic gender pronouns, and graceful excuses.
+- [x] **v1.8.1**:
+  - Anti-phone cliché overhaul with dynamic everyday activity pool (coffee, dining, study, outdoor, park).
+  - Multi-message selection deletion with WhatsApp confirmation modal and automatic IndexedDB media blob cleanup.
+  - 1-Click "Save as Memory" from selected messages with auto date spans.
+- [x] **v1.8.2**:
+  - Pure AI Diary generation overhaul saving genuine first-person persona reflections rather than mechanical chat logs.
+  - Redesigned DateMemoryModal into an elegant journal entry card with multi-model fallback retry loops (`gemini-3.8-flash` -> `gemini-2.5-flash` -> `gemini-2.5-flash-lite`).
+  - `@rem` memory recall command with tokenized relevance scoring, stop word filtering, and top-priority prompt directives.
+  - Balanced photo realism allowing natural everyday activities without strict phone prohibitions.
+- [x] **v1.8.3**:
+  - Authentic sent message pop sound (`/msgsentpop.mp3`) on user sends across all message formats.
+  - Non-blocking Web Audio API dual-buffer playback engine supporting concurrent overlapping of sent pop and incoming chimes (`/whatapp.wav`).
+  - Foreground-only check (`!document.hidden`) ensuring sounds stay silent when backgrounded or minimized.
+  - Service worker offline pre-caching (`wassap-shell-v4`) for complete PWA offline support.
 
 ---
 

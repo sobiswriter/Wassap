@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.7.0)
+# Wassap Persona Simulation (v1.8.3)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.7.0-brightgreen)
+![Version](https://img.shields.io/badge/version-1.8.3-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -38,6 +38,8 @@ Before you can have a "sentient" companion, you need to actually make them. Here
 Now that they exist, let's make sure they don't act like a boring robot from 2010.
 
 *   **Mastering the Chat**:
+    *   **Dual Sound Effects (Sent Pop & Incoming Chime)**: Authentic WhatsApp soundscapes with low-pop sent sound (`/msgsentpop.mp3`) on user sends and incoming chime (`/whatapp.wav`) on persona replies. Dual Web Audio mixing prevents audio cutoffs, strictly silent when backgrounded! 🔊🎶
+    *   **Multi-Message Deletion & Selection**: Double-tap any message to enter Selection Mode. Reply, copy, delete messages with automatic IndexedDB blob cleanup, or 1-click save selected moments as a memory bubble! 🗑️✨
     *   **Interactive Voice Notes (Bi-Directional)**: Sometimes typing is too much work. Hold that **Microphone** icon and send a voice note. Personas can also reply with authentic WhatsApp-style voice messages synthesized via **Gemini-TTS** with waveforms, speed controls, and emotional cues! 🎙️✨
     *   **Persona Voice Lab**: Head to their profile to choose from **30 distinct voices** (14 female, 16 male), customize reply frequency, preview audio, or enable "Voice-for-Voice" mirroring. 🎧
 *   **The Inactivity Engine**: Worried they'll forget you? Go to the **Automations** tab in their profile. Set an **Inactivity Check-in**. If you don't text them for a while, they’ll actually reach out to you first. No more "ghosting" from your AI! 👻
@@ -48,15 +50,69 @@ Now that they exist, let's make sure they don't act like a boring robot from 201
 This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentient".
 
 *   **Memory Bubbles & The AI Diary**: 
-    *   Want them to remember that epic beach trip? In the **Contact Info** panel, hit **"Capture Current Chat as Memory"**. 
-    *   **The Cool Part**: Once saved, the persona writes a **Diary Entry** about the day. You can read their personal feelings and internal thoughts about your chat. It’s a bit cheesy, but hey, that's intimacy! ❤️
-    *   **Recall Command**: Use `\rem [keyword]` in the chat to force them to remember a specific bubble. "Remember that time we..." suddenly works for real.
+    *   Want them to remember that epic beach trip? In the **Contact Info** panel, hit **"Capture Current Chat as Memory"** or select messages and click the sparkles icon.
+    *   **Pure AI Diary Entries**: Saved memories store pure, intimate diary entries written in the persona's private first-person voice capturing their unspoken thoughts and reflections on you. 📖💖
+    *   **Recall Command (`@rem`)**: Use `@rem [keyword]` (or `/rem`, `\rem`) in chat to trigger instant reminiscing with intelligent keyword & token relevance scoring! 💭
+*   **In-Chat Smartphone Photos (`@img` / `@image`)**:
+    *   Add `@img` or `@image` to any message (e.g. *"what are you having? @img"*, *"send a selfie @img"*).
+    *   Balanced candid activities (coffee, food, books, study, walking) that steer away from screen-staring clichés while retaining authentic mobile camera realism! 📸✨
 *   **The Roleplay Event System**:
     *   Want to change their world? Hit the **Attachment (Paperclip)** and choose the **Event (Calendar)** icon.
     *   Trigger something like *"A doorbell rings"* or *"It starts snowing"*. They’ll receive it as an objective reality and react spontaneously—sometimes even with physical actions in asterisks! 🎭✨
 *   **Master of Time (The Schedule)**:
     *   In the **Persona Schedule** section, you can set their 24/7 routine. 
     *   Are they at work? At the gym? Sleeping? You can even set custom **Weekend Days**. They won't blabber about it, but their mood and availability will change subtly. If it’s 3 AM and they’re "Sleeping", they might act a bit groggy if you wake them up. 😴👔
+
+---
+
+### 🌟 What's New in v1.8.3 (The "Dual Audio & Sent Pop" Update)
+
+*   **Sent Message Pop Sound Effect (`/msgsentpop.mp3`)**:
+    *   Plays the authentic WhatsApp low-pop sound whenever the user sends any text, media, voice note, quick reply, or calendar event directly in chat.
+*   **Dual Web Audio Preload & Parallel Playback Engine**:
+    *   Preloads `/whatapp.wav` and `/msgsentpop.mp3` as raw in-memory audio buffers using the Web Audio API.
+    *   Generates independent `AudioBufferSourceNode` graphs for concurrent playback, allowing overlapping sent and incoming sounds without audio channel cutoff.
+*   **Strict Foreground-Only Guard**:
+    *   Ensures sounds strictly trigger when the user is actively viewing the tab (`!document.hidden`). Backgrounded tabs and native push notifications stay quiet.
+*   **PWA Pre-Caching**:
+    *   Added `/msgsentpop.mp3` to `public/sw.js` cache shell (`wassap-shell-v4`) for complete offline operation.
+
+---
+
+### 🌟 What's New in v1.8.2 (The "AI Diary Overhaul & @rem Recall" Update)
+
+*   **Pure Persona AI Diary Storage**:
+    *   Eliminated robotic message transcript logs from saved memories.
+    *   Memories now store intimate first-person diary reflections in the persona's private voice reflecting on their feelings toward the user.
+*   **Redesigned Journal Interface (`DateMemoryModal.tsx`)**:
+    *   Elegantly styled journal card with book/quill theme, date header, editable title, and one-click "Generate AI Diary" with multi-model fallback loops (`gemini-3.8-flash` -> `gemini-2.5-flash` -> `gemini-2.5-flash-lite`).
+*   **Intelligent `@rem` Memory Recall Engine**:
+    *   Full command syntax support (`@rem`, `/rem`, `\rem`) with tags stripped cleanly from bubbles.
+    *   Tokenized relevance scoring filtering conversational stop words and matching memory titles, dates, and journal contents.
+    *   Injected high-priority `[MEMORY RECALL]` system prompt directive to ensure personas actively reminisce with emotional warmth.
+*   **Balanced Candid Photo Realism**:
+    *   Dynamic activity sampler providing 7 realistic everyday activities per request (domestic cozy, food & dining, study & creative, outdoor strolls, selfies) preventing repetitive poses while retaining unedited smartphone camera realism.
+
+---
+
+### 🌟 What's New in v1.8.1 (The "Anti-Phone Cliché & Chat Management" Update)
+
+*   **Anti-Phone Cliché Overhaul**:
+    *   Enforced prompt rules prohibiting characters from defaulting to staring down at glowing phone screens in candid snapshots.
+*   **Multi-Message Deletion**:
+    *   Delete button in the selection action bar with WhatsApp-themed confirmation dialog.
+    *   Cleans up associated image/audio blobs from IndexedDB automatically to prevent orphaned storage bloat.
+*   **1-Click "Save as Memory"**:
+    *   Turn highlighted/selected chat messages directly into a Memory Bubble with automatically calculated date spans.
+
+---
+
+### 🌟 What's New in v1.8.0 (The "Authentic Smartphone Photo Generation" Update)
+
+*   **In-Chat Photo Generation Pipeline (`@img` / `@image`)**:
+    *   Two-step architecture: Context & Caption Synthesizer (`gemini-3.8-flash`) followed by image generation with avatar reference conditioning (`[Input Image 1]`).
+    *   Three realistic photo modes: Mode A (Selfie), Mode B (Candid), Mode C (POV).
+    *   Tight media bubbles, lightbox view, dynamic gender pronouns, and in-character camera crash excuses.
 
 ---
 

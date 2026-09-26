@@ -1,6 +1,6 @@
 # Wassap System Architecture (`architecture.md`)
 
-This document provides a comprehensive technical overview of the architecture, data flow, tech stack, and directory structure of the **Wassap Persona Simulation** platform (`v1.7.0`).
+This document provides a comprehensive technical overview of the architecture, data flow, tech stack, and directory structure of the **Wassap Persona Simulation** platform (`v1.8.3`).
 
 ---
 
@@ -12,9 +12,11 @@ Wassap is structured as a client-first Single Page Application (SPA) designed to
 graph TD
     User([User in Browser]) -->|UI Interactions| ReactApp[React 19 Frontend SPA]
 
-    subgraph Client Storage
+    subgraph Client Storage & Audio
         ReactApp -->|Settings, Personas, Chats| LocalStorage[(localStorage)]
         ReactApp -->|Voice Notes, Images, Blobs| IndexedDB[(IndexedDB utils/storage.ts)]
+        ReactApp -->|Dual Web Audio| AudioEngine[Web Audio API Engine: msgsentpop.mp3 & whatapp.wav]
+        ReactApp -->|Background / Offline| SW[Service Worker sw.js: Shell v4 Cache]
     end
 
     subgraph AI Gateway Routing geminiService.ts
@@ -45,7 +47,7 @@ graph TD
 
 ## 🔄 2. Core Workflows & Data Pipelines
 
-### A. In-Chat Realistic Smartphone Photo Generation (`@img`)
+### A. In-Chat Realistic Smartphone Photo Generation (`@img` / `@image`)
 
 ```mermaid
 sequenceDiagram
@@ -61,8 +63,8 @@ sequenceDiagram
     User->>Input: Types "what are you doing? @img"
     Input->>Input: Strip "@img" from user message bubble
     Input->>Service: triggerImageGeneration(userPrompt, persona, history)
-    Service->>Synthesizer: POST { userPrompt, persona, messageHistory }
-    Note over Synthesizer: gemini-3.8-flash analyzes intent,<br/>prioritizes user query over history,<br/>falls back to realistic everyday variety
+    Service->>Synthesizer: POST { userPrompt, persona, messageHistory, clientTimeContext }
+    Note over Synthesizer: gemini-3.8-flash analyzes intent,<br/>samples diverse everyday activities (no phone cliché),<br/>steers selfie, candid, or pov
     Synthesizer-->>Service: JSON { mode: "selfie"|"candid"|"pov", caption, action_and_setting, user_wants_posed }
     
     alt Generation Success
@@ -93,6 +95,52 @@ sequenceDiagram
     TTS-->>App: Audio Buffer (WAV with headers)
     App->>Player: Pass audio blob URL + duration
     Note over Player: Renders green play button, interactive scrubbing<br/>waveform, 1x/1.5x/2x speed pill, mic badge
+```
+
+### C. Dual In-App Audio Sound System (`msgsentpop.mp3` & `whatapp.wav`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant App as App.tsx (Audio Engine)
+    participant Persona as AI Persona
+    participant AudioCtx as Web Audio API AudioContext
+
+    Note over App: App mounts -> Preloads buffers for<br/>msgsentpop.mp3 & whatapp.wav
+    User->>App: Sends message (text, media, audio, event)
+    App->>App: Check document.hidden (strictly foreground only)
+    App->>AudioCtx: playSentMessageSound() -> AudioBufferSourceNode (gain 0.85)
+    Note over AudioCtx: Non-blocking parallel playback (sent pop)
+
+    Persona-->>App: Persona reply arrives
+    App->>App: Check document.hidden
+    App->>AudioCtx: playIncomingMessageSound() -> AudioBufferSourceNode (gain 1.0)
+    Note over AudioCtx: Plays incoming chime simultaneously without cutting off sent pop
+```
+
+### D. Pure AI Diary Generation & `@rem` Memory Recall Pipeline
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Modal as DateMemoryModal.tsx
+    participant DiaryAPI as /api/gemini/diary
+    participant ChatInput as MessageInput.tsx
+    participant GeminiService as geminiService.ts
+
+    User->>Modal: Clicks "Generate AI Diary"
+    Modal->>DiaryAPI: POST { persona, chatSummary, clientTimeContext }
+    Note over DiaryAPI: Multi-model fallback retry loop<br/>(3.8-flash -> 2.5-flash -> 2.5-flash-lite)<br/>Generates first-person private journal reflection
+    DiaryAPI-->>Modal: Pure diary entry text
+    Modal->>Modal: User saves -> stored in chat.memories
+
+    User->>ChatInput: Types "@rem Kyoto" (or /rem, \rem)
+    ChatInput->>GeminiService: Tokenized relevance scoring (filters stop words)
+    Note over GeminiService: Matches keywords in title (5pts), dates (4pts),<br/>summary (2pts) + exact match bonus (10pts)
+    GeminiService->>GeminiService: Injects [MEMORY RECALL] top-priority prompt directive
+    GeminiService-->>ChatInput: Persona reminisces in-character with genuine nostalgia
 ```
 
 ---
@@ -140,8 +188,13 @@ Wassap/
 │   ├── dates.ts                  # WhatsApp date formatter ("Today", "Yesterday", 24h clock)
 │   ├── imageCompressor.ts        # Client-side canvas image compression
 │   └── storage.ts                # IndexedDB persistence for large audio & image blobs
-├── public/                       # Static public assets (wallpapers, default avatars)
-├── App.tsx                       # Root application component & global state orchestrator
+├── public/                       # Static public assets
+│   ├── msgsentpop.mp3            # Authentic low-pop sent message sound
+│   ├── whatapp.wav               # Incoming message chime
+│   ├── sw.js                     # Service Worker (PWA offline shell v4 & background push)
+│   ├── manifest.json             # Web App Manifest
+│   └── images/                   # Wallpapers and default avatars
+├── App.tsx                       # Root application component, Web Audio engine, & global state orchestrator
 ├── constants.ts                  # Default personas, templates, wallpapers, model catalogues
 ├── index.css                     # Tailwind CSS base & custom WhatsApp variables
 ├── index.html                    # HTML entry point
@@ -165,7 +218,8 @@ Wassap/
 | **Styling** | **Tailwind CSS v3.4** + Custom CSS | WhatsApp theme tokens, CSS variables, dark mode class strategy |
 | **Icons** | **Lucide React** (`lucide-react`) | Pixel-accurate WhatsApp UI icon representations |
 | **Client AI SDK** | **`@google/genai` v1.38+** | Official Google GenAI SDK for AI Studio and Vertex AI |
-| **Audio Processing** | **Web Audio API** | Microphone PCM capture, sample-rate resampling, WAV header assembly |
+| **Audio Processing** | **Web Audio API** | Microphone PCM capture, sample-rate resampling, buffer preloading (`msgsentpop.mp3`, `whatapp.wav`), and parallel non-blocking playback |
+| **PWA & Offline** | **Service Worker** (`sw.js`) | Offline app shell caching (`wassap-shell-v4`), background push handling, and action dispatch |
 | **Local Backend** | **Express 4** | Local development proxy for Vertex AI endpoints |
 | **Serverless Engine** | **Vercel Functions** (`@vercel/node`) | Zero-config serverless API deployment in `/api/gemini/*` |
 | **Client Storage** | **`localStorage` & IndexedDB** | Lightweight text state + robust binary blob persistence |

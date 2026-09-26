@@ -71,8 +71,8 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
             <h2 className="text-[calc(var(--msg-font-size)+3px)] font-bold text-primary uppercase tracking-tighter">Wassap Guide</h2>
           </div>
           <div className="ml-auto hidden sm:flex items-center gap-2 px-3 py-1 bg-[#e7fce3] dark:bg-[#064a3d] rounded-full border border-[#00a884]/20">
-             <div className="w-2 h-2 bg-[#00a884] rounded-full animate-pulse"></div>
-             <span className="text-[calc(var(--msg-font-size)-4px)] font-bold text-[#00a884] uppercase tracking-widest">Version 1.7.0 Live</span>
+              <div className="w-2 h-2 bg-[#00a884] rounded-full animate-pulse"></div>
+              <span className="text-[calc(var(--msg-font-size)-4px)] font-bold text-[#00a884] uppercase tracking-widest">Version 1.8.3 Live</span>
           </div>
         </div>
       </div>
@@ -144,15 +144,15 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
               <div className="grid gap-4">
                 <GuideCard 
                   icon={MousePointer2}
-                  title="Double-Tap Magic"
-                  description="Double-tap any message to enter Selection Mode. Fast, sleek, and lets you manage the chat without long-presses."
-                  tag="Sleek"
+                  title="Double-Tap Magic & Deletion"
+                  description="Double-tap any message to enter Selection Mode. Reply, copy, delete messages with media cleanup, or save selections directly into a new Memory Bubble."
+                  tag="Updated"
                 />
                 <GuideCard 
                   icon={Mic}
-                  title="AI Voice Notes & Replies"
-                  description="Personas can now reply with authentic WhatsApp voice cards! Experience real waveforms, speed pills (1x, 1.5x, 2x), speaker avatars, and collapsible transcripts."
-                  tag="V1.7.0"
+                  title="AI Voice Notes & Dual Audio"
+                  description="Personas reply with authentic WhatsApp voice cards with waveforms and speed toggles. Includes native sent message pop and incoming chime sound effects."
+                  tag="V1.8.3"
                 />
                 <GuideCard 
                   icon={Volume2}
@@ -179,9 +179,9 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <GuideCard 
                   icon={Heart}
-                  title="Memory Bubbles & Diaries"
-                  description="Capture current chats as permanent Memory Bubbles. Once saved, the persona writes a secret Diary Entry about their feelings toward you."
-                  tag="V1.3.0"
+                  title="Memory Bubbles & AI Diaries"
+                  description="Capture current chats as permanent Memory Bubbles with genuine AI Diary reflections written in the persona's private, intimate voice."
+                  tag="V1.8.2"
                 />
                 <GuideCard 
                   icon={Gamepad2}
@@ -197,14 +197,15 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
                 />
                 <GuideCard 
                   icon={MessageSquareText}
-                  title="Recall Command (\rem)"
-                  description="Type '\rem [keyword]' in chat to force them to remember a specific memory bubble from your shared past."
+                  title="Recall Command (@rem)"
+                  description="Type '@rem [keyword]' in chat to pull up and reminisce about specific memories with intelligent keyword scoring."
+                  tag="V1.8.2"
                 />
                 <GuideCard 
                   icon={Camera}
-                  title="In-Chat Photos (@img)"
-                  description="Include '@img' in your message to have personas send authentic, unposed handheld photos or selfies matching the conversation."
-                  tag="NEW"
+                  title="In-Chat Photos (@img / @image)"
+                  description="Type '@img' or '@image' to have personas send authentic, unposed handheld photos, candid snapshots, or selfies matching the ongoing conversation."
+                  tag="V1.8.2"
                 />
                 <GuideCard 
                   icon={Search}

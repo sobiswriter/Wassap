@@ -100,7 +100,36 @@ body, input, button, textarea {
 - **Speed Pill**: Compact pill button toggling between `1x`, `1.5x`, and `2x` playback rates.
 - **Avatar Mic Indicator**: Micro green circular badge (`16px`) overlaid on the speaker's avatar.
 
-### D. Mobile Responsive Breakpoint (`max-width: 768px`)
+### D. Audio Soundscape Design Tokens
+- **Sent Message Pop Sound (`/msgsentpop.mp3`)**:
+  - Calibrated volume: `0.85` gain via Web Audio API `GainNode`.
+  - Frequency profile: Low-frequency subtle pop replicating WhatsApp Web / Mobile message transmission.
+  - Trigger: Centralized on outgoing message dispatch (`sendMessageToChat`).
+- **Incoming Message Chime (`/whatapp.wav`)**:
+  - Calibrated volume: `1.0` gain via Web Audio API.
+  - Frequency profile: High-fidelity WhatsApp incoming double chime.
+  - Trigger: Dispatched on persona response arrival.
+- **In-App Foreground Policy**:
+  - Strictly active only when `!document.hidden`.
+  - Silent during background tabs, minimized browser, and native background push alerts to eliminate duplicate sounds.
+
+### E. Message Selection Toolbar & Actions
+- **Selection Action Bar**:
+  - Position: Floating header bar replacing chat title bar during selection mode.
+  - Left: Selection counter (`{N} selected`) and dismiss button (`X`).
+  - Right Actions: Reply (`CornerUpLeft`), Copy (`Copy`), Save as Memory (`Sparkles` with green glow), Delete (`Trash2` with red accent hover).
+- **Deletion Confirmation Modal**:
+  - WhatsApp-native centered modal with blurred backdrop (`bg-black/50`).
+  - Confirmation text displaying exact message count.
+  - Destructive primary button: `#EA0038` ("Delete for me").
+
+### F. Date Memory & AI Diary Modal Design
+- **Header**: WhatsApp emerald theme with Book/Quill iconography and date badge.
+- **Title Field**: Integrated input with customizable entry title (defaulting to date or chat topic).
+- **Action**: "Generate AI Diary" button with animated sparkle spinner and multi-model fallback.
+- **Journal Canvas**: Parchment-toned textarea with relaxed leading (`leading-relaxed`), capturing intimate first-person persona reflections.
+
+### G. Mobile Responsive Breakpoint (`max-width: 768px`)
 - Main container expands to `100vw` and `100vh` without outer margins or rounded desktop frames.
 - Left sidebar and active chat window toggle as full-screen views.
 - Mobile bottom navigation rail replaces the desktop left navigation rail.
