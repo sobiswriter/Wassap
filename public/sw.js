@@ -1,5 +1,5 @@
-// Wassap Service Worker v11: Elegant Thin Divider & Clean Dialogue Formatting in Shade
-const CACHE_NAME = 'wassap-shell-v11';
+// Wassap Service Worker v13: Unified 1.8-2.5s Conversational Phases & Rapid Stacking Resumption
+const CACHE_NAME = 'wassap-shell-v13';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -196,9 +196,9 @@ const splitMessage = (text) => {
     let targetChunksCount = 1;
     if (wordCount <= 8) {
       targetChunksCount = 1;
-    } else if (wordCount <= 15) {
+    } else if (wordCount <= 20) {
       targetChunksCount = 2;
-    } else if (wordCount <= 24) {
+    } else if (wordCount <= 29) {
       targetChunksCount = 3;
     } else {
       targetChunksCount = Math.random() > 0.5 ? 4 : 5;
@@ -214,11 +214,19 @@ const splitMessage = (text) => {
         const w = words[i];
         currentSegment.push(w);
 
-        const isPunctuationEnd = /[.!?,\;:\-]+$/.test(w) || w.endsWith("...");
-        const nextW = words[i+1] ? words[i+1].toLowerCase() : "";
-        const isNextConjunction = ["and", "but", "so", "because", "then", "or"].includes(nextW);
+        // Avoid splitting on decimals (e.g. 3.14) or abbreviations (e.g. etc., dr., vs.)
+        const isDecimalOrAbbr = /\d+\.\d+$/.test(w) || /^(mr|mrs|dr|ms|prof|sr|jr|vs|etc|eg|ie)\.$/i.test(w);
+        const isPunctuationEnd = !isDecimalOrAbbr && (
+          /[.!?,\;:\-~—–]+["'”’\)\]*_~]*$/.test(w) ||
+          w.endsWith("...")
+        );
+        const hasTrailingEmoji = !isDecimalOrAbbr && /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]$/u.test(w);
 
-        if (isPunctuationEnd || isNextConjunction) {
+        const nextW = words[i+1] ? words[i+1].toLowerCase().replace(/^[^\w]+|[^\w]+$/g, '') : "";
+        const isNextConjunction = ["and", "but", "so", "because", "then", "or", "though", "plus", "also", "meanwhile", "anyway"].includes(nextW);
+        const shouldSplitConjunction = isNextConjunction && currentSegment.length >= 2;
+
+        if (isPunctuationEnd || hasTrailingEmoji || shouldSplitConjunction) {
           segmentList.push(currentSegment.join(' '));
           currentSegment = [];
         }
@@ -289,8 +297,8 @@ const splitMessage = (text) => {
   if (finalChunks.length > 0) {
     const totalWords = finalChunks.join(' ').split(/\s+/).filter(Boolean).length;
     let maxAllowed = 7;
-    if (totalWords <= 25) maxAllowed = 4;
-    else if (totalWords <= 50) maxAllowed = 5;
+    if (totalWords <= 30) maxAllowed = 4;
+    else if (totalWords <= 60) maxAllowed = 5;
     else if (totalWords <= 100) maxAllowed = 6;
     else maxAllowed = 7;
 

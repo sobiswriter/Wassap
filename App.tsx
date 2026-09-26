@@ -465,12 +465,12 @@ const splitMessage = (text: string): string[] => {
     let targetChunksCount = 1;
     if (wordCount <= 8) {
       targetChunksCount = 1;
-    } else if (wordCount <= 15) {
+    } else if (wordCount <= 20) {
       targetChunksCount = 2;
-    } else if (wordCount <= 24) {
+    } else if (wordCount <= 29) {
       targetChunksCount = 3;
     } else {
-      targetChunksCount = Math.random() > 0.5 ? 4 : 5; // 4-5 randomly
+      targetChunksCount = Math.random() > 0.5 ? 4 : 5; // 4-5 randomly for > 29 words
     }
 
     if (targetChunksCount === 1) {
@@ -483,11 +483,19 @@ const splitMessage = (text: string): string[] => {
         const w = words[i];
         currentSegment.push(w);
         
-        const isPunctuationEnd = /[.!?,\;:\-]+$/.test(w) || w.endsWith("...");
-        const nextW = words[i+1] ? words[i+1].toLowerCase() : "";
-        const isNextConjunction = ["and", "but", "so", "because", "then", "or"].includes(nextW);
+        // Avoid splitting on decimals (e.g. 3.14) or abbreviations (e.g. etc., dr., vs.)
+        const isDecimalOrAbbr = /\d+\.\d+$/.test(w) || /^(mr|mrs|dr|ms|prof|sr|jr|vs|etc|eg|ie)\.$/i.test(w);
+        const isPunctuationEnd = !isDecimalOrAbbr && (
+          /[.!?,\;:\-~—–]+["'”’\)\]*_~]*$/.test(w) ||
+          w.endsWith("...")
+        );
+        const hasTrailingEmoji = !isDecimalOrAbbr && /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]$/u.test(w);
         
-        if (isPunctuationEnd || isNextConjunction) {
+        const nextW = words[i+1] ? words[i+1].toLowerCase().replace(/^[^\w]+|[^\w]+$/g, '') : "";
+        const isNextConjunction = ["and", "but", "so", "because", "then", "or", "though", "plus", "also", "meanwhile", "anyway"].includes(nextW);
+        const shouldSplitConjunction = isNextConjunction && currentSegment.length >= 2;
+        
+        if (isPunctuationEnd || hasTrailingEmoji || shouldSplitConjunction) {
           segmentList.push(currentSegment.join(' '));
           currentSegment = [];
         }
@@ -558,8 +566,8 @@ const splitMessage = (text: string): string[] => {
   if (finalChunks.length > 0) {
     const totalWords = finalChunks.join(' ').split(/\s+/).filter(Boolean).length;
     let maxAllowed = 7;
-    if (totalWords <= 25) maxAllowed = 4;
-    else if (totalWords <= 50) maxAllowed = 5;
+    if (totalWords <= 30) maxAllowed = 4;
+    else if (totalWords <= 60) maxAllowed = 5;
     else if (totalWords <= 100) maxAllowed = 6;
     else maxAllowed = 7;
 
@@ -1302,8 +1310,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
         }));
       }
 
-      // 1. Initial "Thinking" Delay before starting to type
-      const thinkingDelay = 1000 + Math.random() * 2000;
+      // 1. Initial "Thinking" Delay before starting to type (1.8s - 2.5s)
+      const thinkingDelay = 1800 + Math.random() * 700;
       await new Promise(resolve => setTimeout(resolve, thinkingDelay));
 
       const timeGapContext = getTimeGapAndFrequencyContext(targetChat.messages, true);
@@ -1409,9 +1417,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         
-        // 2. Randomized Typing Duration
-        const charEfficiency = 35 + Math.random() * 20; 
-        const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1500), 5000);
+        // 2. Typing Duration (1.8s - 2.5s)
+        const typingDuration = 1800 + Math.random() * 700;
 
         setChatStatus(chatId, 'typing...');
         await new Promise(resolve => setTimeout(resolve, typingDuration));
@@ -1463,10 +1470,10 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
 
 
 
-        // 3. Randomized Inter-message Delay
+        // 3. Inter-message Delay (1.8s - 2.5s)
         if (i < chunks.length - 1) {
           setChatStatus(chatId, 'online');
-          const interDelay = 1200 + Math.random() * 1000;
+          const interDelay = 1800 + Math.random() * 700;
           await new Promise(resolve => setTimeout(resolve, interDelay));
         }
       }
@@ -1854,28 +1861,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
       const delaySeconds = settings.textStackingDelay || 10;
 
-      // 2. Persona comes online gradually during message stacking (e.g. 3.2s - 5.2s in)
-      if (personaComingOnlineTimersRef.current[chatId]) {
-        clearTimeout(personaComingOnlineTimersRef.current[chatId]);
-      }
-      const isCurrentlyOnline = chatsRef.current.find(c => c.id === chatId)?.status === 'online';
-      if (!isCurrentlyOnline && !targetChat.isGroup) {
-        const comeOnlineDelay = Math.min(Math.max(delaySeconds * 400, 3200), 5200);
-        personaComingOnlineTimersRef.current[chatId] = window.setTimeout(() => {
-          delete personaComingOnlineTimersRef.current[chatId];
-          const fresh = chatsRef.current.find(c => c.id === chatId);
-          if (fresh && fresh.status === 'offline') {
-            setChatStatus(chatId, 'online');
-          }
-        }, comeOnlineDelay);
-      }
-
       aiResponseTimeoutsRef.current[chatId] = window.setTimeout(async () => {
         delete aiResponseTimeoutsRef.current[chatId];
-        if (personaComingOnlineTimersRef.current[chatId]) {
-          clearTimeout(personaComingOnlineTimersRef.current[chatId]);
-          delete personaComingOnlineTimersRef.current[chatId];
-        }
+        markUserMessagesDelivered(chatId);
 
         const checkBusyAndTrigger = async () => {
           if (aiRespondingChatsRef.current.has(chatId)) {
@@ -1960,16 +1948,16 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         }
         markUserMessagesDelivered(chatId);
 
-        // Step 2: Persona comes online after double grey ticks (distinct pickup pause)
+        // Step 2: Persona comes online after double grey ticks (1.8s - 2.5s)
         const isAlreadyOnline = chatsRef.current.find(c => c.id === chatId)?.status === 'online';
         if (!isAlreadyOnline && !chat.isGroup) {
-          const comeOnlineDelay = 2200 + Math.random() * 1000; // 2.2s - 3.2s observable delay
+          const comeOnlineDelay = 1800 + Math.random() * 700;
           await new Promise(resolve => setTimeout(resolve, comeOnlineDelay));
           setChatStatus(chatId, 'online');
         }
 
-        // Step 3: "Seen" Delay Simulation (Persona opens chat thread, turning double grey ticks to blue)
-        const seenDelay = 2000 + Math.random() * 1000; // 2.0s - 3.0s delay
+        // Step 3: "Seen" Delay Simulation (Persona opens chat thread, turning double grey ticks to blue: 1.8s - 2.5s)
+        const seenDelay = 1800 + Math.random() * 700;
         await new Promise(resolve => setTimeout(resolve, seenDelay));
       } else {
         markUserMessagesDelivered(chatId);
@@ -1979,8 +1967,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       markUserMessagesRead(chatId);
 
       if (!isBackgroundReply) {
-        // Step 4: Initial "Thinking / Reading" Delay before starting to type
-        const thinkingDelay = 2200 + Math.random() * 1000; // 2.2s - 3.2s reading/thinking pause
+        // Step 4: Initial "Thinking / Reading" Delay before starting to type (1.8s - 2.5s)
+        const thinkingDelay = 1800 + Math.random() * 700;
         await new Promise(resolve => setTimeout(resolve, thinkingDelay));
       } else {
         // Snappy reading pause that respects user's enableTextStacking setting
@@ -2076,8 +2064,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               console.error("Failed to save generated image to IndexedDB", err);
             }
 
-            // Realistic photo sending delay
-            const photoSendDelay = 1200 + Math.random() * 800;
+            // Realistic photo sending delay (1.8s - 2.5s)
+            const photoSendDelay = 1800 + Math.random() * 700;
             await new Promise(resolve => setTimeout(resolve, photoSendDelay));
 
             const aiMsg: Message = {
@@ -2141,7 +2129,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           settings
         );
 
-        const typingDelay = Math.min(Math.max(excuse.length * 40, 1500), 3000);
+        const typingDelay = 1800 + Math.random() * 700; // 1.8s - 2.5s
         await new Promise(resolve => setTimeout(resolve, typingDelay));
 
         const aiMsg: Message = {
@@ -2222,8 +2210,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
           const cleanedTranscript = cleanSpokenTranscript(response);
 
-          // Simulated realistic delay for finishing voice note
-          const recordingDelay = Math.min(Math.max(cleanedTranscript.length * 25, 2000), 5000);
+          // Simulated realistic delay for finishing voice note (1.8s - 2.5s)
+          const recordingDelay = 1800 + Math.random() * 700;
           await new Promise(resolve => setTimeout(resolve, recordingDelay));
 
           const aiMsg: Message = {
@@ -2289,10 +2277,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
         setChatStatus(chatId, 'typing...');
 
-        // 3. Randomized Typing Duration
+        // 3. Typing Duration (1.8s - 2.5s)
         if (!isBackgroundReply) {
-          const charEfficiency = 35 + Math.random() * 20; 
-          const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1800), 5000);
+          const typingDuration = 1800 + Math.random() * 700;
           await new Promise(resolve => setTimeout(resolve, typingDuration));
         } else {
           // Snappy, realistic typing duration so user is never bored waiting
@@ -2352,11 +2339,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           });
         }
 
-        // 4. Randomized Inter-message Delay (simulating hitting 'send' and starting to type next)
+        // 4. Inter-message Delay (1.8s - 2.5s)
         if (i < chunks.length - 1) {
           if (!isBackgroundReply) {
             setChatStatus(chatId, 'online');
-            const interDelay = 1200 + Math.random() * 1000;
+            const interDelay = 1800 + Math.random() * 700;
             await new Promise(resolve => setTimeout(resolve, interDelay));
           } else {
             const interPause = settings.enableTextStacking === false
@@ -2395,8 +2382,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         await new Promise(resolve => setTimeout(resolve, deliveryWait));
       }
       markUserMessagesDelivered(group.id);
-      // 2. Initial "Seen" Delay for the whole group (simulating someone opening the group)
-      const initialSeenDelay = 2000 + Math.random() * 1200;
+      // 2. Initial "Seen" Delay for the whole group (simulating someone opening the group: 1.8s - 2.5s)
+      const initialSeenDelay = 1800 + Math.random() * 700;
       await new Promise(resolve => setTimeout(resolve, initialSeenDelay));
     } else {
       markUserMessagesDelivered(group.id);
@@ -2423,8 +2410,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
       try {
         if (!isBackgroundReply) {
-          // 2. Persona-specific thinking/readiness delay
-          const delay = 1800 + (Math.random() * 2000);
+          // 2. Persona-specific thinking/readiness delay (1.8s - 2.5s)
+          const delay = 1800 + Math.random() * 700;
           await new Promise(resolve => setTimeout(resolve, delay));
         } else {
           const groupDelay = settings.enableTextStacking === false
@@ -2544,10 +2531,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         for (let j = 0; j < chunks.length; j++) {
           const chunk = chunks[j];
 
-          // 3. Randomized Typing Duration for group personas
+          // 3. Typing Duration for group personas (1.8s - 2.5s)
           if (!isBackgroundReply) {
-            const charEfficiency = 35 + Math.random() * 25; 
-            const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1500), 5000);
+            const typingDuration = 1800 + Math.random() * 700;
             setChatStatus(group.id, 'typing...');
             await new Promise(resolve => setTimeout(resolve, typingDuration));
           } else {
@@ -2615,7 +2601,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           if (j < chunks.length - 1) {
             if (!isBackgroundReply) {
               setChatStatus(group.id, 'online');
-              const interDelay = 1000 + Math.random() * 1200;
+              const interDelay = 1800 + Math.random() * 700; // 1.8s - 2.5s
               await new Promise(resolve => setTimeout(resolve, interDelay));
             } else {
               const interPause = settings.enableTextStacking === false

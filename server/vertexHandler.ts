@@ -356,11 +356,11 @@ React to it organically in your next text message to the User. Let your text be 
   * Show authentic emotional reactions—express teasing, surprise, skepticism, laziness, warmth, or amusement rather than generic sterile politeness.`;
       }
       if (responder.humaneSettings.varyMessageLength) {
-        humaneInstructions += `
-- DYNAMIC MESSAGE PACING (NO ESSAYS / MONOLOGUES):
+        const pacingPrompt = responder.humaneSettings.varyMessageLengthPrompt?.trim() || `- DYNAMIC MESSAGE PACING (NO ESSAYS / MONOLOGUES):
   * Keep responses brief, punchy, and WhatsApp-native (1 to 2 lines max).
   * Never write structured multi-sentence essays or dense paragraphs.
   * Match real phone texting dynamics: sometimes reply with a spontaneous 1-3 word quip ("wait fr?", "haha no way", "nah"), sometimes a snappy one-liner.`;
+        humaneInstructions += `\n${pacingPrompt}`;
       }
       if (responder.humaneSettings.moodSliderEnabled) {
         const mood = responder.humaneSettings.moodValue;
@@ -409,7 +409,7 @@ Instructions:
 3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
 4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
 5. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
-6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.' : 'Respond naturally without any strict length restrictions.'}
+6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? (responder.humaneSettings.varyMessageLengthPrompt ? 'Follow the custom message length and pacing directives defined below.' : 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.') : 'Respond naturally without any strict length restrictions.'}
 7. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
 
 Conversation History:

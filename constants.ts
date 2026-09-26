@@ -328,5 +328,34 @@ export const WALLPAPER_PRESETS: WallpaperPreset[] = [
 export const VERTEX_PASSCODE = 'Ness2020';
 export const VERTEX_PASSCODE_HINT = "It's your sister's name & date?";
 
+export const DEFAULT_VARY_MESSAGE_LENGTH_PROMPT = `- DYNAMIC MESSAGE PACING (NO ESSAYS / MONOLOGUES):
+  * Keep responses brief, punchy, and WhatsApp-native (1 to 2 lines max).
+  * Never write structured multi-sentence essays or dense paragraphs.
+  * Match real phone texting dynamics: sometimes reply with a spontaneous 1-3 word quip ("wait fr?", "haha no way", "nah"), sometimes a snappy one-liner.`;
+
+export const VARY_MESSAGE_LENGTH_PRESETS = [
+  {
+    id: 'default',
+    label: 'Dynamic WhatsApp Pacing (Default)',
+    prompt: DEFAULT_VARY_MESSAGE_LENGTH_PROMPT
+  },
+  {
+    id: 'ultra_short',
+    label: 'Ultra-Short & Punchy (1 line max)',
+    prompt: `- ULTRA-SHORT RAPID-FIRE TEXTING:
+  * Strict limit: 1 short sentence or reaction quip (max 5-10 words).
+  * Use casual quips, abbreviations, and dry one-liners.
+  * Never write a full paragraph or multiple sentences.`
+  },
+  {
+    id: 'expressive_bursts',
+    label: 'Expressive Multi-Bubble Bursts',
+    prompt: `- EXPRESSIVE CHAT BURSTS:
+  * Send quick consecutive thoughts (1-2 lines each) that break naturally across message bubbles.
+  * Vary between quick reactions, teasing quips, and playful follow-ups.
+  * Keep each thought concise and punchy without long monologues.`
+  }
+];
+
 
 

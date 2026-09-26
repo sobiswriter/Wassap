@@ -433,7 +433,39 @@ Wassap/
     - *Clean Attributions*: Kept `"You: <text>"` for user turns. In 1-on-1 chats, persona names are omitted in the body since contact name and avatar already headline the notification card. In group chats, member attributions (`${personaLabel}: `) are cleanly placed after the divider.
     - *Threaded History Bounds*: In `public/sw.js` (both autonomous Left-on-Read reactions and inline quick-replies), dialog history is parsed by `DIVIDER` and bounded to the 2 most recent turns (`slice(-2)`), preventing message run-ons or notification shade overflow on Android.
     - *Foreground Sync Reliability*: Handled nullable `userMessage` in `App.tsx`'s `BACKGROUND_EXCHANGE_SYNC` listener to seamlessly synchronize standalone persona replies (like Left-on-Read reactions) into the chat history without runtime errors.
-    - *Service Worker Cache v11*: Bumped cache to `wassap-shell-v11` to ensure rapid propagation of the updated notification formatting to all clients.
+- [x] **v1.8.8**:
+  - **Message Fragmentation Limits & Boundary Detection Overhaul**:
+    - *Buffed Word Count Tiers*: Increased fragmentation limits across `App.tsx` and `public/sw.js`:
+      - 1 chunk: $\le$ 8 words (preserved for instant short phrases).
+      - 2 chunks: $\le$ 20 words (increased from 15).
+      - 3 chunks: $\le$ 29 words (increased from 24).
+      - 4-5 chunks: $> 29$ words ($\ge 30$ words approx).
+      - Adjusted global hard caps: $\le 30$ words max 4 chunks, $\le 60$ words max 5 chunks.
+    - *Smarter Natural Boundary Detection*:
+      - Protected decimal numbers (e.g. `3.14`, `$10.50`) and common abbreviations (e.g. `etc.`, `dr.`, `mr.`, `vs.`) from spurious middle-of-sentence splits.
+      - Trailing emoji detection (`[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]`) recognizes emojis as natural texting pause boundaries.
+      - Punctuation handling now supports closing markdown symbols, quotes, and dashes (`[.!?,\;:\-~—–]+["'”’\)\]*_~]*$`).
+      - Expanded conversational conjunctions (`["and", "but", "so", "because", "then", "or", "though", "plus", "also", "meanwhile", "anyway"]`) with a 2-word segment guard to prevent 1-word fragments.
+  - **Sentience: Humane Settings "Vary Message Length" Dropdown & Prompt Editor**:
+    - Added an expandable dropdown menu (`ChevronDown` / `ChevronRight`) directly under "Vary Message Length" in `ProfilePanel.tsx`.
+    - Integrated preset selector (`VARY_MESSAGE_LENGTH_PRESETS` in `constants.ts`: Dynamic WhatsApp Pacing, Ultra-Short & Punchy, Expressive Multi-Bubble Bursts, Custom).
+    - Added editable monospace prompt `<textarea>` so users can view and customize the exact prompt instructions sent to the AI, complete with a "Reset to default" button.
+    - Supported custom `varyMessageLengthPrompt` across `types.ts`, `services/geminiService.ts`, `server/vertexHandler.ts`, and `api/gemini/generate.ts`.
+    - *Bumped Service Worker Cache*: v12.
+- [x] **v1.8.9**:
+  - **Unified 1.8–2.5s Conversational Flow & Rapid Stacking Resumption**:
+    - *Consistent 1.8s - 2.5s Phase Pacing*: Replaced overly long, variable delays (up to 3.8s–5.2s) across all active messaging phases with a unified, comfortable `1800 + Math.random() * 700` ms window:
+      - Delivery delay (single tick to double grey ticks): 1.8s – 2.5s
+      - Come-online delay (double grey ticks to persona online): 1.8s – 2.5s
+      - Seen delay (double grey ticks to blue ticks): 1.8s – 2.5s
+      - Thinking/reading delay (blue ticks to typing status): 1.8s – 2.5s
+      - Typing duration (foreground message bubble preparation): 1.8s – 2.5s
+      - Inter-message pause between fragmented chunks: 1.8s – 2.5s
+      - Photo, audio note, and excuse preparation phases: 1.8s – 2.5s
+      - Group response readiness and typing duration: 1.8s – 2.5s
+    - *Streamlined Stacking Mode Cycle*: Removed premature and intrusive online status flips during the active text-stacking window. User messages are naturally marked delivered at 1.8s – 2.5s. When the stacking delay timer ends, all messages are immediately confirmed delivered (skipping redundant delivery waits) and the clean cycle begins immediately: Online (1.8s – 2.5s) $\to$ Seen / Blue ticks (1.8s – 2.5s) $\to$ Typing (1.8s – 2.5s) $\to$ Delivery.
+    - *Preserved Lingering Online*: Persona stays online for 35 seconds (`schedulePersonaOffline` with 35,000 ms) before transitioning to offline, allowing seamless continued conversations without re-triggering the pickup phase.
+    - *Service Worker Cache v13*: Bumped cache to `wassap-shell-v13`.
 
 ---
 

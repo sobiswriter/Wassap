@@ -8,7 +8,7 @@ import {
 import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate, AppSettings, PersonaVoiceSettings, VoiceNoteFrequency } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey, getAppNow, getAppDateKey } from '../utils/dates';
-import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TTS_VOICE_DETAILS, AVAILABLE_IMAGE_MODELS, DEFAULT_IMAGE_MODEL } from '../constants';
+import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TTS_VOICE_DETAILS, AVAILABLE_IMAGE_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_VARY_MESSAGE_LENGTH_PROMPT, VARY_MESSAGE_LENGTH_PRESETS } from '../constants';
 import { generateGeminiVoiceNote } from '../services/geminiService';
 
 interface ProfilePanelProps {
@@ -56,11 +56,15 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       timeTriggers: [],
       inactivity: { enabled: false, hours: 6, minutes: 0, seconds: 0 }
     },
-    humaneSettings: chat.humaneSettings || {
+    humaneSettings: chat.humaneSettings ? {
+      ...chat.humaneSettings,
+      varyMessageLengthPrompt: chat.humaneSettings.varyMessageLengthPrompt || DEFAULT_VARY_MESSAGE_LENGTH_PROMPT
+    } : {
       enabled: false,
       banRoboticLanguage: true,
       humanImperfections: false,
       varyMessageLength: false,
+      varyMessageLengthPrompt: DEFAULT_VARY_MESSAGE_LENGTH_PROMPT,
       moodSliderEnabled: false,
       moodValue: 50
     },
@@ -82,6 +86,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSentience, setShowSentience] = useState(false);
   const [showHumane, setShowHumane] = useState(false);
+  const [showVaryLengthPromptDropdown, setShowVaryLengthPromptDropdown] = useState(false);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
   const [showImageSettings, setShowImageSettings] = useState(false);
   const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
@@ -116,11 +121,15 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
         timeTriggers: [],
         inactivity: { enabled: false, hours: 6, minutes: 0, seconds: 0 }
       },
-      humaneSettings: chat.humaneSettings || {
+      humaneSettings: chat.humaneSettings ? {
+        ...chat.humaneSettings,
+        varyMessageLengthPrompt: chat.humaneSettings.varyMessageLengthPrompt || DEFAULT_VARY_MESSAGE_LENGTH_PROMPT
+      } : {
         enabled: false,
         banRoboticLanguage: true,
         humanImperfections: false,
         varyMessageLength: false,
+        varyMessageLengthPrompt: DEFAULT_VARY_MESSAGE_LENGTH_PROMPT,
         moodSliderEnabled: false,
         moodValue: 50
       },
@@ -895,17 +904,109 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   </div>
 
                   {/* Vary Message Length */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Vary Message Length</h5>
-                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Natural WhatsApp pacing: quick quips & dynamic 1-2 line bursts</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Vary Message Length</h5>
+                          <button
+                            type="button"
+                            onClick={() => setShowVaryLengthPromptDropdown(!showVaryLengthPromptDropdown)}
+                            className="inline-flex items-center gap-1 text-[11px] text-[#00a884] dark:text-[#25d366] hover:underline cursor-pointer"
+                            title="View and edit message pacing prompt"
+                          >
+                            <span>Prompt</span>
+                            {showVaryLengthPromptDropdown ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                          </button>
+                        </div>
+                        <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Natural WhatsApp pacing: quick quips & dynamic 1-2 line bursts</p>
+                      </div>
+                      <div
+                        onClick={() => {
+                          const nextVal = !formData.humaneSettings?.varyMessageLength;
+                          setFormData(p => ({
+                            ...p,
+                            humaneSettings: {
+                              ...p.humaneSettings!,
+                              varyMessageLength: nextVal,
+                              varyMessageLengthPrompt: p.humaneSettings?.varyMessageLengthPrompt || DEFAULT_VARY_MESSAGE_LENGTH_PROMPT
+                            }
+                          }));
+                          if (nextVal) {
+                            setShowVaryLengthPromptDropdown(true);
+                          }
+                        }}
+                        className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.varyMessageLength ? 'bg-[#21c063]' : 'bg-gray-400'}`}
+                      >
+                        <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.varyMessageLength ? 'left-[18px]' : 'left-[2px]'}`} />
+                      </div>
                     </div>
-                    <div
-                      onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, varyMessageLength: !p.humaneSettings!.varyMessageLength } }))}
-                      className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.varyMessageLength ? 'bg-[#21c063]' : 'bg-gray-400'}`}
-                    >
-                      <div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.varyMessageLength ? 'left-[18px]' : 'left-[2px]'}`} />
-                    </div>
+
+                    {/* Dropdown Menu to View & Edit Vary Message Length Prompt */}
+                    {showVaryLengthPromptDropdown && (
+                      <div className="p-3.5 rounded-lg bg-black/5 dark:bg-white/5 border app-border space-y-3 transition-all">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[12px] font-semibold text-primary">Pacing Directive Preset</label>
+                          <button
+                            type="button"
+                            onClick={() => setFormData(p => ({
+                              ...p,
+                              humaneSettings: {
+                                ...p.humaneSettings!,
+                                varyMessageLengthPrompt: DEFAULT_VARY_MESSAGE_LENGTH_PROMPT
+                              }
+                            }))}
+                            className="text-[11px] text-secondary hover:text-primary transition-colors hover:underline"
+                          >
+                            Reset to default
+                          </button>
+                        </div>
+
+                        <select
+                          className="w-full text-xs p-2 rounded-md bg-white dark:bg-[#1f2c34] border app-border text-primary focus:outline-none focus:ring-1 focus:ring-[#00a884]"
+                          value={(() => {
+                            const cur = formData.humaneSettings?.varyMessageLengthPrompt || DEFAULT_VARY_MESSAGE_LENGTH_PROMPT;
+                            const found = VARY_MESSAGE_LENGTH_PRESETS.find(pr => pr.prompt.trim() === cur.trim());
+                            return found ? found.id : 'custom';
+                          })()}
+                          onChange={(e) => {
+                            const presetId = e.target.value;
+                            const preset = VARY_MESSAGE_LENGTH_PRESETS.find(p => p.id === presetId);
+                            if (preset && preset.prompt) {
+                              setFormData(p => ({
+                                ...p,
+                                humaneSettings: {
+                                  ...p.humaneSettings!,
+                                  varyMessageLengthPrompt: preset.prompt
+                                }
+                              }));
+                            }
+                          }}
+                        >
+                          {VARY_MESSAGE_LENGTH_PRESETS.map(pr => (
+                            <option key={pr.id} value={pr.id}>{pr.label}</option>
+                          ))}
+                          <option value="custom">Custom (User Defined)</option>
+                        </select>
+
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-secondary">Custom Prompt Instructions:</span>
+                          <textarea
+                            rows={5}
+                            value={formData.humaneSettings?.varyMessageLengthPrompt ?? DEFAULT_VARY_MESSAGE_LENGTH_PROMPT}
+                            onChange={(e) => setFormData(p => ({
+                              ...p,
+                              humaneSettings: {
+                                ...p.humaneSettings!,
+                                varyMessageLengthPrompt: e.target.value
+                              }
+                            }))}
+                            className="w-full text-[11.5px] font-mono p-2.5 rounded-md bg-white dark:bg-[#1f2c34] border app-border text-primary focus:outline-none focus:ring-1 focus:ring-[#00a884] resize-y leading-relaxed"
+                            placeholder="Enter custom prompt instructions for message pacing..."
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Mood Slider */}

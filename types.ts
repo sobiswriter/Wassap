@@ -85,6 +85,7 @@ export interface HumaneSettings {
   banRoboticLanguage: boolean;
   humanImperfections: boolean;
   varyMessageLength: boolean;
+  varyMessageLengthPrompt?: string;
   moodSliderEnabled: boolean;
   moodValue: number; // 0 to 100
 }
