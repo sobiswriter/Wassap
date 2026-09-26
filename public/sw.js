@@ -1,5 +1,5 @@
-// Wassap Service Worker v9: Native Shade Replies, Left-on-Read Auto Reaction & Non-Dismissing Tray
-const CACHE_NAME = 'wassap-shell-v9';
+// Wassap Service Worker v10: Instant RemoteInput Spinner Dismissal & Reliable Background Replies
+const CACHE_NAME = 'wassap-shell-v10';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -456,6 +456,7 @@ self.addEventListener('notificationclick', (event) => {
 
   // 1. User tapped 'MARK AS READ'
   if (action === 'read' || action === 'mark_read') {
+    event.notification.close(); // Dismiss OS action pending state immediately
     const squareIcon = event.notification.icon || '/favicon.svg';
     const badgeIcon = event.notification.badge || '/badge.svg';
     const existingBody = event.notification.body || '';
@@ -468,7 +469,7 @@ self.addEventListener('notificationclick', (event) => {
         // Update notification silently in place so it stays in the shade without popping out / buzzing immediately
         // and keeps the 'Reply' action ready for further texting
         await self.registration.showNotification(chatName, {
-          body: existingBody ? `${existingBody} (Read)` : 'Marked as read',
+          body: existingBody ? `${existingBody} (Read ✓✓)` : 'Marked as read',
           icon: squareIcon,
           badge: badgeIcon,
           tag: targetChatId,
@@ -485,15 +486,13 @@ self.addEventListener('notificationclick', (event) => {
 
         // Notify all open clients immediately with fromNotification: true
         const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-        if (clientList && clientList.length > 0) {
-          clientList.forEach((client) => {
-            client.postMessage({ type: 'MARK_AS_READ', chatId: targetChatId, fromNotification: true });
-          });
-          return;
-        }
+        clientList.forEach((client) => {
+          client.postMessage({ type: 'MARK_AS_READ', chatId: targetChatId, fromNotification: true });
+        });
 
-        // If NO clients are open (app completely closed), SW autonomously handles Left on Read!
-        if (notifData && !notifData.isGroup) {
+        // If NO visible clients are open (app backgrounded or closed), SW autonomously handles Left on Read!
+        const hasVisibleClient = clientList.some(c => c.visibilityState === 'visible');
+        if (!hasVisibleClient && notifData && !notifData.isGroup) {
           const recent = (notifData.recentMessages || []).filter(m => !isRawErrorMessage(m?.text));
           const lastMsg = recent[recent.length - 1];
           if (lastMsg && lastMsg.sender === 'other') {
@@ -559,6 +558,18 @@ self.addEventListener('notificationclick', (event) => {
 
             // Save exchange to IDB
             await saveBackgroundExchangeToIDB(targetChatId, null, personaReplies);
+
+            // Broadcast to any open windows
+            clientList.forEach((client) => {
+              try {
+                client.postMessage({
+                  type: 'BACKGROUND_EXCHANGE_SYNC',
+                  chatId: targetChatId,
+                  userMessage: null,
+                  personaReplies: personaReplies
+                });
+              } catch (e) {}
+            });
           }
         }
       })()
@@ -568,6 +579,7 @@ self.addEventListener('notificationclick', (event) => {
 
   // 2. User submitted an inline reply directly in the OS notification shade
   if (replyText) {
+    event.notification.close(); // Crucial: Closes the RemoteInput session to dismiss the green loading spinner!
     const squareIcon = event.notification.icon || '/favicon.svg';
     const badgeIcon = event.notification.badge || '/badge.svg';
     const previousBody = event.notification.body || '';
@@ -575,7 +587,7 @@ self.addEventListener('notificationclick', (event) => {
 
     event.waitUntil(
       (async () => {
-        // Immediately update notification in shade silently to reflect user's input and keep it anchored
+        // Immediately show notification in shade silently to reflect user's input and keep card anchored
         await self.registration.showNotification(chatName, {
           body: updatedBodyWithUser,
           icon: squareIcon,
@@ -593,21 +605,19 @@ self.addEventListener('notificationclick', (event) => {
           ]
         });
 
-        // First check if an active app window is open to handle with full live in-memory React state
+        // Check if a client window is currently VISIBLE in the foreground
         const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-        if (clientList && clientList.length > 0) {
-          const client = clientList.find(c => c.visibilityState === 'visible' || c.focused) || clientList[0];
-          if (client) {
-            client.postMessage({
-              type: 'INLINE_REPLY',
-              chatId: targetChatId,
-              text: replyText
-            });
-            return;
-          }
+        const visibleClient = clientList.find(c => c.visibilityState === 'visible');
+        if (visibleClient) {
+          visibleClient.postMessage({
+            type: 'INLINE_REPLY',
+            chatId: targetChatId,
+            text: replyText
+          });
+          return;
         }
 
-        // Otherwise, Service Worker autonomously handles the conversation reliably in background!
+        // If app is in the background, minimized, or closed, Service Worker autonomously handles the conversation reliably!
         try {
           // 1. Snappy reading delay that respects user's enableTextStacking setting
           const readingDelay = notifData.enableTextStacking === false

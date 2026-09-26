@@ -795,7 +795,8 @@ const App: React.FC = () => {
 
           const latestMsg = currentChat.messages[currentChat.messages.length - 1];
           // Guarantee the user hasn't sent a reply in the meantime!
-          if (latestMsg && latestMsg.sender === 'other') {
+          // Only trigger if document is visible or if triggered in-app, since SW handles background
+          if (latestMsg && latestMsg.sender === 'other' && (!document.hidden || !fromNotification)) {
             handleAutomationTriggerRef.current?.(
               chatId,
               `[LEFT ON READ] The user just saw your last message ("${latestMsg.text.slice(0, 50)}") and marked it as read (blue ticks) but did NOT send a reply back. React naturally in character to being left on read in 1 short message.`,
@@ -817,13 +818,13 @@ const App: React.FC = () => {
         if (type === 'OPEN_CHAT' && chatId) {
           activeNotificationSoundChatsRef.current.delete(chatId);
           handleChatSelectRef.current(chatId);
-        } else if (type === 'BACKGROUND_EXCHANGE_SYNC' && chatId && event.data.userMessage && event.data.personaReplies) {
+        } else if (type === 'BACKGROUND_EXCHANGE_SYNC' && chatId && event.data.personaReplies) {
           const { userMessage, personaReplies } = event.data;
           setChats(prev => prev.map(c => {
             if (c.id === chatId) {
               const existingIds = new Set(c.messages.map(m => m.id));
               const toAdd: Message[] = [];
-              if (!existingIds.has(userMessage.id)) toAdd.push(userMessage);
+              if (userMessage && !existingIds.has(userMessage.id)) toAdd.push(userMessage);
               for (const r of personaReplies) {
                 if (!existingIds.has(r.id)) toAdd.push(r);
               }
@@ -832,6 +833,7 @@ const App: React.FC = () => {
               const last = allMsgs[allMsgs.length - 1];
               return {
                 ...c,
+                unreadCount: 0,
                 lastMessage: last?.text || c.lastMessage,
                 lastMessageTime: last?.timestamp || c.lastMessageTime,
                 messages: allMsgs

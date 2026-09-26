@@ -422,7 +422,11 @@ Wassap/
     - Implemented a 450ms long-press pointer detector (`handlePointerDown` / `handlePointerUpOrCancel` / `onContextMenu`) on `MessageBubble` with haptic feedback vibration (`navigator.vibrate(40)`).
     - Added a dedicated "Mark as read" button (`CheckCheck` in `#53bdeb` blue) to the top multi-message selection bar in `ChatWindow`.
     - Wired `onMarkAsRead` to update message states to `read`, clear unread counters, purge audio locks, and record to offline storage.
-  - **Service Worker Shell v9**: Bumped cache to `wassap-shell-v9` to ensure immediate service worker activation across client devices.
+  - **Service Worker Shell v10 & Android RemoteInput Spinner Fix**:
+    - *RemoteInput Spinner Dismissal*: Fixed an issue on Android (HyperOS/OneUI/AOSP) where submitting an inline reply caused an infinite circular loading spinner in the notification input box. In Android OS, a notification with active RemoteInput will remain in a "sending" state with a loading spinner until `event.notification.close()` is called on that notification instance. Added `event.notification.close()` before immediately presenting the updated notification card (`showNotification`) with the user's message (`You: <text>`), instantly clearing the spinner while keeping the card anchored in the notification shade.
+    - *Bypassed Android Background Tab Throttling*: Fixed background replies failing or going nowhere when the PWA was backgrounded. On mobile devices, background browser tabs are heavily throttled/frozen by the OS. Instead of delegating to a suspended background window, the Service Worker now autonomously generates the persona reply within `event.waitUntil`, pops up the response notification, saves the exchange to IndexedDB, and broadcasts `BACKGROUND_EXCHANGE_SYNC` to open tabs.
+    - *Mark as Read OS Action Clearing*: Calling `event.notification.close()` followed by immediate `showNotification` with `(Read ✓✓)` properly resets the OS action pending state on Android while keeping the card in the tray with the Reply action ready.
+    - *SW Cache v10*: Bumped cache to `wassap-shell-v10` for instantaneous client updates.
 
 ---
 
