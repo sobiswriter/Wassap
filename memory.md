@@ -30,6 +30,15 @@
   - **Full-Screen Mobile Sheets with Safe-Area Insets**: Rebuilt `ProfilePanel`, `SettingsPopover`, `CalendarNotesWidget`, `UserProfilePanel`, `NewChatPanel`, and `NewGroupPanel` to render as `fixed inset-0 z-[3500-4000]` on mobile, with iOS notch/home-indicator safe-area insets (`pt-[max(env(safe-area-inset-top),16px)]` and `pb-[max(env(safe-area-inset-bottom),16px)]`) and smooth slide transitions (`animate-in slide-in-from-bottom-3 duration-250`).
   - **Comprehensive MobileActionFAB Touch Targets**: Wrapped the entire row (icon + label) in a touch-friendly clickable target with active scale feedback and added a full-screen backdrop overlay (`z-[2995]`) that dismisses the menu on tap.
   - **Hardware Back Button Integration**: Extended the native popstate listener to close all panels (including Guide and Updates) when tapping hardware or browser back buttons.
+  - **Authentic WhatsApp Conversation Lifecycle & Presence Flow (Calibrated Timing)**:
+    - **Natural Delivery Delay**: Sent messages immediately display a single grey tick (`'sent'`), transitioning to double grey ticks (`'delivered'`) after a realistic network delivery pause (1.8s–2.5s).
+    - **Observable Presence Sequence (Single Grey -> Double Grey -> Online -> Blue Ticks -> Typing)**:
+      1. **Sent (`✓`) -> Delivered (`✓✓`)**: 1.8s–2.5s natural delivery delay. User clearly registers the single tick before it turns into double grey ticks.
+      2. **Delivered (`✓✓`) -> Persona Comes Online**: 2.2s–3.2s pause while recipient notices notification and unlocks phone. Header turns WhatsApp green `online`. (In stacking mode, persona comes online gradually at 3.2s–5.2s).
+      3. **Online -> Seen Blue Ticks (`✓✓`)**: 2.0s–3.0s pause as recipient enters the chat thread, turning double grey ticks into double blue ticks.
+      4. **Blue Ticks -> Starting to Type**: 2.2s–3.2s contemplation pause while recipient reads the message and prepares to type.
+      5. **Active Typing (`typing...`)**: Header and chat list switch to animated green `typing...` before and during AI response generation (minimum 2.5s–5.0s typing display time for authentic pacing). Between multi-chunk replies, status briefly flips back to `online` (1.2s–2.2s) before typing the next bubble.
+      6. **Lingering Online State & Dynamic Last Seen Stamping**: After sending their reply, personas stay `online` for 35 seconds to support active, real-time back-and-forth conversation. If user does not reply, persona transitions to `offline` and stamps `lastSeenTime` with the exact current timestamp (`"last seen today at [time]"`). Ongoing messages within this window keep the persona online and bypass wake-up delays.
   - **Service Worker v7 (`wassap-shell-v7`)**: Flushed obsolete caches to ensure all devices cleanly download updated bundles and avoid reload loops.
 
 ### 2. Sentience 2.0 Humane Engine & 45-Message Context Buffer (`v1.8.5`)

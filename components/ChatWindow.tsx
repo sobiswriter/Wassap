@@ -476,7 +476,13 @@ const MessageBubble = React.memo<{
                   <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
                   {isMe && (
                     <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
-                      {message.status === 'sent' ? <Check size={16} /> : <CheckCheck size={16} />}
+                      {message.status === 'pending' ? (
+                        <Clock size={13} className="text-secondary/70 animate-pulse" />
+                      ) : message.status === 'sent' ? (
+                        <Check size={16} />
+                      ) : (
+                        <CheckCheck size={16} />
+                      )}
                     </span>
                   )}
                 </div>
@@ -709,8 +715,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
   const getGroupMembersLabel = () => {
     if (chat.status === 'typing...') return <span className="text-[#21c063] font-medium italic animate-pulse">typing...</span>;
     if (!chat.isGroup || !chat.memberIds) {
+      if (chat.status === 'online') {
+        return <span className="text-[#21c063] dark:text-[#25d366] font-medium transition-colors">online</span>;
+      }
       if (chat.status === 'offline') {
-        const lastMsgTime = chat.messages.filter(m => m.sender === 'other').pop()?.timestamp || chat.lastMessageTime || '12:00 PM';
+        const lastMsgTime = chat.lastSeenTime || chat.messages.filter(m => m.sender === 'other').pop()?.timestamp || chat.lastMessageTime || '12:00 PM';
         return `last seen today at ${lastMsgTime}`.toLowerCase();
       }
       return chat.status || 'offline';

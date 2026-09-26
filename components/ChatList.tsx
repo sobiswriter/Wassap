@@ -37,7 +37,11 @@ const ChatListItem = React.memo<ChatListItemProps>(({ chat, isActive, onSelect }
       </div>
       <div className="flex justify-between items-center mt-0.5">
         <p className={`text-[calc(var(--msg-font-size)-0.5px)] truncate flex-1 ${chat.unreadCount ? 'text-primary font-semibold' : 'text-secondary'}`}>
-          {chat.lastMessage}
+          {chat.status === 'typing...' ? (
+            <span className="text-[#21c063] font-medium italic animate-pulse">typing...</span>
+          ) : (
+            chat.lastMessage
+          )}
         </p>
         {chat.unreadCount ? (
           <span className="bg-[#21c063] text-white text-[11px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center leading-none">

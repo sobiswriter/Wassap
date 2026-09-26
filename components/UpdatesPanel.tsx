@@ -86,7 +86,8 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
               date="September 2026"
               isLatest={true}
               changes={[
-                "Borderless Dark Mode Date Pill: Completely removed the distracting 1px white border in dark mode for a seamless, authentic WhatsApp date indicator.",
+                "Authentic Presence & Conversation Flow: Real-time WhatsApp presence progression where personas receive delivered double ticks, come online in the header, read messages with blue ticks, and think before typing.",
+                "Lingering Online State & Dynamic Last Seen: Personas now linger online for 28s after chatting to support active back-and-forth dialogue, dynamically stamping their exact 'last seen today at [time]' when disconnecting.",
                 "Zero-Latency 0ms Modal Opens: Implemented background idle pre-caching for settings, profile, and creation panels, completely eliminating first-click delay or freezing.",
                 "Full-Screen Mobile Overlays: Rebuilt Settings, Persona Profile, User Profile, New Contact, and New Group into full-screen mobile sheets with hardware back button support.",
                 "Expanded FAB Touch Targets: Extended tap targets to cover entire action rows and added touch backdrop dismiss for silky-smooth mobile operation.",

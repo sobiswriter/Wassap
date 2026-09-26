@@ -709,6 +709,9 @@ const App: React.FC = () => {
   const aiRespondingChatsRef = React.useRef<Set<string>>(new Set());
   const pendingTimeGapsRef = React.useRef<Record<string, string | undefined>>({});
   const leftOnReadTimeoutsRef = React.useRef<Record<string, number>>({});
+  const personaOnlineTimersRef = React.useRef<Record<string, number>>({});
+  const personaDeliveryTimersRef = React.useRef<Record<string, number>>({});
+  const personaComingOnlineTimersRef = React.useRef<Record<string, number>>({});
   useEffect(() => { chatsRef.current = chats; globalActiveChats = chats; }, [chats]);
 
   // Eagerly prefetch secondary component chunks during idle time for 0ms instantaneous opens
@@ -1042,8 +1045,68 @@ const App: React.FC = () => {
     }
   }, [settings.theme]);
 
-  const setChatStatus = (chatId: string, status: string) => {
-    setChats(prev => prev.map(c => c.id === chatId ? { ...c, status } : c));
+  const setChatStatus = (chatId: string, status: string, lastSeenTimeOverride?: string) => {
+    setChats(prev => prev.map(c => {
+      if (c.id === chatId) {
+        const updatedLastSeen = status === 'offline'
+          ? (lastSeenTimeOverride || c.lastSeenTime || getFormattedTime())
+          : c.lastSeenTime;
+        return { ...c, status: status as any, lastSeenTime: updatedLastSeen };
+      }
+      return c;
+    }));
+  };
+
+  const cancelPersonaOfflineTimer = (chatId: string) => {
+    if (personaOnlineTimersRef.current[chatId]) {
+      clearTimeout(personaOnlineTimersRef.current[chatId]);
+      delete personaOnlineTimersRef.current[chatId];
+    }
+  };
+
+  const schedulePersonaOffline = (chatId: string, delayMs = 35000) => {
+    cancelPersonaOfflineTimer(chatId);
+    personaOnlineTimersRef.current[chatId] = window.setTimeout(() => {
+      delete personaOnlineTimersRef.current[chatId];
+      const current = chatsRef.current.find(c => c.id === chatId);
+      if (current?.status !== 'typing...' && !aiRespondingChatsRef.current.has(chatId)) {
+        setChatStatus(chatId, 'offline', getFormattedTime());
+      }
+    }, delayMs);
+  };
+
+  const markUserMessagesDelivered = (chatId: string) => {
+    setChats(prev => prev.map(c => {
+      if (c.id === chatId) {
+        let changed = false;
+        const newMsgs = c.messages.map(m => {
+          if (m.sender === 'me' && m.status === 'sent') {
+            changed = true;
+            return { ...m, status: 'delivered' as const };
+          }
+          return m;
+        });
+        return changed ? { ...c, messages: newMsgs } : c;
+      }
+      return c;
+    }));
+  };
+
+  const markUserMessagesRead = (chatId: string) => {
+    setChats(prev => prev.map(c => {
+      if (c.id === chatId) {
+        let changed = false;
+        const newMsgs = c.messages.map(m => {
+          if (m.sender === 'me' && m.status !== 'read') {
+            changed = true;
+            return { ...m, status: 'read' as const };
+          }
+          return m;
+        });
+        return changed ? { ...c, messages: newMsgs } : c;
+      }
+      return c;
+    }));
   };
 
   const buildMemoryRecallContext = (chat: Chat, text: string) => {
@@ -1298,7 +1361,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
           }
 
           setChatStatus(chatId, 'online');
-          setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
+          schedulePersonaOffline(chatId, 35000);
           return;
         } else {
           console.warn("Automated voice note generation failed, falling back to text:", ttsRes.error);
@@ -1374,14 +1437,11 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
       }
 
       setChatStatus(chatId, 'online');
-      setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
+      schedulePersonaOffline(chatId, 35000);
     } finally {
       const isStillTyping = chatsRef.current.find(c => c.id === chatId)?.status === 'typing...';
       if (isStillTyping) setChatStatus(chatId, 'online');
-      setTimeout(() => {
-        const current = chatsRef.current.find(c => c.id === chatId);
-        if (current?.status === 'online') setChatStatus(chatId, 'offline');
-      }, 15000);
+      schedulePersonaOffline(chatId, 35000);
     }
   };
 
@@ -1716,6 +1776,21 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       return;
     }
 
+    const chatId = targetChat.id;
+
+    // Immediately cancel any pending offline timer so persona does not go offline mid-conversation
+    cancelPersonaOfflineTimer(chatId);
+
+    // 1. Natural delivery delay: single grey tick ('sent') -> double grey ticks ('delivered')
+    if (personaDeliveryTimersRef.current[chatId]) {
+      clearTimeout(personaDeliveryTimersRef.current[chatId]);
+    }
+    const deliveryDelay = 1800 + Math.random() * 700; // 1.8s - 2.5s observable delivery delay
+    personaDeliveryTimersRef.current[chatId] = window.setTimeout(() => {
+      delete personaDeliveryTimersRef.current[chatId];
+      markUserMessagesDelivered(chatId);
+    }, deliveryDelay);
+
     // Trigger AI response(s)
     if (isImageRequest || isMemoryRecall || settings.enableTextStacking === false) {
       const memoryContext = buildMemoryRecallContext(targetChat, text);
@@ -1729,7 +1804,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         handleSingleResponse(targetChat, [...targetChat.messages, userMsg], combinedContexts, isImageRequest, displayText);
       }
     } else {
-      const chatId = targetChat.id;
       const hasPendingTimeout = !!aiResponseTimeoutsRef.current[chatId];
       if (hasPendingTimeout) {
         clearTimeout(aiResponseTimeoutsRef.current[chatId]);
@@ -1742,8 +1816,29 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       }
 
       const delaySeconds = settings.textStackingDelay || 10;
+
+      // 2. Persona comes online gradually during message stacking (e.g. 3.2s - 5.2s in)
+      if (personaComingOnlineTimersRef.current[chatId]) {
+        clearTimeout(personaComingOnlineTimersRef.current[chatId]);
+      }
+      const isCurrentlyOnline = chatsRef.current.find(c => c.id === chatId)?.status === 'online';
+      if (!isCurrentlyOnline && !targetChat.isGroup) {
+        const comeOnlineDelay = Math.min(Math.max(delaySeconds * 400, 3200), 5200);
+        personaComingOnlineTimersRef.current[chatId] = window.setTimeout(() => {
+          delete personaComingOnlineTimersRef.current[chatId];
+          const fresh = chatsRef.current.find(c => c.id === chatId);
+          if (fresh && fresh.status === 'offline') {
+            setChatStatus(chatId, 'online');
+          }
+        }, comeOnlineDelay);
+      }
+
       aiResponseTimeoutsRef.current[chatId] = window.setTimeout(async () => {
         delete aiResponseTimeoutsRef.current[chatId];
+        if (personaComingOnlineTimersRef.current[chatId]) {
+          clearTimeout(personaComingOnlineTimersRef.current[chatId]);
+          delete personaComingOnlineTimersRef.current[chatId];
+        }
 
         const checkBusyAndTrigger = async () => {
           if (aiRespondingChatsRef.current.has(chatId)) {
@@ -1820,28 +1915,35 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     const chatId = chat.id;
     try {
       if (!isBackgroundReply) {
-        // 1. "Seen" Delay Simulation (Persona opens the app)
-        const seenDelay = 1000 + Math.random() * 1500;
+        // Step 1: Wait for natural delivery delay so single grey tick is clearly observed
+        const hasUnreadSent = chatsRef.current.find(c => c.id === chatId)?.messages.some(m => m.sender === 'me' && m.status === 'sent');
+        if (hasUnreadSent) {
+          const deliveryWait = 1800 + Math.random() * 700; // 1.8s - 2.5s delivery delay
+          await new Promise(resolve => setTimeout(resolve, deliveryWait));
+        }
+        markUserMessagesDelivered(chatId);
+
+        // Step 2: Persona comes online after double grey ticks (distinct pickup pause)
+        const isAlreadyOnline = chatsRef.current.find(c => c.id === chatId)?.status === 'online';
+        if (!isAlreadyOnline && !chat.isGroup) {
+          const comeOnlineDelay = 2200 + Math.random() * 1000; // 2.2s - 3.2s observable delay
+          await new Promise(resolve => setTimeout(resolve, comeOnlineDelay));
+          setChatStatus(chatId, 'online');
+        }
+
+        // Step 3: "Seen" Delay Simulation (Persona opens chat thread, turning double grey ticks to blue)
+        const seenDelay = 2000 + Math.random() * 1000; // 2.0s - 3.0s delay
         await new Promise(resolve => setTimeout(resolve, seenDelay));
+      } else {
+        markUserMessagesDelivered(chatId);
       }
 
-      // Mark user messages as read (Blue ticks appear BEFORE typing)
-      setChats(prev => prev.map(c => {
-        if (c.id === chatId) {
-          const newMsgs = c.messages.map(m => {
-            if (m.sender === 'me' && m.status !== 'read') {
-              return { ...m, status: 'read' as const };
-            }
-            return m;
-          });
-          return { ...c, messages: newMsgs };
-        }
-        return c;
-      }));
+      // Mark user messages as read (Blue ticks appear BEFORE reading & typing)
+      markUserMessagesRead(chatId);
 
       if (!isBackgroundReply) {
-        // 2. Initial "Thinking" Delay
-        const thinkingDelay = 500 + Math.random() * 1000;
+        // Step 4: Initial "Thinking / Reading" Delay before starting to type
+        const thinkingDelay = 2200 + Math.random() * 1000; // 2.2s - 3.2s reading/thinking pause
         await new Promise(resolve => setTimeout(resolve, thinkingDelay));
       } else {
         // Snappy reading pause that respects user's enableTextStacking setting
@@ -1989,7 +2091,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             }
 
             setChatStatus(chatId, 'online');
-            setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
+            schedulePersonaOffline(chatId, 35000);
             return;
           }
         }
@@ -2032,7 +2134,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         playIncomingMessageSound();
 
         setChatStatus(chatId, 'online');
-        setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
+        schedulePersonaOffline(chatId, 35000);
         return;
       }
 
@@ -2040,6 +2142,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       const lastUserMsg = [...updatedHistory].reverse().find(m => m.sender === 'me');
       const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio';
       const isVoiceNote = shouldReplyWithVoiceNote(chat.voiceSettings, userSentVoiceNote);
+
+      if (!isVoiceNote && !checkImageReq) {
+        setChatStatus(chatId, 'typing...');
+      }
 
       let response = await getGeminiResponse(
         { ...chat },
@@ -2131,7 +2237,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           }
 
           setChatStatus(chatId, 'online');
-          setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
+          schedulePersonaOffline(chatId, 35000);
           return;
         } else {
           console.warn("TTS generation failed, falling back to clean text response:", ttsRes.error);
@@ -2144,11 +2250,12 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
 
+        setChatStatus(chatId, 'typing...');
+
         // 3. Randomized Typing Duration
         if (!isBackgroundReply) {
           const charEfficiency = 35 + Math.random() * 20; 
-          const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1500), 5000);
-          setChatStatus(chatId, 'typing...');
+          const typingDuration = Math.min(Math.max(chunk.length * charEfficiency, 1800), 5000);
           await new Promise(resolve => setTimeout(resolve, typingDuration));
         } else {
           // Snappy, realistic typing duration so user is never bored waiting
@@ -2224,16 +2331,13 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       }
 
       setChatStatus(chatId, 'online');
-      setTimeout(() => setChatStatus(chatId, 'offline'), 15000);
+      schedulePersonaOffline(chatId, 35000);
     } catch (error) {
       console.error("Error getting AI response for single chat:", error);
     } finally {
       const isStillTyping = chatsRef.current.find(c => c.id === chatId)?.status === 'typing...';
       if (isStillTyping) setChatStatus(chatId, 'online');
-      setTimeout(() => {
-        const current = chatsRef.current.find(c => c.id === chatId);
-        if (current?.status === 'online') setChatStatus(chatId, 'offline');
-      }, 15000);
+      schedulePersonaOffline(chatId, 35000);
     }
   };
 
@@ -2247,26 +2351,23 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     if (memberIds.length === 0) return;
 
     if (!isBackgroundReply) {
-      // 1. Initial "Seen" Delay for the whole group (simulating someone opening the group)
-      const initialSeenDelay = 1200 + Math.random() * 2000;
+      // 1. Natural delivery delay if any messages are still 'sent'
+      const hasUnreadSent = chatsRef.current.find(c => c.id === group.id)?.messages.some(m => m.sender === 'me' && m.status === 'sent');
+      if (hasUnreadSent) {
+        const deliveryWait = 1800 + Math.random() * 700;
+        await new Promise(resolve => setTimeout(resolve, deliveryWait));
+      }
+      markUserMessagesDelivered(group.id);
+      // 2. Initial "Seen" Delay for the whole group (simulating someone opening the group)
+      const initialSeenDelay = 2000 + Math.random() * 1200;
       await new Promise(resolve => setTimeout(resolve, initialSeenDelay));
     } else {
+      markUserMessagesDelivered(group.id);
       await new Promise(resolve => setTimeout(resolve, 400));
     }
 
-    // Mark user messages as read
-    setChats(prev => prev.map(c => {
-      if (c.id === group.id) {
-        const newMsgs = c.messages.map(m => {
-          if (m.sender === 'me' && m.status !== 'read') {
-            return { ...m, status: 'read' as const };
-          }
-          return m;
-        });
-        return { ...c, messages: newMsgs };
-      }
-      return c;
-    }));
+    // Mark user messages as read (Blue ticks)
+    markUserMessagesRead(group.id);
 
     let responseSequence = [...memberIds].sort(() => Math.random() - 0.5);
 
@@ -2286,7 +2387,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       try {
         if (!isBackgroundReply) {
           // 2. Persona-specific thinking/readiness delay
-          const delay = 1000 + (Math.random() * 3000);
+          const delay = 1800 + (Math.random() * 2000);
           await new Promise(resolve => setTimeout(resolve, delay));
         } else {
           const groupDelay = settings.enableTextStacking === false
@@ -2489,7 +2590,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         }
 
         setChatStatus(group.id, 'online');
-        setTimeout(() => setChatStatus(group.id, 'offline'), 15000);
+        schedulePersonaOffline(group.id, 35000);
       } catch (error) {
         console.error(`Error getting AI response for group member ${responderId}:`, error);
       } finally {
@@ -2498,10 +2599,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       }
     }
     
-    setTimeout(() => {
-      const current = chatsRef.current.find(c => c.id === group.id);
-      if (current?.status === 'online') setChatStatus(group.id, 'offline');
-    }, 15000);
+    schedulePersonaOffline(group.id, 35000);
   };
 
   const handleChatSelect = (id: string) => {
@@ -2745,11 +2843,22 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       clearTimeout(leftOnReadTimeoutsRef.current[activeChatId]);
       delete leftOnReadTimeoutsRef.current[activeChatId];
     }
+    cancelPersonaOfflineTimer(activeChatId);
+    if (personaDeliveryTimersRef.current[activeChatId]) {
+      clearTimeout(personaDeliveryTimersRef.current[activeChatId]);
+      delete personaDeliveryTimersRef.current[activeChatId];
+    }
+    if (personaComingOnlineTimersRef.current[activeChatId]) {
+      clearTimeout(personaComingOnlineTimersRef.current[activeChatId]);
+      delete personaComingOnlineTimersRef.current[activeChatId];
+    }
     delete pendingTimeGapsRef.current[activeChatId];
     aiRespondingChatsRef.current.delete(activeChatId);
 
     const updated = chatsRef.current.map(c => c.id === activeChatId ? {
       ...c,
+      status: 'offline' as const,
+      lastSeenTime: getFormattedTime(),
       messages: [],
       lastMessage: '',
       lastMessageTime: '',

@@ -105,6 +105,7 @@ export interface Chat {
   lastMessageTime: string;
   unreadCount?: number;
   status?: 'online' | 'offline' | 'typing...';
+  lastSeenTime?: string;
   messages: Message[];
   about?: string;
   role?: string;
