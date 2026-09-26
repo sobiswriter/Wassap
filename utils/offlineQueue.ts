@@ -17,8 +17,9 @@ export interface PendingQueueItem {
 export interface BackgroundExchangeItem {
   id: string;
   chatId: string;
-  userMessage: Message;
-  personaReplies: Message[];
+  type?: 'exchange' | 'MARK_AS_READ';
+  userMessage?: Message;
+  personaReplies?: Message[];
   timestamp: number;
 }
 
@@ -141,6 +142,30 @@ export const recordBackgroundExchange = async (
     });
   } catch (err) {
     console.warn('Failed to record background exchange in IndexedDB:', err);
+  }
+};
+
+// Record a mark as read event handled while window was closed or in background
+export const recordBackgroundMarkAsRead = async (chatId: string): Promise<void> => {
+  try {
+    const db = await openOfflineDB();
+    const tx = db.transaction(SYNCED_BACKGROUND_STORE, 'readwrite');
+    const store = tx.objectStore(SYNCED_BACKGROUND_STORE);
+
+    const item: BackgroundExchangeItem = {
+      id: `mark-read-${chatId}-${Date.now()}`,
+      chatId,
+      type: 'MARK_AS_READ',
+      timestamp: Date.now()
+    };
+
+    return new Promise((resolve, reject) => {
+      const req = store.put(item);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn('Failed to record background mark as read in IndexedDB:', err);
   }
 };
 

@@ -24,6 +24,7 @@ interface ChatWindowProps {
   onReply?: (message: Message) => void;
   onSaveMemory?: (chatId: string, memory: MemoryBubble) => void;
   onDeleteMessages?: (chatId: string, messageIds: string[]) => void;
+  onMarkAsRead?: (chatId: string, messageIds?: string[]) => void;
   settings?: AppSettings;
 }
 
@@ -268,6 +269,29 @@ const MessageBubble = React.memo<{
   const [mediaData, setMediaData] = useState<string | null>(null);
   const [isEventExpanded, setIsEventExpanded] = useState(false);
   const lastTap = useRef(0);
+  const holdTimerRef = useRef<any>(null);
+  const isHoldTriggered = useRef(false);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    isHoldTriggered.current = false;
+    holdTimerRef.current = setTimeout(() => {
+      isHoldTriggered.current = true;
+      if (onToggleSelect) {
+        onToggleSelect(message);
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          try { navigator.vibrate(40); } catch (_) {}
+        }
+      }
+    }, 450);
+  };
+
+  const handlePointerUpOrCancel = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -375,7 +399,19 @@ const MessageBubble = React.memo<{
   return (
     <div 
       className={`flex w-full group/bubble px-1 ${isConsecutive ? 'py-[0.5px]' : 'py-[2px]'} transition-colors duration-200 ${selected ? 'bg-[#21c063]/25 dark:bg-white/10 selection-highlight' : ''} ${isMe ? 'justify-end' : 'justify-start'}`}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUpOrCancel}
+      onPointerLeave={handlePointerUpOrCancel}
+      onPointerCancel={handlePointerUpOrCancel}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        if (onToggleSelect) onToggleSelect(message);
+      }}
       onClick={() => {
+        if (isHoldTriggered.current) {
+          isHoldTriggered.current = false;
+          return;
+        }
         if (!onToggleSelect) return;
         const now = Date.now();
         if (now - lastTap.current < 300) {
@@ -599,7 +635,7 @@ const TypingBubble: React.FC = () => (
   </div>
 );
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeaderClick, onDeleteChat, onClearChat, searchTerm, setSearchTerm, onBack, onProfileClick, onMetaAIClick, onAddContact, onReply, onSaveMemory, onDeleteMessages, settings }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeaderClick, onDeleteChat, onClearChat, searchTerm, setSearchTerm, onBack, onProfileClick, onMetaAIClick, onAddContact, onReply, onSaveMemory, onDeleteMessages, onMarkAsRead, settings }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -854,6 +890,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                   className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors hover:text-[#21c063]"
                 >
                   <Sparkles size={20} />
+                </button>
+             )}
+             {onMarkAsRead && (
+                <button
+                  onClick={() => {
+                    onMarkAsRead(chat.id, selectedMessageIds);
+                    setSelectedMessageIds([]);
+                  }}
+                  title="Mark as read"
+                  className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors hover:text-[#53bdeb] text-secondary flex items-center justify-center"
+                >
+                  <CheckCheck size={20} className="text-[#53bdeb]" />
                 </button>
              )}
              <button 

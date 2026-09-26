@@ -1,5 +1,5 @@
-// Wassap Service Worker v7: Seamless Mobile Overlays & Zero-Latency Settings/Profile
-const CACHE_NAME = 'wassap-shell-v7';
+// Wassap Service Worker v9: Native Shade Replies, Left-on-Read Auto Reaction & Non-Dismissing Tray
+const CACHE_NAME = 'wassap-shell-v9';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -41,9 +41,10 @@ const saveBackgroundExchangeToIDB = async (chatId, userMsg, personaReplies) => {
     const tx = db.transaction(SYNCED_BACKGROUND_STORE, 'readwrite');
     const store = tx.objectStore(SYNCED_BACKGROUND_STORE);
     store.put({
-      id: userMsg.id || Date.now().toString(),
+      id: (userMsg && userMsg.id) ? userMsg.id : `left-read-${chatId}-${Date.now()}`,
       chatId,
-      userMessage: userMsg,
+      type: 'exchange',
+      userMessage: userMsg || null,
       personaReplies,
       timestamp: Date.now()
     });
@@ -53,6 +54,26 @@ const saveBackgroundExchangeToIDB = async (chatId, userMsg, personaReplies) => {
     });
   } catch (err) {
     console.warn('SW: Failed to save background exchange to IndexedDB:', err);
+  }
+};
+
+const saveMarkAsReadToIDB = async (chatId) => {
+  try {
+    const db = await openOfflineDB();
+    const tx = db.transaction(SYNCED_BACKGROUND_STORE, 'readwrite');
+    const store = tx.objectStore(SYNCED_BACKGROUND_STORE);
+    store.put({
+      id: `mark-read-${chatId}-${Date.now()}`,
+      chatId,
+      type: 'MARK_AS_READ',
+      timestamp: Date.now()
+    });
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = reject;
+    });
+  } catch (err) {
+    console.warn('SW: Failed to save mark-as-read to IndexedDB:', err);
   }
 };
 
@@ -338,6 +359,93 @@ const getGlitchExcuse = (notifData, userLastText) => {
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
+// Autonomous Service Worker Persona Reply Synthesizer
+const generateSWPersonaReply = async (notifData, history, promptOverride, replyText) => {
+  let replyContent = '';
+  const provider = notifData.provider || 'vertex';
+  const customApiKey = notifData.customApiKey;
+  const chatName = notifData.chatName || 'Contact';
+
+  if (provider === 'custom' && customApiKey) {
+    const model = notifData.model || 'gemini-2.5-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${customApiKey}`;
+    
+    let promptToSend = '';
+    if (promptOverride) {
+      promptToSend = `${notifData.fullSystemPrompt || notifData.instruction || ''}\n\n[CONTEXT]: ${promptOverride}\n\nResponse as ${chatName}:`;
+    } else if (notifData.fullSystemPrompt) {
+      promptToSend = `${notifData.fullSystemPrompt}\n${notifData.userName || 'You'}: ${replyText}\n\nResponse as ${chatName}:`;
+    } else {
+      promptToSend = `${notifData.instruction || ''}\n\nUser: ${replyText}\n\nResponse as ${chatName}:`;
+    }
+
+    try {
+      const apiRes = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptToSend }] }],
+          generationConfig: { temperature: 0.85, maxOutputTokens: 800 }
+        })
+      });
+      const apiJson = await apiRes.json();
+      replyContent = apiJson.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } catch (e) {
+      console.warn("SW custom API call failed", e);
+    }
+  } else {
+    const payload = {
+      responder: {
+        name: chatName,
+        role: notifData.role,
+        speechStyle: notifData.speechStyle,
+        about: notifData.about,
+        systemInstruction: notifData.instruction,
+        humaneSettings: notifData.humaneSettings
+      },
+      messageHistory: history,
+      userProfile: notifData.userProfile || {
+        name: notifData.userName || 'You',
+        about: notifData.userAbout || '',
+        status: notifData.userStatus || 'Online'
+      },
+      groupContext: notifData.groupContext,
+      settings: notifData.settings || {
+        selectedModel: notifData.model,
+        useSearchGrounding: notifData.useSearchGrounding,
+        shareTimeContext: notifData.shareTimeContext !== false,
+        shareCalendarNotes: notifData.shareCalendarNotes,
+        calendarNotes: notifData.calendarNotes,
+        clientTimeContext: notifData.clientTimeContext
+      },
+      clientTimeContext: notifData.clientTimeContext,
+      initiationContext: promptOverride || notifData.timeGapContext,
+      passcode: 'Ness2020'
+    };
+
+    try {
+      const apiRes = await fetch('/api/gemini/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-vertex-passcode': 'Ness2020'
+        },
+        body: JSON.stringify(payload)
+      });
+      const apiJson = await apiRes.json();
+      replyContent = apiJson.text || apiJson.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } catch (e) {
+      console.warn("SW proxy call failed", e);
+    }
+  }
+
+  if (!replyContent || typeof replyContent !== 'string' || isRawErrorMessage(replyContent)) {
+    replyContent = getGlitchExcuse(notifData, replyText || promptOverride);
+  }
+
+  return replyContent.trim();
+};
+
 // Native OS Notification Click & Continuous Inline Reply Handler
 self.addEventListener('notificationclick', (event) => {
   const action = event.action;
@@ -348,13 +456,112 @@ self.addEventListener('notificationclick', (event) => {
 
   // 1. User tapped 'MARK AS READ'
   if (action === 'read' || action === 'mark_read') {
-    event.notification.close();
+    const squareIcon = event.notification.icon || '/favicon.svg';
+    const badgeIcon = event.notification.badge || '/badge.svg';
+    const existingBody = event.notification.body || '';
+
     event.waitUntil(
-      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-        clientList.forEach((client) => {
-          client.postMessage({ type: 'MARK_AS_READ', chatId: targetChatId });
+      (async () => {
+        // Save mark as read to IDB so it's guaranteed to sync even if app was sleeping/closed
+        await saveMarkAsReadToIDB(targetChatId);
+
+        // Update notification silently in place so it stays in the shade without popping out / buzzing immediately
+        // and keeps the 'Reply' action ready for further texting
+        await self.registration.showNotification(chatName, {
+          body: existingBody ? `${existingBody} (Read)` : 'Marked as read',
+          icon: squareIcon,
+          badge: badgeIcon,
+          tag: targetChatId,
+          renotify: false,
+          silent: true,
+          data: {
+            ...notifData,
+            isMarkedAsRead: true
+          },
+          actions: [
+            { action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' }
+          ]
         });
-      })
+
+        // Notify all open clients immediately with fromNotification: true
+        const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+        if (clientList && clientList.length > 0) {
+          clientList.forEach((client) => {
+            client.postMessage({ type: 'MARK_AS_READ', chatId: targetChatId, fromNotification: true });
+          });
+          return;
+        }
+
+        // If NO clients are open (app completely closed), SW autonomously handles Left on Read!
+        if (notifData && !notifData.isGroup) {
+          const recent = (notifData.recentMessages || []).filter(m => !isRawErrorMessage(m?.text));
+          const lastMsg = recent[recent.length - 1];
+          if (lastMsg && lastMsg.sender === 'other') {
+            // Natural hesitation delay before reacting (6-10s)
+            await new Promise(r => setTimeout(r, 6500 + Math.random() * 3500));
+
+            // Generate Left on Read in-character response
+            const leftOnReadPrompt = `[LEFT ON READ] The user just saw your last message ("${(lastMsg.text || '').slice(0, 50)}") and marked it as read (blue ticks) but did NOT send a reply back. React naturally in character to being left on read in 1 short message.`;
+            const replyContent = await generateSWPersonaReply(notifData, recent, leftOnReadPrompt, undefined);
+
+            const chunks = splitMessage(replyContent);
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const formattedHours = hours % 12 || 12;
+            const timeStr = `${formattedHours}:${minutes < 10 ? '0' : ''}${minutes} ${ampm}`;
+
+            const personaReplies = [];
+            for (let i = 0; i < chunks.length; i++) {
+              const chunk = chunks[i];
+              const personaMsg = {
+                id: `${Date.now()}-${i}`,
+                text: chunk,
+                sender: 'other',
+                senderName: chatName,
+                timestamp: timeStr,
+                status: 'read'
+              };
+              personaReplies.push(personaMsg);
+
+              const stackedChunks = chunks.slice(0, i + 1).join('\n');
+              const recentTurns = (existingBody ? existingBody.split('\n') : []).slice(-4);
+              recentTurns.push(`${chatName}: ${stackedChunks}`);
+              const threadedBody = recentTurns.join('\n');
+
+              // The first chunk POPS UP as a new native notification with sound/vibration!
+              await self.registration.showNotification(chatName, {
+                body: threadedBody,
+                icon: squareIcon,
+                badge: badgeIcon,
+                tag: targetChatId,
+                renotify: (i === 0),
+                silent: (i > 0),
+                vibrate: (i === 0) ? [200, 100, 200] : undefined,
+                data: {
+                  ...notifData,
+                  recentMessages: [
+                    ...recent.slice(-45),
+                    ...chunks.slice(0, i + 1).map(c => ({ text: c, sender: 'other', senderName: chatName }))
+                  ]
+                },
+                actions: [
+                  { action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' },
+                  { action: 'read', title: 'Mark as read' }
+                ]
+              });
+
+              if (i < chunks.length - 1) {
+                await new Promise(r => setTimeout(r, 400 + Math.random() * 300));
+              }
+            }
+
+            // Save exchange to IDB
+            await saveBackgroundExchangeToIDB(targetChatId, null, personaReplies);
+          }
+        }
+      })()
     );
     return;
   }
@@ -363,9 +570,29 @@ self.addEventListener('notificationclick', (event) => {
   if (replyText) {
     const squareIcon = event.notification.icon || '/favicon.svg';
     const badgeIcon = event.notification.badge || '/badge.svg';
+    const previousBody = event.notification.body || '';
+    const updatedBodyWithUser = previousBody ? `${previousBody}\nYou: ${replyText}` : `You: ${replyText}`;
 
     event.waitUntil(
       (async () => {
+        // Immediately update notification in shade silently to reflect user's input and keep it anchored
+        await self.registration.showNotification(chatName, {
+          body: updatedBodyWithUser,
+          icon: squareIcon,
+          badge: badgeIcon,
+          tag: targetChatId,
+          renotify: false,
+          silent: true,
+          data: {
+            ...notifData,
+            lastUserReply: replyText
+          },
+          actions: [
+            { action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' },
+            { action: 'read', title: 'Mark as read' }
+          ]
+        });
+
         // First check if an active app window is open to handle with full live in-memory React state
         const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
         if (clientList && clientList.length > 0) {
@@ -394,80 +621,7 @@ self.addEventListener('notificationclick', (event) => {
             { text: replyText, sender: 'me', senderName: notifData.userName || 'You' }
           ];
 
-          let replyContent = '';
-          const provider = notifData.provider || 'vertex';
-          const customApiKey = notifData.customApiKey;
-
-          if (provider === 'custom' && customApiKey) {
-            // Direct Gemini AI Studio call with full persona identity, user profile, and system prompt
-            const model = notifData.model || 'gemini-2.5-flash';
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${customApiKey}`;
-            
-            let promptToSend = '';
-            if (notifData.fullSystemPrompt) {
-              promptToSend = `${notifData.fullSystemPrompt}\n${notifData.userName || 'You'}: ${replyText}\n\nResponse as ${chatName}:`;
-            } else {
-              promptToSend = `${notifData.instruction || ''}\n\nUser: ${replyText}\n\nResponse as ${chatName}:`;
-            }
-
-            const apiRes = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: promptToSend }] }],
-                generationConfig: { temperature: 0.85, maxOutputTokens: 800 }
-              })
-            });
-            const apiJson = await apiRes.json();
-            replyContent = apiJson.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          } else {
-            // Vertex / Serverless Proxy Call with complete context
-            const payload = {
-              responder: {
-                name: chatName,
-                role: notifData.role,
-                speechStyle: notifData.speechStyle,
-                about: notifData.about,
-                systemInstruction: notifData.instruction,
-                humaneSettings: notifData.humaneSettings
-              },
-              messageHistory: history,
-              userProfile: notifData.userProfile || {
-                name: notifData.userName || 'You',
-                about: notifData.userAbout || '',
-                status: notifData.userStatus || 'Online'
-              },
-              groupContext: notifData.groupContext,
-              settings: notifData.settings || {
-                selectedModel: notifData.model,
-                useSearchGrounding: notifData.useSearchGrounding,
-                shareTimeContext: notifData.shareTimeContext !== false,
-                shareCalendarNotes: notifData.shareCalendarNotes,
-                calendarNotes: notifData.calendarNotes,
-                clientTimeContext: notifData.clientTimeContext
-              },
-              clientTimeContext: notifData.clientTimeContext,
-              initiationContext: notifData.timeGapContext,
-              passcode: 'Ness2020'
-            };
-
-            const apiRes = await fetch('/api/gemini/generate', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-vertex-passcode': 'Ness2020'
-              },
-              body: JSON.stringify(payload)
-            });
-            const apiJson = await apiRes.json();
-            replyContent = apiJson.text || apiJson.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          }
-
-          if (!replyContent || typeof replyContent !== 'string' || isRawErrorMessage(replyContent)) {
-            replyContent = getGlitchExcuse(notifData, replyText);
-          }
-
-          const cleanReply = replyContent.trim();
+          const cleanReply = await generateSWPersonaReply(notifData, history, undefined, replyText);
 
           // 2. FRAGMENTATION: Break reply into authentic WhatsApp message bubbles!
           const chunks = splitMessage(cleanReply);
@@ -512,17 +666,20 @@ self.addEventListener('notificationclick', (event) => {
 
             // Stack clean dialogue: user message + delivered persona fragments
             const stackedChunks = chunks.slice(0, i + 1).join('\n');
-            const threadedBody = `${replyText}\n${stackedChunks}`;
+            const recentTurns = (previousBody ? previousBody.split('\n') : []).slice(-4);
+            recentTurns.push(`You: ${replyText}`);
+            recentTurns.push(`${chatName}: ${stackedChunks}`);
+            const threadedBody = recentTurns.join('\n');
 
-            // Deliver notification update in shade with vibration and active Reply action
+            // Deliver notification: first chunk POPS UP as a new native notification with sound/vibration!
             await self.registration.showNotification(chatName, {
               body: threadedBody,
               icon: squareIcon,
               badge: badgeIcon,
               tag: targetChatId,
-              renotify: true,
-              silent: false,
-              vibrate: [200, 100, 200],
+              renotify: (i === 0),
+              silent: (i > 0),
+              vibrate: (i === 0) ? [200, 100, 200] : undefined,
               data: {
                 ...notifData,
                 recentMessages: [
@@ -568,8 +725,8 @@ self.addEventListener('notificationclick', (event) => {
             icon: squareIcon,
             badge: badgeIcon,
             tag: targetChatId,
-            renotify: true,
-            silent: false,
+            renotify: false,
+            silent: true,
             actions: [
               { action: 'reply', title: 'Reply', type: 'text' },
               { action: 'read', title: 'Mark as read' }

@@ -411,6 +411,18 @@ Wassap/
     - *ProfilePanel UI Refresh*: Polished Humane Settings toggle copy and real-time mood tier indicator.
   - **Critical React Rules of Hooks Hotfix (`ChatWindow.tsx`)**: Resolved fatal crash on startup and chat selection caused by placing `useMemo` below an early `if (!chat) return (...)` check. Moved all hooks to the top level of `ChatWindow`, eliminating the `"Rendered more hooks than previous render"` error that triggered `AppErrorBoundary` ("Something went wrong").
   - **Service Worker Cache Invalidation (`wassap-shell-v6`)**: Bumped SW cache to v6 and enhanced `handleReset` in `index.tsx` with asynchronous `registration.update()` triggers to force-purge stale bundles across client devices.
+- [x] **v1.8.6**:
+  - **Native Notification Tray Experience & Left-on-Read Auto Reaction**:
+    - *Persistent Mark as Read*: Repaired background mark-as-read syncing by recording actions to IndexedDB (`synced_background` table in `whatsapp_offline_db`) via `recordBackgroundMarkAsRead` and `saveMarkAsReadToIDB` in `public/sw.js`. The state cleanly synchronizes even if the PWA or browser tab is completely closed.
+    - *Non-Dismissing Action Cards*: Clicking "Mark as read" or submitting an inline reply no longer closes the notification card. The notification stays quietly in the OS shade until the card itself is clicked to open the app.
+    - *Left-on-Read Auto-Trigger with Natural Hesitation*: When a persona's message is marked as read without a reply (either via native notification or in-app), the persona waits a realistic hesitation period (6.5 to 10 seconds). If the user does not reply in that time, the persona automatically responds in-character to being left on read.
+    - *Pop-up Native Notification on Persona Replies*: When the persona replies (either reacting to being left on read or answering an inline reply submitted through native notifications), the first chunk of their message actively pops up as a new native OS notification (`renotify: true`, `silent: false` with banner, sound, and vibration) to alert the user. Subsequent stacked fragments update smoothly and quietly (`silent: true`).
+    - *Autonomous Background Reaction*: If all app tabs are closed, the Service Worker (`sw.js`) independently handles the Left-on-Read delay and generates the in-character response, displaying the pop-up notification directly from the background worker.
+  - **In-App Click & Hold (Long-Press) "Mark as Read"**:
+    - Implemented a 450ms long-press pointer detector (`handlePointerDown` / `handlePointerUpOrCancel` / `onContextMenu`) on `MessageBubble` with haptic feedback vibration (`navigator.vibrate(40)`).
+    - Added a dedicated "Mark as read" button (`CheckCheck` in `#53bdeb` blue) to the top multi-message selection bar in `ChatWindow`.
+    - Wired `onMarkAsRead` to update message states to `read`, clear unread counters, purge audio locks, and record to offline storage.
+  - **Service Worker Shell v9**: Bumped cache to `wassap-shell-v9` to ensure immediate service worker activation across client devices.
 
 ---
 

@@ -62,7 +62,8 @@ import {
   enqueuePendingMessage, 
   getBackgroundExchanges, 
   clearBackgroundExchanges,
-  clearOfflineDataForChat
+  clearOfflineDataForChat,
+  recordBackgroundMarkAsRead
 } from './utils/offlineQueue';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
@@ -709,6 +710,7 @@ const App: React.FC = () => {
   const aiRespondingChatsRef = React.useRef<Set<string>>(new Set());
   const pendingTimeGapsRef = React.useRef<Record<string, string | undefined>>({});
   const leftOnReadTimeoutsRef = React.useRef<Record<string, number>>({});
+  const handleAutomationTriggerRef = React.useRef<((chatId: string, context: string, triggerId?: string, type?: 'normal' | 'catchup' | 'inactivity', forceNotification?: boolean) => Promise<void>) | null>(null);
   const personaOnlineTimersRef = React.useRef<Record<string, number>>({});
   const personaDeliveryTimersRef = React.useRef<Record<string, number>>({});
   const personaComingOnlineTimersRef = React.useRef<Record<string, number>>({});
@@ -746,6 +748,66 @@ const App: React.FC = () => {
       data: personaData
     });
   };
+
+  const handleMarkAsRead = React.useCallback((chatId: string, messageIds?: string[], fromNotification = false) => {
+    activeNotificationSoundChatsRef.current.delete(chatId);
+    recordBackgroundMarkAsRead(chatId);
+
+    setChats(prev => prev.map(c => {
+      if (c.id === chatId) {
+        const shouldMarkAll = !messageIds || messageIds.length === 0;
+        const idsSet = messageIds ? new Set(messageIds) : null;
+
+        let changed = false;
+        const updatedMsgs = c.messages.map(m => {
+          if ((shouldMarkAll || idsSet?.has(m.id)) && m.status !== 'read') {
+            changed = true;
+            return { ...m, status: 'read' as MessageStatus };
+          }
+          return m;
+        });
+
+        return {
+          ...c,
+          unreadCount: 0,
+          messages: changed ? updatedMsgs : c.messages
+        };
+      }
+      return c;
+    }));
+
+    // Clear any pending left-on-read reaction timer for this chat
+    if (leftOnReadTimeoutsRef.current[chatId]) {
+      clearTimeout(leftOnReadTimeoutsRef.current[chatId]);
+      delete leftOnReadTimeoutsRef.current[chatId];
+    }
+
+    // Schedule Left-on-Read reaction after a natural hesitation (6.5 to 10s)
+    const targetChat = chatsRef.current.find(c => c.id === chatId);
+    if (targetChat && !targetChat.isGroup) {
+      const lastMsg = targetChat.messages[targetChat.messages.length - 1];
+      if (lastMsg && lastMsg.sender === 'other') {
+        const delay = 6500 + Math.random() * 3500;
+        leftOnReadTimeoutsRef.current[chatId] = window.setTimeout(async () => {
+          delete leftOnReadTimeoutsRef.current[chatId];
+          const currentChat = chatsRef.current.find(c => c.id === chatId);
+          if (!currentChat) return;
+
+          const latestMsg = currentChat.messages[currentChat.messages.length - 1];
+          // Guarantee the user hasn't sent a reply in the meantime!
+          if (latestMsg && latestMsg.sender === 'other') {
+            handleAutomationTriggerRef.current?.(
+              chatId,
+              `[LEFT ON READ] The user just saw your last message ("${latestMsg.text.slice(0, 50)}") and marked it as read (blue ticks) but did NOT send a reply back. React naturally in character to being left on read in 1 short message.`,
+              undefined,
+              'inactivity',
+              fromNotification
+            );
+          }
+        }, delay);
+      }
+    }
+  }, []);
 
   // Service Worker Notification Actions Listener (REPLY & MARK AS READ from phone / OS tray)
   useEffect(() => {
@@ -825,42 +887,7 @@ const App: React.FC = () => {
             }
           }
         } else if (type === 'MARK_AS_READ' && chatId) {
-          activeNotificationSoundChatsRef.current.delete(chatId);
-          // Mark as read & trigger left on read persona reaction
-          setChats(prev => prev.map(c => {
-            if (c.id === chatId) {
-              return {
-                ...c,
-                unreadCount: 0,
-                messages: c.messages.map(m => ({ ...m, status: 'read' as MessageStatus }))
-              };
-            }
-            return c;
-          }));
-
-          if (leftOnReadTimeoutsRef.current[chatId]) {
-            clearTimeout(leftOnReadTimeoutsRef.current[chatId]);
-            delete leftOnReadTimeoutsRef.current[chatId];
-          }
-
-          const targetChat = chatsRef.current.find(c => c.id === chatId);
-          if (targetChat && !targetChat.isGroup) {
-            leftOnReadTimeoutsRef.current[chatId] = window.setTimeout(async () => {
-              delete leftOnReadTimeoutsRef.current[chatId];
-              const currentChat = chatsRef.current.find(c => c.id === chatId);
-              if (!currentChat) return;
-
-              const lastMsg = currentChat.messages[currentChat.messages.length - 1];
-              if (lastMsg && lastMsg.sender === 'other') {
-                handleAutomationTrigger(
-                  chatId,
-                  `[LEFT ON READ] The user just saw your last message ("${lastMsg.text.slice(0, 50)}") and marked it as read (blue ticks) but did NOT send a reply back. React naturally in character to being left on read in 1 short message.`,
-                  undefined,
-                  'inactivity'
-                );
-              }
-            }, 6000 + Math.random() * 5000);
-          }
+          handleMarkAsRead(chatId, undefined, event.data?.fromNotification ?? true);
         }
       };
 
@@ -1227,7 +1254,13 @@ CONTEXT: It is currently a ${dayType}. According to your daily routine, ${timing
 CRITICAL RULE: Use this as SUBTLE background context only to influence your mood or availability. DO NOT announce what you are doing or mention the time/day unless the User explicitly asks "what are you up to" or similar. Keep it natural!`;
   };
 
-  const handleAutomationTrigger = async (chatId: string, context: string, triggerId?: string, type?: 'normal' | 'catchup' | 'inactivity') => {
+  const handleAutomationTrigger = async (
+    chatId: string, 
+    context: string, 
+    triggerId?: string, 
+    type?: 'normal' | 'catchup' | 'inactivity',
+    forceNotification = false
+  ) => {
     const targetChat = chatsRef.current.find(c => c.id === chatId);
     if (!targetChat) return;
 
@@ -1347,7 +1380,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
           playIncomingMessageSound();
 
           const isFocusingChat = !document.hidden && activeChatId === targetChat.id;
-          if (settings.enableNotifications && !isFocusingChat) {
+          if (settings.enableNotifications && (!isFocusingChat || forceNotification)) {
             if (document.hidden) {
               document.title = `(1) New Voice Message - ${targetChat.name}`;
             }
@@ -1411,7 +1444,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
         }
 
         const isFocusingChat = !document.hidden && activeChatId === chatId;
-        if (settings.enableNotifications && !isFocusingChat) {
+        if (settings.enableNotifications && (!isFocusingChat || forceNotification)) {
           if (document.hidden) {
             document.title = `(1) New Message - ${targetChat.name}`;
           }
@@ -1444,6 +1477,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
       schedulePersonaOffline(chatId, 35000);
     }
   };
+
+  handleAutomationTriggerRef.current = handleAutomationTrigger;
 
   const handleRefreshPersona = (chatId: string) => {
     // 1. Force state to offline
@@ -2303,14 +2338,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           const lastUserMsg = updatedHistory.filter(m => m.sender === 'me').pop();
           const lastUserText = lastUserMsg?.text || '';
           const notificationBodyText = (isBackgroundReply && lastUserText)
-            ? `${lastUserText}\n${stackedTurnText}`
+            ? `You: ${lastUserText}\n${chat.name}: ${stackedTurnText}`
             : stackedTurnText;
 
           showNotification(chat.name, {
             body: notificationBodyText,
             icon: chat.avatar,
             tag: chat.id,
-            silentUpdate: isBackgroundReply ? false : !isFirstChunkOfTurn,
+            silentUpdate: !isFirstChunkOfTurn,
             data: buildNotificationPersonaData(chat, userRef.current, settingsRef.current)
           });
         }
@@ -2563,14 +2598,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             const lastUserMsg = updatedHistory.filter(m => m.sender === 'me').pop();
             const lastUserText = lastUserMsg?.text || '';
             const notificationBodyText = (isBackgroundReply && lastUserText)
-              ? `${lastUserText}\n${stackedTurnText}`
+              ? `You: ${lastUserText}\n${personaLabel}: ${stackedTurnText}`
               : stackedTurnText;
 
             showNotification(`${group.name} - ${personaLabel}`, {
               body: notificationBodyText,
               icon: personaAvatar,
               tag: group.id,
-              silentUpdate: isBackgroundReply ? false : !isFirstChunkOfTurn,
+              silentUpdate: !isFirstChunkOfTurn,
               data: buildNotificationPersonaData(group, userRef.current, settingsRef.current)
             });
           }
@@ -2646,31 +2681,38 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           const matchingExchanges = exchanges.filter(e => e.chatId === chat.id);
           if (matchingExchanges.length === 0) return chat;
 
+          const hasMarkAsRead = matchingExchanges.some(e => e.type === 'MARK_AS_READ');
           const existingIds = new Set(chat.messages.map(m => m.id));
           const newMessages: Message[] = [];
 
           for (const ex of matchingExchanges) {
-            if (!existingIds.has(ex.userMessage.id)) {
+            if (ex.userMessage && !existingIds.has(ex.userMessage.id)) {
               newMessages.push(ex.userMessage);
               existingIds.add(ex.userMessage.id);
             }
-            for (const reply of ex.personaReplies) {
-              if (!existingIds.has(reply.id)) {
-                newMessages.push(reply);
-                existingIds.add(reply.id);
+            if (ex.personaReplies) {
+              for (const reply of ex.personaReplies) {
+                if (!existingIds.has(reply.id)) {
+                  newMessages.push(reply);
+                  existingIds.add(reply.id);
+                }
               }
             }
           }
 
-          if (newMessages.length > 0) {
+          if (newMessages.length > 0 || hasMarkAsRead) {
             hasChanges = true;
-            const allMessages = [...chat.messages, ...newMessages];
-            const lastMsg = allMessages[allMessages.length - 1];
+            const allMessages = newMessages.length > 0 ? [...chat.messages, ...newMessages] : chat.messages;
+            const updatedMessages = hasMarkAsRead
+              ? allMessages.map(m => m.status !== 'read' ? { ...m, status: 'read' as MessageStatus } : m)
+              : allMessages;
+            const lastMsg = updatedMessages[updatedMessages.length - 1];
             return {
               ...chat,
+              unreadCount: hasMarkAsRead ? 0 : chat.unreadCount,
               lastMessage: lastMsg?.text || chat.lastMessage,
               lastMessageTime: lastMsg?.timestamp || chat.lastMessageTime,
-              messages: allMessages
+              messages: updatedMessages
             };
           }
           return chat;
@@ -3008,6 +3050,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onReply={setReplyingTo}
             onSaveMemory={handleSaveMemory}
             onDeleteMessages={handleDeleteMessages}
+            onMarkAsRead={handleMarkAsRead}
             settings={settings}
           />
           {activeChat && (!isMobile || !showProfilePanel) && (
