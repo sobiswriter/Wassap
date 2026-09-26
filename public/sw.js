@@ -1,12 +1,13 @@
-// Wassap Service Worker v3: Offline PWA Shell, Low-Connectivity Resilience & Autonomous Notification Shade Conversations
-const CACHE_NAME = 'wassap-shell-v3';
+// Wassap Service Worker v4: Offline PWA Shell, Low-Connectivity Resilience & Dual Audio Playback
+const CACHE_NAME = 'wassap-shell-v4';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/favicon.svg',
   '/badge.svg',
-  '/whatapp.wav'
+  '/whatapp.wav',
+  '/msgsentpop.mp3'
 ];
 
 // Offline DB details for background synchronization

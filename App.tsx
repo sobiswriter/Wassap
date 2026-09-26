@@ -282,6 +282,8 @@ const showNotification = async (title: string, options: NotificationOptions & { 
 
 
 let audioBufferCache: AudioBuffer | null = null;
+let incomingAudioBufferCache: AudioBuffer | null = null;
+let sentAudioBufferCache: AudioBuffer | null = null;
 let audioContextInstance: AudioContext | null = null;
 
 const getAudioContext = () => {
@@ -295,20 +297,36 @@ const getAudioContext = () => {
   return audioContextInstance;
 };
 
-const preloadWavBuffer = async () => {
+const preloadAudioBuffers = async () => {
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
-    const res = await fetch('/whatapp.wav');
-    const arrayBuffer = await res.arrayBuffer();
-    audioBufferCache = await ctx.decodeAudioData(arrayBuffer);
+
+    // 1. Preload incoming message sound (/whatapp.wav)
+    fetch('/whatapp.wav')
+      .then(res => res.arrayBuffer())
+      .then(arrayBuffer => ctx.decodeAudioData(arrayBuffer))
+      .then(buffer => {
+        audioBufferCache = buffer;
+        incomingAudioBufferCache = buffer;
+      })
+      .catch(e => console.warn("Incoming audio buffer preload fallback:", e));
+
+    // 2. Preload sent message pop sound (/msgsentpop.mp3)
+    fetch('/msgsentpop.mp3')
+      .then(res => res.arrayBuffer())
+      .then(arrayBuffer => ctx.decodeAudioData(arrayBuffer))
+      .then(buffer => {
+        sentAudioBufferCache = buffer;
+      })
+      .catch(e => console.warn("Sent audio buffer preload fallback:", e));
   } catch (e) {
-    console.warn("WAV buffer preload fallback:", e);
+    console.warn("Audio buffer preload fallback:", e);
   }
 };
 
 if (typeof window !== 'undefined') {
-  preloadWavBuffer();
+  preloadAudioBuffers();
   const unlockCtx = () => {
     const ctx = getAudioContext();
     if (ctx && ctx.state === 'suspended') {
@@ -324,17 +342,18 @@ if (typeof window !== 'undefined') {
 }
 
 const playIncomingMessageSound = () => {
-  if (document.hidden) return; // Only play sound when actively in the app!
+  if (typeof document !== 'undefined' && document.hidden) return; // Only play sound when actively in the app!
 
-  // 1. Primary: Web Audio API (instant 0ms, bypasses browser element locks)
+  // 1. Primary: Web Audio API (instant 0ms, bypasses browser element locks, mixes simultaneously)
   try {
     const ctx = getAudioContext();
-    if (ctx && audioBufferCache) {
+    const buffer = incomingAudioBufferCache || audioBufferCache;
+    if (ctx && buffer) {
       if (ctx.state === 'suspended') {
         ctx.resume();
       }
       const source = ctx.createBufferSource();
-      source.buffer = audioBufferCache;
+      source.buffer = buffer;
       source.connect(ctx.destination);
       source.start(0);
       return;
@@ -350,6 +369,39 @@ const playIncomingMessageSound = () => {
     audio.play().catch(e => console.warn("HTML5 Audio play failed:", e));
   } catch (e) {
     console.warn("Failed to play notification sound", e);
+  }
+};
+
+const playSentMessageSound = () => {
+  if (typeof document !== 'undefined' && document.hidden) return; // Only play sound when actively in the app!
+
+  // 1. Primary: Web Audio API (instant 0ms, zero latency, mixes simultaneously)
+  try {
+    const ctx = getAudioContext();
+    if (ctx && sentAudioBufferCache) {
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = sentAudioBufferCache;
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = 0.85;
+      source.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      source.start(0);
+      return;
+    }
+  } catch (e) {
+    console.warn("Web Audio API sent sound play failed, falling back to HTML5 Audio", e);
+  }
+
+  // 2. Fallback: HTML5 Audio
+  try {
+    const audio = new Audio('/msgsentpop.mp3');
+    audio.volume = 0.85;
+    audio.play().catch(e => console.warn("HTML5 Audio sent sound play failed:", e));
+  } catch (e) {
+    console.warn("Failed to play sent message sound", e);
   }
 };
 
@@ -1618,6 +1670,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       }
       return chat;
     }));
+
+    // Play WhatsApp sent message pop sound (only when user is in the app)
+    playSentMessageSound();
 
     if (!isDeviceOnline) {
       // Save to offline queue so it will auto-send upon reconnection

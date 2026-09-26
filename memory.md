@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.8.2`
+- **Current Version**: `v1.8.3`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -14,7 +14,23 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. AI Diary Generation Overhaul & Pure Diary Storage (`v1.8.2`)
+### 1. Dual Audio In-App Sound System (`msgsentpop.mp3` & `whatapp.wav`) (`v1.8.3`)
+- **Real WhatsApp Sent Message Sound (`/msgsentpop.mp3`)**:
+  - Integrated a low pop audio effect when the user sends any message (text, quick reply, media, voice, attachment, or event) directly in the active chat interface.
+  - Sourced from `public/msgsentpop.mp3`.
+- **Dual Simultaneous Web Audio Engine (`App.tsx`)**:
+  - Preloaded both `/whatapp.wav` (incoming persona messages) and `/msgsentpop.mp3` (user sent messages) into parallel memory buffers (`incomingAudioBufferCache` and `sentAudioBufferCache`) via the Web Audio API.
+  - Implemented `playSentMessageSound()` and optimized `playIncomingMessageSound()`.
+  - Non-blocking Web Audio node graph: each playback instantiates an independent `AudioBufferSourceNode` routed through dedicated gain stages (sent pop balanced at 0.85 gain for an authentic soft WhatsApp pop) into the main destination, preventing audio channel contention, clicks, or cutoff when sent and received messages overlap.
+  - Graceful HTML5 `new Audio()` fallback if Web Audio is unsupported or locked.
+- **Strict In-App Foreground Guard**:
+  - Both `playSentMessageSound()` and `playIncomingMessageSound()` strictly check `if (typeof document !== 'undefined' && document.hidden) return;`.
+  - Ensures zero unwanted audio playback when the tab is backgrounded or minimized, or when native background service worker push notifications arrive (which have OS-level notification alerts).
+- **Service Worker Offline Pre-Caching (`public/sw.js`)**:
+  - Added `'/msgsentpop.mp3'` to `PRECACHE_ASSETS` in `public/sw.js`.
+  - Incremented cache version identifier to `wassap-shell-v4` to ensure client service workers cleanly update and cache the new asset for offline PWA operation.
+
+### 2. AI Diary Generation Overhaul & Pure Diary Storage (`v1.8.2`)
 - **Pure Diary Entry Storage**:
   - Eliminated mechanical message transcripts from saved memories (`buildCapturedMemorySummary` previously built text logs like *"The interaction started around 14:02 with You saying '...' and ended with..."*).
   - Memories now store **authentic, intimate diary entries written in the persona's private first-person voice**, capturing their genuine thoughts, unspoken feelings about the user, and reflections on their time together.
