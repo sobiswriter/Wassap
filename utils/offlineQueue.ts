@@ -178,3 +178,43 @@ export const clearBackgroundExchanges = async (): Promise<void> => {
     console.warn('Failed to clear background exchanges:', err);
   }
 };
+
+// Clear all offline outbox and background exchanges for a specific chat
+export const clearOfflineDataForChat = async (chatId: string): Promise<void> => {
+  try {
+    const db = await openOfflineDB();
+    const tx = db.transaction([PENDING_OUTBOX_STORE, SYNCED_BACKGROUND_STORE], 'readwrite');
+    const outboxStore = tx.objectStore(PENDING_OUTBOX_STORE);
+    const bgStore = tx.objectStore(SYNCED_BACKGROUND_STORE);
+
+    // Delete matching items from outbox
+    const outboxReq = outboxStore.getAll();
+    outboxReq.onsuccess = () => {
+      const items: PendingQueueItem[] = outboxReq.result || [];
+      for (const item of items) {
+        if (item.chatId === chatId) {
+          outboxStore.delete(item.id);
+        }
+      }
+    };
+
+    // Delete matching items from background exchanges
+    const bgReq = bgStore.getAll();
+    bgReq.onsuccess = () => {
+      const items: BackgroundExchangeItem[] = bgReq.result || [];
+      for (const item of items) {
+        if (item.chatId === chatId) {
+          bgStore.delete(item.id);
+        }
+      }
+    };
+
+    await new Promise((resolve) => {
+      tx.oncomplete = resolve;
+      tx.onerror = resolve;
+    });
+  } catch (err) {
+    console.warn('Failed to clear offline data for chat:', chatId, err);
+  }
+};
+

@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.8.3)
+# Wassap Persona Simulation (v1.8.5)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.8.3-brightgreen)
+![Version](https://img.shields.io/badge/version-1.8.5-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)

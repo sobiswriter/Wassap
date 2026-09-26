@@ -17,7 +17,7 @@ interface ProfilePanelProps {
   onClose: () => void;
   onUpdate: (updates: Partial<Chat>) => void;
   onDeleteChat?: () => void;
-  onClearChat?: () => void;
+  onClearChat?: (clearMemories?: boolean) => void;
   onRefreshPersona: (chatId: string) => void;
   onTestAutomation?: (chatId: string, testType: 'inactivity' | 'time', contextOverride?: string) => void;
   settings?: AppSettings;
@@ -90,6 +90,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   const [urlValue, setUrlValue] = useState(chat.avatar);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [clearMemoriesAlso, setClearMemoriesAlso] = useState(true);
   const [memoryStartDate, setMemoryStartDate] = useState(getLocalDateKey());
   const [memoryEndDate, setMemoryEndDate] = useState(getLocalDateKey());
   const [memoryTitle, setMemoryTitle] = useState('');
@@ -389,15 +390,30 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
       {showClearModal && (
         <ConfirmationModal
-          title="Clear messages?"
+          title="Clear chat history?"
           message={`Are you sure you want to clear all messages in "${chat.name}"? This action cannot be undone.`}
           confirmLabel="Clear Chat"
           onCancel={() => setShowClearModal(false)}
           onConfirm={() => {
-            onClearChat?.();
+            onClearChat?.(clearMemoriesAlso);
+            if (clearMemoriesAlso) {
+              setFormData(prev => ({ ...prev, memoryBubbles: [] }));
+            }
             setShowClearModal(false);
           }}
-        />
+        >
+          {chat.memoryBubbles && chat.memoryBubbles.length > 0 && (
+            <label className="flex items-center gap-2.5 text-[calc(var(--msg-font-size)-1px)] text-secondary cursor-pointer select-none mt-2 p-2.5 rounded bg-black/5 dark:bg-white/5 border app-border">
+              <input
+                type="checkbox"
+                checked={clearMemoriesAlso}
+                onChange={(e) => setClearMemoriesAlso(e.target.checked)}
+                className="rounded border-gray-400 text-[#00a884] focus:ring-[#00a884] w-4 h-4 cursor-pointer"
+              />
+              <span>Also clear persona's saved memory bubbles & diary entries ({chat.memoryBubbles.length})</span>
+            </label>
+          )}
+        </ConfirmationModal>
       )}
 
       {/* Header */}
@@ -847,7 +863,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Ban Robotic Language</h5>
-                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">No "As an AI..." or "How can I help"</p>
+                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Block corporate AI tropes, sycophancy & interview end-questions</p>
                     </div>
                     <div
                       onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, banRoboticLanguage: !p.humaneSettings!.banRoboticLanguage } }))}
@@ -861,7 +877,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Human Imperfections</h5>
-                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Allow typos, slang, and filler words</p>
+                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Casual texting flow, lowercase starts, contractions & slang</p>
                     </div>
                     <div
                       onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, humanImperfections: !p.humaneSettings!.humanImperfections } }))}
@@ -875,7 +891,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Vary Message Length</h5>
-                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Mix short 1-word texts with longer ones</p>
+                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Natural WhatsApp pacing: quick quips & dynamic 1-2 line bursts</p>
                     </div>
                     <div
                       onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, varyMessageLength: !p.humaneSettings!.varyMessageLength } }))}
@@ -890,7 +906,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     <div className="flex items-center justify-between">
                       <div>
                         <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Mood Control</h5>
-                        <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Manually influence their current mood</p>
+                        <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Real-time emotional state & warmth control (0–100)</p>
                       </div>
                       <div
                         onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, moodSliderEnabled: !p.humaneSettings!.moodSliderEnabled } }))}
@@ -913,13 +929,13 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                         <div className="text-center font-medium text-[calc(var(--msg-font-size)-1px)] text-primary">
                           {(() => {
                             const val = formData.humaneSettings?.moodValue || 50;
-                            if (val <= 10) return "Very Annoyed / Hostile";
-                            if (val <= 30) return "Annoyed / Grumpy";
-                            if (val <= 45) return "Indifferent / Dismissive";
-                            if (val <= 55) return "Tranquil / Okay";
-                            if (val <= 70) return "Good / Positive";
-                            if (val <= 90) return "Happy / Warm";
-                            return "Very Excited / Thrilled";
+                            if (val <= 15) return "Very Annoyed / Curt (0–15)";
+                            if (val <= 35) return "Grumpy / Low Energy (16–35)";
+                            if (val <= 50) return "Indifferent / Cool (36–50)";
+                            if (val <= 65) return "Tranquil / Balanced (51–65)";
+                            if (val <= 80) return "Warm / Affectionate (66–80)";
+                            if (val <= 92) return "Excited / Bubbly (81–92)";
+                            return "Thrilled / Ecstatic (93–100)";
                           })()}
                         </div>
                       </div>

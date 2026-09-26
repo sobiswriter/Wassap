@@ -81,10 +81,35 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.8.5"
+              title="The Sentience 2.0 & Context Buffer Update"
+              date="September 2026"
+              isLatest={true}
+              changes={[
+                "45-Message Context Buffer: Extended rolling in-chat memory to 45 messages (~20-22 conversation turns) for deep conversational continuity without token bloat or model overload.",
+                "Non-Stacking Date Dividers: Scoped date dividers into isolated date group sections, completely eliminating ugly header stacking and overlap when scrolling between Yesterday and Today.",
+                "Compact WhatsApp Mobile Date Pill: Scaled down date divider typography and padding for a sleek, authentic native WhatsApp mobile appearance.",
+                "Sentience 2.0 Humane Engine: Completely revamped prompts with strict anti-robot protocols (no sycophantic echoing or interview questions), realistic texting slang, dynamic pacing, and 7-tier nuanced mood states."
+              ]}
+            />
+
+            <UpdateItem 
+              version="v1.8.4"
+              title="The Clean Reset & Memory Guard Update"
+              date="September 2026"
+              isLatest={false}
+              changes={[
+                "Guarded @rem Directive: Prevented accidental diary recall triggers on normal greetings, keeping memory injection strictly tied to explicit recall commands.",
+                "Thorough Chat Reset: Cleanly clears messages, IndexedDB media blobs, and queued offline tasks, with an optional toggle to also purge saved memory bubbles and diary logs.",
+                "Instant Local Storage Sync: Chat clear actions immediately synchronize to disk and cancel running response timers."
+              ]}
+            />
+
+            <UpdateItem 
               version="v1.8.3"
               title="The Dual Audio & Sent Pop Update"
               date="September 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "Sent Message Pop Sound: Integrated authentic WhatsApp low-pop audio effect (/msgsentpop.mp3) whenever you send messages, media, or voice notes.",
                 "Simultaneous Dual Web Audio: Preloaded Web Audio buffers for both sent pop and incoming chime (/whatapp.wav), allowing overlapping non-blocking playback with zero cutoffs.",

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { Search, MoreVertical, CheckCheck, Check, Clock, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 import { Chat, MemoryBubble, Message, AppSettings } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -14,7 +14,7 @@ interface ChatWindowProps {
   allChats: Chat[];
   onHeaderClick: () => void;
   onDeleteChat: () => void;
-  onClearChat: () => void;
+  onClearChat: (clearMemories?: boolean) => void;
   searchTerm: string;
   setSearchTerm: (val: string) => void;
   onBack?: () => void;
@@ -47,13 +47,13 @@ const buildCapturedMemorySummary = (chat: Chat, messages: Message[], startDate: 
 };
 
 const DateDivider: React.FC<{ dateKey: string; onClick?: () => void }> = ({ dateKey, onClick }) => (
-  <div className="flex justify-center sticky top-2 z-20 my-2 sm:my-4 pointer-events-none">
+  <div className="flex justify-center sticky top-1 sm:top-2 z-10 my-1.5 sm:my-2.5 pointer-events-none">
     <button
       type="button"
       onClick={onClick}
       disabled={!onClick}
       title={onClick ? 'Save this day as a diary memory' : undefined}
-      className={`app-header text-secondary text-[10px] sm:text-[12px] px-3 py-1 sm:px-4 sm:py-1.5 rounded-full font-medium transition-all ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#21c063]' : 'pointer-events-none opacity-90'}`}
+      className={`app-header text-secondary text-[9.5px] sm:text-[11px] px-2.5 py-0.5 sm:px-3.5 sm:py-1 rounded-md font-medium tracking-wide shadow-sm transition-all border app-border/40 ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#21c063]' : 'pointer-events-none opacity-90'}`}
     >
       {formatChatDividerLabel(dateKey)}
     </button>
@@ -599,6 +599,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [clearMemoriesAlso, setClearMemoriesAlso] = useState(true);
   const [showDeleteMessagesModal, setShowDeleteMessagesModal] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [memoryCaptureDate, setMemoryCaptureDate] = useState<string | null>(null);
@@ -670,6 +671,37 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
     !searchTerm || msg.text.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const messageGroups = useMemo(() => {
+    const groups: { dateKey: string; items: { msg: Message; isConsecutive: boolean }[] }[] = [];
+    let currentGroup: { dateKey: string; items: { msg: Message; isConsecutive: boolean }[] } | null = null;
+
+    filteredMessages.forEach((msg, index) => {
+      const dateKey = getMessageDateKey(msg);
+      const previousDateKey = index > 0 ? getMessageDateKey(filteredMessages[index - 1]) : '';
+
+      const isConsecutive = (() => {
+        if (index === 0) return false;
+        const prevMsg = filteredMessages[index - 1];
+        if (msg.isEvent || prevMsg.isEvent) return false;
+        if (msg.sender !== prevMsg.sender) return false;
+        if (chat?.isGroup && msg.senderName !== prevMsg.senderName) return false;
+        if (dateKey !== previousDateKey) return false;
+
+        const currentMs = getMessageTimestampEpoch(msg);
+        const prevMs = getMessageTimestampEpoch(prevMsg);
+        return (currentMs - prevMs) < 120000; // 2 minutes
+      })();
+
+      if (!currentGroup || currentGroup.dateKey !== dateKey) {
+        currentGroup = { dateKey, items: [] };
+        groups.push(currentGroup);
+      }
+      currentGroup.items.push({ msg, isConsecutive });
+    });
+
+    return groups;
+  }, [filteredMessages, chat?.isGroup]);
+
   const getGroupMembersLabel = () => {
     if (chat.status === 'typing...') return <span className="text-[#21c063] font-medium italic animate-pulse">typing...</span>;
     if (!chat.isGroup || !chat.memberIds) {
@@ -701,14 +733,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
       {showClearModal && (
         <ConfirmationModal
           title="Clear messages?"
-          message={`Are you sure you want to clear all messages in "${chat.name}"?`}
+          message={`Are you sure you want to clear all messages in "${chat.name}"? This action cannot be undone.`}
           confirmLabel="Clear Chat"
           onCancel={() => setShowClearModal(false)}
           onConfirm={() => {
-            onClearChat();
+            onClearChat(clearMemoriesAlso);
             setShowClearModal(false);
           }}
-        />
+        >
+          {chat.memoryBubbles && chat.memoryBubbles.length > 0 && (
+            <label className="flex items-center gap-2.5 text-[calc(var(--msg-font-size)-1px)] text-secondary cursor-pointer select-none mt-2 p-2.5 rounded bg-black/5 dark:bg-white/5 border app-border">
+              <input
+                type="checkbox"
+                checked={clearMemoriesAlso}
+                onChange={(e) => setClearMemoriesAlso(e.target.checked)}
+                className="rounded border-gray-400 text-[#00a884] focus:ring-[#00a884] w-4 h-4 cursor-pointer"
+              />
+              <span>Also clear persona's saved memory bubbles & diary entries ({chat.memoryBubbles.length})</span>
+            </label>
+          )}
+        </ConfirmationModal>
       )}
 
       {memoryCaptureDate && !chat.isGroup && onSaveMemory && (
@@ -930,33 +974,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
           </div>
         )}
 
-        {filteredMessages.map((msg, index) => {
-          const dateKey = getMessageDateKey(msg);
-          const previousDateKey = index > 0 ? getMessageDateKey(filteredMessages[index - 1]) : '';
-          const shouldShowDateDivider = dateKey !== previousDateKey;
-
-          const isConsecutive = (() => {
-            if (index === 0) return false;
-            const prevMsg = filteredMessages[index - 1];
-            if (msg.isEvent || prevMsg.isEvent) return false;
-            if (msg.sender !== prevMsg.sender) return false;
-            if (chat.isGroup && msg.senderName !== prevMsg.senderName) return false;
-            if (dateKey !== previousDateKey) return false;
-
-            const currentMs = getMessageTimestampEpoch(msg);
-            const prevMs = getMessageTimestampEpoch(prevMsg);
-            return (currentMs - prevMs) < 120000; // 2 minutes
-          })();
-
-          return (
-            <React.Fragment key={msg.id}>
-              {shouldShowDateDivider && (
-                <DateDivider
-                  dateKey={dateKey}
-                  onClick={!chat.isGroup && onSaveMemory ? () => setMemoryCaptureDate(dateKey) : undefined}
-                />
-              )}
+        {messageGroups.map((group) => (
+          <div key={group.dateKey} className="relative space-y-1">
+            <DateDivider
+              dateKey={group.dateKey}
+              onClick={!chat.isGroup && onSaveMemory ? () => setMemoryCaptureDate(group.dateKey) : undefined}
+            />
+            {group.items.map(({ msg, isConsecutive }) => (
               <MessageBubble
+                key={msg.id}
                 message={msg}
                 highlight={!!searchTerm}
                 isGroup={chat.isGroup}
@@ -984,9 +1010,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                   });
                 }}
               />
-            </React.Fragment>
-          );
-        })}
+            ))}
+          </div>
+        ))}
         {!searchTerm && chat.status === 'typing...' && <TypingBubble />}
         <div ref={scrollRef} />
       </div>

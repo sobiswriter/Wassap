@@ -8,6 +8,7 @@ interface ConfirmationModalProps {
     message: string;
     confirmLabel: string;
     isDanger?: boolean;
+    children?: React.ReactNode;
 }
 
 export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
@@ -16,13 +17,15 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     title,
     message,
     confirmLabel,
-    isDanger = true
+    isDanger = true,
+    children
 }) => {
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[5000] animate-in fade-in duration-200 px-4">
             <div className="app-panel rounded-md shadow-2xl max-w-sm w-full p-6 animate-in zoom-in duration-200 border app-border">
                 <h3 className="text-[calc(var(--msg-font-size)+4.5px)] font-medium text-primary mb-4">{title}</h3>
-                <p className="text-[length:var(--msg-font-size)] text-secondary leading-relaxed mb-8">{message}</p>
+                <p className="text-[length:var(--msg-font-size)] text-secondary leading-relaxed mb-4">{message}</p>
+                {children && <div className="mb-6">{children}</div>}
                 <div className="flex justify-end gap-3">
                     <button
                         onClick={onCancel}

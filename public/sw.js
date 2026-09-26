@@ -526,7 +526,7 @@ self.addEventListener('notificationclick', (event) => {
               data: {
                 ...notifData,
                 recentMessages: [
-                  ...history.slice(-35),
+                  ...history.slice(-45),
                   ...chunks.slice(0, i + 1).map(c => ({ text: c, sender: 'other', senderName: chatName }))
                 ]
               },

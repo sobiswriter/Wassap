@@ -39,7 +39,8 @@ import {
   removePendingMessage, 
   enqueuePendingMessage, 
   getBackgroundExchanges, 
-  clearBackgroundExchanges 
+  clearBackgroundExchanges,
+  clearOfflineDataForChat
 } from './utils/offlineQueue';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
@@ -77,7 +78,7 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
   const clientTimeContext = getAppTimeContext(currentSettings);
   const timeGapContext = getTimeGapAndFrequencyContext(chat.messages || [], false, currentSettings) || '';
 
-  const recentMessages = (chat.messages || []).slice(-35).map(m => ({
+  const recentMessages = (chat.messages || []).slice(-45).map(m => ({
     id: m.id,
     text: m.text,
     sender: m.sender,
@@ -1013,10 +1014,9 @@ const App: React.FC = () => {
 
   const buildMemoryRecallContext = (chat: Chat, text: string) => {
     const isExplicitRecall = /[@\\\/]rem\b/i.test(text);
-    const memories = chat.memoryBubbles || [];
+    if (!isExplicitRecall) return undefined;
 
-    // If not explicit recall and no memories exist, no context needed
-    if (!isExplicitRecall && memories.length === 0) return undefined;
+    const memories = chat.memoryBubbles || [];
 
     if (isExplicitRecall && memories.length === 0) {
       return `[MEMORY RECALL]
@@ -2685,7 +2685,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     setShowProfilePanel(false);
   };
 
-  const handleClearChat = () => {
+  const handleClearChat = async (clearMemories: boolean = true) => {
     if (!activeChatId) return;
     const targetChat = chatsRef.current.find(c => c.id === activeChatId);
     if (targetChat) {
@@ -2696,12 +2696,34 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         }
       }
     }
-    setChats(prev => prev.map(c => c.id === activeChatId ? {
+
+    // Clean up offline data (pending outbox and unreconciled background exchanges)
+    await clearOfflineDataForChat(activeChatId);
+
+    // Cancel any active timeouts or pending gaps
+    if (aiResponseTimeoutsRef.current[activeChatId]) {
+      clearTimeout(aiResponseTimeoutsRef.current[activeChatId]);
+      delete aiResponseTimeoutsRef.current[activeChatId];
+    }
+    if (leftOnReadTimeoutsRef.current[activeChatId]) {
+      clearTimeout(leftOnReadTimeoutsRef.current[activeChatId]);
+      delete leftOnReadTimeoutsRef.current[activeChatId];
+    }
+    delete pendingTimeGapsRef.current[activeChatId];
+    aiRespondingChatsRef.current.delete(activeChatId);
+
+    const updated = chatsRef.current.map(c => c.id === activeChatId ? {
       ...c,
       messages: [],
       lastMessage: '',
-      lastMessageTime: ''
-    } : c));
+      lastMessageTime: '',
+      unreadCount: 0,
+      memoryBubbles: clearMemories ? [] : c.memoryBubbles,
+      memoryEnabled: clearMemories ? false : c.memoryEnabled
+    } : c);
+
+    setChats(updated);
+    saveChatsNow(updated);
   };
 
   const handleDeleteMessages = async (chatId: string, messageIds: string[]) => {

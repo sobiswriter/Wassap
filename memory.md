@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.8.3`
+- **Current Version**: `v1.8.4`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -14,7 +14,25 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Dual Audio In-App Sound System (`msgsentpop.mp3` & `whatapp.wav`) (`v1.8.3`)
+### 1. Persona Chat Reset & Memory Leak Elimination (`v1.8.4`)
+- **Root Cause 1: Erroneous `[MEMORY RECALL]` Injection on Ordinary Chats**:
+  - `buildMemoryRecallContext` previously checked `if (!isExplicitRecall && memories.length === 0) return undefined;`.
+  - When a chat had existing memory bubbles, ordinary messages (like "Hey", "How are you?") failed this check and proceeded to return a top-priority `[MEMORY RECALL]` directive commanding the persona to reminisce about past diary entries even though the user never typed `@rem`!
+  - Fixed so `buildMemoryRecallContext` strictly guards `if (!isExplicitRecall) return undefined;`.
+- **Root Cause 2: Incomplete Clear Chat in `ProfilePanel` and `App.tsx`**:
+  - Previously, `handleClearChat` cleared `messages: []` but left `chat.memoryBubbles` intact. Furthermore, `ProfilePanel` held `formData.memoryBubbles` in its local state, so clicking "Save Changes" after clearing the chat would re-commit the old memory bubbles to state.
+  - Additionally, any pending offline outbox messages or unreconciled background notification exchanges in IndexedDB (`whatsapp_offline_db`) could re-populate the chat on sync.
+- **Complete Clean Reset Solution**:
+  - **Memory Clearing Option**: Updated `ConfirmationModal` to support custom option nodes. Added a checkbox to both `ProfilePanel.tsx` and `ChatWindow.tsx` clear-chat dialogs: *"Also clear persona's saved memory bubbles & diary entries ({count})"* (enabled by default).
+  - **ProfilePanel Form Synchronization**: Clearing chat updates `formData.memoryBubbles = []` immediately so subsequent profile saves don't resurrect old memories.
+  - **Comprehensive Backend Wipe (`handleClearChat` in `App.tsx`)**:
+    - Purges media blobs from IndexedDB.
+    - Purges pending offline outbox and background exchanges via `clearOfflineDataForChat(activeChatId)` in `utils/offlineQueue.ts`.
+    - Cancels active response timeouts, left-on-read timers, and pending time-gap caches.
+    - Clears `messages: []`, `lastMessage: ''`, `lastMessageTime: ''`, `unreadCount: 0`, and `memoryBubbles: []` (when option selected).
+    - Calls `saveChatsNow()` immediately to ensure zero-delay synchronization with `localStorage`.
+
+### 2. Dual Audio In-App Sound System (`msgsentpop.mp3` & `whatapp.wav`) (`v1.8.3`)
 - **Real WhatsApp Sent Message Sound (`/msgsentpop.mp3`)**:
   - Integrated a low pop audio effect when the user sends any message (text, quick reply, media, voice, attachment, or event) directly in the active chat interface.
   - Sourced from `public/msgsentpop.mp3`.
@@ -345,6 +363,20 @@ Wassap/
   - Non-blocking Web Audio API dual-buffer playback engine supporting concurrent overlapping of sent pop and incoming chimes (`/whatapp.wav`).
   - Foreground-only check (`!document.hidden`) ensuring sounds stay silent when backgrounded or minimized.
   - Service worker offline pre-caching (`wassap-shell-v5`) for complete PWA offline support.
+- [x] **v1.8.4**:
+  - Eliminated unintentional memory recall leakage on ordinary messages (restricted `[MEMORY RECALL]` directive to explicit `@rem` commands).
+  - Complete, clean persona chat history reset in `ProfilePanel` and `ChatWindow` with optional memory bubble/diary purging.
+  - Full purge of offline outbox, background exchanges, and immediate `localStorage` synchronization.
+- [x] **v1.8.5**:
+  - **45-Message Context Rolling Window**: Buffed in-chat rolling history from 30/35 to 45 messages across `geminiService.ts`, `App.tsx`, and `sw.js`, guaranteeing ~20-22 recent conversation turns are seamlessly recalled without token bloat or model overload. Kept strictly distinct from `@rem` long-term diary memory recall.
+  - **Non-Stacking Date Dividers**: Scoped chat messages into isolated date group sections with `useMemo` in `ChatWindow.tsx`. CSS `sticky` positioning is strictly bounded within its date section container, naturally pushing previous date dividers out of view when scrolling across "Yesterday" and "Today" without any stacking or overlapping.
+  - **Compact Native WhatsApp Mobile Date Pill**: Scaled down typography (`text-[9.5px] sm:text-[11px]`) and padding (`px-2.5 py-0.5 sm:px-3.5 sm:py-1`) for a sleek, authentic native WhatsApp appearance that does not crowd mobile screens.
+  - **Sentience 2.0 Humane Settings Engine**: Completely overhauled the prompt engine across Vertex Cloud, Gemini Studio, and serverless handlers:
+    - *Strict Anti-Robot Protocol*: Blocks AI clichés, corporate apologies, sycophantic echoing (parroting user messages), mandatory end-of-text interrogation questions, and unsolicited preachy advice.
+    - *Authentic Texting Cadence & Imperfections*: Emulates casual texting flow with lowercase starts, organic abbreviations (`tbh, idk, yk, rn, prolly, gonna, wanna`), expressive vowel lengthening, and natural conversational fillers.
+    - *Dynamic Message Pacing*: WhatsApp-native short bursts (1-2 lines max) with quick quips rather than structured essay monologues.
+    - *7-Tier Nuanced Mood Engine*: Refined emotional directives from 0-15 (Very Annoyed/Curt) through 51-65 (Tranquil/Balanced) to 93-100 (Thrilled/Ecstatic) with strict rule never to state mood numbers directly.
+    - *ProfilePanel UI Refresh*: Polished Humane Settings toggle copy and real-time mood tier indicator.
 
 ---
 
