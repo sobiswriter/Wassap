@@ -1,5 +1,5 @@
-// Wassap Service Worker v10: Instant RemoteInput Spinner Dismissal & Reliable Background Replies
-const CACHE_NAME = 'wassap-shell-v10';
+// Wassap Service Worker v11: Elegant Thin Divider & Clean Dialogue Formatting in Shade
+const CACHE_NAME = 'wassap-shell-v11';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -525,9 +525,13 @@ self.addEventListener('notificationclick', (event) => {
               personaReplies.push(personaMsg);
 
               const stackedChunks = chunks.slice(0, i + 1).join('\n');
-              const recentTurns = (existingBody ? existingBody.split('\n') : []).slice(-4);
-              recentTurns.push(`${chatName}: ${stackedChunks}`);
-              const threadedBody = recentTurns.join('\n');
+              const DIVIDER = '\n────────────────────\n';
+              const existingTurns = existingBody ? existingBody.split(DIVIDER).filter(t => t.trim().length > 0) : [];
+              const recentHistoryTurns = existingTurns.slice(-2);
+              const personaTurnText = notifData.isGroup ? `${chatName}: ${stackedChunks}` : stackedChunks;
+              const threadedBody = recentHistoryTurns.length > 0
+                ? `${recentHistoryTurns.join(DIVIDER)}${DIVIDER}${personaTurnText}`
+                : personaTurnText;
 
               // The first chunk POPS UP as a new native notification with sound/vibration!
               await self.registration.showNotification(chatName, {
@@ -583,7 +587,11 @@ self.addEventListener('notificationclick', (event) => {
     const squareIcon = event.notification.icon || '/favicon.svg';
     const badgeIcon = event.notification.badge || '/badge.svg';
     const previousBody = event.notification.body || '';
-    const updatedBodyWithUser = previousBody ? `${previousBody}\nYou: ${replyText}` : `You: ${replyText}`;
+    const DIVIDER = '\n────────────────────\n';
+    const existingTurns = previousBody ? previousBody.split(DIVIDER).filter(t => t.trim().length > 0) : [];
+    const recentTurnsWithUser = existingTurns.slice(-2);
+    recentTurnsWithUser.push(`You: ${replyText}`);
+    const updatedBodyWithUser = recentTurnsWithUser.join(DIVIDER);
 
     event.waitUntil(
       (async () => {
@@ -674,12 +682,12 @@ self.addEventListener('notificationclick', (event) => {
             };
             personaReplies.push(personaMsg);
 
-            // Stack clean dialogue: user message + delivered persona fragments
+            // Stack clean dialogue: user message + delivered persona fragments with thin line divider
             const stackedChunks = chunks.slice(0, i + 1).join('\n');
-            const recentTurns = (previousBody ? previousBody.split('\n') : []).slice(-4);
-            recentTurns.push(`You: ${replyText}`);
-            recentTurns.push(`${chatName}: ${stackedChunks}`);
-            const threadedBody = recentTurns.join('\n');
+            const personaTurnText = notifData.isGroup ? `${chatName}: ${stackedChunks}` : stackedChunks;
+            const threadedBody = recentTurnsWithUser.length > 0
+              ? `${recentTurnsWithUser.join(DIVIDER)}${DIVIDER}${personaTurnText}`
+              : personaTurnText;
 
             // Deliver notification: first chunk POPS UP as a new native notification with sound/vibration!
             await self.registration.showNotification(chatName, {

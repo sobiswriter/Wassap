@@ -427,6 +427,13 @@ Wassap/
     - *Bypassed Android Background Tab Throttling*: Fixed background replies failing or going nowhere when the PWA was backgrounded. On mobile devices, background browser tabs are heavily throttled/frozen by the OS. Instead of delegating to a suspended background window, the Service Worker now autonomously generates the persona reply within `event.waitUntil`, pops up the response notification, saves the exchange to IndexedDB, and broadcasts `BACKGROUND_EXCHANGE_SYNC` to open tabs.
     - *Mark as Read OS Action Clearing*: Calling `event.notification.close()` followed by immediate `showNotification` with `(Read ✓✓)` properly resets the OS action pending state on Android while keeping the card in the tray with the Reply action ready.
     - *SW Cache v10*: Bumped cache to `wassap-shell-v10` for instantaneous client updates.
+- [x] **v1.8.7**:
+  - **Native Notification Shade Dialogue Formatting & Subtle Line Divider**:
+    - *Thin Hairline Divider*: Replaced redundant persona name prefix (`"Persona: message"`) in 1-on-1 notification cards with a subtle unicode hairline divider (`────────────────────` via `\u2500` flanked by newlines `\n────────────────────\n`). Mobile and desktop notification shades now render a delicate, light horizontal partition between turns that drastically improves readability.
+    - *Clean Attributions*: Kept `"You: <text>"` for user turns. In 1-on-1 chats, persona names are omitted in the body since contact name and avatar already headline the notification card. In group chats, member attributions (`${personaLabel}: `) are cleanly placed after the divider.
+    - *Threaded History Bounds*: In `public/sw.js` (both autonomous Left-on-Read reactions and inline quick-replies), dialog history is parsed by `DIVIDER` and bounded to the 2 most recent turns (`slice(-2)`), preventing message run-ons or notification shade overflow on Android.
+    - *Foreground Sync Reliability*: Handled nullable `userMessage` in `App.tsx`'s `BACKGROUND_EXCHANGE_SYNC` listener to seamlessly synchronize standalone persona replies (like Left-on-Read reactions) into the chat history without runtime errors.
+    - *Service Worker Cache v11*: Bumped cache to `wassap-shell-v11` to ensure rapid propagation of the updated notification formatting to all clients.
 
 ---
 

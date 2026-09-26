@@ -2340,7 +2340,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           const lastUserMsg = updatedHistory.filter(m => m.sender === 'me').pop();
           const lastUserText = lastUserMsg?.text || '';
           const notificationBodyText = (isBackgroundReply && lastUserText)
-            ? `You: ${lastUserText}\n${chat.name}: ${stackedTurnText}`
+            ? `You: ${lastUserText}\n────────────────────\n${stackedTurnText}`
             : stackedTurnText;
 
           showNotification(chat.name, {
@@ -2600,7 +2600,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             const lastUserMsg = updatedHistory.filter(m => m.sender === 'me').pop();
             const lastUserText = lastUserMsg?.text || '';
             const notificationBodyText = (isBackgroundReply && lastUserText)
-              ? `You: ${lastUserText}\n${personaLabel}: ${stackedTurnText}`
+              ? `You: ${lastUserText}\n────────────────────\n${personaLabel}: ${stackedTurnText}`
               : stackedTurnText;
 
             showNotification(`${group.name} - ${personaLabel}`, {
