@@ -1,5 +1,5 @@
-// Wassap Service Worker v4: Offline PWA Shell, Low-Connectivity Resilience & Dual Audio Playback
-const CACHE_NAME = 'wassap-shell-v4';
+// Wassap Service Worker v5: Offline PWA Shell, Low-Connectivity Resilience & Dual Audio Playback
+const CACHE_NAME = 'wassap-shell-v5';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -58,10 +58,19 @@ const saveBackgroundExchangeToIDB = async (chatId, userMsg, personaReplies) => {
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('Pre-cache warning:', err);
-      });
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await Promise.all(
+        PRECACHE_ASSETS.map(async (asset) => {
+          try {
+            const response = await fetch(asset, { cache: 'reload' });
+            if (response && (response.status === 200 || response.type === 'opaque')) {
+              await cache.put(asset, response);
+            }
+          } catch (err) {
+            console.warn('Pre-cache warning for ' + asset + ':', err);
+          }
+        })
+      );
     })
   );
   self.skipWaiting();

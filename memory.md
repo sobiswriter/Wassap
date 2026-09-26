@@ -28,7 +28,7 @@
   - Ensures zero unwanted audio playback when the tab is backgrounded or minimized, or when native background service worker push notifications arrive (which have OS-level notification alerts).
 - **Service Worker Offline Pre-Caching (`public/sw.js`)**:
   - Added `'/msgsentpop.mp3'` to `PRECACHE_ASSETS` in `public/sw.js`.
-  - Incremented cache version identifier to `wassap-shell-v4` to ensure client service workers cleanly update and cache the new asset for offline PWA operation.
+  - Incremented cache version identifier to `wassap-shell-v5` to ensure client service workers cleanly evict old audio caches, download the newly updated audio with `{ cache: 'reload' }`, and cache the new asset for offline PWA operation.
 
 ### 2. AI Diary Generation Overhaul & Pure Diary Storage (`v1.8.2`)
 - **Pure Diary Entry Storage**:
@@ -344,7 +344,7 @@ Wassap/
   - Authentic sent message pop sound (`/msgsentpop.mp3`) on user sends across all message formats.
   - Non-blocking Web Audio API dual-buffer playback engine supporting concurrent overlapping of sent pop and incoming chimes (`/whatapp.wav`).
   - Foreground-only check (`!document.hidden`) ensuring sounds stay silent when backgrounded or minimized.
-  - Service worker offline pre-caching (`wassap-shell-v4`) for complete PWA offline support.
+  - Service worker offline pre-caching (`wassap-shell-v5`) for complete PWA offline support.
 
 ---
 

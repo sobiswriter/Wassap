@@ -303,7 +303,7 @@ const preloadAudioBuffers = async () => {
     if (!ctx) return;
 
     // 1. Preload incoming message sound (/whatapp.wav)
-    fetch('/whatapp.wav')
+    fetch('/whatapp.wav', { cache: 'no-cache' })
       .then(res => res.arrayBuffer())
       .then(arrayBuffer => ctx.decodeAudioData(arrayBuffer))
       .then(buffer => {
@@ -313,7 +313,7 @@ const preloadAudioBuffers = async () => {
       .catch(e => console.warn("Incoming audio buffer preload fallback:", e));
 
     // 2. Preload sent message pop sound (/msgsentpop.mp3)
-    fetch('/msgsentpop.mp3')
+    fetch('/msgsentpop.mp3', { cache: 'no-cache' })
       .then(res => res.arrayBuffer())
       .then(arrayBuffer => ctx.decodeAudioData(arrayBuffer))
       .then(buffer => {
