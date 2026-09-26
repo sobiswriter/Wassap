@@ -377,6 +377,8 @@ Wassap/
     - *Dynamic Message Pacing*: WhatsApp-native short bursts (1-2 lines max) with quick quips rather than structured essay monologues.
     - *7-Tier Nuanced Mood Engine*: Refined emotional directives from 0-15 (Very Annoyed/Curt) through 51-65 (Tranquil/Balanced) to 93-100 (Thrilled/Ecstatic) with strict rule never to state mood numbers directly.
     - *ProfilePanel UI Refresh*: Polished Humane Settings toggle copy and real-time mood tier indicator.
+  - **Critical React Rules of Hooks Hotfix (`ChatWindow.tsx`)**: Resolved fatal crash on startup and chat selection caused by placing `useMemo` below an early `if (!chat) return (...)` check. Moved all hooks to the top level of `ChatWindow`, eliminating the `"Rendered more hooks than previous render"` error that triggered `AppErrorBoundary` ("Something went wrong").
+  - **Service Worker Cache Invalidation (`wassap-shell-v6`)**: Bumped SW cache to v6 and enhanced `handleReset` in `index.tsx` with asynchronous `registration.update()` triggers to force-purge stale bundles across client devices.
 
 ---
 

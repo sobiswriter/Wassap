@@ -1,5 +1,5 @@
-// Wassap Service Worker v5: Offline PWA Shell, Low-Connectivity Resilience & Dual Audio Playback
-const CACHE_NAME = 'wassap-shell-v5';
+// Wassap Service Worker v6: Clean Hook Layout & Context Refresh
+const CACHE_NAME = 'wassap-shell-v6';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',

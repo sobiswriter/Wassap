@@ -29,14 +29,20 @@ class AppErrorBoundary extends Component<Props, State> {
     console.error("Uncaught application startup error:", error, errorInfo);
   }
 
-  handleReset = () => {
+  handleReset = async () => {
     try {
       // Non-destructive soft reload that preserves user chats, personas, and settings
       sessionStorage.clear();
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.update();
+        }
+      }
     } catch (e) {
       console.error("Session clear warning:", e);
     }
-    window.location.href = window.location.origin + window.location.pathname;
+    window.location.reload();
   };
 
   render() {

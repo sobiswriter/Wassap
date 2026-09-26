@@ -632,6 +632,45 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const filteredMessages = useMemo(() => {
+    if (!chat?.messages) return [];
+    return chat.messages.filter(msg =>
+      !searchTerm || (msg.text || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [chat?.messages, searchTerm]);
+
+  const messageGroups = useMemo(() => {
+    if (!chat) return [];
+    const groups: { dateKey: string; items: { msg: Message; isConsecutive: boolean }[] }[] = [];
+    let currentGroup: { dateKey: string; items: { msg: Message; isConsecutive: boolean }[] } | null = null;
+
+    filteredMessages.forEach((msg, index) => {
+      const dateKey = getMessageDateKey(msg);
+      const previousDateKey = index > 0 ? getMessageDateKey(filteredMessages[index - 1]) : '';
+
+      const isConsecutive = (() => {
+        if (index === 0) return false;
+        const prevMsg = filteredMessages[index - 1];
+        if (msg.isEvent || prevMsg.isEvent) return false;
+        if (msg.sender !== prevMsg.sender) return false;
+        if (chat?.isGroup && msg.senderName !== prevMsg.senderName) return false;
+        if (dateKey !== previousDateKey) return false;
+
+        const currentMs = getMessageTimestampEpoch(msg);
+        const prevMs = getMessageTimestampEpoch(prevMsg);
+        return (currentMs - prevMs) < 120000; // 2 minutes
+      })();
+
+      if (!currentGroup || currentGroup.dateKey !== dateKey) {
+        currentGroup = { dateKey, items: [] };
+        groups.push(currentGroup);
+      }
+      currentGroup.items.push({ msg, isConsecutive });
+    });
+
+    return groups;
+  }, [filteredMessages, chat]);
+
   if (!chat) {
     return (
       <div className="flex-1 app-header flex flex-col items-center justify-center relative overflow-hidden transition-colors duration-300">
@@ -666,41 +705,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
       </div>
     );
   }
-
-  const filteredMessages = chat.messages.filter(msg =>
-    !searchTerm || msg.text.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const messageGroups = useMemo(() => {
-    const groups: { dateKey: string; items: { msg: Message; isConsecutive: boolean }[] }[] = [];
-    let currentGroup: { dateKey: string; items: { msg: Message; isConsecutive: boolean }[] } | null = null;
-
-    filteredMessages.forEach((msg, index) => {
-      const dateKey = getMessageDateKey(msg);
-      const previousDateKey = index > 0 ? getMessageDateKey(filteredMessages[index - 1]) : '';
-
-      const isConsecutive = (() => {
-        if (index === 0) return false;
-        const prevMsg = filteredMessages[index - 1];
-        if (msg.isEvent || prevMsg.isEvent) return false;
-        if (msg.sender !== prevMsg.sender) return false;
-        if (chat?.isGroup && msg.senderName !== prevMsg.senderName) return false;
-        if (dateKey !== previousDateKey) return false;
-
-        const currentMs = getMessageTimestampEpoch(msg);
-        const prevMs = getMessageTimestampEpoch(prevMsg);
-        return (currentMs - prevMs) < 120000; // 2 minutes
-      })();
-
-      if (!currentGroup || currentGroup.dateKey !== dateKey) {
-        currentGroup = { dateKey, items: [] };
-        groups.push(currentGroup);
-      }
-      currentGroup.items.push({ msg, isConsecutive });
-    });
-
-    return groups;
-  }, [filteredMessages, chat?.isGroup]);
 
   const getGroupMembersLabel = () => {
     if (chat.status === 'typing...') return <span className="text-[#21c063] font-medium italic animate-pulse">typing...</span>;
