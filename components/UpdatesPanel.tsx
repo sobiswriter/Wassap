@@ -45,9 +45,9 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
   );
 
   return (
-    <div className="fixed inset-0 bg-[#f0f2f5] dark:bg-[#0b141a] z-[100] flex flex-col animate-in fade-in slide-in-from-right duration-300 overflow-hidden">
+    <div className="fixed inset-0 bg-[#f0f2f5] dark:bg-[#0b141a] z-[3500] flex flex-col animate-in fade-in slide-in-from-right duration-250 overflow-hidden">
       {/* Header */}
-      <div className="h-[64px] bg-white dark:bg-[#202c33] flex items-center px-6 border-b app-border shrink-0">
+      <div className="min-h-[64px] pt-[max(env(safe-area-inset-top),10px)] pb-2 bg-white dark:bg-[#202c33] flex items-center px-6 border-b app-border shrink-0">
         <div className="flex items-center gap-4 w-full max-w-4xl mx-auto">
           <button onClick={onClose} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors">
             <ArrowLeft className="text-secondary" />
@@ -81,10 +81,24 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.8.6"
+              title="The Zero-Latency Mobile & Borderless WhatsApp Polish"
+              date="September 2026"
+              isLatest={true}
+              changes={[
+                "Borderless Dark Mode Date Pill: Completely removed the distracting 1px white border in dark mode for a seamless, authentic WhatsApp date indicator.",
+                "Zero-Latency 0ms Modal Opens: Implemented background idle pre-caching for settings, profile, and creation panels, completely eliminating first-click delay or freezing.",
+                "Full-Screen Mobile Overlays: Rebuilt Settings, Persona Profile, User Profile, New Contact, and New Group into full-screen mobile sheets with hardware back button support.",
+                "Expanded FAB Touch Targets: Extended tap targets to cover entire action rows and added touch backdrop dismiss for silky-smooth mobile operation.",
+                "ServiceWorker v7 Cache Purge: Flushed stale browser caches to resolve stuck reloads and ensure all users immediately receive the new responsive builds."
+              ]}
+            />
+
+            <UpdateItem 
               version="v1.8.5"
               title="The Sentience 2.0 & Context Buffer Update"
               date="September 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "45-Message Context Buffer: Extended rolling in-chat memory to 45 messages (~20-22 conversation turns) for deep conversational continuity without token bloat or model overload.",
                 "Non-Stacking Date Dividers: Scoped date dividers into isolated date group sections, completely eliminating ugly header stacking and overlap when scrolling between Yesterday and Today.",

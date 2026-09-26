@@ -1,5 +1,5 @@
-// Wassap Service Worker v6: Clean Hook Layout & Context Refresh
-const CACHE_NAME = 'wassap-shell-v6';
+// Wassap Service Worker v7: Seamless Mobile Overlays & Zero-Latency Settings/Profile
+const CACHE_NAME = 'wassap-shell-v7';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',

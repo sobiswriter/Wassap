@@ -33,61 +33,68 @@ export const MobileActionFAB: React.FC<MobileActionFABProps> = ({
     }, []);
 
     return (
-        <div className="fixed bottom-[calc(74px+max(env(safe-area-inset-bottom),8px))] right-4 z-[3000] flex flex-col items-end gap-3 md:hidden" ref={menuRef}>
-            {/* Action Menu */}
+        <>
             {isOpen && (
-                <div className="flex flex-col items-end gap-3 mb-2 animate-in slide-in-from-bottom-5 duration-200">
-                    <div className="flex items-center gap-3">
-                        <span className="bg-white dark:bg-[#182229] px-3 py-1 rounded-lg shadow-md text-sm font-medium text-primary border app-border">Profile</span>
-                        <button
-                            onClick={() => { onProfileClick(); setIsOpen(false); }}
-                            className="w-12 h-12 rounded-full bg-white dark:bg-[#182229] shadow-lg flex items-center justify-center text-secondary hover:text-[#21c063] transition-colors border app-border"
-                        >
-                            <User size={20} />
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <span className="bg-white dark:bg-[#182229] px-3 py-1 rounded-lg shadow-md text-sm font-medium text-primary border app-border">Calendar Notes</span>
-                        <button
-                            onClick={() => { onCalendarClick(); setIsOpen(false); }}
-                            className="w-12 h-12 rounded-full bg-white dark:bg-[#182229] shadow-lg flex items-center justify-center text-secondary hover:text-[#21c063] transition-colors border app-border"
-                        >
-                            <CalendarDays size={20} />
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <span className="bg-white dark:bg-[#182229] px-3 py-1 rounded-lg shadow-md text-sm font-medium text-primary border app-border">Settings</span>
-                        <button
-                            onClick={() => { onSettingsClick(); setIsOpen(false); }}
-                            className="w-12 h-12 rounded-full bg-white dark:bg-[#182229] shadow-lg flex items-center justify-center text-secondary hover:text-[#21c063] transition-colors border app-border"
-                        >
-                            <Settings size={20} />
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <span className="bg-white dark:bg-[#182229] px-3 py-1 rounded-lg shadow-md text-sm font-medium text-primary border app-border">New Group</span>
-                        <button
-                            onClick={() => { onAddGroup(); setIsOpen(false); }}
-                            className="w-12 h-12 rounded-full bg-white dark:bg-[#182229] shadow-lg flex items-center justify-center text-secondary hover:text-[#21c063] transition-colors border app-border"
-                        >
-                            <Users size={20} />
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <span className="bg-white dark:bg-[#182229] px-3 py-1 rounded-lg shadow-md text-sm font-medium text-primary border app-border">New Persona</span>
-                        <button
-                            onClick={() => { onAddPersona(); setIsOpen(false); }}
-                            className="w-12 h-12 rounded-full bg-white dark:bg-[#182229] shadow-lg flex items-center justify-center text-secondary hover:text-[#21c063] transition-colors border app-border"
-                        >
-                            <UserPlus size={20} />
-                        </button>
-                    </div>
-                </div>
+                <div
+                    className="fixed inset-0 bg-black/40 backdrop-blur-[1px] z-[2995] animate-in fade-in duration-200 md:hidden"
+                    onClick={() => setIsOpen(false)}
+                />
             )}
+            <div className="fixed bottom-[calc(74px+max(env(safe-area-inset-bottom),8px))] right-4 z-[3000] flex flex-col items-end gap-3 md:hidden" ref={menuRef}>
+                {/* Action Menu */}
+                {isOpen && (
+                    <div className="flex flex-col items-end gap-3 mb-2 animate-in slide-in-from-bottom-5 duration-200">
+                        <div
+                            onClick={() => { onProfileClick(); setIsOpen(false); }}
+                            className="flex items-center gap-3 cursor-pointer group active:scale-95 transition-transform select-none"
+                        >
+                            <span className="bg-white dark:bg-[#182229] px-3.5 py-1.5 rounded-xl shadow-md text-sm font-medium text-primary border app-border group-hover:text-[#21c063] transition-colors">Profile</span>
+                            <div className="w-12 h-12 rounded-full bg-white dark:bg-[#182229] shadow-lg flex items-center justify-center text-secondary group-hover:text-[#21c063] transition-colors border app-border shrink-0">
+                                <User size={20} />
+                            </div>
+                        </div>
+
+                        <div
+                            onClick={() => { onCalendarClick(); setIsOpen(false); }}
+                            className="flex items-center gap-3 cursor-pointer group active:scale-95 transition-transform select-none"
+                        >
+                            <span className="bg-white dark:bg-[#182229] px-3.5 py-1.5 rounded-xl shadow-md text-sm font-medium text-primary border app-border group-hover:text-[#21c063] transition-colors">Calendar Notes</span>
+                            <div className="w-12 h-12 rounded-full bg-white dark:bg-[#182229] shadow-lg flex items-center justify-center text-secondary group-hover:text-[#21c063] transition-colors border app-border shrink-0">
+                                <CalendarDays size={20} />
+                            </div>
+                        </div>
+
+                        <div
+                            onClick={() => { onSettingsClick(); setIsOpen(false); }}
+                            className="flex items-center gap-3 cursor-pointer group active:scale-95 transition-transform select-none"
+                        >
+                            <span className="bg-white dark:bg-[#182229] px-3.5 py-1.5 rounded-xl shadow-md text-sm font-medium text-primary border app-border group-hover:text-[#21c063] transition-colors">Settings</span>
+                            <div className="w-12 h-12 rounded-full bg-white dark:bg-[#182229] shadow-lg flex items-center justify-center text-secondary group-hover:text-[#21c063] transition-colors border app-border shrink-0">
+                                <Settings size={20} />
+                            </div>
+                        </div>
+
+                        <div
+                            onClick={() => { onAddGroup(); setIsOpen(false); }}
+                            className="flex items-center gap-3 cursor-pointer group active:scale-95 transition-transform select-none"
+                        >
+                            <span className="bg-white dark:bg-[#182229] px-3.5 py-1.5 rounded-xl shadow-md text-sm font-medium text-primary border app-border group-hover:text-[#21c063] transition-colors">New Group</span>
+                            <div className="w-12 h-12 rounded-full bg-white dark:bg-[#182229] shadow-lg flex items-center justify-center text-secondary group-hover:text-[#21c063] transition-colors border app-border shrink-0">
+                                <Users size={20} />
+                            </div>
+                        </div>
+
+                        <div
+                            onClick={() => { onAddPersona(); setIsOpen(false); }}
+                            className="flex items-center gap-3 cursor-pointer group active:scale-95 transition-transform select-none"
+                        >
+                            <span className="bg-white dark:bg-[#182229] px-3.5 py-1.5 rounded-xl shadow-md text-sm font-medium text-primary border app-border group-hover:text-[#21c063] transition-colors">New Persona</span>
+                            <div className="w-12 h-12 rounded-full bg-white dark:bg-[#182229] shadow-lg flex items-center justify-center text-secondary group-hover:text-[#21c063] transition-colors border app-border shrink-0">
+                                <UserPlus size={20} />
+                            </div>
+                        </div>
+                    </div>
+                )}
 
             {/* Meta AI FAB (Hidden when menu is open) */}
             {!isOpen && (
@@ -116,5 +123,7 @@ export const MobileActionFAB: React.FC<MobileActionFABProps> = ({
                 {isOpen ? <Plus size={30} className="text-white" /> : <MessageSquarePlus size={28} strokeWidth={2.5} className="text-white dark:text-[#0b1014]" />}
             </button>
         </div>
+        </>
     );
 };
+

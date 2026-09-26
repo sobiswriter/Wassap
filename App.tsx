@@ -14,6 +14,28 @@ const NewChatPanel = React.lazy(() => import('./components/NewChatPanel').then(m
 const NewGroupPanel = React.lazy(() => import('./components/NewGroupPanel').then(m => ({ default: m.NewGroupPanel })));
 const UserProfilePanel = React.lazy(() => import('./components/UserProfilePanel').then(m => ({ default: m.UserProfilePanel })));
 const CalendarNotesWidget = React.lazy(() => import('./components/CalendarNotesWidget').then(m => ({ default: m.CalendarNotesWidget })));
+
+// Eagerly prefetch secondary chunks during idle time for 0ms instantaneous modal opens
+const preloadAppPanels = () => {
+  try {
+    import('./components/ProfilePanel');
+    import('./components/SettingsPopover');
+    import('./components/UserProfilePanel');
+    import('./components/NewChatPanel');
+    import('./components/NewGroupPanel');
+    import('./components/CalendarNotesWidget');
+    import('./components/GuidePanel');
+    import('./components/UpdatesPanel');
+  } catch (e) {
+    // Ignore prefetch errors in unsupported environments
+  }
+};
+
+const PanelLoadingFallback: React.FC = () => (
+  <div className="fixed top-0 left-0 right-0 z-[5000] h-[3px] bg-[#21c063]/20 overflow-hidden pointer-events-none">
+    <div className="h-full bg-[#21c063] w-1/2 rounded-full animate-pulse" />
+  </div>
+);
 import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL, GEMINI_TTS_VOICE_DETAILS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus, PersonaVoiceSettings } from './types';
 import { 
@@ -688,6 +710,18 @@ const App: React.FC = () => {
   const pendingTimeGapsRef = React.useRef<Record<string, string | undefined>>({});
   const leftOnReadTimeoutsRef = React.useRef<Record<string, number>>({});
   useEffect(() => { chatsRef.current = chats; globalActiveChats = chats; }, [chats]);
+
+  // Eagerly prefetch secondary component chunks during idle time for 0ms instantaneous opens
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(() => preloadAppPanels(), { timeout: 1500 });
+      } else {
+        const timer = setTimeout(preloadAppPanels, 600);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, []);
 
 
   const sendNotificationWithChimeRule = (chatId: string, title: string, avatar: string, bodyText: string, extraData?: any) => {
@@ -1568,7 +1602,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
   // Handle native hardware back button safely
   useEffect(() => {
-    const isPanelOpen = showSettingsPopover || showNewChatPanel || showNewGroupPanel || showUserProfilePanel || showCalendarWidget || showProfilePanel;
+    const isPanelOpen = showSettingsPopover || showNewChatPanel || showNewGroupPanel || showUserProfilePanel || showCalendarWidget || showProfilePanel || showGuide || showUpdates;
 
     if (isMobile && isPanelOpen) {
       window.history.pushState({ panelOpen: true }, '');
@@ -1582,13 +1616,15 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         setShowUserProfilePanel(false);
         setShowSettingsPopover(false);
         setShowCalendarWidget(false);
+        setShowGuide(false);
+        setShowUpdates(false);
       } else if (activeView === 'chat') {
         setActiveView('list');
       }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeView, isMobile, showSettingsPopover, showNewChatPanel, showNewGroupPanel, showUserProfilePanel, showCalendarWidget, showProfilePanel]);
+  }, [activeView, isMobile, showSettingsPopover, showNewChatPanel, showNewGroupPanel, showUserProfilePanel, showCalendarWidget, showProfilePanel, showGuide, showUpdates]);
 
 
 
@@ -2798,7 +2834,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           />
         </div>
 
-        <React.Suspense fallback={null}>
+        <React.Suspense fallback={<PanelLoadingFallback />}>
           {showSettingsPopover && (
             <SettingsPopover
               settings={settings}
@@ -2851,7 +2887,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           <ChatWindow
             chat={activeChat}
             allChats={chats}
-            onHeaderClick={() => setShowProfilePanel(!showProfilePanel)}
+            onHeaderClick={() => setShowProfilePanel(true)}
             onDeleteChat={handleDeleteChat}
             onClearChat={handleClearChat}
             searchTerm={chatSearchTerm}
@@ -2876,7 +2912,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           )}
         </div>
 
-        <React.Suspense fallback={null}>
+        <React.Suspense fallback={<PanelLoadingFallback />}>
           {showProfilePanel && activeChat && (
             <ProfilePanel
               chat={chats.find(c => c.id === activeChatId)!}
@@ -2925,7 +2961,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         </React.Suspense>
 
         {/* Mobile Floating Action Button Hub */}
-        {isMobile && activeView === 'list' && !showSettingsPopover && !showNewChatPanel && !showNewGroupPanel && !showUserProfilePanel && !showCalendarWidget && !showProfilePanel && (
+        {isMobile && activeView === 'list' && !showSettingsPopover && !showNewChatPanel && !showNewGroupPanel && !showUserProfilePanel && !showCalendarWidget && !showProfilePanel && !showGuide && !showUpdates && (
           <MobileActionFAB
             onAddPersona={() => setShowNewChatPanel(true)}
             onAddGroup={() => setShowNewGroupPanel(true)}

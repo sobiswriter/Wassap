@@ -59,9 +59,9 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
   );
 
   return (
-    <div className="fixed inset-0 bg-[#f0f2f5] dark:bg-[#0b141a] z-[100] flex flex-col animate-in fade-in zoom-in duration-300 overflow-hidden">
+    <div className="fixed inset-0 bg-[#f0f2f5] dark:bg-[#0b141a] z-[3500] flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
       {/* Header */}
-      <div className="h-[64px] bg-white dark:bg-[#202c33] flex items-center px-6 border-b app-border shrink-0">
+      <div className="min-h-[64px] pt-[max(env(safe-area-inset-top),10px)] pb-2 bg-white dark:bg-[#202c33] flex items-center px-6 border-b app-border shrink-0">
         <div className="flex items-center gap-4 w-full max-w-6xl mx-auto">
           <button onClick={onClose} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors">
             <ArrowLeft className="text-secondary" />
@@ -72,7 +72,7 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
           </div>
           <div className="ml-auto hidden sm:flex items-center gap-2 px-3 py-1 bg-[#e7fce3] dark:bg-[#064a3d] rounded-full border border-[#00a884]/20">
               <div className="w-2 h-2 bg-[#00a884] rounded-full animate-pulse"></div>
-              <span className="text-[calc(var(--msg-font-size)-4px)] font-bold text-[#00a884] uppercase tracking-widest">Version 1.8.3 Live</span>
+              <span className="text-[calc(var(--msg-font-size)-4px)] font-bold text-[#00a884] uppercase tracking-widest">Version 1.8.6 Live</span>
           </div>
         </div>
       </div>

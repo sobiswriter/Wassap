@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  X, Camera, Link as LinkIcon, Save, Info, Globe, Check, 
+  X, ArrowLeft, Camera, Link as LinkIcon, Save, Info, Globe, Check, 
   Users, Trash2, Eraser, Settings, ChevronDown, ChevronRight, 
   Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays, Smile, Download, Upload,
   Mic, Volume2, Loader2, Play
@@ -374,7 +374,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     : [];
 
   return (
-    <div className="w-full md:w-[400px] h-full app-header border-l app-border flex flex-col animate-in slide-in-from-right duration-300 relative">
+    <div className="fixed inset-0 z-[3500] md:static md:w-[400px] md:h-full md:z-auto app-header border-l app-border flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden">
       {showDeleteModal && (
         <ConfirmationModal
           title={chat.isGroup ? "Exit group?" : "Delete this persona?"}
@@ -417,9 +417,16 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       )}
 
       {/* Header */}
-      <div className="h-[60px] app-panel flex items-center p-5 shrink-0 border-b app-border">
-        <div className="flex items-center gap-6">
-          <X className="text-secondary cursor-pointer hover:bg-black/5 rounded-full p-1" onClick={onClose} />
+      <div className="h-[60px] app-panel flex items-center px-4 md:px-5 shrink-0 border-b app-border pt-[max(env(safe-area-inset-top),10px)] md:pt-0">
+        <div className="flex items-center gap-3 md:gap-6">
+          <button
+            onClick={onClose}
+            className="p-1.5 -ml-1 text-secondary hover:text-primary rounded-full hover:bg-black/5 dark:hover:bg-white/5 active:scale-90 transition-transform cursor-pointer"
+            title="Close"
+          >
+            <ArrowLeft size={20} className="md:hidden" />
+            <X size={20} className="hidden md:block" />
+          </button>
           <h2 className="text-[calc(var(--msg-font-size)+1.5px)] font-medium text-primary">{chat.isGroup ? 'Group info' : 'Contact info'}</h2>
         </div>
       </div>

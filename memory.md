@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.8.4`
+- **Current Version**: `v1.8.6`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -14,7 +14,30 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Persona Chat Reset & Memory Leak Elimination (`v1.8.4`)
+### 1. Borderless WhatsApp Dark Mode Date Indicator & Zero-Latency Mobile Architecture (`v1.8.6`)
+- **Borderless Dark Mode Date Pill**:
+  - Removed the distracting `border app-border/40` from `DateDivider` in `ChatWindow.tsx`.
+  - Replaced generic styling with authentic WhatsApp pill: `bg-white dark:bg-[#182229] text-[#54656f] dark:text-[#8696a0] text-[10px] sm:text-[11.5px] px-3 py-1 rounded-lg font-medium tracking-wide shadow-xs transition-all`.
+  - Seamless, authentic appearance matching native WhatsApp Web and mobile clients.
+- **Root Cause Analysis for Unresponsive Settings / Profile Clicks**:
+  - **Issue A (Dynamic Import Latency & Double-Click Abort)**: `ProfilePanel`, `SettingsPopover`, `CalendarNotesWidget`, etc., were loaded via `React.lazy()` with `fallback={null}`. On first click, downloading the dynamic JS chunk took 300–1200ms with zero visual feedback. Users tapped again, which flipped `!showSettingsPopover` or `!showProfilePanel` to `false`, immediately cancelling the open request.
+  - **Issue B (Mobile Layout & Stacking Context Conflict)**: `ProfilePanel` was rendered inside a horizontal flex row next to `ChatWindow` (`relative w-full md:w-[400px] h-full`). On mobile screens (<768px), it was positioned off-screen to the right inside `overflow-hidden`. Similarly, `SettingsPopover` was `absolute bottom-0 h-[calc(100%-80px)]`, which clashed with the mobile bottom navigation bar and viewport safe areas.
+  - **Issue C (MobileActionFAB Narrow Hitbox)**: `onClick` was attached exclusively to tiny inner circular buttons; tapping the text labels ("Settings", "Profile", "Calendar Notes") yielded no action.
+- **Zero-Latency & Mobile Sheet Fixes**:
+  - **Eager Idle Preloader (`App.tsx`)**: Introduced `preloadAppPanels()` using `requestIdleCallback` (fallback `setTimeout(600ms)`) to eagerly download and cache all secondary panels in browser memory immediately after app initialization. Clicking any modal now opens in **0ms (instantaneous)**.
+  - **Non-Blocking Visual Loading Fallback (`PanelLoadingFallback`)**: Replaced `fallback={null}` with a WhatsApp green top progress bar so users receive instant visual confirmation if network delays occur.
+  - **Explicit Open Guards**: Changed `onHeaderClick` from `() => setShowProfilePanel(!showProfilePanel)` to `() => setShowProfilePanel(true)`.
+  - **Full-Screen Mobile Sheets with Safe-Area Insets**: Rebuilt `ProfilePanel`, `SettingsPopover`, `CalendarNotesWidget`, `UserProfilePanel`, `NewChatPanel`, and `NewGroupPanel` to render as `fixed inset-0 z-[3500-4000]` on mobile, with iOS notch/home-indicator safe-area insets (`pt-[max(env(safe-area-inset-top),16px)]` and `pb-[max(env(safe-area-inset-bottom),16px)]`) and smooth slide transitions (`animate-in slide-in-from-bottom-3 duration-250`).
+  - **Comprehensive MobileActionFAB Touch Targets**: Wrapped the entire row (icon + label) in a touch-friendly clickable target with active scale feedback and added a full-screen backdrop overlay (`z-[2995]`) that dismisses the menu on tap.
+  - **Hardware Back Button Integration**: Extended the native popstate listener to close all panels (including Guide and Updates) when tapping hardware or browser back buttons.
+  - **Service Worker v7 (`wassap-shell-v7`)**: Flushed obsolete caches to ensure all devices cleanly download updated bundles and avoid reload loops.
+
+### 2. Sentience 2.0 Humane Engine & 45-Message Context Buffer (`v1.8.5`)
+- **45-Message Context Buffer**: Buffed rolling message context from 30 to 45 messages (~20-22 conversation turns), giving personas deep contextual memory of current topics without token overflow.
+- **Non-Stacking Date Dividers**: Scoped date divider rendering inside isolated date groups, ensuring dividers only show for their respective day sections without stacking on top of each other.
+- **Sentience 2.0 Humane Texting Engine**: Comprehensive prompt rewrite eliminating sycophantic echo replies, interrogation-style questions, and robotic formality; injected organic texting slang, irregular message pacing, and 7-tier mood states.
+
+### 3. Persona Chat Reset & Memory Leak Elimination (`v1.8.4`)
 - **Root Cause 1: Erroneous `[MEMORY RECALL]` Injection on Ordinary Chats**:
   - `buildMemoryRecallContext` previously checked `if (!isExplicitRecall && memories.length === 0) return undefined;`.
   - When a chat had existing memory bubbles, ordinary messages (like "Hey", "How are you?") failed this check and proceeded to return a top-priority `[MEMORY RECALL]` directive commanding the persona to reminisce about past diary entries even though the user never typed `@rem`!

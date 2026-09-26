@@ -210,10 +210,16 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
   const isUploadedCustom = currentWallpaper !== 'default' && !isPreset;
 
   return (
-    <div className="absolute left-0 md:left-[80px] bottom-0 md:bottom-20 w-full md:w-[340px] h-[calc(100%-80px)] md:h-auto max-h-[calc(100vh-140px)] app-panel md:rounded-lg shadow-2xl border app-border z-[1000] animate-in slide-in-from-bottom-2 duration-200 flex flex-col text-primary">
-      <div className="p-4 border-b app-border flex justify-between items-center app-header shrink-0">
-        <h3 className="font-medium text-[calc(var(--msg-font-size)+1.5px)]">Settings</h3>
-        <X size={18} className="text-secondary cursor-pointer hover:bg-black/5 rounded-full" onClick={onClose} />
+    <div className="fixed inset-0 z-[4000] md:absolute md:inset-auto md:left-[80px] md:bottom-20 md:w-[380px] md:max-h-[calc(100vh-140px)] app-panel md:rounded-lg shadow-2xl border app-border md:z-[1000] animate-in slide-in-from-bottom-3 duration-250 flex flex-col text-primary overflow-hidden">
+      <div className="p-4 pt-[max(env(safe-area-inset-top),16px)] md:pt-4 border-b app-border flex justify-between items-center app-header shrink-0">
+        <h3 className="font-semibold md:font-medium text-[calc(var(--msg-font-size)+2px)] md:text-[calc(var(--msg-font-size)+1.5px)]">Settings</h3>
+        <button
+          onClick={onClose}
+          className="p-1.5 -mr-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 active:scale-90 transition-all text-secondary"
+          title="Close Settings"
+        >
+          <X size={20} />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
@@ -949,7 +955,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
         </div>
       </div>
 
-      <div className="p-4 border-t app-border bg-white dark:bg-[#111b21] rounded-b-lg shrink-0 space-y-3">
+      <div className="p-4 pb-[max(env(safe-area-inset-bottom),16px)] md:pb-4 border-t app-border bg-white dark:bg-[#111b21] md:rounded-b-lg shrink-0 space-y-3">
         <button
           onClick={handleSave}
           className="w-full bg-[#00a884] hover:bg-[#008f6f] text-white font-medium py-2.5 rounded-lg transition-colors shadow-sm active:scale-[0.98]"

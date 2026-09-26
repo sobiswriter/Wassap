@@ -53,7 +53,7 @@ const DateDivider: React.FC<{ dateKey: string; onClick?: () => void }> = ({ date
       onClick={onClick}
       disabled={!onClick}
       title={onClick ? 'Save this day as a diary memory' : undefined}
-      className={`app-header text-secondary text-[9.5px] sm:text-[11px] px-2.5 py-0.5 sm:px-3.5 sm:py-1 rounded-md font-medium tracking-wide shadow-sm transition-all border app-border/40 ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#21c063]' : 'pointer-events-none opacity-90'}`}
+      className={`bg-white dark:bg-[#182229] text-[#54656f] dark:text-[#8696a0] text-[10px] sm:text-[11.5px] px-3 py-1 rounded-lg font-medium tracking-wide shadow-xs transition-all ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#21c063]' : 'pointer-events-none opacity-90'}`}
     >
       {formatChatDividerLabel(dateKey)}
     </button>
@@ -881,7 +881,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                 <ArrowLeft size={20} />
               </button>
             )}
-            <div className="flex items-center flex-1 min-w-0 ml-1" onClick={onHeaderClick}>
+            <div className="flex items-center flex-1 min-w-0 ml-1 cursor-pointer active:opacity-75 transition-opacity select-none" onClick={onHeaderClick}>
               <img src={chat.avatar} alt={chat.name} className="w-9 h-9 md:w-10 md:h-10 rounded-full mr-3 object-cover shadow-sm" />
               <div className="flex flex-col min-w-0">
                 <h2 className="text-[calc(var(--msg-font-size)+1.5px)] text-primary font-medium leading-none truncate">{chat.name}</h2>
