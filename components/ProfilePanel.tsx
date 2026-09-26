@@ -908,11 +908,11 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     </div>
                   </div>
 
-                  {/* Vary Message Length (1-3 Lines Max) */}
+                  {/* WhatsApp Texting Cadence */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Vary Message Length (1–3 Lines Max)</h5>
-                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Keep replies authentic: 1–3 short lines max (up to 40 words), avoiding long essays</p>
+                      <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">WhatsApp Texting Cadence</h5>
+                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Natural thumb-texting flow: complete conversational thoughts (1–2 sentences per bubble), avoiding long essays</p>
                     </div>
                     <div
                       onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, varyMessageLength: !p.humaneSettings!.varyMessageLength } }))}

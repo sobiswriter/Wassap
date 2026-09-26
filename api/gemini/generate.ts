@@ -56,36 +56,8 @@ interface ChatPayload {
 }
 
 function clampToShortWhatsAppLength(text: string): string {
-  if (!text || typeof text !== 'string') return text;
-  
-  let trimmed = text.trim();
-  
-  // 1. If text has multiple paragraphs (separated by \n\n or \n), allow at most 2-3 lines
-  const paragraphs = trimmed.split(/\n+/).map(p => p.trim()).filter(Boolean);
-  if (paragraphs.length > 3) {
-    trimmed = paragraphs.slice(0, 3).join(' ');
-  } else {
-    trimmed = paragraphs.join(' ');
-  }
-
-  // 2. Sentence boundary extraction (match sentence terminators . ! ? or line end)
-  const sentenceRegex = /[^.!?]+(?:[.!?]+["'”’]?|$)/g;
-  const matches = trimmed.match(sentenceRegex);
-  
-  if (matches && matches.length > 3) {
-    const firstThree = matches.slice(0, 3).map(s => s.trim()).filter(Boolean).join(' ');
-    if (firstThree.length > 0) {
-      trimmed = firstThree;
-    }
-  }
-
-  // 3. Generous word ceiling at ~45 words so model is never choked mid-sentence
-  const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length > 45) {
-    trimmed = words.slice(0, 42).join(' ') + '...';
-  }
-
-  return trimmed.trim();
+  if (!text || typeof text !== 'string') return '';
+  return text.trim();
 }
 
 async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
@@ -436,10 +408,27 @@ React to it organically in your next text message to the User. Let your text be 
       }
       if (responder.humaneSettings.varyMessageLength) {
         humaneInstructions += `
-- CONCISE WHATSAPP MESSAGE LENGTH (1–3 LINES MAX):
-  * Keep responses authentic, personal, and concise (1 to 3 lines, maximum ~40 words).
-  * Natural WhatsApp chat cadence: avoid long essays, dense multi-paragraph speeches, or corporate monologues.
-  * Match real texting flow: write expressively in 1-3 short lines/sentences without unnecessary fluff.`;
+- AUTHENTIC WHATSAPP TEXTING CADENCE & CHAT FLOW:
+  * THUMB-TEXTING LIKE A REAL HUMAN: Chat casually and spontaneously like a real friend on WhatsApp.
+  * COMPLETE CONVERSATIONAL THOUGHTS (NO ESSAYS, NO 1-WORD GRUNTS):
+    - Text in complete, natural conversational sentences (typically 1 to 2 spoken sentences per thought).
+    - NEVER write long multi-paragraph essays, corporate explanations, advice columns, or bullet points.
+    - Avoid robotic one-word grunts (like "ok", "yeah", "cool") unless a brief reaction is genuinely natural to the moment (like "Okkk" or "Damn"). Always complete your thoughts naturally.
+  * MULTI-BUBBLE CHAT DYNAMICS:
+    - If you are reacting to something AND have a follow-up thought, plan, or casual question, put each distinct thought on a NEW LINE (each line is delivered as a separate chat bubble!).
+  * REAL WHATSAPP EXAMPLES (Emulate this cadence & tone):
+    Example 1:
+      "Mmmm somethings up so today is a maybe but if not today then tomorrow definitely.
+      Oh also got a little something u gonna be shocked 😌😌"
+    Example 2:
+      "Oh really thought it was 26th. Well that's fine anyway
+      Imma see u tomorrow my guy will try my best to come early"
+    Example 3:
+      "Did u finish the Scarlet Nexus story"
+    Example 4:
+      "Damn really, try me bruh"
+  * NATURAL TEXTING FLUIDITY:
+    - Feel free to use relaxed capitalization, casual punctuation, and natural contractions (u, ur, tmrw, ig, btw, gonna, imma, nah, tbh, rn, haha, lol) when fitting your persona.`;
       }
       if (responder.humaneSettings.moodSliderEnabled) {
         const mood = responder.humaneSettings.moodValue;
@@ -490,13 +479,13 @@ Instructions:
 3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
 4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
 5. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
-6. ${isShortLengthEnforced ? 'Keep responses concise and authentic to WhatsApp texting (1–3 lines, maximum ~40 words). Avoid writing long essays or multi-paragraph monologues.' : 'Respond in authentic WhatsApp texting style, keeping messages natural, personal, and concise.'}
+6. ${isShortLengthEnforced ? 'Text in authentic WhatsApp cadence: complete conversational thoughts (1–2 sentences per line, separate follow-up thoughts on new lines). Avoid long essays, lectures, or dry one-word replies.' : 'Respond in authentic WhatsApp texting style, keeping messages natural, personal, and concise.'}
 7. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
 
 Conversation History:
 ${historyString}
 
-${isShortLengthEnforced ? `[NOTE: Keep this reply authentic to WhatsApp texting: 1-3 lines, maximum ~40 words. Stay fully in-character as ${responder.name}.]\n` : ''}Response as ${responder.name}:`;
+${isShortLengthEnforced ? `[WHATSAPP TEXTING CADENCE: Respond in authentic WhatsApp style as ${responder.name}. Complete your thoughts naturally in 1-2 conversational sentences per line (no essays, no robotic one-word replies). Separate follow-up thoughts onto new lines.]\n` : ''}Response as ${responder.name}:`;
 
     const recentMessagesWithMedia = (messageHistory || []).slice(-5).filter(m => m.image || m.audio);
     const parts: any[] = [{ text: systemPrompt }];
@@ -519,9 +508,6 @@ ${isShortLengthEnforced ? `[NOTE: Keep this reply authentic to WhatsApp texting:
     const config: any = {};
     if (settings?.useSearchGrounding) {
       config.tools = [{ googleSearch: {} }];
-    }
-    if (isShortLengthEnforced) {
-      config.maxOutputTokens = 250;
     }
 
     const lastUserText = messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;

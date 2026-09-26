@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.8.8`
+- **Current Version**: `v1.8.9`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -14,21 +14,25 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Sentience: Opt-In Concise WhatsApp Message Length (1–3 Lines Max, ~40 Words) (`v1.8.8`)
-- **Strictly Opt-In Scope**:
-  - Length limits and clamping are strictly opt-in per persona via `humaneSettings.varyMessageLength` (disabled globally by default in `DEFAULT_HUMANE_SETTINGS`).
-  - Personas without this toggle enabled maintain standard expressive generation.
-- **Calibrated 1–3 Lines & ~40 Words Cap**:
-  - Relaxed previously restrictive 1–2 line hard limits to allow 1–3 punchy lines/sentences and up to ~40 words.
-  - Bumped generation `maxOutputTokens` from `120` to `250` when `isShortLengthEnforced` is active, giving models sufficient room to conclude authentic thoughts without choking mid-sentence.
-- **Multi-Paragraph & Sentence Clamping Safety**:
-  - `clampToShortWhatsAppLength` updated across all runtimes (`services/geminiService.ts`, `api/gemini/generate.ts`, `server/vertexHandler.ts`, and `public/sw.js`).
-  - Allows up to 3 paragraphs/sentences and up to 45 words max before clean ellipsis trimming.
-  - Strictly guarded: only runs if `responder.humaneSettings?.enabled && responder.humaneSettings?.varyMessageLength` is active.
+### 1. Authentic WhatsApp Texting Cadence & Few-Shot Texting Dynamics (`v1.8.9`)
+- **Root Cause Elimination for Truncated & One-Word Replies**:
+  - Decreased `maxOutputTokens` (120/250) and aggressive word-count warnings ("ABSOLUTE HARD CEILING", "STOP IMMEDIATELY") caused autoregressive LLMs to either abruptly truncate mid-sentence or panic into 1-word grunts ("ok", "yeah").
+  - `splitMessage` previously contained an arbitrary fallback that sliced any sentence over 16 words into multiple chunks at word boundaries, severing complete thoughts into fragments.
+  - `clampToShortWhatsAppLength` performed string surgery that amputated sentences after 42 words and appended `...`.
+- **Innovative Few-Shot Cadence & Conversational Prompting**:
+  - Replaced negative word caps with real WhatsApp conversational exemplars across `services/geminiService.ts`, `api/gemini/generate.ts`, `server/vertexHandler.ts`, and `public/sw.js`.
+  - Personas are guided to text in complete conversational thoughts (typically 1–2 spoken sentences per bubble) without essays, lectures, or dry 1-word grunts.
+  - Multi-bubble dynamic: distinct thoughts, reactions, or follow-up topics are output on new lines, naturally mapping to separate WhatsApp message bubbles.
+- **Safe Full-Token Headroom**:
+  - Removed artificial token caps (`maxOutputTokens: 250`). Generous token headroom ensures the model concludes thoughts with complete, organic grammar and casual punctuation.
+  - Neutralized `clampToShortWhatsAppLength` to a safe trim pass-through.
+- **Atomic Sentence Bubble Splitting (`App.tsx`)**:
+  - Rewrote `splitMessage`: splits on newlines (`\n+`) so each line from the persona arrives as its own chat bubble with natural typing delay.
+  - Strictly preserves complete sentences; never slices inside a sentence based on word count.
 - **UI Clarification**:
-  - Updated toggle title to *"Vary Message Length (1–3 Lines Max)"* and subtitle to *"Keep replies authentic: 1–3 short lines max (up to 40 words), avoiding long essays"*.
-- **Service Worker v13**:
-  - Incremented cache identifier to `wassap-shell-v13` in `public/sw.js`.
+  - Toggle in `ProfilePanel.tsx` updated to *"WhatsApp Texting Cadence"* with subtitle *"Natural thumb-texting flow: complete conversational thoughts (1–2 sentences per bubble), avoiding long essays"*.
+- **Service Worker v14**:
+  - Bumped cache to `wassap-shell-v14` in `public/sw.js`.
 
 ### 2. Native Notification Reply Loop Fix, Mark as Read Persistence & Clean Dividers (`v1.8.7`)
 - **Native Notification Fixes**:

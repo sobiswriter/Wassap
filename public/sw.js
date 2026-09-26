@@ -1,5 +1,5 @@
-// Wassap Service Worker v13: Authentic WhatsApp Texting Engine (1-3 Lines Max, Opt-In)
-const CACHE_NAME = 'wassap-shell-v13';
+// Wassap Service Worker v14: Authentic WhatsApp Texting Engine & Multi-Bubble Cadence
+const CACHE_NAME = 'wassap-shell-v14';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -356,36 +356,8 @@ const getGlitchExcuse = (notifData, userLastText) => {
 };
 
 const clampToShortWhatsAppLength = (text) => {
-  if (!text || typeof text !== 'string') return text;
-  
-  let trimmed = text.trim();
-  
-  // 1. If text has multiple paragraphs (separated by \n\n or \n), allow at most 2-3 lines
-  const paragraphs = trimmed.split(/\n+/).map(p => p.trim()).filter(Boolean);
-  if (paragraphs.length > 3) {
-    trimmed = paragraphs.slice(0, 3).join(' ');
-  } else {
-    trimmed = paragraphs.join(' ');
-  }
-
-  // 2. Sentence boundary extraction (match sentence terminators . ! ? or line end)
-  const sentenceRegex = /[^.!?]+(?:[.!?]+["'”’]?|$)/g;
-  const matches = trimmed.match(sentenceRegex);
-  
-  if (matches && matches.length > 3) {
-    const firstThree = matches.slice(0, 3).map(s => s.trim()).filter(Boolean).join(' ');
-    if (firstThree.length > 0) {
-      trimmed = firstThree;
-    }
-  }
-
-  // 3. Generous word ceiling at ~45 words so model is never choked mid-sentence
-  const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length > 45) {
-    trimmed = words.slice(0, 42).join(' ') + '...';
-  }
-
-  return trimmed.trim();
+  if (!text || typeof text !== 'string') return '';
+  return text.trim();
 };
 
 // Autonomous Service Worker Persona Reply Synthesizer
@@ -400,7 +372,7 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
     const model = notifData.model || 'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${customApiKey}`;
     const trailingConstraint = isShortLengthEnforced
-      ? `\n[NOTE: Keep this reply authentic to WhatsApp texting: 1-3 lines, maximum ~40 words. Stay fully in-character as ${chatName}.]`
+      ? `\n[WHATSAPP TEXTING CADENCE: Respond in authentic WhatsApp style as ${chatName}. Complete your thoughts naturally in 1-2 conversational sentences per line (no essays, no robotic one-word replies). Separate follow-up thoughts onto new lines.]`
       : '';
     
     let promptToSend = '';
@@ -418,7 +390,7 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: promptToSend }] }],
-          generationConfig: { temperature: 0.85, maxOutputTokens: isShortLengthEnforced ? 250 : 800 }
+          generationConfig: { temperature: 0.85, maxOutputTokens: 800 }
         })
       });
       const apiJson = await apiRes.json();
