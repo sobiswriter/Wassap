@@ -1,5 +1,5 @@
-// Wassap Service Worker v11: Elegant Thin Divider & Clean Dialogue Formatting in Shade
-const CACHE_NAME = 'wassap-shell-v11';
+// Wassap Service Worker v13: Authentic WhatsApp Texting Engine (1-3 Lines Max, Opt-In)
+const CACHE_NAME = 'wassap-shell-v13';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -194,14 +194,12 @@ const splitMessage = (text) => {
     if (wordCount === 0) continue;
 
     let targetChunksCount = 1;
-    if (wordCount <= 8) {
+    if (wordCount <= 16) {
       targetChunksCount = 1;
-    } else if (wordCount <= 15) {
+    } else if (wordCount <= 30) {
       targetChunksCount = 2;
-    } else if (wordCount <= 24) {
-      targetChunksCount = 3;
     } else {
-      targetChunksCount = Math.random() > 0.5 ? 4 : 5;
+      targetChunksCount = Math.min(3, Math.ceil(wordCount / 18));
     }
 
     if (targetChunksCount === 1) {
@@ -214,11 +212,9 @@ const splitMessage = (text) => {
         const w = words[i];
         currentSegment.push(w);
 
-        const isPunctuationEnd = /[.!?,\;:\-]+$/.test(w) || w.endsWith("...");
-        const nextW = words[i+1] ? words[i+1].toLowerCase() : "";
-        const isNextConjunction = ["and", "but", "so", "because", "then", "or"].includes(nextW);
+        const isPunctuationEnd = /[.!?]+$/.test(w) || w.endsWith("...");
 
-        if (isPunctuationEnd || isNextConjunction) {
+        if (isPunctuationEnd) {
           segmentList.push(currentSegment.join(' '));
           currentSegment = [];
         }
@@ -359,24 +355,61 @@ const getGlitchExcuse = (notifData, userLastText) => {
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
+const clampToShortWhatsAppLength = (text) => {
+  if (!text || typeof text !== 'string') return text;
+  
+  let trimmed = text.trim();
+  
+  // 1. If text has multiple paragraphs (separated by \n\n or \n), allow at most 2-3 lines
+  const paragraphs = trimmed.split(/\n+/).map(p => p.trim()).filter(Boolean);
+  if (paragraphs.length > 3) {
+    trimmed = paragraphs.slice(0, 3).join(' ');
+  } else {
+    trimmed = paragraphs.join(' ');
+  }
+
+  // 2. Sentence boundary extraction (match sentence terminators . ! ? or line end)
+  const sentenceRegex = /[^.!?]+(?:[.!?]+["'”’]?|$)/g;
+  const matches = trimmed.match(sentenceRegex);
+  
+  if (matches && matches.length > 3) {
+    const firstThree = matches.slice(0, 3).map(s => s.trim()).filter(Boolean).join(' ');
+    if (firstThree.length > 0) {
+      trimmed = firstThree;
+    }
+  }
+
+  // 3. Generous word ceiling at ~45 words so model is never choked mid-sentence
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length > 45) {
+    trimmed = words.slice(0, 42).join(' ') + '...';
+  }
+
+  return trimmed.trim();
+};
+
 // Autonomous Service Worker Persona Reply Synthesizer
 const generateSWPersonaReply = async (notifData, history, promptOverride, replyText) => {
   let replyContent = '';
   const provider = notifData.provider || 'vertex';
   const customApiKey = notifData.customApiKey;
   const chatName = notifData.chatName || 'Contact';
+  const isShortLengthEnforced = !!(notifData.humaneSettings?.enabled && notifData.humaneSettings?.varyMessageLength);
 
   if (provider === 'custom' && customApiKey) {
     const model = notifData.model || 'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${customApiKey}`;
+    const trailingConstraint = isShortLengthEnforced
+      ? `\n[NOTE: Keep this reply authentic to WhatsApp texting: 1-3 lines, maximum ~40 words. Stay fully in-character as ${chatName}.]`
+      : '';
     
     let promptToSend = '';
     if (promptOverride) {
-      promptToSend = `${notifData.fullSystemPrompt || notifData.instruction || ''}\n\n[CONTEXT]: ${promptOverride}\n\nResponse as ${chatName}:`;
+      promptToSend = `${notifData.fullSystemPrompt || notifData.instruction || ''}\n\n[CONTEXT]: ${promptOverride}${trailingConstraint}\n\nResponse as ${chatName}:`;
     } else if (notifData.fullSystemPrompt) {
-      promptToSend = `${notifData.fullSystemPrompt}\n${notifData.userName || 'You'}: ${replyText}\n\nResponse as ${chatName}:`;
+      promptToSend = `${notifData.fullSystemPrompt}\n${notifData.userName || 'You'}: ${replyText}${trailingConstraint}\n\nResponse as ${chatName}:`;
     } else {
-      promptToSend = `${notifData.instruction || ''}\n\nUser: ${replyText}\n\nResponse as ${chatName}:`;
+      promptToSend = `${notifData.instruction || ''}\n\nUser: ${replyText}${trailingConstraint}\n\nResponse as ${chatName}:`;
     }
 
     try {
@@ -385,7 +418,7 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: promptToSend }] }],
-          generationConfig: { temperature: 0.85, maxOutputTokens: 800 }
+          generationConfig: { temperature: 0.85, maxOutputTokens: isShortLengthEnforced ? 250 : 800 }
         })
       });
       const apiJson = await apiRes.json();
@@ -441,6 +474,8 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
 
   if (!replyContent || typeof replyContent !== 'string' || isRawErrorMessage(replyContent)) {
     replyContent = getGlitchExcuse(notifData, replyText || promptOverride);
+  } else if (isShortLengthEnforced) {
+    replyContent = clampToShortWhatsAppLength(replyContent);
   }
 
   return replyContent.trim();

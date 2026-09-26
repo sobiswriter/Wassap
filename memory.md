@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.8.6`
+- **Current Version**: `v1.8.8`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -14,7 +14,30 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Borderless WhatsApp Dark Mode Date Indicator & Zero-Latency Mobile Architecture (`v1.8.6`)
+### 1. Sentience: Opt-In Concise WhatsApp Message Length (1–3 Lines Max, ~40 Words) (`v1.8.8`)
+- **Strictly Opt-In Scope**:
+  - Length limits and clamping are strictly opt-in per persona via `humaneSettings.varyMessageLength` (disabled globally by default in `DEFAULT_HUMANE_SETTINGS`).
+  - Personas without this toggle enabled maintain standard expressive generation.
+- **Calibrated 1–3 Lines & ~40 Words Cap**:
+  - Relaxed previously restrictive 1–2 line hard limits to allow 1–3 punchy lines/sentences and up to ~40 words.
+  - Bumped generation `maxOutputTokens` from `120` to `250` when `isShortLengthEnforced` is active, giving models sufficient room to conclude authentic thoughts without choking mid-sentence.
+- **Multi-Paragraph & Sentence Clamping Safety**:
+  - `clampToShortWhatsAppLength` updated across all runtimes (`services/geminiService.ts`, `api/gemini/generate.ts`, `server/vertexHandler.ts`, and `public/sw.js`).
+  - Allows up to 3 paragraphs/sentences and up to 45 words max before clean ellipsis trimming.
+  - Strictly guarded: only runs if `responder.humaneSettings?.enabled && responder.humaneSettings?.varyMessageLength` is active.
+- **UI Clarification**:
+  - Updated toggle title to *"Vary Message Length (1–3 Lines Max)"* and subtitle to *"Keep replies authentic: 1–3 short lines max (up to 40 words), avoiding long essays"*.
+- **Service Worker v13**:
+  - Incremented cache identifier to `wassap-shell-v13` in `public/sw.js`.
+
+### 2. Native Notification Reply Loop Fix, Mark as Read Persistence & Clean Dividers (`v1.8.7`)
+- **Native Notification Fixes**:
+  - Resolved infinite loop when pressing Reply from background native notifications.
+  - Notifications remain persistent until explicitly clicked to open the app; clicking "Mark as read" or "Reply" updates state in the background without abruptly dismissing the active notification tray.
+  - Left-on-read auto-triggers now function seamlessly from native notifications and trigger new native follow-up notifications when persona responds.
+  - Added clean subtle line dividers between participant messages in notification body previews.
+
+### 3. Borderless WhatsApp Dark Mode Date Indicator & Zero-Latency Mobile Architecture (`v1.8.6`)
 - **Borderless Dark Mode Date Pill**:
   - Removed the distracting `border app-border/40` from `DateDivider` in `ChatWindow.tsx`.
   - Replaced generic styling with authentic WhatsApp pill: `bg-white dark:bg-[#182229] text-[#54656f] dark:text-[#8696a0] text-[10px] sm:text-[11.5px] px-3 py-1 rounded-lg font-medium tracking-wide shadow-xs transition-all`.
@@ -434,6 +457,16 @@ Wassap/
     - *Threaded History Bounds*: In `public/sw.js` (both autonomous Left-on-Read reactions and inline quick-replies), dialog history is parsed by `DIVIDER` and bounded to the 2 most recent turns (`slice(-2)`), preventing message run-ons or notification shade overflow on Android.
     - *Foreground Sync Reliability*: Handled nullable `userMessage` in `App.tsx`'s `BACKGROUND_EXCHANGE_SYNC` listener to seamlessly synchronize standalone persona replies (like Left-on-Read reactions) into the chat history without runtime errors.
     - *Service Worker Cache v11*: Bumped cache to `wassap-shell-v11` to ensure rapid propagation of the updated notification formatting to all clients.
+- [x] **v1.8.8**:
+  - **Strict Authentic Short WhatsApp Texting Engine & Humane Settings Overhaul**:
+    - *Eliminated Ambiguous "Line Bursts"*: Clarified the confusing "Vary message length: dynamic 1-2 line bursts" toggle into "Short WhatsApp Texting (1–2 Lines Max)" with clear, unambiguous copy: "Enforce authentic texting: strictly 1–2 brief lines max, no paragraphs or essays".
+    - *Uncompromising Length Enforcement Prompting*: Overhauled prompt directives across `services/geminiService.ts`, `api/gemini/generate.ts`, and `server/vertexHandler.ts`. Enforces an absolute hard ceiling of 1 to 2 short sentences (5 to 20 words, max 25 words total), forbids essays, paragraphs, and multi-sentence monologues, and directs the model to stop immediately without polite filler.
+    - *Trailing Generation-Boundary Constraint*: Injected a final mandatory constraint right above `Response as ${responder.name}:` immediately after the dialogue history, ensuring maximum attention weight at generation time so the model cannot default to verbosity.
+    - *Token-Level Ceiling*: Enforced `maxOutputTokens: 120` across Vertex Cloud, Custom Gemini API, and Service Worker whenever short length is enabled, physically preventing verbose essay generation at the LLM level.
+    - *Hard Post-Generation Clamping*: Added `clampToShortWhatsAppLength` helper that defensively trims multi-paragraph or >2 sentence generations down to 1-2 concise, authentic sentences.
+    - *Realistic Message Bubble Delivery (`splitMessage`)*: Refined the segmentation algorithm in `App.tsx` and `public/sw.js`—stopped artificially chopping normal sentences at commas or conjunctions, and raised 1-bubble thresholds (up to 16 words in 1 clean bubble, up to 30 words in at most 2 bubbles), creating an authentic WhatsApp messaging flow.
+    - *Default Humane Settings*: Exported `DEFAULT_HUMANE_SETTINGS` (enabled by default with `banRoboticLanguage`, `humanImperfections`, and `varyMessageLength`) and backfilled to initial and newly created personas.
+    - *Service Worker Cache v12*: Bumped cache to `wassap-shell-v12`.
 
 ---
 

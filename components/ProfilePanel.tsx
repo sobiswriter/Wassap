@@ -857,7 +857,21 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Make the AI feel more human-like</p>
                   </div>
                   <div
-                    onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, enabled: !p.humaneSettings!.enabled } }))}
+                    onClick={() => setFormData(p => {
+                      const cur = p.humaneSettings;
+                      const nextEnabled = !cur?.enabled;
+                      return {
+                        ...p,
+                        humaneSettings: {
+                          enabled: nextEnabled,
+                          banRoboticLanguage: cur?.banRoboticLanguage ?? true,
+                          humanImperfections: cur?.humanImperfections ?? false,
+                          varyMessageLength: cur?.varyMessageLength ?? false,
+                          moodSliderEnabled: cur?.moodSliderEnabled ?? false,
+                          moodValue: cur?.moodValue ?? 50
+                        }
+                      };
+                    })}
                     className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${formData.humaneSettings?.enabled ? 'bg-[#21c063]' : 'bg-gray-400'}`}
                   >
                     <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${formData.humaneSettings?.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
@@ -894,11 +908,11 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     </div>
                   </div>
 
-                  {/* Vary Message Length */}
+                  {/* Vary Message Length (1-3 Lines Max) */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Vary Message Length</h5>
-                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Natural WhatsApp pacing: quick quips & dynamic 1-2 line bursts</p>
+                      <h5 className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Vary Message Length (1–3 Lines Max)</h5>
+                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Keep replies authentic: 1–3 short lines max (up to 40 words), avoiding long essays</p>
                     </div>
                     <div
                       onClick={() => setFormData(p => ({ ...p, humaneSettings: { ...p.humaneSettings!, varyMessageLength: !p.humaneSettings!.varyMessageLength } }))}

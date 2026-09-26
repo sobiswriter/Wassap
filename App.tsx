@@ -36,7 +36,7 @@ const PanelLoadingFallback: React.FC = () => (
     <div className="h-full bg-[#21c063] w-1/2 rounded-full animate-pulse" />
   </div>
 );
-import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL, GEMINI_TTS_VOICE_DETAILS } from './constants';
+import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL, GEMINI_TTS_VOICE_DETAILS, DEFAULT_HUMANE_SETTINGS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus, PersonaVoiceSettings } from './types';
 import { 
   getGeminiResponse, 
@@ -463,14 +463,12 @@ const splitMessage = (text: string): string[] => {
     if (wordCount === 0) continue;
 
     let targetChunksCount = 1;
-    if (wordCount <= 8) {
+    if (wordCount <= 16) {
       targetChunksCount = 1;
-    } else if (wordCount <= 15) {
+    } else if (wordCount <= 30) {
       targetChunksCount = 2;
-    } else if (wordCount <= 24) {
-      targetChunksCount = 3;
     } else {
-      targetChunksCount = Math.random() > 0.5 ? 4 : 5; // 4-5 randomly
+      targetChunksCount = Math.min(3, Math.ceil(wordCount / 18));
     }
 
     if (targetChunksCount === 1) {
@@ -483,11 +481,9 @@ const splitMessage = (text: string): string[] => {
         const w = words[i];
         currentSegment.push(w);
         
-        const isPunctuationEnd = /[.!?,\;:\-]+$/.test(w) || w.endsWith("...");
-        const nextW = words[i+1] ? words[i+1].toLowerCase() : "";
-        const isNextConjunction = ["and", "but", "so", "because", "then", "or"].includes(nextW);
+        const isPunctuationEnd = /[.!?]+$/.test(w) || w.endsWith("...");
         
-        if (isPunctuationEnd || isNextConjunction) {
+        if (isPunctuationEnd) {
           segmentList.push(currentSegment.join(' '));
           currentSegment = [];
         }
@@ -658,6 +654,7 @@ const App: React.FC = () => {
 
             return {
               ...chat,
+              humaneSettings: chat.humaneSettings || { ...DEFAULT_HUMANE_SETTINGS },
               voiceSettings,
               lastMessage: healedLastMessage,
               lastMessageTime: convertTo24Hour(chat?.lastMessageTime || ''),
@@ -671,6 +668,7 @@ const App: React.FC = () => {
     }
     return INITIAL_CHATS.map(chat => ({
       ...chat,
+      humaneSettings: chat.humaneSettings || { ...DEFAULT_HUMANE_SETTINGS },
       messages: (chat.messages || []).map(msg => ({
         ...msg,
         senderName: msg.senderName || (msg.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined))

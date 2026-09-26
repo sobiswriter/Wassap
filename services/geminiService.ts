@@ -410,10 +410,10 @@ React to it organically in your next text message to the User. Let your text be 
     }
     if (responder.humaneSettings.varyMessageLength) {
       humaneInstructions += `
-- DYNAMIC MESSAGE PACING (NO ESSAYS / MONOLOGUES):
-  * Keep responses brief, punchy, and WhatsApp-native (1 to 2 lines max).
-  * Never write structured multi-sentence essays or dense paragraphs.
-  * Match real phone texting dynamics: sometimes reply with a spontaneous 1-3 word quip ("wait fr?", "haha no way", "nah"), sometimes a snappy one-liner.`;
+- CONCISE WHATSAPP MESSAGE LENGTH (1–3 LINES MAX):
+  * Keep responses authentic, personal, and concise (1 to 3 lines, maximum ~40 words).
+  * Natural WhatsApp chat cadence: avoid long essays, dense multi-paragraph speeches, or corporate monologues.
+  * Match real texting flow: write expressively in 1-3 short lines/sentences without unnecessary fluff.`;
     }
     if (responder.humaneSettings.moodSliderEnabled) {
       const mood = responder.humaneSettings.moodValue;
@@ -440,6 +440,8 @@ React to it organically in your next text message to the User. Let your text be 
     }
   }
 
+  const isShortLengthEnforced = !!(responder.humaneSettings?.enabled && responder.humaneSettings?.varyMessageLength);
+
   const voiceNotePrompt = isVoiceNoteReply ? `
 VOICE NOTE RECORDING INSTRUCTIONS:
 You are recording a real voice note. You can expressively use inline brackets for delivery and emotion such as [whispers], [laughs], [sighs], [excited], [pauses] where natural to breathe life into the voice.
@@ -463,13 +465,46 @@ Instructions:
 3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
 4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
 5. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
-6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.' : 'Respond naturally without any strict length restrictions.'}
+6. ${isShortLengthEnforced ? 'Keep responses concise and authentic to WhatsApp texting (1–3 lines, maximum ~40 words). Avoid writing long essays or multi-paragraph monologues.' : 'Respond in authentic WhatsApp texting style, keeping messages natural and in-character.'}
 7. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
 
 Conversation History:
 ${historyString}
 
-Response as ${responder.name}:`;
+${isShortLengthEnforced ? `[NOTE: Keep this reply authentic to WhatsApp texting: 1-3 lines, maximum ~40 words. Stay fully in-character as ${responder.name}.]\n` : ''}Response as ${responder.name}:`;
+};
+
+export const clampToShortWhatsAppLength = (text: string): string => {
+  if (!text || typeof text !== 'string') return text;
+  
+  let trimmed = text.trim();
+  
+  // 1. If text has multiple paragraphs (separated by \n\n or \n), allow at most 2-3 lines
+  const paragraphs = trimmed.split(/\n+/).map(p => p.trim()).filter(Boolean);
+  if (paragraphs.length > 3) {
+    trimmed = paragraphs.slice(0, 3).join(' ');
+  } else {
+    trimmed = paragraphs.join(' ');
+  }
+
+  // 2. Sentence boundary extraction (match sentence terminators . ! ? or line end)
+  const sentenceRegex = /[^.!?]+(?:[.!?]+["'”’]?|$)/g;
+  const matches = trimmed.match(sentenceRegex);
+  
+  if (matches && matches.length > 3) {
+    const firstThree = matches.slice(0, 3).map(s => s.trim()).filter(Boolean).join(' ');
+    if (firstThree.length > 0) {
+      trimmed = firstThree;
+    }
+  }
+
+  // 3. Generous word ceiling at ~45 words so model is never choked mid-sentence
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length > 45) {
+    trimmed = words.slice(0, 42).join(' ') + '...';
+  }
+
+  return trimmed.trim();
 };
 
 export const getGeminiResponse = async (
@@ -482,13 +517,14 @@ export const getGeminiResponse = async (
   isVoiceNoteReply?: boolean
 ) => {
   const provider = settings?.aiProvider || 'vertex';
+  const isShortLengthEnforced = !!(responder.humaneSettings?.enabled && responder.humaneSettings?.varyMessageLength);
 
   // Option A: Built-in / Server Credits (Vertex AI)
   if (provider === 'vertex') {
     if (!settings?.isVertexUnlocked) {
       return "Built-in Cloud (Vertex AI) is locked. Please enter the passcode in Settings to unlock server credits, or switch to Custom API Key.";
     }
-    return await fetchVertexChat({
+    const rawResult = await fetchVertexChat({
       responder,
       messageHistory: sanitizeHistoryForVertex(messageHistory),
       userProfile,
@@ -505,6 +541,10 @@ export const getGeminiResponse = async (
       initiationContext,
       isVoiceNoteReply,
     });
+    if (isShortLengthEnforced && rawResult && !isRawErrorMessage(rawResult)) {
+      return clampToShortWhatsAppLength(rawResult);
+    }
+    return rawResult;
   }
 
   // Option B: Custom API Key (Gemini AI Studio)
@@ -550,6 +590,9 @@ export const getGeminiResponse = async (
     if (settings?.useSearchGrounding) {
       config.tools = [{ googleSearch: {} }];
     }
+    if (isShortLengthEnforced) {
+      config.maxOutputTokens = 250;
+    }
 
     const lastUserText = messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
     const maxRetries = 2;
@@ -568,8 +611,11 @@ export const getGeminiResponse = async (
           config,
         });
 
-        const replyText = response.text?.trim();
+        let replyText = response.text?.trim();
         if (replyText && !isRawErrorMessage(replyText)) {
+          if (isShortLengthEnforced) {
+            replyText = clampToShortWhatsAppLength(replyText);
+          }
           return replyText;
         }
 

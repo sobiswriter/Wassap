@@ -1,5 +1,5 @@
 
-import { Chat, PersonaTemplate, PersonaVoiceSettings } from './types';
+import { Chat, PersonaTemplate, PersonaVoiceSettings, HumaneSettings } from './types';
 
 export interface VoiceDetail {
   name: string;
@@ -69,6 +69,15 @@ export const DEFAULT_VOICE_SETTINGS: PersonaVoiceSettings = {
   voiceName: 'Aoede',
   frequency: 'off',
   voiceForVoice: true,
+};
+
+export const DEFAULT_HUMANE_SETTINGS: HumaneSettings = {
+  enabled: false,
+  banRoboticLanguage: true,
+  humanImperfections: false,
+  varyMessageLength: false,
+  moodSliderEnabled: false,
+  moodValue: 50,
 };
 
 export const INITIAL_CHATS: Chat[] = [
