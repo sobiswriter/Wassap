@@ -36,7 +36,7 @@ const PanelLoadingFallback: React.FC = () => (
     <div className="h-full bg-[#21c063] w-1/2 rounded-full animate-pulse" />
   </div>
 );
-import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL, GEMINI_TTS_VOICE_DETAILS, DEFAULT_HUMANE_SETTINGS } from './constants';
+import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL, GEMINI_TTS_VOICE_DETAILS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus, PersonaVoiceSettings } from './types';
 import { 
   getGeminiResponse, 
@@ -432,7 +432,7 @@ const playSentMessageSound = () => {
 
 
 
-// Utility to split AI responses into authentic WhatsApp message bubbles
+// Utility to split AI responses into human-like chunks
 const splitMessage = (text: string): string[] => {
   if (!text) return [];
 
@@ -446,57 +446,139 @@ const splitMessage = (text: string): string[] => {
     return `\n\n${placeholder}\n\n`;
   });
 
-  // 2. Split on newlines (single or multiple). In WhatsApp texting, each line is an intended chat bubble.
-  const rawLines = processedText.split(/\n+/).map(p => p.trim()).filter(Boolean);
+  const rawChunks = processedText.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
   const finalChunks: string[] = [];
 
-  for (const rawLine of rawLines) {
-    if (rawLine.startsWith(placeholderPrefix)) {
-      const match = rawLine.match(/__CODE_BLOCK_(\d+)__/);
+  for (const rawChunk of rawChunks) {
+    if (rawChunk.startsWith(placeholderPrefix)) {
+      const match = rawChunk.match(/__CODE_BLOCK_(\d+)__/);
       if (match) {
         finalChunks.push(codeBlocks[parseInt(match[1], 10)]);
       }
       continue;
     }
 
-    // 3. For each line, check if it's very long with multiple distinct sentences
-    // Real humans do not split short/medium lines (< 35 words).
-    const words = rawLine.split(/\s+/).filter(Boolean);
-    if (words.length <= 32) {
-      finalChunks.push(rawLine);
-      continue;
+    const words = rawChunk.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+    if (wordCount === 0) continue;
+
+    let targetChunksCount = 1;
+    if (wordCount <= 8) {
+      targetChunksCount = 1;
+    } else if (wordCount <= 15) {
+      targetChunksCount = 2;
+    } else if (wordCount <= 24) {
+      targetChunksCount = 3;
+    } else {
+      targetChunksCount = Math.random() > 0.5 ? 4 : 5; // 4-5 randomly
     }
 
-    // If it's a long paragraph, extract full complete sentences (never chop inside a sentence!)
-    const sentenceRegex = /[^.!?]+(?:[.!?]+["'”’]?|$)/g;
-    const rawSentences = (rawLine.match(sentenceRegex) || []).map(s => s.trim()).filter(Boolean);
-
-    if (rawSentences.length <= 1) {
-      // Single long sentence: NEVER cut in half! Keep it intact as a complete thought.
-      finalChunks.push(rawLine);
+    if (targetChunksCount === 1) {
+      finalChunks.push(rawChunk);
     } else {
-      // Group sentences into balanced bubbles (around 15-25 words each), strictly at sentence boundaries
-      let currentBubble: string[] = [];
-      let currentWordCount = 0;
-
-      for (const sentence of rawSentences) {
-        const sentenceWords = sentence.split(/\s+/).filter(Boolean).length;
-        if (currentBubble.length > 0 && currentWordCount + sentenceWords > 30) {
-          finalChunks.push(currentBubble.join(' '));
-          currentBubble = [sentence];
-          currentWordCount = sentenceWords;
-        } else {
-          currentBubble.push(sentence);
-          currentWordCount += sentenceWords;
+      let currentSegment: string[] = [];
+      const segmentList: string[] = [];
+      
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        currentSegment.push(w);
+        
+        const isPunctuationEnd = /[.!?,\;:\-]+$/.test(w) || w.endsWith("...");
+        const nextW = words[i+1] ? words[i+1].toLowerCase() : "";
+        const isNextConjunction = ["and", "but", "so", "because", "then", "or"].includes(nextW);
+        
+        if (isPunctuationEnd || isNextConjunction) {
+          segmentList.push(currentSegment.join(' '));
+          currentSegment = [];
         }
       }
-      if (currentBubble.length > 0) {
-        finalChunks.push(currentBubble.join(' '));
+      if (currentSegment.length > 0) {
+        segmentList.push(currentSegment.join(' '));
       }
+
+      let localChunks: string[] = [];
+      if (segmentList.length >= targetChunksCount) {
+        const idealWordsPerChunk = Math.ceil(wordCount / targetChunksCount);
+        let currentChunk = "";
+        let currentWordCount = 0;
+        
+        for (let i = 0; i < segmentList.length; i++) {
+          const seg = segmentList[i];
+          const segWords = seg.split(/\s+/).length;
+          
+          if (currentChunk.length === 0) {
+            currentChunk = seg;
+            currentWordCount = segWords;
+          } else {
+            const chunksLeft = targetChunksCount - localChunks.length;
+            const segmentsLeft = segmentList.length - i;
+            
+            if (segmentsLeft === chunksLeft - 1) {
+              localChunks.push(currentChunk);
+              currentChunk = seg;
+              currentWordCount = segWords;
+            } else if (currentWordCount >= idealWordsPerChunk) {
+              localChunks.push(currentChunk);
+              currentChunk = seg;
+              currentWordCount = segWords;
+            } else {
+              currentChunk += " " + seg;
+              currentWordCount += segWords;
+            }
+          }
+        }
+        if (currentChunk) localChunks.push(currentChunk);
+        
+        while (localChunks.length > targetChunksCount) {
+           const last = localChunks.pop();
+           if (last !== undefined) {
+             localChunks[localChunks.length - 1] += " " + last;
+           }
+        }
+      } else {
+        const wordsPerChunk = Math.ceil(wordCount / targetChunksCount);
+        let currChunk: string[] = [];
+        
+        for (let i = 0; i < words.length; i++) {
+          currChunk.push(words[i]);
+          if (currChunk.length >= wordsPerChunk && localChunks.length < targetChunksCount - 1) {
+            localChunks.push(currChunk.join(' '));
+            currChunk = [];
+          }
+        }
+        if (currChunk.length > 0) {
+          localChunks.push(currChunk.join(' '));
+        }
+      }
+      
+      finalChunks.push(...localChunks.filter(c => c.trim().length > 0));
     }
   }
 
-  return finalChunks.filter(c => c.trim().length > 0);
+  if (finalChunks.length > 0) {
+    const totalWords = finalChunks.join(' ').split(/\s+/).filter(Boolean).length;
+    let maxAllowed = 7;
+    if (totalWords <= 25) maxAllowed = 4;
+    else if (totalWords <= 50) maxAllowed = 5;
+    else if (totalWords <= 100) maxAllowed = 6;
+    else maxAllowed = 7;
+
+    while (finalChunks.length > maxAllowed) {
+      let minLen = Infinity;
+      let mergeIdx = 0;
+      for (let i = 0; i < finalChunks.length - 1; i++) {
+        const combined = finalChunks[i].length + finalChunks[i+1].length;
+        if (combined < minLen) {
+          minLen = combined;
+          mergeIdx = i;
+        }
+      }
+      finalChunks.splice(mergeIdx, 2, finalChunks[mergeIdx] + ' ' + finalChunks[mergeIdx+1]);
+    }
+    return finalChunks;
+  }
+
+  return [text];
 };
 
 const convertTo24Hour = (timeStr: string) => {
@@ -576,7 +658,6 @@ const App: React.FC = () => {
 
             return {
               ...chat,
-              humaneSettings: chat.humaneSettings || { ...DEFAULT_HUMANE_SETTINGS },
               voiceSettings,
               lastMessage: healedLastMessage,
               lastMessageTime: convertTo24Hour(chat?.lastMessageTime || ''),
@@ -590,7 +671,6 @@ const App: React.FC = () => {
     }
     return INITIAL_CHATS.map(chat => ({
       ...chat,
-      humaneSettings: chat.humaneSettings || { ...DEFAULT_HUMANE_SETTINGS },
       messages: (chat.messages || []).map(msg => ({
         ...msg,
         senderName: msg.senderName || (msg.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined))

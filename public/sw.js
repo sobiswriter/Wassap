@@ -1,5 +1,5 @@
-// Wassap Service Worker v14: Authentic WhatsApp Texting Engine & Multi-Bubble Cadence
-const CACHE_NAME = 'wassap-shell-v14';
+// Wassap Service Worker v11: Elegant Thin Divider & Clean Dialogue Formatting in Shade
+const CACHE_NAME = 'wassap-shell-v11';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -194,12 +194,14 @@ const splitMessage = (text) => {
     if (wordCount === 0) continue;
 
     let targetChunksCount = 1;
-    if (wordCount <= 16) {
+    if (wordCount <= 8) {
       targetChunksCount = 1;
-    } else if (wordCount <= 30) {
+    } else if (wordCount <= 15) {
       targetChunksCount = 2;
+    } else if (wordCount <= 24) {
+      targetChunksCount = 3;
     } else {
-      targetChunksCount = Math.min(3, Math.ceil(wordCount / 18));
+      targetChunksCount = Math.random() > 0.5 ? 4 : 5;
     }
 
     if (targetChunksCount === 1) {
@@ -212,9 +214,11 @@ const splitMessage = (text) => {
         const w = words[i];
         currentSegment.push(w);
 
-        const isPunctuationEnd = /[.!?]+$/.test(w) || w.endsWith("...");
+        const isPunctuationEnd = /[.!?,\;:\-]+$/.test(w) || w.endsWith("...");
+        const nextW = words[i+1] ? words[i+1].toLowerCase() : "";
+        const isNextConjunction = ["and", "but", "so", "because", "then", "or"].includes(nextW);
 
-        if (isPunctuationEnd) {
+        if (isPunctuationEnd || isNextConjunction) {
           segmentList.push(currentSegment.join(' '));
           currentSegment = [];
         }
@@ -355,33 +359,24 @@ const getGlitchExcuse = (notifData, userLastText) => {
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
-const clampToShortWhatsAppLength = (text) => {
-  if (!text || typeof text !== 'string') return '';
-  return text.trim();
-};
-
 // Autonomous Service Worker Persona Reply Synthesizer
 const generateSWPersonaReply = async (notifData, history, promptOverride, replyText) => {
   let replyContent = '';
   const provider = notifData.provider || 'vertex';
   const customApiKey = notifData.customApiKey;
   const chatName = notifData.chatName || 'Contact';
-  const isShortLengthEnforced = !!(notifData.humaneSettings?.enabled && notifData.humaneSettings?.varyMessageLength);
 
   if (provider === 'custom' && customApiKey) {
     const model = notifData.model || 'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${customApiKey}`;
-    const trailingConstraint = isShortLengthEnforced
-      ? `\n[WHATSAPP TEXTING CADENCE: Respond in authentic WhatsApp style as ${chatName}. Complete your thoughts naturally in 1-2 conversational sentences per line (no essays, no robotic one-word replies). Separate follow-up thoughts onto new lines.]`
-      : '';
     
     let promptToSend = '';
     if (promptOverride) {
-      promptToSend = `${notifData.fullSystemPrompt || notifData.instruction || ''}\n\n[CONTEXT]: ${promptOverride}${trailingConstraint}\n\nResponse as ${chatName}:`;
+      promptToSend = `${notifData.fullSystemPrompt || notifData.instruction || ''}\n\n[CONTEXT]: ${promptOverride}\n\nResponse as ${chatName}:`;
     } else if (notifData.fullSystemPrompt) {
-      promptToSend = `${notifData.fullSystemPrompt}\n${notifData.userName || 'You'}: ${replyText}${trailingConstraint}\n\nResponse as ${chatName}:`;
+      promptToSend = `${notifData.fullSystemPrompt}\n${notifData.userName || 'You'}: ${replyText}\n\nResponse as ${chatName}:`;
     } else {
-      promptToSend = `${notifData.instruction || ''}\n\nUser: ${replyText}${trailingConstraint}\n\nResponse as ${chatName}:`;
+      promptToSend = `${notifData.instruction || ''}\n\nUser: ${replyText}\n\nResponse as ${chatName}:`;
     }
 
     try {
@@ -446,8 +441,6 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
 
   if (!replyContent || typeof replyContent !== 'string' || isRawErrorMessage(replyContent)) {
     replyContent = getGlitchExcuse(notifData, replyText || promptOverride);
-  } else if (isShortLengthEnforced) {
-    replyContent = clampToShortWhatsAppLength(replyContent);
   }
 
   return replyContent.trim();

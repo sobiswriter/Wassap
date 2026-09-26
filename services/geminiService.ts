@@ -410,27 +410,10 @@ React to it organically in your next text message to the User. Let your text be 
     }
     if (responder.humaneSettings.varyMessageLength) {
       humaneInstructions += `
-- AUTHENTIC WHATSAPP TEXTING CADENCE & CHAT FLOW:
-  * THUMB-TEXTING LIKE A REAL HUMAN: Chat casually and spontaneously like a real friend on WhatsApp.
-  * COMPLETE CONVERSATIONAL THOUGHTS (NO ESSAYS, NO 1-WORD GRUNTS):
-    - Text in complete, natural conversational sentences (typically 1 to 2 spoken sentences per thought).
-    - NEVER write long multi-paragraph essays, corporate explanations, advice columns, or bullet points.
-    - Avoid robotic one-word grunts (like "ok", "yeah", "cool") unless a brief reaction is genuinely natural to the moment (like "Okkk" or "Damn"). Always complete your thoughts naturally.
-  * MULTI-BUBBLE CHAT DYNAMICS:
-    - If you are reacting to something AND have a follow-up thought, plan, or casual question, put each distinct thought on a NEW LINE (each line is delivered as a separate chat bubble!).
-  * REAL WHATSAPP EXAMPLES (Emulate this cadence & tone):
-    Example 1:
-      "Mmmm somethings up so today is a maybe but if not today then tomorrow definitely.
-      Oh also got a little something u gonna be shocked 😌😌"
-    Example 2:
-      "Oh really thought it was 26th. Well that's fine anyway
-      Imma see u tomorrow my guy will try my best to come early"
-    Example 3:
-      "Did u finish the Scarlet Nexus story"
-    Example 4:
-      "Damn really, try me bruh"
-  * NATURAL TEXTING FLUIDITY:
-    - Feel free to use relaxed capitalization, casual punctuation, and natural contractions (u, ur, tmrw, ig, btw, gonna, imma, nah, tbh, rn, haha, lol) when fitting your persona.`;
+- DYNAMIC MESSAGE PACING (NO ESSAYS / MONOLOGUES):
+  * Keep responses brief, punchy, and WhatsApp-native (1 to 2 lines max).
+  * Never write structured multi-sentence essays or dense paragraphs.
+  * Match real phone texting dynamics: sometimes reply with a spontaneous 1-3 word quip ("wait fr?", "haha no way", "nah"), sometimes a snappy one-liner.`;
     }
     if (responder.humaneSettings.moodSliderEnabled) {
       const mood = responder.humaneSettings.moodValue;
@@ -457,8 +440,6 @@ React to it organically in your next text message to the User. Let your text be 
     }
   }
 
-  const isShortLengthEnforced = !!(responder.humaneSettings?.enabled && responder.humaneSettings?.varyMessageLength);
-
   const voiceNotePrompt = isVoiceNoteReply ? `
 VOICE NOTE RECORDING INSTRUCTIONS:
 You are recording a real voice note. You can expressively use inline brackets for delivery and emotion such as [whispers], [laughs], [sighs], [excited], [pauses] where natural to breathe life into the voice.
@@ -482,18 +463,13 @@ Instructions:
 3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
 4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
 5. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
-6. ${isShortLengthEnforced ? 'Text in authentic WhatsApp cadence: complete conversational thoughts (1–2 sentences per line, separate follow-up thoughts on new lines). Avoid long essays, lectures, or dry one-word replies.' : 'Respond in authentic WhatsApp texting style, keeping messages natural and in-character.'}
+6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.' : 'Respond naturally without any strict length restrictions.'}
 7. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
 
 Conversation History:
 ${historyString}
 
-${isShortLengthEnforced ? `[WHATSAPP TEXTING CADENCE: Respond in authentic WhatsApp style as ${responder.name}. Complete your thoughts naturally in 1-2 conversational sentences per line (no essays, no robotic one-word replies). Separate follow-up thoughts onto new lines.]\n` : ''}Response as ${responder.name}:`;
-};
-
-export const clampToShortWhatsAppLength = (text: string): string => {
-  if (!text || typeof text !== 'string') return '';
-  return text.trim();
+Response as ${responder.name}:`;
 };
 
 export const getGeminiResponse = async (
@@ -506,14 +482,13 @@ export const getGeminiResponse = async (
   isVoiceNoteReply?: boolean
 ) => {
   const provider = settings?.aiProvider || 'vertex';
-  const isShortLengthEnforced = !!(responder.humaneSettings?.enabled && responder.humaneSettings?.varyMessageLength);
 
   // Option A: Built-in / Server Credits (Vertex AI)
   if (provider === 'vertex') {
     if (!settings?.isVertexUnlocked) {
       return "Built-in Cloud (Vertex AI) is locked. Please enter the passcode in Settings to unlock server credits, or switch to Custom API Key.";
     }
-    const rawResult = await fetchVertexChat({
+    return await fetchVertexChat({
       responder,
       messageHistory: sanitizeHistoryForVertex(messageHistory),
       userProfile,
@@ -530,10 +505,6 @@ export const getGeminiResponse = async (
       initiationContext,
       isVoiceNoteReply,
     });
-    if (isShortLengthEnforced && rawResult && !isRawErrorMessage(rawResult)) {
-      return clampToShortWhatsAppLength(rawResult);
-    }
-    return rawResult;
   }
 
   // Option B: Custom API Key (Gemini AI Studio)
@@ -597,11 +568,8 @@ export const getGeminiResponse = async (
           config,
         });
 
-        let replyText = response.text?.trim();
+        const replyText = response.text?.trim();
         if (replyText && !isRawErrorMessage(replyText)) {
-          if (isShortLengthEnforced) {
-            replyText = clampToShortWhatsAppLength(replyText);
-          }
           return replyText;
         }
 
