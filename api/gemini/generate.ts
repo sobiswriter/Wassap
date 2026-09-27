@@ -30,6 +30,16 @@ interface AppSettings {
   [key: string]: any;
 }
 
+interface PersonaVoiceSettings {
+  voiceModel?: string;
+  voiceName?: string;
+  stylePrompt?: string;
+  paceSpeed?: string;
+  pitchTone?: string;
+  replyFrequency?: string;
+  voiceForVoice?: boolean;
+}
+
 interface ChatPayload {
   responder: {
     name: string;
@@ -54,6 +64,7 @@ interface ChatPayload {
   initiationContext?: string;
   clientTimeContext?: string;
   isVoiceNoteReply?: boolean;
+  voiceSettings?: PersonaVoiceSettings;
 }
 
 async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
@@ -434,10 +445,46 @@ React to it organically in your next text message to the User. Let your text be 
       }
     }
 
-    const voiceNotePrompt = payload.isVoiceNoteReply ? `
-VOICE NOTE RECORDING INSTRUCTIONS:
-You are recording a real voice note. You can expressively use inline brackets for delivery and emotion such as [whispers], [laughs], [sighs], [excited], [pauses] where natural to breathe life into the voice.
-` : '';
+    let voiceNotePrompt = '';
+    if (payload.isVoiceNoteReply) {
+      const voiceSettings = payload.voiceSettings;
+      const customStyle = voiceSettings?.stylePrompt?.trim();
+      const voicePace = voiceSettings?.paceSpeed && voiceSettings.paceSpeed !== 'default' ? voiceSettings.paceSpeed : undefined;
+      const voicePitch = voiceSettings?.pitchTone?.trim();
+      const speechManner = responder.speechStyle?.trim();
+
+      const deliveryDirectives: string[] = [];
+      if (customStyle) deliveryDirectives.push(`ACTING STYLE & ACCENT: "${customStyle}"`);
+      if (voicePace) deliveryDirectives.push(`SPEAKING PACING: ${voicePace}`);
+      if (voicePitch) deliveryDirectives.push(`PITCH / TONE: ${voicePitch}`);
+      if (speechManner) deliveryDirectives.push(`MANNER: ${speechManner}`);
+
+      const deliverySection = deliveryDirectives.length > 0
+        ? `\nVOCAL DELIVERY & ACTING STYLE:\n${deliveryDirectives.map(d => `- ${d}`).join('\n')}\n* CRITICAL: Deeply embody this accent, cadence, tone, and speech manner in your phrasing and colloquial expressions!`
+        : '';
+
+      voiceNotePrompt = `
+CRITICAL VOICE NOTE (AUDIO RECORDING) DIRECTIVE:
+You are NOT sending a written text message. You are RECORDING A REAL 5-TO-20 SECOND VOICE NOTE (AUDIO CLIP) on WhatsApp as ${responder.name}.
+${deliverySection}
+
+CRITICAL STRICT RULE - ZERO EMOJIS ALLOWED:
+You are speaking into a microphone. Emojis CANNOT be spoken and will corrupt the audio recording.
+DO NOT include ANY emojis (no ❤️, 🏡, 😂, 🍲, 🥺, etc.) in your response under any circumstances!
+Express ALL emotion, warmth, humor, and feeling strictly through your spoken words, natural cadence, and vocal tags (<laugh>, <sigh>, <gasp>, <whisper>).
+
+VOCAL TAGS & SOUND EFFECTS INSTRUCTIONS:
+Gemini Speech Generation actively converts vocal cue tags into real human sound bursts. You MUST actively and expressively embed natural vocal tags or bracket cues into your speech where emotionally fitting!
+- Use <laugh> or [laughs] when amused, teasing, chuckling, or joking.
+- Use <sigh> or [sighs] / [scoffs] when tired, exasperated, scoffing, or relaxing.
+- Use <gasp> or [gasps] when shocked, surprised, or reacting to unexpected news.
+- Use <whisper> or [whispers] when sharing a secret, speaking intimately, or being quiet.
+- Use <cough> or [coughs] or <throat-clearing> if pausing or clearing your throat.
+- Use natural pauses ("...") and verbal fillers (e.g., "uh", "um", "well...", "yk", "wait...") to reflect real, spontaneous human speaking cadence.
+
+Do NOT speak like a written book or clinical assistant. Speak like a real human friend holding down the WhatsApp microphone button while talking to the user!
+`;
+    }
 
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}

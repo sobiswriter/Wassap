@@ -94,8 +94,12 @@ export type VoiceNoteFrequency = 'off' | 'occasional' | 'frequent' | 'always';
 
 export interface PersonaVoiceSettings {
   voiceName: string; // e.g. 'Aoede' or 'Fenrir'
+  voiceModel?: string; // e.g. '' (app default) | 'gemini-3.8-flash-tts' | 'gemini-3.8-flash-lite-tts' | 'gemini-3.1-flash-tts-preview'
   frequency: VoiceNoteFrequency;
   voiceForVoice: boolean; // default: true
+  stylePrompt?: string; // Custom turn-level delivery style directive (for 3.8 models, e.g. "whispering", "cheerful and energetic")
+  pitchTone?: string; // e.g. 'high pitch', 'deep tone', 'soft & breathy'
+  paceSpeed?: string; // 'default' | 'speaking slowly' | 'speaking rapidly'
 }
 
 export interface Chat {
@@ -121,6 +125,7 @@ export interface Chat {
   humaneSettings?: HumaneSettings;
   voiceSettings?: PersonaVoiceSettings;
   imageModel?: string; // e.g. 'gemini-3.1-flash-lite-image' or 'gemini-3.1-flash-image'
+  voiceModel?: string; // e.g. 'gemini-3.8-flash-tts' or 'gemini-3.8-flash-lite-tts'
 }
 
 export interface UserProfile {
@@ -149,6 +154,7 @@ export interface AppSettings {
   useSearchGrounding?: boolean;
   selectedModel?: string;
   selectedImageModel?: string; // 'gemini-3.1-flash-lite-image' | 'gemini-3.1-flash-image'
+  selectedVoiceModel?: string; // 'gemini-3.8-flash-tts' | 'gemini-3.8-flash-lite-tts' | 'gemini-3.1-flash-tts-preview'
   calendarNotes?: string;
   enableNotifications?: boolean;
   fontSize?: number;

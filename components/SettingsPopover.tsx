@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw, Camera } from 'lucide-react';
+import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw, Camera, Mic } from 'lucide-react';
 import { AppSettings, AiProvider } from '../types';
-import { AVAILABLE_MODELS, AVAILABLE_IMAGE_MODELS, GCP_CONFIG, DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE, VERTEX_PASSCODE_HINT } from '../constants';
+import { AVAILABLE_MODELS, AVAILABLE_IMAGE_MODELS, AVAILABLE_VOICE_MODELS, GCP_CONFIG, DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE, VERTEX_PASSCODE_HINT } from '../constants';
 import { compressWallpaperImage } from '../utils/imageCompressor';
 import { checkVertexConnectionStatus } from '../services/geminiService';
 import { getLocalDateKey } from '../utils/dates';
@@ -686,6 +686,28 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
               className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none focus:border-[#00a884] transition-all cursor-pointer appearance-none"
             >
               {AVAILABLE_IMAGE_MODELS.map(model => (
+                <option key={model.id} value={model.id}>{model.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Voice Generation Model Selection */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <Mic size={20} className="text-[#00a884]" />
+            <div>
+              <p className="text-[length:var(--msg-font-size)] font-medium">Voice Generation Model</p>
+              <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Default engine for AI audio & voice notes</p>
+            </div>
+          </div>
+          <div className="ml-[32px]">
+            <select
+              value={draftSettings.selectedVoiceModel || DEFAULT_VOICE_MODEL}
+              onChange={(e) => setDraftSettings({ ...draftSettings, selectedVoiceModel: e.target.value })}
+              className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none focus:border-[#00a884] transition-all cursor-pointer appearance-none"
+            >
+              {AVAILABLE_VOICE_MODELS.map(model => (
                 <option key={model.id} value={model.id}>{model.label}</option>
               ))}
             </select>

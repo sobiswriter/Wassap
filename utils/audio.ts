@@ -3,24 +3,59 @@
  */
 
 /**
- * Strips bracketed emotional and delivery cues (e.g., [whispers], [laughs], [sighs], [excited], [pauses])
- * from persona responses so visible text previews and transcripts read naturally in the UI.
+ * Strips all emoji characters, variation selectors, and pictographs from voice transcripts and speech inputs.
+ */
+export function stripEmojis(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/[\p{Extended_Pictographic}\uFE0F\u200D\u20E3]/gu, '')
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/gu, '')
+    .replace(/\s+([.,!?;:])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/**
+ * Strips bracketed emotional cues, vocal tags, and emojis from persona responses so visible text previews
+ * and voice note transcripts read naturally and cleanly in the UI without emojis or leaked stage directions.
  */
 export function cleanSpokenTranscript(text: string): string {
   if (!text) return '';
-  return text
-    // Replace bracketed audio cues
-    .replace(/\[(?:whispers|whisper|sighs|sigh|laughs|laugh|chuckles|chuckle|giggles|gasp|gasps|excited|excitedly|pauses|pause|crying|groans|groan|yells|shouts|snickers|clears throat|smiling|sarcastically)[^\]]*\]/gi, '')
-    // Also clean any lingering generic bracket tags that might have been emitted as cues
-    .replace(/\[[a-zA-Z\s]{2,20}\]/g, (match) => {
-      // Keep markdown links or common brackets if not an emotional tag
-      const inner = match.slice(1, -1).trim().toLowerCase();
-      const knownEmotions = ['happy', 'sad', 'angry', 'confused', 'softly', 'loudly', 'hurried', 'slowly', 'whispering', 'laughing'];
-      if (knownEmotions.includes(inner)) return '';
-      return match;
-    })
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  const withoutCues = text
+    // Replace bracketed/asterisked/parenthesized audio, emotional, and delivery cues
+    .replace(/[\[\*(](?:scoffs?|scoffing|whispers?|whispering|sighs?|sighing|laughs?|laughing|chuckles?|chuckling|giggles?|giggling|gasps?|gasping|excited(?:ly)?|pauses?|pause|crying|groans?|groaning|yells?|yelling|shouts?|shouting|snickers?|snickering|clears?\s+throat|throat-clearing|smiling|smirks?|smirking|sarcastically|grunts?|grunting|snorts?|snorting|yawns?|yawning|coughs?|coughing|pants?|panting|screams?|screaming|sobs?|sobbing|wheezes?|wheezing|softly|loudly|cheerfully|angrily|nervously|hesitantly|teasing|playfully)[^\]\*\)]*[\]\*)]/gi, '')
+    // Clean inline vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, </whisper>, <snort>, <yawn>, <cough>, etc.
+    .replace(/<(?:\/?[a-zA-Z_-]+)[^>]*>/gi, '')
+    // Clean any lingering generic short bracket cues like [sarcastic] or [soft chuckle] that might leak into transcript
+    .replace(/\[[a-zA-Z\s_-]{2,30}\]/g, '');
+
+  return stripEmojis(withoutCues);
+}
+
+/**
+ * Converts bracketed emotional expressions (e.g., [laughs], [sighs], [scoffs], [whispers]) into native Gemini 3.8 TTS vocal burst tags
+ * (e.g., <laugh>, <sigh>, <gasp>, <cough>, <whisper>). Also strips unpronounceable bracket directions and all emojis so the TTS
+ * voice engine never reads emoji names aloud.
+ */
+export function convertToGeminiVocalTags(text: string): string {
+  if (!text) return '';
+  const converted = text
+    .replace(/[\[\*(](?:laughs?|laughing|chuckles?|chuckling|giggles?|giggling|snickers?|snickering)[\]\*)]/gi, '<laugh>')
+    .replace(/[\[\*(](?:sighs?|sighing|scoffs?|scoffing)[\]\*)]/gi, '<sigh>')
+    .replace(/[\[\*(](?:gasps?|gasping)[\]\*)]/gi, '<gasp>')
+    .replace(/[\[\*(](?:coughs?|coughing)[\]\*)]/gi, '<cough>')
+    .replace(/[\[\*(](?:groans?|groaning|grunts?|grunting)[\]\*)]/gi, '<groan>')
+    .replace(/[\[\*(](?:clears?\s+throat|throat-clearing)[\]\*)]/gi, '<throat-clearing>')
+    .replace(/[\[\*(](?:yawns?|yawning)[\]\*)]/gi, '<yawn>')
+    .replace(/[\[\*(](?:snorts?|snorting)[\]\*)]/gi, '<snort>')
+    .replace(/[\[\*(](?:pants?|panting)[\]\*)]/gi, '<pant>')
+    .replace(/[\[\*(](?:whispers?|whispering|softly)[\]\*)]/gi, '<whisper>')
+    .replace(/[\[\*(](?:pauses?|pause|short pause)[\]\*)]/gi, ' ... ')
+    // Strip any remaining bracketed or asterisked acting cues that are not pronounceable vocal bursts
+    .replace(/\[[a-zA-Z\s_-]{2,30}\]/g, '')
+    .replace(/\*[a-zA-Z\s_-]{2,30}\*/g, '');
+
+  return stripEmojis(converted);
 }
 
 /**
@@ -71,6 +106,11 @@ export function pcmBase64ToWavDataUrl(
   // If it's already a full data URI or WAV/MP3, return directly
   if (pcmBase64.startsWith('data:audio/')) {
     return pcmBase64;
+  }
+
+  // Gemini 3.8 returns a native 24kHz WAV with a 44-byte RIFF header (base64 begins with 'UklGR')
+  if (pcmBase64.startsWith('UklGR')) {
+    return `data:audio/wav;base64,${pcmBase64}`;
   }
 
   // If environment has Buffer (Node.js / server-side)

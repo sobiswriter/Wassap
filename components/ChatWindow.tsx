@@ -442,7 +442,7 @@ const MessageBubble = React.memo<{
         className={`${
           isMediaMessage
             ? 'media-message-bubble'
-            : 'max-w-[85%] sm:max-w-[75%]'
+            : (message.attachment?.type === 'audio' ? 'w-auto max-w-[95%] sm:max-w-[88%] md:max-w-[540px]' : 'max-w-[85%] sm:max-w-[75%]')
         } p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto my-[2px] ${highlight ? 'ring-2 ring-[#21c063]' : ''} ${!isConsecutive ? (isMe ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
         style={{ 
           backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)',
@@ -556,7 +556,7 @@ const MessageBubble = React.memo<{
             )}
 
             {message.attachment?.type === 'audio' && (
-              <div className="p-1 pb-0">
+              <div className="p-1 pb-0 w-full">
                 <VoiceNotePlayer
                   src={mediaSrc || message.attachment?.data || ''}
                   seedId={message.id}

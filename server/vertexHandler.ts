@@ -1,12 +1,15 @@
 import { GoogleGenAI } from '@google/genai';
-import { HumaneSettings, UserProfile, AppSettings } from '../types';
+import { HumaneSettings, UserProfile, AppSettings, PersonaVoiceSettings } from '../types';
 import { GCP_CONFIG, getVoiceDescriptor } from '../constants';
-import { pcmBase64ToWavDataUrl } from '../utils/audio';
+import { pcmBase64ToWavDataUrl, convertToGeminiVocalTags } from '../utils/audio';
 
 export interface TTSPayload {
   text: string;
   voiceName: string;
+  voiceModel?: string;
   stylePrompt?: string;
+  paceSpeed?: string;
+  pitchTone?: string;
   personaName?: string;
   speechStyle?: string;
 }
@@ -35,6 +38,7 @@ export interface ChatPayload {
   initiationContext?: string;
   clientTimeContext?: string;
   isVoiceNoteReply?: boolean;
+  voiceSettings?: PersonaVoiceSettings;
 }
 
 export interface DiaryPayload {
@@ -387,10 +391,46 @@ React to it organically in your next text message to the User. Let your text be 
       }
     }
 
-    const voiceNotePrompt = payload.isVoiceNoteReply ? `
-VOICE NOTE RECORDING INSTRUCTIONS:
-You are recording a real voice note. You can expressively use inline brackets for delivery and emotion such as [whispers], [laughs], [sighs], [excited], [pauses] where natural to breathe life into the voice.
-` : '';
+    let voiceNotePrompt = '';
+    if (payload.isVoiceNoteReply) {
+      const voiceSettings = payload.voiceSettings;
+      const customStyle = voiceSettings?.stylePrompt?.trim();
+      const voicePace = voiceSettings?.paceSpeed && voiceSettings.paceSpeed !== 'default' ? voiceSettings.paceSpeed : undefined;
+      const voicePitch = voiceSettings?.pitchTone?.trim();
+      const speechManner = responder.speechStyle?.trim();
+
+      const deliveryDirectives: string[] = [];
+      if (customStyle) deliveryDirectives.push(`ACTING STYLE & ACCENT: "${customStyle}"`);
+      if (voicePace) deliveryDirectives.push(`SPEAKING PACING: ${voicePace}`);
+      if (voicePitch) deliveryDirectives.push(`PITCH / TONE: ${voicePitch}`);
+      if (speechManner) deliveryDirectives.push(`MANNER: ${speechManner}`);
+
+      const deliverySection = deliveryDirectives.length > 0
+        ? `\nVOCAL DELIVERY & ACTING STYLE:\n${deliveryDirectives.map(d => `- ${d}`).join('\n')}\n* CRITICAL: Deeply embody this accent, cadence, tone, and speech manner in your phrasing and colloquial expressions!`
+        : '';
+
+      voiceNotePrompt = `
+CRITICAL VOICE NOTE (AUDIO RECORDING) DIRECTIVE:
+You are NOT sending a written text message. You are RECORDING A REAL 5-TO-20 SECOND VOICE NOTE (AUDIO CLIP) on WhatsApp as ${responder.name}.
+${deliverySection}
+
+CRITICAL STRICT RULE - ZERO EMOJIS ALLOWED:
+You are speaking into a microphone. Emojis CANNOT be spoken and will corrupt the audio recording.
+DO NOT include ANY emojis (no ❤️, 🏡, 😂, 🍲, 🥺, etc.) in your response under any circumstances!
+Express ALL emotion, warmth, humor, and feeling strictly through your spoken words, natural cadence, and vocal tags (<laugh>, <sigh>, <gasp>, <whisper>).
+
+VOCAL TAGS & SOUND EFFECTS INSTRUCTIONS:
+Gemini Speech Generation actively converts vocal cue tags into real human sound bursts. You MUST actively and expressively embed natural vocal tags or bracket cues into your speech where emotionally fitting!
+- Use <laugh> or [laughs] when amused, teasing, chuckling, or joking.
+- Use <sigh> or [sighs] / [scoffs] when tired, exasperated, scoffing, or relaxing.
+- Use <gasp> or [gasps] when shocked, surprised, or reacting to unexpected news.
+- Use <whisper> or [whispers] when sharing a secret, speaking intimately, or being quiet.
+- Use <cough> or [coughs] or <throat-clearing> if pausing or clearing your throat.
+- Use natural pauses ("...") and verbal fillers (e.g., "uh", "um", "well...", "yk", "wait...") to reflect real, spontaneous human speaking cadence.
+
+Do NOT speak like a written book or clinical assistant. Speak like a real human friend holding down the WhatsApp microphone button while talking to the user!
+`;
+    }
 
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}
@@ -593,54 +633,101 @@ PRIVATE DIARY ENTRY BY ${persona.name}:`;
 
 export async function handleVertexTTS(payload: TTSPayload): Promise<{ ok: boolean; audioData?: string; mimeType?: string; error?: string }> {
   try {
-    const { text, voiceName, stylePrompt, personaName, speechStyle } = payload;
+    const { text, voiceName, voiceModel, stylePrompt, paceSpeed, pitchTone, personaName, speechStyle } = payload;
     if (!text || !text.trim()) {
       return { ok: false, error: "Text is required for Voice Note generation" };
     }
 
     const selectedVoice = voiceName || 'Aoede';
     const voiceDescriptor = getVoiceDescriptor(selectedVoice);
+    const selectedModel = voiceModel || 'gemini-3.8-flash-tts';
+    const is38 = selectedModel.includes('3.8');
 
-    // Formulate Google Cloud recommended prompt steering directive if not already styled
-    let steeredInput = text.trim();
-    const hasExistingDirective = steeredInput.startsWith('Say the following') || steeredInput.startsWith('TTS the following');
-
-    if (!hasExistingDirective) {
-      const traitDesc = stylePrompt || voiceDescriptor?.stylePrompt || voiceDescriptor?.trait || 'natural and expressive';
-      const promptParts = [
-        personaName ? `as ${personaName}` : '',
-        `with a ${traitDesc} voice delivery`,
-        speechStyle ? `(personality & tone: ${speechStyle})` : ''
-      ].filter(Boolean).join(' ');
-
-      steeredInput = `Say the following in a natural WhatsApp voice note ${promptParts}: ${text.trim()}`;
+    // Build consolidated style directives
+    const styleParts: string[] = [];
+    if (stylePrompt) {
+      styleParts.push(stylePrompt);
+    } else if (voiceDescriptor?.stylePrompt || voiceDescriptor?.trait) {
+      styleParts.push(voiceDescriptor.stylePrompt || voiceDescriptor.trait);
     }
+    if (paceSpeed && paceSpeed !== 'default') {
+      styleParts.push(paceSpeed);
+    }
+    if (pitchTone) {
+      styleParts.push(pitchTone);
+    }
+    if (speechStyle) {
+      styleParts.push(`manner: ${speechStyle}`);
+    }
+    const combinedStyle = styleParts.filter(Boolean).join(', ');
+
+    const verbatimWithVocalTags = convertToGeminiVocalTags(text.trim());
 
     const ai = getVertexClient();
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-tts-preview',
-      contents: [{ role: 'user', parts: [{ text: steeredInput }] }],
-      config: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: selectedVoice,
-            }
-          }
-        }
-      } as any
-    });
+    let audioBase64: string | undefined;
+    let mimeType = 'audio/wav';
 
-    const candidate = response.candidates?.[0];
-    const part = candidate?.content?.parts?.find((p: any) => p.inlineData);
-
-    if (!part || !part.inlineData?.data) {
-      return { ok: false, error: "Gemini TTS model did not return audio data" };
+    // Build model candidate sequence with graceful fallbacks.
+    // On Vertex AI, gemini-3.8-flash-lite-tts is not a publisher model; map to gemini-3.8-flash-tts -> gemini-3.1-flash-tts-preview
+    const modelsToTry: string[] = [];
+    if (selectedModel === 'gemini-3.8-flash-lite-tts') {
+      modelsToTry.push('gemini-3.8-flash-tts', 'gemini-3.1-flash-tts-preview');
+    } else {
+      modelsToTry.push(selectedModel);
+      if (selectedModel !== 'gemini-3.1-flash-tts-preview') {
+        modelsToTry.push('gemini-3.1-flash-tts-preview');
+      }
     }
 
-    const mimeType = part.inlineData.mimeType || 'audio/pcm;rate=24000';
-    const rawBase64 = part.inlineData.data;
+    let lastError: any = null;
+    for (const modelCandidate of modelsToTry) {
+      try {
+        const isCandidate38 = modelCandidate.includes('3.8');
+        const styleDirective = combinedStyle || 'natural and expressive';
+        const personaDirective = personaName ? `as ${personaName} ` : '';
+        const inputText = `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, <cough>: ${verbatimWithVocalTags}`;
+
+        const generateConfig: any = {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: selectedVoice,
+              }
+            }
+          }
+        };
+
+        if (isCandidate38) {
+          generateConfig.systemInstruction = `You are a voice actor recording an authentic WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery. Accurately honor and express inline vocal tags (<laugh>, <sigh>, <gasp>, <whisper>, <cough>). Speak only the message content naturally without preambles.`;
+        }
+
+        const response = await ai.models.generateContent({
+          model: modelCandidate,
+          contents: [{ role: 'user', parts: [{ text: inputText }] }],
+          config: generateConfig as any
+        });
+
+        const candidate = response.candidates?.[0];
+        const part = candidate?.content?.parts?.find((p: any) => p.inlineData);
+        if (part && part.inlineData?.data) {
+          audioBase64 = part.inlineData.data;
+          mimeType = part.inlineData.mimeType || 'audio/pcm;rate=24000';
+          if (modelCandidate !== selectedModel) {
+            console.info(`[Vertex TTS] Audio successfully synthesized with fallback model: ${modelCandidate}`);
+          }
+          break;
+        }
+      } catch (genErr: any) {
+        lastError = genErr;
+        // Suppress intermediate noisy logs when fallback models are available
+      }
+    }
+
+    if (!audioBase64) {
+      console.error('[Vertex TTS] All voice models failed. Last error:', lastError?.message || lastError);
+      return { ok: false, error: `Gemini TTS generation failed: ${lastError?.message || 'No audio returned'}` };
+    }
 
     let sampleRate = 24000;
     const rateMatch = mimeType.match(/rate=(\d+)/i);
@@ -648,7 +735,7 @@ export async function handleVertexTTS(payload: TTSPayload): Promise<{ ok: boolea
       sampleRate = parseInt(rateMatch[1], 10);
     }
 
-    const audioDataUrl = pcmBase64ToWavDataUrl(rawBase64, sampleRate);
+    const audioDataUrl = pcmBase64ToWavDataUrl(audioBase64, sampleRate);
 
     return {
       ok: true,

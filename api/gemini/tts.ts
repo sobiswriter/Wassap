@@ -58,9 +58,36 @@ function getVoiceDescriptor(voiceName?: string): VoiceDetail {
 interface TTSPayload {
   text: string;
   voiceName: string;
+  voiceModel?: string;
   stylePrompt?: string;
+  paceSpeed?: string;
+  pitchTone?: string;
   personaName?: string;
   speechStyle?: string;
+}
+
+function convertToVocalTags(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/[\[\*(](?:laughs?|laughing|chuckles?|chuckling|giggles?|giggling|snickers?|snickering)[\]\*)]/gi, '<laugh>')
+    .replace(/[\[\*(](?:sighs?|sighing|scoffs?|scoffing)[\]\*)]/gi, '<sigh>')
+    .replace(/[\[\*(](?:gasps?|gasping)[\]\*)]/gi, '<gasp>')
+    .replace(/[\[\*(](?:coughs?|coughing)[\]\*)]/gi, '<cough>')
+    .replace(/[\[\*(](?:groans?|groaning|grunts?|grunting)[\]\*)]/gi, '<groan>')
+    .replace(/[\[\*(](?:clears?\s+throat|throat-clearing)[\]\*)]/gi, '<throat-clearing>')
+    .replace(/[\[\*(](?:yawns?|yawning)[\]\*)]/gi, '<yawn>')
+    .replace(/[\[\*(](?:snorts?|snorting)[\]\*)]/gi, '<snort>')
+    .replace(/[\[\*(](?:pants?|panting)[\]\*)]/gi, '<pant>')
+    .replace(/[\[\*(](?:whispers?|whispering|softly)[\]\*)]/gi, '<whisper>')
+    .replace(/[\[\*(](?:pauses?|pause|short pause)[\]\*)]/gi, ' ... ')
+    .replace(/\[[a-zA-Z\s_-]{2,30}\]/g, '')
+    .replace(/\*[a-zA-Z\s_-]{2,30}\*/g, '')
+    // Strip emojis so TTS engine never vocalizes emoji labels
+    .replace(/[\p{Extended_Pictographic}\uFE0F\u200D\u20E3]/gu, '')
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/gu, '')
+    .replace(/\s+([.,!?;:])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
@@ -220,6 +247,7 @@ function getVertexClient() {
 
 function pcmToWavDataUrl(pcmBase64: string, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): string {
   if (pcmBase64.startsWith('data:audio/')) return pcmBase64;
+  if (pcmBase64.startsWith('UklGR')) return `data:audio/wav;base64,${pcmBase64}`;
   const pcmBuffer = Buffer.from(pcmBase64, 'base64');
   const dataSize = pcmBuffer.length;
   const header = Buffer.alloc(44);
@@ -272,7 +300,7 @@ export default async function handler(
       return;
     }
 
-    const { text, voiceName, stylePrompt, personaName, speechStyle } = payload;
+    const { text, voiceName, voiceModel, stylePrompt, paceSpeed, pitchTone, personaName, speechStyle } = payload;
     if (!text || !text.trim()) {
       sendJson(res, 400, { error: 'Text is required for TTS generation' });
       return;
@@ -280,48 +308,95 @@ export default async function handler(
 
     const selectedVoice = voiceName || 'Aoede';
     const voiceDescriptor = getVoiceDescriptor(selectedVoice);
+    const selectedModel = voiceModel || 'gemini-3.8-flash-tts';
+    const is38 = selectedModel.includes('3.8');
 
-    // Formulate Google Cloud recommended prompt steering directive if not already styled
-    let steeredInput = text.trim();
-    const hasExistingDirective = steeredInput.startsWith('Say the following') || steeredInput.startsWith('TTS the following');
-
-    if (!hasExistingDirective) {
-      const traitDesc = stylePrompt || voiceDescriptor?.stylePrompt || voiceDescriptor?.trait || 'natural and expressive';
-      const promptParts = [
-        personaName ? `as ${personaName}` : '',
-        `with a ${traitDesc} voice delivery`,
-        speechStyle ? `(personality & tone: ${speechStyle})` : ''
-      ].filter(Boolean).join(' ');
-
-      steeredInput = `Say the following in a natural WhatsApp voice note ${promptParts}: ${text.trim()}`;
+    // Build consolidated style directives
+    const styleParts: string[] = [];
+    if (stylePrompt) {
+      styleParts.push(stylePrompt);
+    } else if (voiceDescriptor?.stylePrompt || voiceDescriptor?.trait) {
+      styleParts.push(voiceDescriptor.stylePrompt || voiceDescriptor.trait);
     }
+    if (paceSpeed && paceSpeed !== 'default') {
+      styleParts.push(paceSpeed);
+    }
+    if (pitchTone) {
+      styleParts.push(pitchTone);
+    }
+    if (speechStyle) {
+      styleParts.push(`manner: ${speechStyle}`);
+    }
+    const combinedStyle = styleParts.filter(Boolean).join(', ');
+
+    const verbatimWithVocalTags = convertToVocalTags(text.trim());
 
     const ai = getVertexClient();
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-tts-preview',
-      contents: [{ role: 'user', parts: [{ text: steeredInput }] }],
-      config: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: selectedVoice,
-            }
-          }
-        }
-      } as any
-    });
+    let audioBase64: string | undefined;
+    let mimeType = 'audio/wav';
 
-    const candidate = response.candidates?.[0];
-    const part = candidate?.content?.parts?.find((p: any) => p.inlineData);
-
-    if (!part || !part.inlineData?.data) {
-      sendJson(res, 500, { error: 'Gemini TTS model did not return audio data' });
-      return;
+    // Build model candidate sequence with graceful fallbacks.
+    // On Vertex AI, gemini-3.8-flash-lite-tts is not a publisher model; map to gemini-3.8-flash-tts -> gemini-3.1-flash-tts-preview
+    const modelsToTry: string[] = [];
+    if (selectedModel === 'gemini-3.8-flash-lite-tts') {
+      modelsToTry.push('gemini-3.8-flash-tts', 'gemini-3.1-flash-tts-preview');
+    } else {
+      modelsToTry.push(selectedModel);
+      if (selectedModel !== 'gemini-3.1-flash-tts-preview') {
+        modelsToTry.push('gemini-3.1-flash-tts-preview');
+      }
     }
 
-    const mimeType = part.inlineData.mimeType || 'audio/pcm;rate=24000';
-    const rawBase64 = part.inlineData.data;
+    let lastError: any = null;
+    for (const modelCandidate of modelsToTry) {
+      try {
+        const isCandidate38 = modelCandidate.includes('3.8');
+        const styleDirective = combinedStyle || 'natural and expressive';
+        const personaDirective = personaName ? `as ${personaName} ` : '';
+        const inputText = `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, <cough>: ${verbatimWithVocalTags}`;
+
+        const generateConfig: any = {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: selectedVoice,
+              }
+            }
+          }
+        };
+
+        if (isCandidate38) {
+          generateConfig.systemInstruction = `You are a voice actor recording an authentic WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery. Accurately honor and express inline vocal tags (<laugh>, <sigh>, <gasp>, <whisper>, <cough>). Speak only the message content naturally without preambles.`;
+        }
+
+        const response = await ai.models.generateContent({
+          model: modelCandidate,
+          contents: [{ role: 'user', parts: [{ text: inputText }] }],
+          config: generateConfig as any
+        });
+
+        const candidate = response.candidates?.[0];
+        const part = candidate?.content?.parts?.find((p: any) => p.inlineData);
+        if (part && part.inlineData?.data) {
+          audioBase64 = part.inlineData.data;
+          mimeType = part.inlineData.mimeType || 'audio/pcm;rate=24000';
+          if (modelCandidate !== selectedModel) {
+            console.info(`[Vertex TTS] Audio successfully synthesized with fallback model: ${modelCandidate}`);
+          }
+          break;
+        }
+      } catch (genErr: any) {
+        lastError = genErr;
+        // Suppress intermediate noisy logs when fallback models are available
+      }
+    }
+
+    if (!audioBase64) {
+      console.error('[Vertex TTS] All voice models failed. Last error:', lastError?.message || lastError);
+      sendJson(res, 500, { error: `Gemini TTS model failed: ${lastError?.message || 'No audio returned'}` });
+      return;
+    }
 
     let sampleRate = 24000;
     const rateMatch = mimeType.match(/rate=(\d+)/i);
@@ -329,7 +404,7 @@ export default async function handler(
       sampleRate = parseInt(rateMatch[1], 10);
     }
 
-    const audioDataUrl = pcmToWavDataUrl(rawBase64, sampleRate);
+    const audioDataUrl = pcmToWavDataUrl(audioBase64, sampleRate);
     sendJson(res, 200, { audioData: audioDataUrl, mimeType: 'audio/wav' });
   } catch (error: any) {
     console.error('[API Error /tts]:', error);

@@ -67,8 +67,12 @@ export const GEMINI_TTS_VOICES = {
 
 export const DEFAULT_VOICE_SETTINGS: PersonaVoiceSettings = {
   voiceName: 'Aoede',
+  voiceModel: '',
   frequency: 'off',
   voiceForVoice: true,
+  stylePrompt: '',
+  paceSpeed: 'default',
+  pitchTone: '',
 };
 
 export const INITIAL_CHATS: Chat[] = [
@@ -253,7 +257,6 @@ export const AVAILABLE_MODELS = [
   { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
   { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
   { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite' },
-  { id: 'gemini-3.1-flash-tts-preview', label: 'Gemini 3.1 Flash TTS (Preview)' },
 ];
 
 export const DEFAULT_MODEL = 'gemini-3.8-flash';
@@ -264,6 +267,24 @@ export const AVAILABLE_IMAGE_MODELS = [
 ];
 
 export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-lite-image';
+
+export const AVAILABLE_VOICE_MODELS = [
+  { id: 'gemini-3.1-flash-tts-preview', label: 'Gemini 3.1 Flash TTS Preview (Active on Google Cloud Vertex)' },
+  { id: 'gemini-3.8-flash-tts', label: 'Gemini 3.8 Flash TTS (AI Studio API / Coming Soon to Vertex)' },
+  { id: 'gemini-3.8-flash-lite-tts', label: 'Gemini 3.8 Flash-Lite TTS (AI Studio API / Coming Soon to Vertex)' },
+];
+
+export const DEFAULT_VOICE_MODEL = 'gemini-3.1-flash-tts-preview';
+
+export const VOICE_STYLE_PRESETS = [
+  { id: 'default', label: 'Natural & Expressive (Default)', prompt: '' },
+  { id: 'whispering', label: 'Whispering & Intimate', prompt: 'whispered gently, intimate and quiet late-night tone' },
+  { id: 'cheerful', label: 'Cheerful & Playful', prompt: 'cheerful, upbeat, playful and warm inflection' },
+  { id: 'teasing', label: 'Teasing & Sarcastic', prompt: 'sarcastic, dry humor, amused and slightly teasing cadence' },
+  { id: 'sleepy', label: 'Soft & Sleepy', prompt: 'soft, slow and sleepy, speaking softly with relaxed pauses' },
+  { id: 'energetic', label: 'Energetic & Fast-Paced', prompt: 'energetic, fast-paced and animated delivery' },
+  { id: 'serious', label: 'Calm & Composed', prompt: 'calm, steady, mature and reflective tone' },
+];
 
 
 export const DEFAULT_TEMPLATES: PersonaTemplate[] = [

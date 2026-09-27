@@ -39,7 +39,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [showTranscript, setShowTranscript] = useState(false);
-  const [waveform] = useState(() => generateWaveformBars(seedId, 34));
+  const [waveform] = useState(() => generateWaveformBars(seedId, 38));
 
   // Sync audio duration once loaded
   useEffect(() => {
@@ -174,7 +174,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   const currentBarIndex = Math.floor(progressPercent * waveform.length);
 
   return (
-    <div className="flex flex-col w-full max-w-[340px] sm:max-w-[360px] select-none py-1">
+    <div className="flex flex-col w-full min-w-[270px] sm:w-[430px] md:w-[480px] lg:w-[500px] max-w-full select-none py-1">
       {/* Hidden native audio element */}
       <audio ref={audioRef} src={src} preload="metadata" />
 
@@ -220,7 +220,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className="flex items-center gap-[2.5px] sm:gap-[3px] h-7 cursor-pointer group py-1 relative"
+            className="flex items-center justify-between h-7 cursor-pointer group py-1 relative w-full px-1"
             title="Click or drag to seek"
           >
             {waveform.map((barHeight, idx) => {
@@ -228,7 +228,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
               return (
                 <span
                   key={idx}
-                  className={`w-[3px] rounded-full transition-colors duration-150 ${
+                  className={`w-[2.5px] sm:w-[3px] rounded-full transition-colors duration-150 shrink-0 ${
                     isPlayed
                       ? 'bg-[#00a884] dark:bg-[#00a884]'
                       : 'bg-[#b4bcc2] dark:bg-[#53616a] group-hover:bg-[#8696a0]'
@@ -240,18 +240,18 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
               );
             })}
 
-            {/* Position scrubber dot */}
+            {/* Position scrubber dot - perfectly tracks the full waveform without floating off */}
             <div
-              className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-[#00a884] rounded-full shadow-sm pointer-events-none transition-transform duration-75"
+              className="absolute top-1/2 w-2.5 h-2.5 bg-[#00a884] rounded-full shadow-sm pointer-events-none transition-transform duration-75"
               style={{
-                left: `${Math.min(Math.max(progressPercent * 100, 0), 100)}%`,
+                left: `calc(4px + ${progressPercent} * (100% - 8px))`,
                 transform: 'translate(-50%, -50%)',
               }}
             />
           </div>
 
           {/* Time & Speed Controls */}
-          <div className="flex items-center justify-between text-[11px] text-secondary font-medium tracking-tight mt-0.5">
+          <div className="flex items-center justify-between text-[11px] text-secondary font-medium tracking-tight mt-0.5 px-0.5">
             <span>
               {isPlaying || currentTime > 0
                 ? `${formatAudioDuration(currentTime)} / ${formatAudioDuration(duration || 0)}`
@@ -275,7 +275,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
 
       {/* Collapsible Transcript Section */}
       {transcript && transcript.trim().length > 0 && (
-        <div className="mt-2 pt-1.5 border-t border-black/5 dark:border-white/10">
+        <div className="mt-2 pt-1.5 border-t border-black/5 dark:border-white/10 w-full">
           <button
             type="button"
             onClick={(e) => {
@@ -290,7 +290,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
           </button>
 
           {showTranscript && (
-            <div className="mt-1.5 px-2 py-1.5 bg-black/5 dark:bg-black/20 rounded-md text-[calc(var(--msg-font-size)-2px)] text-primary leading-relaxed whitespace-pre-wrap animate-in fade-in-50 duration-200">
+            <div className="mt-1.5 px-3 py-2 bg-black/[0.04] dark:bg-black/25 rounded-lg border border-black/5 dark:border-white/5 text-[calc(var(--msg-font-size)-1px)] text-primary leading-relaxed whitespace-pre-wrap break-words max-h-72 overflow-y-auto custom-scrollbar shadow-inner animate-in fade-in-50 duration-200">
               {transcript}
             </div>
           )}

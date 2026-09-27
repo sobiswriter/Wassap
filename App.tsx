@@ -36,7 +36,7 @@ const PanelLoadingFallback: React.FC = () => (
     <div className="h-full bg-[#21c063] w-1/2 rounded-full animate-pulse" />
   </div>
 );
-import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL, GEMINI_TTS_VOICE_DETAILS } from './constants';
+import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, GEMINI_TTS_VOICE_DETAILS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus, PersonaVoiceSettings } from './types';
 import { 
   getGeminiResponse, 
@@ -969,6 +969,10 @@ const App: React.FC = () => {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') {
+          let activeVoiceModel = parsed.selectedVoiceModel;
+          if ((!activeVoiceModel || activeVoiceModel === 'gemini-3.8-flash-tts') && (parsed.aiProvider || 'vertex') === 'vertex') {
+            activeVoiceModel = DEFAULT_VOICE_MODEL;
+          }
           return {
             theme: 'light',
             shareUserInfo: true,
@@ -977,7 +981,9 @@ const App: React.FC = () => {
             chatWallpaper: 'default',
             chatWallpaperOpacity: 0.85,
             isVertexUnlocked: false,
-            ...parsed
+            selectedVoiceModel: DEFAULT_VOICE_MODEL,
+            ...parsed,
+            ...(activeVoiceModel ? { selectedVoiceModel: activeVoiceModel } : {})
           };
         }
       } catch (e) {
@@ -991,7 +997,8 @@ const App: React.FC = () => {
       aiProvider: 'vertex',
       chatWallpaper: 'default',
       chatWallpaperOpacity: 0.85,
-      isVertexUnlocked: false
+      isVertexUnlocked: false,
+      selectedVoiceModel: DEFAULT_VOICE_MODEL
     };
   });
 
@@ -1324,7 +1331,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
         undefined,
         settings,
         combinePersonaContexts(context, buildScheduleContext(targetChat), timeGapContext),
-        isVoiceNote
+        isVoiceNote,
+        targetChat.voiceSettings
       );
 
       if (!response || isRawErrorMessage(response)) {
@@ -1341,7 +1349,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
             name: targetChat.name,
             speechStyle: targetChat.speechStyle,
             role: targetChat.role
-          }
+          },
+          targetChat.voiceSettings
         );
 
         if (ttsRes.ok && ttsRes.audioDataUrl) {
@@ -2179,7 +2188,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         undefined,
         settings,
         memoryContext,
-        isVoiceNote
+        isVoiceNote,
+        chat.voiceSettings
       );
 
       if (!response || isRawErrorMessage(response)) {
@@ -2197,7 +2207,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             name: chat.name,
             speechStyle: chat.speechStyle,
             role: chat.role
-          }
+          },
+          chat.voiceSettings
         );
 
         if (ttsRes.ok && ttsRes.audioDataUrl) {
@@ -2451,7 +2462,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           },
           settings,
           combinePersonaContexts(memoryContext, buildScheduleContext(persona)),
-          isVoiceNote
+          isVoiceNote,
+          persona.voiceSettings
         );
 
         if (!responseText || isRawErrorMessage(responseText)) {
@@ -2469,7 +2481,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               name: persona.name,
               speechStyle: persona.speechStyle,
               role: persona.role
-            }
+            },
+            persona.voiceSettings
           );
 
           if (ttsRes.ok && ttsRes.audioDataUrl) {

@@ -8,7 +8,7 @@ import {
 import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate, AppSettings, PersonaVoiceSettings, VoiceNoteFrequency } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey, getAppNow, getAppDateKey } from '../utils/dates';
-import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TTS_VOICE_DETAILS, AVAILABLE_IMAGE_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_VARY_MESSAGE_LENGTH_PROMPT, VARY_MESSAGE_LENGTH_PRESETS } from '../constants';
+import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TTS_VOICE_DETAILS, AVAILABLE_IMAGE_MODELS, DEFAULT_IMAGE_MODEL, AVAILABLE_VOICE_MODELS, DEFAULT_VOICE_MODEL, VOICE_STYLE_PRESETS, DEFAULT_VARY_MESSAGE_LENGTH_PROMPT, VARY_MESSAGE_LENGTH_PRESETS } from '../constants';
 import { generateGeminiVoiceNote } from '../services/geminiService';
 
 interface ProfilePanelProps {
@@ -1070,7 +1070,11 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary">
                     {formData.voiceSettings?.frequency === 'off' 
                       ? 'Off · Plain text only' 
-                      : `${formData.voiceSettings?.voiceName || 'Aoede'} · ${formData.voiceSettings?.frequency || 'off'}`}
+                      : `${formData.voiceSettings?.voiceName || 'Aoede'} · ${formData.voiceSettings?.frequency || 'off'} · ${
+                          formData.voiceSettings?.voiceModel
+                            ? (AVAILABLE_VOICE_MODELS.find(m => m.id === formData.voiceSettings?.voiceModel)?.label?.split(' ')[0] + ' ' + AVAILABLE_VOICE_MODELS.find(m => m.id === formData.voiceSettings?.voiceModel)?.label?.split(' ')[1] || formData.voiceSettings?.voiceModel)
+                            : 'App Default'
+                        }`}
                   </p>
                 </div>
               </div>
@@ -1079,12 +1083,46 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
             {showVoiceSettings && (
               <div className="px-6 py-6 space-y-6 border-t app-border bg-gray-50/50 dark:bg-black/10">
-                {/* Assigned Voice (Dropdown) */}
+                {/* Voice Generation Model (Dropdown) */}
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Voice Generation Model</label>
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">
+                      Choose which voice engine this persona uses (Gemini 3.8 Flash TTS default)
+                    </p>
+                  </div>
+
+                  <select
+                    value={formData.voiceSettings?.voiceModel || ''}
+                    onChange={(e) => {
+                      const newModel = e.target.value;
+                      const updatedVoiceSettings: PersonaVoiceSettings = {
+                        ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                        voiceModel: newModel
+                      };
+                      setFormData(p => ({
+                        ...p,
+                        voiceSettings: updatedVoiceSettings
+                      }));
+                      onUpdate({ voiceSettings: updatedVoiceSettings });
+                    }}
+                    className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2.5 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
+                  >
+                    <option value="">
+                      Use App Default ({AVAILABLE_VOICE_MODELS.find(m => m.id === (settings?.selectedVoiceModel || DEFAULT_VOICE_MODEL))?.label || 'Gemini 3.1 Flash TTS Preview'})
+                    </option>
+                    {AVAILABLE_VOICE_MODELS.map(model => (
+                      <option key={model.id} value={model.id}>{model.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Assigned Voice (Dropdown) with Live Preview */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Assigned Voice</label>
-                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Gemini TTS voice model</p>
+                      <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Assigned Studio Voice</label>
+                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Select from 30 expressive vocal personas</p>
                     </div>
 
                     {/* Preview Voice Button */}
@@ -1094,7 +1132,12 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                       onClick={async () => {
                         setIsPreviewingVoice(true);
                         try {
-                          const sampleText = `Hey! This is ${formData.name}. [laughs] I can now send you voice notes right here on WhatsApp!`;
+                          const activeModel = formData.voiceSettings?.voiceModel || settings?.selectedVoiceModel || DEFAULT_VOICE_MODEL;
+                          const is38 = activeModel.includes('3.8');
+                          const sampleText = is38
+                            ? `Hey there! This is ${formData.name}. <laugh> I can now send you ultra-realistic voice notes directly on WhatsApp!`
+                            : `Hey! This is ${formData.name}. [laughs] I can now send you voice notes right here on WhatsApp!`;
+
                           const res = await generateGeminiVoiceNote(
                             sampleText,
                             formData.voiceSettings?.voiceName || 'Aoede',
@@ -1103,7 +1146,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                               name: formData.name,
                               speechStyle: formData.speechStyle,
                               role: formData.role
-                            }
+                            },
+                            formData.voiceSettings
                           );
                           if (res.ok && res.audioDataUrl) {
                             const audio = new Audio(res.audioDataUrl);
@@ -1160,6 +1204,107 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                         );
                       })}
                     </optgroup>
+                  </select>
+                </div>
+
+                {/* Vocal Delivery & Acting Directives (Gemini 3.8 Style) */}
+                <div className="space-y-3 p-3.5 bg-black/[0.02] dark:bg-white/[0.03] border app-border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Vocal Delivery & Acting Style</label>
+                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Turn-level style directive & emotional tone</p>
+                    </div>
+                    {formData.voiceSettings?.stylePrompt && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updatedVoiceSettings: PersonaVoiceSettings = {
+                            ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                            stylePrompt: ''
+                          };
+                          setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                          onUpdate({ voiceSettings: updatedVoiceSettings });
+                        }}
+                        className="text-[11px] text-secondary hover:text-primary transition-colors hover:underline"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Style Preset Selector */}
+                  <select
+                    value={(() => {
+                      const cur = (formData.voiceSettings?.stylePrompt || '').trim();
+                      if (!cur) return 'default';
+                      const match = VOICE_STYLE_PRESETS.find(p => p.prompt.trim() === cur);
+                      return match ? match.id : 'custom';
+                    })()}
+                    onChange={(e) => {
+                      const presetId = e.target.value;
+                      const preset = VOICE_STYLE_PRESETS.find(p => p.id === presetId);
+                      const newStyle = preset ? preset.prompt : (formData.voiceSettings?.stylePrompt || '');
+                      const updatedVoiceSettings: PersonaVoiceSettings = {
+                        ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                        stylePrompt: newStyle
+                      };
+                      setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                      onUpdate({ voiceSettings: updatedVoiceSettings });
+                    }}
+                    className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
+                  >
+                    {VOICE_STYLE_PRESETS.map(preset => (
+                      <option key={preset.id} value={preset.id}>{preset.label}</option>
+                    ))}
+                    <option value="custom">Custom (User Defined Style)</option>
+                  </select>
+
+                  {/* Custom Style Prompt Textarea */}
+                  <div className="space-y-1">
+                    <span className="text-[11px] text-secondary">Acting Directives Prompt:</span>
+                    <textarea
+                      rows={2}
+                      value={formData.voiceSettings?.stylePrompt || ''}
+                      onChange={(e) => {
+                        const updatedVoiceSettings: PersonaVoiceSettings = {
+                          ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                          stylePrompt: e.target.value
+                        };
+                        setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                        onUpdate({ voiceSettings: updatedVoiceSettings });
+                      }}
+                      placeholder="e.g. native american accent, sarcastic and dry, whispered gently, cheerful Southern drawl..."
+                      className="w-full bg-white dark:bg-[#202c33] border app-border rounded-md p-2 text-[calc(var(--msg-font-size)-2px)] outline-none resize-none text-primary font-mono"
+                    />
+                  </div>
+
+                  <div className="p-2.5 rounded bg-[#21c063]/10 border border-[#21c063]/20 text-[11px] text-secondary leading-relaxed">
+                    <span className="font-semibold text-primary">💡 Gemini 3.8 Acting:</span> Sustained emotional acting is guided by your style prompt above. Also, inline tags like <code className="text-[#21c063] font-mono">&lt;laugh&gt;</code>, <code className="text-[#21c063] font-mono">&lt;sigh&gt;</code>, <code className="text-[#21c063] font-mono">&lt;gasp&gt;</code>, <code className="text-[#21c063] font-mono">&lt;whisper&gt;</code> produce natural human vocal bursts.
+                  </div>
+                </div>
+
+                {/* Speech Pacing / Speed */}
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Speech Pacing / Speed</label>
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Delivery tempo and cadence</p>
+                  </div>
+
+                  <select
+                    value={formData.voiceSettings?.paceSpeed || 'default'}
+                    onChange={(e) => {
+                      const updatedVoiceSettings: PersonaVoiceSettings = {
+                        ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                        paceSpeed: e.target.value
+                      };
+                      setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                      onUpdate({ voiceSettings: updatedVoiceSettings });
+                    }}
+                    className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2.5 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
+                  >
+                    <option value="default">Normal / Conversational Pace (Default)</option>
+                    <option value="speaking slowly">Speaking Slowly & Deliberately</option>
+                    <option value="speaking rapidly">Speaking Rapidly / Fast-Paced</option>
                   </select>
                 </div>
 
