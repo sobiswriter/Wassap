@@ -1457,6 +1457,9 @@ export async function generatePersonaImageExcuse(
   const provider = settings?.aiProvider || 'vertex';
 
   if (provider === 'vertex') {
+    if (!settings?.isVertexUnlocked) {
+      return "I can't send photos right now!";
+    }
     try {
       const res = await fetch('/api/gemini/image-excuse', {
         method: 'POST',

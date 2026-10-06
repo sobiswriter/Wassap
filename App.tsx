@@ -980,7 +980,7 @@ const App: React.FC = () => {
             aiProvider: 'vertex',
             chatWallpaper: 'default',
             chatWallpaperOpacity: 0.85,
-            isVertexUnlocked: true,
+            isVertexUnlocked: false,
             selectedVoiceModel: DEFAULT_VOICE_MODEL,
             enableDynamicOnlinePresence: false,
             ...parsed,
@@ -998,7 +998,7 @@ const App: React.FC = () => {
       aiProvider: 'vertex',
       chatWallpaper: 'default',
       chatWallpaperOpacity: 0.85,
-      isVertexUnlocked: true,
+      isVertexUnlocked: false,
       selectedVoiceModel: DEFAULT_VOICE_MODEL,
       enableDynamicOnlinePresence: false
     };
