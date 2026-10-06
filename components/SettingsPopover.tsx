@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw, Camera, Mic } from 'lucide-react';
+import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw, Camera, Mic, Zap } from 'lucide-react';
 import { AppSettings, AiProvider } from '../types';
 import { AVAILABLE_MODELS, AVAILABLE_IMAGE_MODELS, AVAILABLE_VOICE_MODELS, GCP_CONFIG, DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE, VERTEX_PASSCODE_HINT } from '../constants';
 import { compressWallpaperImage } from '../utils/imageCompressor';
@@ -26,6 +26,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
     chatWallpaper: settings.chatWallpaper || 'default',
     chatWallpaperOpacity: settings.chatWallpaperOpacity ?? 0.85,
     isVertexUnlocked: settings.isVertexUnlocked ?? false,
+    enableDynamicOnlinePresence: settings.enableDynamicOnlinePresence ?? false,
   });
   const [testingVertex, setTestingVertex] = useState(false);
   const [vertexTestResult, setVertexTestResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -913,6 +914,24 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
                 className="flex-1 h-1.5 bg-[#f0f2f5] dark:bg-[#202c33] rounded-lg appearance-none cursor-pointer accent-[#00a884]"
               />
               <span className="text-[calc(var(--msg-font-size)-3px)] text-secondary font-bold">30s</span>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center gap-3">
+                <Zap size={20} className={draftSettings.enableDynamicOnlinePresence ? "text-[#00a884]" : "text-gray-400"} />
+                <div>
+                  <p className="text-[length:var(--msg-font-size)] font-medium">Dynamic Online & Fast Chat</p>
+                  <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">
+                    Stay online for {Math.round((draftSettings.textStackingDelay || 10) * 0.75)}s (3/4 of delay) & chat without delay when online
+                  </p>
+                </div>
+              </div>
+              <div
+                onClick={() => setDraftSettings({ ...draftSettings, enableDynamicOnlinePresence: !draftSettings.enableDynamicOnlinePresence })}
+                className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.enableDynamicOnlinePresence ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+              >
+                <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${draftSettings.enableDynamicOnlinePresence ? 'left-[22px]' : 'left-[2px]'}`} />
+              </div>
             </div>
           </div>
         )}

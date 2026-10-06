@@ -161,6 +161,7 @@ export interface AppSettings {
   customTemplates?: PersonaTemplate[];
   enableTextStacking?: boolean;
   textStackingDelay?: number;
+  enableDynamicOnlinePresence?: boolean;
   chatWallpaper?: string;
   chatWallpaperOpacity?: number;
   isVertexUnlocked?: boolean;
