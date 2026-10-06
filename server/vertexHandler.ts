@@ -141,7 +141,7 @@ function normalizePrivateKey(key?: string): string {
     });
   }
 
-  if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.NODE_ENV !== 'production' || (!process.env.VERCEL && !process.env.AWS_REGION)) {
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     return new GoogleGenAI({
       vertexai: true,
       project,
@@ -149,7 +149,7 @@ function normalizePrivateKey(key?: string): string {
     });
   }
 
-  const serverApiKey = process.env.VERTEX_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY;
+  const serverApiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || process.env.VERTEX_API_KEY;
   if (serverApiKey) {
     return new GoogleGenAI({
       apiKey: serverApiKey,
