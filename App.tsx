@@ -970,7 +970,7 @@ const App: React.FC = () => {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') {
           let activeVoiceModel = parsed.selectedVoiceModel;
-          if ((!activeVoiceModel || activeVoiceModel === 'gemini-3.8-flash-tts') && (parsed.aiProvider || 'vertex') === 'vertex') {
+          if (!activeVoiceModel || activeVoiceModel === 'gemini-3.1-flash-tts-preview') {
             activeVoiceModel = DEFAULT_VOICE_MODEL;
           }
           return {
@@ -1892,7 +1892,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         pendingTimeGapsRef.current[chatId] = timeGapContext;
       }
 
-      const delaySeconds = settings.textStackingDelay || 10;
+      const isVoiceNoteIncoming = userMsg?.attachment?.type === 'audio';
+      const isOnlineSession = targetChat.status === 'online';
+      const delaySeconds = isVoiceNoteIncoming
+        ? 1.5
+        : (isOnlineSession ? Math.min(settings.textStackingDelay || 10, 3) : (settings.textStackingDelay || 10));
 
       aiResponseTimeoutsRef.current[chatId] = window.setTimeout(async () => {
         delete aiResponseTimeoutsRef.current[chatId];
@@ -1974,6 +1978,65 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     const isAlreadyOnline = chatsRef.current.find(c => c.id === chatId)?.status === 'online';
     const isFastOnlineChat = !!(settingsRef.current.enableDynamicOnlinePresence && isAlreadyOnline);
     try {
+      // Hydrate history with media data immediately so background generation can begin
+      const hydratedHistory = await Promise.all(updatedHistory.map(async m => {
+        const mediaId = m.mediaId || m.attachment?.mediaId;
+        const mediaData = mediaId ? await getMedia(mediaId) : undefined;
+        let text = m.text;
+        if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage, chat.name) + text;
+        return {
+          text,
+          sender: m.sender,
+          image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
+          audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
+        };
+      }));
+
+      const checkImageReq = isImageRequest || updatedHistory.slice(-2).some(m => m.sender === 'me' && m.isImageRequest);
+
+      // Check if user sent a voice note or if persona will respond with voice
+      const lastUserMsg = [...updatedHistory].reverse().find(m => m.sender === 'me');
+      const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio';
+      const isVoiceNote = shouldReplyWithVoiceNote(chat.voiceSettings, userSentVoiceNote);
+
+      // PIPELINED GENERATION: Eagerly launch LLM text & TTS audio synthesis in parallel with realistic visual presence delays
+      const aiGenerationPromise = (!checkImageReq)
+        ? (async () => {
+            let resText = await getGeminiResponse(
+              { ...chat },
+              hydratedHistory,
+              settings.shareUserInfo ? user : undefined,
+              undefined,
+              settings,
+              memoryContext,
+              isVoiceNote,
+              chat.voiceSettings
+            );
+
+            if (!resText || isRawErrorMessage(resText)) {
+              resText = getInCharacterNetworkGlitchExcuse(chat, lastUserMsg?.text);
+            }
+
+            let ttsResult: { ok: boolean; audioDataUrl?: string; error?: string } | null = null;
+            if (isVoiceNote) {
+              const voiceToUse = chat.voiceSettings?.voiceName || getPersonaDefaultVoice(chat);
+              ttsResult = await generateGeminiVoiceNote(
+                resText,
+                voiceToUse,
+                settings,
+                {
+                  name: chat.name,
+                  speechStyle: chat.speechStyle,
+                  role: chat.role
+                },
+                chat.voiceSettings
+              );
+            }
+
+            return { response: resText, ttsRes: ttsResult };
+          })()
+        : null;
+
       if (!isBackgroundReply) {
         // Step 1: Wait for natural delivery delay so single grey tick is clearly observed
         const hasUnreadSent = chatsRef.current.find(c => c.id === chatId)?.messages.some(m => m.sender === 'me' && m.status === 'sent');
@@ -2001,7 +2064,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       markUserMessagesRead(chatId);
 
       if (!isBackgroundReply) {
-        // Step 4: Initial "Thinking / Reading" Delay before starting to type
+        // Step 4: Initial "Thinking / Reading" Delay before starting to type/record
         const thinkingDelay = isFastOnlineChat ? (300 + Math.random() * 300) : (1800 + Math.random() * 700);
         await new Promise(resolve => setTimeout(resolve, thinkingDelay));
       } else {
@@ -2011,22 +2074,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           : 900 + Math.random() * 600;
         await new Promise(resolve => setTimeout(resolve, readingDelay));
       }
-
-      // Hydrate history with media data
-      const hydratedHistory = await Promise.all(updatedHistory.map(async m => {
-        const mediaId = m.mediaId || m.attachment?.mediaId;
-        const mediaData = mediaId ? await getMedia(mediaId) : undefined;
-        let text = m.text;
-        if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage, chat.name) + text;
-        return {
-          text,
-          sender: m.sender,
-          image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
-          audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
-        };
-      }));
-
-      const checkImageReq = isImageRequest || updatedHistory.slice(-2).some(m => m.sender === 'me' && m.isImageRequest);
 
       // --- IN-CHAT IMAGE GENERATION PIPELINE ---
       if (checkImageReq) {
@@ -2197,46 +2244,24 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         return;
       }
 
-      // Check if user sent a voice note
-      const lastUserMsg = [...updatedHistory].reverse().find(m => m.sender === 'me');
-      const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio';
-      const isVoiceNote = shouldReplyWithVoiceNote(chat.voiceSettings, userSentVoiceNote);
-
-      if (!isVoiceNote && !checkImageReq) {
+      // Display authentic active status
+      if (!isVoiceNote) {
         setChatStatus(chatId, 'typing...');
+      } else {
+        setChatStatus(chatId, 'recording audio...' as any);
       }
 
-      let response = await getGeminiResponse(
-        { ...chat },
-        hydratedHistory,
-        settings.shareUserInfo ? user : undefined,
-        undefined,
-        settings,
-        memoryContext,
-        isVoiceNote,
-        chat.voiceSettings
-      );
+      // Await background pipelined generation (which was executing in parallel with visual delays)
+      const aiResult = await aiGenerationPromise;
+      let response = aiResult?.response || '';
+      const ttsRes = aiResult?.ttsRes;
 
       if (!response || isRawErrorMessage(response)) {
         response = getInCharacterNetworkGlitchExcuse(chat, lastUserMsg?.text);
       }
 
       if (isVoiceNote) {
-        setChatStatus(chatId, 'recording audio...' as any);
-        const voiceToUse = chat.voiceSettings?.voiceName || getPersonaDefaultVoice(chat);
-        const ttsRes = await generateGeminiVoiceNote(
-          response,
-          voiceToUse,
-          settings,
-          {
-            name: chat.name,
-            speechStyle: chat.speechStyle,
-            role: chat.role
-          },
-          chat.voiceSettings
-        );
-
-        if (ttsRes.ok && ttsRes.audioDataUrl) {
+        if (ttsRes && ttsRes.ok && ttsRes.audioDataUrl) {
           const mediaId = `media-${Date.now()}`;
           try {
             await saveMedia(mediaId, ttsRes.audioDataUrl);
@@ -2246,8 +2271,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
           const cleanedTranscript = cleanSpokenTranscript(response);
 
-          // Simulated realistic delay for finishing voice note (1.8s - 2.5s)
-          const recordingDelay = 1800 + Math.random() * 700;
+          // Simulated realistic delay for finishing voice note (1.0s - 1.8s)
+          const recordingDelay = 1000 + Math.random() * 800;
           await new Promise(resolve => setTimeout(resolve, recordingDelay));
 
           const aiMsg: Message = {
@@ -2301,7 +2326,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           schedulePersonaOffline(chatId);
           return;
         } else {
-          console.warn("TTS generation failed, falling back to clean text response:", ttsRes.error);
+          console.warn("TTS generation failed, falling back to clean text response:", ttsRes?.error);
         }
       }
 

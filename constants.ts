@@ -269,12 +269,12 @@ export const AVAILABLE_IMAGE_MODELS = [
 export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-lite-image';
 
 export const AVAILABLE_VOICE_MODELS = [
-  { id: 'gemini-3.1-flash-tts-preview', label: 'Gemini 3.1 Flash TTS Preview (Active on Google Cloud Vertex)' },
-  { id: 'gemini-3.8-flash-tts', label: 'Gemini 3.8 Flash TTS (AI Studio API / Coming Soon to Vertex)' },
-  { id: 'gemini-3.8-flash-lite-tts', label: 'Gemini 3.8 Flash-Lite TTS (AI Studio API / Coming Soon to Vertex)' },
+  { id: 'gemini-3.8-flash-lite-tts', label: 'Gemini 3.8 Flash-Lite TTS (Ultra-Fast & Real-Time Default)' },
+  { id: 'gemini-3.8-flash-tts', label: 'Gemini 3.8 Flash TTS (High-Fidelity Acting & Studio)' },
+  { id: 'gemini-3.1-flash-tts-preview', label: 'Gemini 3.1 Flash TTS Preview (Legacy Fallback)' },
 ];
 
-export const DEFAULT_VOICE_MODEL = 'gemini-3.1-flash-tts-preview';
+export const DEFAULT_VOICE_MODEL = 'gemini-3.8-flash-lite-tts';
 
 export const VOICE_STYLE_PRESETS = [
   { id: 'default', label: 'Natural & Expressive (Default)', prompt: '' },

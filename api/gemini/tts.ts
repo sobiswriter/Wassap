@@ -158,7 +158,7 @@ function normalizePrivateKey(key?: string): string {
   return cleaned;
 }
 
-function getVertexClient() {
+function getVertexClient(targetLocation?: string) {
   const serviceAccountJson =
     process.env.GCP_SERVICE_ACCOUNT_KEY ||
     process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON ||
@@ -190,7 +190,7 @@ function getVertexClient() {
   }
 
   const project = process.env.VERTEX_PROJECT_ID || saProjectId || DEFAULT_GCP_PROJECT;
-  const location = process.env.VERTEX_LOCATION || process.env.GOOGLE_CLOUD_LOCATION || DEFAULT_GCP_REGION;
+  const location = targetLocation || process.env.VERTEX_LOCATION || process.env.GOOGLE_CLOUD_LOCATION || DEFAULT_GCP_REGION;
 
   let googleAuthOptions: any = undefined;
 
@@ -308,7 +308,7 @@ export default async function handler(
 
     const selectedVoice = voiceName || 'Aoede';
     const voiceDescriptor = getVoiceDescriptor(selectedVoice);
-    const selectedModel = voiceModel || 'gemini-3.8-flash-tts';
+    const selectedModel = voiceModel || 'gemini-3.8-flash-lite-tts';
     const is38 = selectedModel.includes('3.8');
 
     // Build consolidated style directives
@@ -331,48 +331,47 @@ export default async function handler(
 
     const verbatimWithVocalTags = convertToVocalTags(text.trim());
 
-    const ai = getVertexClient();
     let audioBase64: string | undefined;
     let mimeType = 'audio/wav';
 
-    // Build model candidate sequence with graceful fallbacks.
-    // On Vertex AI, gemini-3.8-flash-lite-tts is not a publisher model; map to gemini-3.8-flash-tts -> gemini-3.1-flash-tts-preview
-    const modelsToTry: string[] = [];
-    if (selectedModel === 'gemini-3.8-flash-lite-tts') {
-      modelsToTry.push('gemini-3.8-flash-tts', 'gemini-3.1-flash-tts-preview');
-    } else {
-      modelsToTry.push(selectedModel);
-      if (selectedModel !== 'gemini-3.1-flash-tts-preview') {
-        modelsToTry.push('gemini-3.1-flash-tts-preview');
-      }
-    }
+    // Build model candidate sequence with graceful fallbacks
+    const modelsToTry: string[] = [
+      selectedModel,
+      ...(selectedModel !== 'gemini-3.8-flash-lite-tts' ? ['gemini-3.8-flash-lite-tts'] : []),
+      ...(selectedModel !== 'gemini-3.8-flash-tts' ? ['gemini-3.8-flash-tts'] : []),
+      ...(selectedModel !== 'gemini-3.1-flash-tts-preview' ? ['gemini-3.1-flash-tts-preview'] : [])
+    ];
+
+    const aiClient = getVertexClient('global');
 
     let lastError: any = null;
     for (const modelCandidate of modelsToTry) {
+      const isCandidate38 = modelCandidate.includes('3.8');
+      const styleDirective = combinedStyle || 'natural and expressive';
+      const personaDirective = personaName ? `as ${personaName} ` : '';
+
       try {
-        const isCandidate38 = modelCandidate.includes('3.8');
-        const styleDirective = combinedStyle || 'natural and expressive';
-        const personaDirective = personaName ? `as ${personaName} ` : '';
-        const inputText = `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, <cough>: ${verbatimWithVocalTags}`;
+        const userPart: any = {
+          text: isCandidate38
+            ? verbatimWithVocalTags
+            : `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, <cough>: ${verbatimWithVocalTags}`
+        };
+        if (isCandidate38 && styleDirective) {
+          userPart.speechMetadata = { style: styleDirective };
+        }
 
         const generateConfig: any = {
           responseModalities: ["AUDIO"],
           speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: selectedVoice,
-              }
-            }
+            voiceConfig: isCandidate38
+              ? { voice: selectedVoice }
+              : { prebuiltVoiceConfig: { voiceName: selectedVoice } }
           }
         };
 
-        if (isCandidate38) {
-          generateConfig.systemInstruction = `You are a voice actor recording an authentic WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery. Accurately honor and express inline vocal tags (<laugh>, <sigh>, <gasp>, <whisper>, <cough>). Speak only the message content naturally without preambles.`;
-        }
-
-        const response = await ai.models.generateContent({
+        const response = await aiClient.models.generateContent({
           model: modelCandidate,
-          contents: [{ role: 'user', parts: [{ text: inputText }] }],
+          contents: [{ role: 'user', parts: [userPart] }],
           config: generateConfig as any
         });
 
@@ -380,15 +379,17 @@ export default async function handler(
         const part = candidate?.content?.parts?.find((p: any) => p.inlineData);
         if (part && part.inlineData?.data) {
           audioBase64 = part.inlineData.data;
-          mimeType = part.inlineData.mimeType || 'audio/pcm;rate=24000';
+          mimeType = part.inlineData.mimeType || 'audio/wav';
           if (modelCandidate !== selectedModel) {
             console.info(`[Vertex TTS] Audio successfully synthesized with fallback model: ${modelCandidate}`);
+          } else {
+            console.info(`[Vertex TTS] Audio successfully synthesized with ${modelCandidate} in global`);
           }
           break;
         }
       } catch (genErr: any) {
         lastError = genErr;
-        // Suppress intermediate noisy logs when fallback models are available
+        console.warn(`[Vertex TTS] Candidate ${modelCandidate} failed:`, genErr?.message || genErr);
       }
     }
 

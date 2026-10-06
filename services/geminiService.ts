@@ -828,7 +828,8 @@ export const generateGeminiVoiceNote = async (
     // Build model candidate sequence with graceful fallbacks
     const modelsToTry = [
       selectedModel,
-      ...(selectedModel !== 'gemini-3.8-flash-tts' && selectedModel.includes('3.8') ? ['gemini-3.8-flash-tts'] : []),
+      ...(selectedModel !== 'gemini-3.8-flash-lite-tts' ? ['gemini-3.8-flash-lite-tts'] : []),
+      ...(selectedModel !== 'gemini-3.8-flash-tts' ? ['gemini-3.8-flash-tts'] : []),
       ...(selectedModel !== 'gemini-3.1-flash-tts-preview' ? ['gemini-3.1-flash-tts-preview'] : [])
     ];
 
@@ -838,26 +839,29 @@ export const generateGeminiVoiceNote = async (
         const isCandidate38 = modelCandidate.includes('3.8');
         const styleDirective = combinedStyle || 'natural and expressive';
         const personaDirective = personaContext?.name ? `as ${personaContext.name} ` : '';
-        const inputText = `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, <cough>: ${verbatimWithVocalTags}`;
+
+        // On 3.8 models, style directives are placed inside parts[0].speechMetadata rather than concatenated into text
+        const userPart: any = {
+          text: isCandidate38
+            ? verbatimWithVocalTags
+            : `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, <cough>: ${verbatimWithVocalTags}`
+        };
+        if (isCandidate38 && styleDirective) {
+          userPart.speechMetadata = { style: styleDirective };
+        }
 
         const generateConfig: any = {
           responseModalities: ["AUDIO"],
           speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: selectedVoice,
-              }
-            }
+            voiceConfig: isCandidate38
+              ? { voice: selectedVoice }
+              : { prebuiltVoiceConfig: { voiceName: selectedVoice } }
           }
         };
 
-        if (isCandidate38) {
-          generateConfig.systemInstruction = `You are a voice actor recording an authentic WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery. Accurately honor and express inline vocal tags (<laugh>, <sigh>, <gasp>, <whisper>, <cough>). Speak only the message content naturally without preambles.`;
-        }
-
         const response = await ai.models.generateContent({
           model: modelCandidate,
-          contents: [{ role: 'user', parts: [{ text: inputText }] }],
+          contents: [{ role: 'user', parts: [userPart] }],
           config: generateConfig as any
         });
 
@@ -865,7 +869,7 @@ export const generateGeminiVoiceNote = async (
         const part = candidate?.content?.parts?.find((p: any) => p.inlineData);
         if (part && part.inlineData?.data) {
           audioBase64 = part.inlineData.data;
-          mimeType = part.inlineData.mimeType || 'audio/pcm;rate=24000';
+          mimeType = part.inlineData.mimeType || 'audio/wav';
           if (modelCandidate !== selectedModel) {
             console.info(`[Studio TTS] Audio successfully synthesized with fallback model: ${modelCandidate}`);
           }

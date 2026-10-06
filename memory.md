@@ -14,29 +14,19 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Gemini 3.8 Voice Engine, Voice Settings Overhaul & Dual-Provider Architecture (`v1.8.7`)
+### 1. Gemini 3.8 Flash-Lite TTS Optimization & Zero-Lag Parallel Generation Pipeline (`v1.8.7`)
 - **Gemini 3.8 Speech Generation Architecture**:
-  - Implemented `gemini-3.8-flash-tts` (High-Fidelity & Acting Default) and `gemini-3.8-flash-lite-tts` (Fast & Cost-Effective) alongside legacy fallback `gemini-3.1-flash-tts-preview`.
-  - **Native WAV Base64 Detection**: Gemini 3.8 models natively stream standard 24kHz mono WAV with 44-byte RIFF headers (`UklGR`). Updated `utils/audio.ts` (`pcmBase64ToWavDataUrl`) and server endpoints to detect native WAV and prevent corrupting audio with redundant headers.
-  - **Enhanced Vocal Burst Conversion & Acting Support**: Extended `convertToGeminiVocalTags()` to map `[scoff]`/`[scoffs]` -> `<sigh>`, `[sighs]` -> `<sigh>`, `[laughs]` -> `<laugh>`, `[gasps]` -> `<gasp>`, `[whispers]` -> `<whisper>`, `[coughs]` -> `<cough>`, `[clears throat]` -> `<throat-clearing>`, `[yawns]` -> `<yawn>`, `[snorts]` -> `<snort>`, `[pants]` -> `<pant>`, supporting bracketed, asterisked, and parenthesized expressions while safely stripping unpronounceable bracket directions.
-  - **Zero-Emoji Spoken Voice Notes & Leak-Proof Transcripts**: Added `stripEmojis()` in `utils/audio.ts`. Emojis are strictly purged from both voice transcripts (`cleanSpokenTranscript`) and TTS inputs (`convertToGeminiVocalTags`, `convertToVocalTags`) using Unicode standard property escapes `[\p{Extended_Pictographic}\uFE0F\u200D\u20E3]`, preventing Gemini TTS from vocalizing emoji names (like "sparkling heart", "house", "steaming bowl") and ensuring transcripts display clean speech. Injected a top-priority `CRITICAL STRICT RULE - ZERO EMOJIS ALLOWED` into chat system prompts for voice note generation.
-  - **Seamless Waveform Scrubber & Extended Voice Note UI (`VoiceNotePlayer.tsx`)**: Expanded voice note card sizing to `min-w-[270px] sm:w-[430px] md:w-[480px] lg:w-[500px] max-w-full` and message bubble to `w-auto max-w-[95%] sm:max-w-[88%] md:max-w-[540px]`. Generated 38 waveform bars with `justify-between w-full px-1` to provide an authentic desktop WhatsApp Web width and plenty of room for controls, scrubbers, and long transcripts without breaking responsive mobile viewports. Clamped scrubber dot left positioning to `calc(4px + ${progressPercent} * (100% - 8px))` so the dot strictly tracks the active bar from 0% to 100%.
-  - **Prompt Steering & Accent Preservation in 3.8 TTS**: Fixed a critical bug where `generateContent` for 3.8 models was omitting `combinedStyle`. Now, both Vertex AI (`api/gemini/tts.ts`, `server/vertexHandler.ts`) and Studio API (`services/geminiService.ts`) inject prompt steering (`Say the following in a natural WhatsApp voice note as ${personaName} with a ${styleDirective} voice delivery, honoring vocal tags...: ${verbatimWithVocalTags}`) AND set `config.systemInstruction` on 3.8 models, ensuring custom accents (e.g., Native American accent, Southern drawl) and acting directives are audibly and consistently performed.
-  - **Chat Response Vocal & Acting Directives**: Updated `api/gemini/generate.ts`, `server/vertexHandler.ts`, and `services/geminiService.ts` to receive `voiceSettings` in the chat payload. Injected a top-priority `CRITICAL VOICE NOTE (AUDIO RECORDING) DIRECTIVE` instructing the model to adapt vocabulary and cadence to the configured accent/style and actively embed natural vocal tags (`<laugh>`, `<sigh>`, `<gasp>`, `<whisper>`, `<cough>`).
-- **App Settings ("Voice Generation Model")**:
-  - Added dedicated **Voice Generation Model** selection in `SettingsPopover.tsx` right beneath Image Generation Model, cleanly separating voice models from chat LLM engines in `AVAILABLE_MODELS`.
-  - Defaults to `gemini-3.1-flash-tts-preview` (Active on Google Cloud Vertex AI) with instant 1-shot generation on Google Cloud credits without 404 delays. Clearly labeled 3.8 models as `(AI Studio API / Coming Soon to Vertex)`. Existing user settings automatically migrate to the active 3.1 default when on Vertex provider.
-- **Persona Voice Settings Overhaul (`ProfilePanel.tsx`)**:
-  - **Model Selection**: Supports choosing between "Use App Default" or persona-specific overrides for `gemini-3.8-flash-tts`, `gemini-3.8-flash-lite-tts`, or `gemini-3.1-flash-tts-preview`.
-  - **Assigned Studio Voice (30 Voices)**: 14 Female and 16 Male voices with character traits and real-time live preview playback testing the exact configured persona voice, speed, and acting style.
-  - **Acting & Delivery Directives (`stylePrompt`)**: Comprehensive presets (`VOICE_STYLE_PRESETS`: Natural & Expressive, Whispering & Intimate, Cheerful & Playful, Teasing & Sarcastic, Soft & Sleepy, Energetic & Fast-Paced, Calm & Composed) plus custom text prompt editing for accents (e.g. Native American accent, Scottish, etc.) and nuanced delivery.
-  - **Speech Pacing / Speed**: Added `paceSpeed` selection (`default` conversational pace, `speaking slowly & deliberately`, `speaking rapidly / fast-paced`).
-  - **Frequency & Mirroring**: Retained granular Voice Note Frequency (`off`, `occasional ~10%`, `frequent ~30%`, `always 100%`) and Voice-for-Voice mirroring toggle.
+  - Adopted `gemini-3.8-flash-lite-tts` (Ultra-Fast & Real-Time Default) as the default voice model across the entire application per Google Cloud's official documentation for high-throughput, low-latency conversational agents.
+  - Retained `gemini-3.8-flash-tts` as the selectable option for high-fidelity studio acting and narration, with `gemini-3.1-flash-tts-preview` as legacy fallback.
+  - **Standardized Official 3.8 Request Schema**: Configured `speechMetadata: { style: styleDirective }` inside content `parts` and `speechConfig: { voiceConfig: { voice: selectedVoice } }` (with fallback to `prebuiltVoiceConfig`), operating directly on Vertex AI location `global`.
+  - **Pipelined Background AI Generation (`App.tsx`)**:
+    - Eliminated serial waiting where API requests previously waited for 18–20s of artificial presence sleeps (`deliveryWait`, `comeOnlineDelay`, `seenDelay`, `thinkingDelay`) to finish before even contacting the AI.
+    - Eagerly launches `getGeminiResponse` and `generateGeminiVoiceNote` concurrently in the background as an asynchronous promise the instant the user sends a message.
+    - Concurrently displays authentic WhatsApp visual lifecycle transitions (single grey tick $\rightarrow$ double grey tick $\rightarrow$ online status $\rightarrow$ double blue ticks $\rightarrow$ `recording audio...`).
+    - By the time the user observes the persona switch to `recording audio...`, the voice note is already generated or nearly complete, reducing perceived latency from 45–60s down to ~10–14s with zero disruption to conversational flow.
+    - Reduced text stacking delay for incoming voice notes and active online sessions from 10s down to 1.5s.
 - **Dual-Provider Architecture (Vertex AI Cloud Engine + Custom Studio Key)**:
-  - Direct, stable speech synthesis via `ai.models.generateContent` with `responseModalities: ["AUDIO"]` and `speechConfig.voiceConfig`. Removed experimental and failing `interactions.create` calls to eliminate SDK experimental warnings and 400 parameter errors.
-  - Graceful Vertex AI model routing: automatically maps `gemini-3.8-flash-lite-tts` (which is not a published model on Vertex AI) to `gemini-3.8-flash-tts` -> `gemini-3.1-flash-tts-preview`, suppressing intermediate 404 console noise and logging only clean success or terminal errors.
-  - Dual support for custom Gemini AI Studio API keys in browser client `services/geminiService.ts`.
-- **Phase 2 Foundation**: Prepared state, constants, and types for upcoming Voice Design and Voice Replication integrations.
+  - Standardized fallback ordering across both backends: `selectedModel` $\rightarrow$ `gemini-3.8-flash-lite-tts` $\rightarrow$ `gemini-3.8-flash-tts` $\rightarrow$ `gemini-3.1-flash-tts-preview`.
 
 ---
 

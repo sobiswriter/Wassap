@@ -1088,7 +1088,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   <div>
                     <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Voice Generation Model</label>
                     <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">
-                      Choose which voice engine this persona uses (Gemini 3.8 Flash TTS default)
+                      Choose which voice engine this persona uses (Gemini 3.8 Flash-Lite TTS default)
                     </p>
                   </div>
 
@@ -1109,7 +1109,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                     className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2.5 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
                   >
                     <option value="">
-                      Use App Default ({AVAILABLE_VOICE_MODELS.find(m => m.id === (settings?.selectedVoiceModel || DEFAULT_VOICE_MODEL))?.label || 'Gemini 3.1 Flash TTS Preview'})
+                      Use App Default ({AVAILABLE_VOICE_MODELS.find(m => m.id === (settings?.selectedVoiceModel || DEFAULT_VOICE_MODEL))?.label || 'Gemini 3.8 Flash TTS'})
                     </option>
                     {AVAILABLE_VOICE_MODELS.map(model => (
                       <option key={model.id} value={model.id}>{model.label}</option>
