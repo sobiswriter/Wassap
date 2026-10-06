@@ -13,7 +13,7 @@ A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Ta
 
 ## 🚀 Overview
 
-This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini models via **Vertex AI** and **Google AI Studio**.
+This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini models via **Vertex AI** and **Google AI Studio**. Can't believe we finally got gemini 3.8 flash tts >_< 
 
 ---
 
