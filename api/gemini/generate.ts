@@ -179,7 +179,7 @@ function getVertexClient() {
       if (credentials.private_key) {
         credentials.private_key = normalizePrivateKey(credentials.private_key);
       }
-      googleAuthOptions = { credentials };
+      googleAuthOptions = { credentials, projectId: project };
     } catch (e) {
       console.error("[Vertex AI] Failed to parse service account key JSON:", e);
     }
@@ -190,6 +190,7 @@ function getVertexClient() {
         private_key: normalizePrivateKey(privateKey),
         project_id: project,
       },
+      projectId: project,
     };
   }
 
@@ -199,6 +200,11 @@ function getVertexClient() {
       project,
       location,
       googleAuthOptions,
+      httpOptions: {
+        headers: {
+          'X-Goog-User-Project': project,
+        },
+      },
     });
   }
 
@@ -207,6 +213,14 @@ function getVertexClient() {
       vertexai: true,
       project,
       location,
+      googleAuthOptions: {
+        projectId: project,
+      },
+      httpOptions: {
+        headers: {
+          'X-Goog-User-Project': project,
+        },
+      },
     });
   }
 
@@ -221,6 +235,14 @@ function getVertexClient() {
     vertexai: true,
     project,
     location,
+    googleAuthOptions: {
+      projectId: project,
+    },
+    httpOptions: {
+      headers: {
+        'X-Goog-User-Project': project,
+      },
+    },
   });
 }
 

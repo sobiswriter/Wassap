@@ -208,7 +208,7 @@ function getVertexClient(targetLocation?: string) {
       if (credentials.private_key) {
         credentials.private_key = normalizePrivateKey(credentials.private_key);
       }
-      googleAuthOptions = { credentials };
+      googleAuthOptions = { credentials, projectId: project };
     } catch (e) {
       console.error("[Vertex AI TTS] Failed to parse service account key JSON:", e);
     }
@@ -219,6 +219,7 @@ function getVertexClient(targetLocation?: string) {
         private_key: normalizePrivateKey(privateKey),
         project_id: project,
       },
+      projectId: project,
     };
   }
 
@@ -228,6 +229,11 @@ function getVertexClient(targetLocation?: string) {
       project,
       location,
       googleAuthOptions,
+      httpOptions: {
+        headers: {
+          'X-Goog-User-Project': project,
+        },
+      },
     });
   }
 
@@ -236,6 +242,14 @@ function getVertexClient(targetLocation?: string) {
       vertexai: true,
       project,
       location,
+      googleAuthOptions: {
+        projectId: project,
+      },
+      httpOptions: {
+        headers: {
+          'X-Goog-User-Project': project,
+        },
+      },
     });
   }
 
@@ -250,6 +264,14 @@ function getVertexClient(targetLocation?: string) {
     vertexai: true,
     project,
     location,
+    googleAuthOptions: {
+      projectId: project,
+    },
+    httpOptions: {
+      headers: {
+        'X-Goog-User-Project': project,
+      },
+    },
   });
 }
 
@@ -315,6 +337,7 @@ export default async function handler(
     }
 
     const selectedVoice = voiceName || 'Aoede';
+    const isCustomVoice = selectedVoice.startsWith('voice_') || selectedVoice.startsWith('voicekey_');
     const voiceDescriptor = getVoiceDescriptor(selectedVoice);
     const selectedModel = voiceModel || 'gemini-3.8-flash-tts';
     const is38 = selectedModel.includes('3.8');
@@ -323,7 +346,7 @@ export default async function handler(
     const styleParts: string[] = [];
     if (stylePrompt) {
       styleParts.push(stylePrompt);
-    } else if (voiceDescriptor?.stylePrompt || voiceDescriptor?.trait) {
+    } else if (!isCustomVoice && (voiceDescriptor?.stylePrompt || voiceDescriptor?.trait)) {
       styleParts.push(voiceDescriptor.stylePrompt || voiceDescriptor.trait);
     }
     if (paceSpeed && paceSpeed !== 'default') {
@@ -374,7 +397,7 @@ export default async function handler(
           speechConfig: {
             voiceConfig: isCandidate38
               ? { voice: selectedVoice }
-              : { prebuiltVoiceConfig: { voiceName: selectedVoice } }
+              : { prebuiltVoiceConfig: { voiceName: isCustomVoice ? 'Aoede' : selectedVoice } }
           }
         };
 

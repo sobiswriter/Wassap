@@ -94,12 +94,40 @@ export interface HumaneSettings {
 }
 
 export type VoiceNoteFrequency = 'off' | 'occasional' | 'frequent' | 'always';
+export type VoiceSourceType = 'prebuilt' | 'designed' | 'replicated';
+
+export interface CustomVoiceItem {
+  id: string; // voice_... or voicekey_...
+  name: string;
+  type: 'designed' | 'replicated';
+  createdAt: number;
+  model: string; // e.g. 'gemini-3.8-flash-tts'
+  gender?: 'female' | 'male' | 'neutral';
+  languageCode?: string;
+  promptDescription?: string; // If designed
+  sampleAudioDataUrl?: string; // Cached audio preview for instantaneous browser audition
+  storageMode?: 'stored' | 'ephemeral';
+}
 
 export interface PersonaVoiceSettings {
-  voiceName: string; // e.g. 'Aoede' or 'Fenrir'
+  voiceName: string; // e.g. 'Aoede' or 'Fenrir' (Prebuilt fallback)
   voiceModel?: string; // e.g. '' (app default) | 'gemini-3.8-flash-tts' | 'gemini-3.8-flash-lite-tts' | 'gemini-3.1-flash-tts-preview'
   frequency: VoiceNoteFrequency;
   voiceForVoice: boolean; // default: true
+
+  // Feature A: Voice Design (Togglable)
+  enableVoiceDesign?: boolean;
+  designedVoiceId?: string;
+  designedVoiceName?: string;
+
+  // Feature B: Voice Replication (Togglable)
+  enableVoiceReplication?: boolean;
+  replicatedVoiceId?: string;
+  replicatedVoiceName?: string;
+  replicationStorageMode?: 'stored' | 'ephemeral';
+
+  // Feature C: Voice Prompting & Acting Styles (Togglable)
+  enableVoicePrompting?: boolean; // Toggles whether pitch, pacing, and emotional acting style directives influence voice notes
   stylePrompt?: string; // Custom turn-level delivery style directive (for 3.8 models, e.g. "whispering", "cheerful and energetic")
   pitchTone?: string; // e.g. 'high pitch', 'deep tone', 'soft & breathy'
   paceSpeed?: string; // 'default' | 'speaking slowly' | 'speaking rapidly'

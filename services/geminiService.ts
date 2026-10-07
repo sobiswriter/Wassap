@@ -443,9 +443,10 @@ React to it organically in your next text message to the User. Let your text be 
 
     let voiceNotePrompt = '';
     if (isVoiceNoteReply) {
-      const customStyle = voiceSettings?.stylePrompt?.trim();
-      const voicePace = voiceSettings?.paceSpeed && voiceSettings.paceSpeed !== 'default' ? voiceSettings.paceSpeed : undefined;
-      const voicePitch = voiceSettings?.pitchTone?.trim();
+      const isVoicePromptingEnabled = voiceSettings?.enableVoicePrompting !== false;
+      const customStyle = isVoicePromptingEnabled ? voiceSettings?.stylePrompt?.trim() : undefined;
+      const voicePace = isVoicePromptingEnabled && voiceSettings?.paceSpeed && voiceSettings.paceSpeed !== 'default' ? voiceSettings.paceSpeed : undefined;
+      const voicePitch = isVoicePromptingEnabled ? voiceSettings?.pitchTone?.trim() : undefined;
       const speechManner = responder.speechStyle?.trim();
 
       const deliveryDirectives: string[] = [];
@@ -756,27 +757,36 @@ export const generateGeminiVoiceNote = async (
     return { ok: false, error: "Text is empty for voice note generation." };
   }
 
-  const selectedVoice = voiceName || voiceSettings?.voiceName || 'Aoede';
+  let selectedVoice = voiceName || voiceSettings?.voiceName || 'Aoede';
+  if (voiceSettings?.enableVoiceDesign && voiceSettings.designedVoiceId) {
+    selectedVoice = voiceSettings.designedVoiceId;
+  } else if (voiceSettings?.enableVoiceReplication && voiceSettings.replicatedVoiceId) {
+    selectedVoice = voiceSettings.replicatedVoiceId;
+  }
+
+  const isCustomVoiceId = selectedVoice.startsWith('voice_') || selectedVoice.startsWith('voicekey_');
   const voiceDescriptor = getVoiceDescriptor(selectedVoice);
   const traitDesc = voiceDescriptor?.stylePrompt || voiceDescriptor?.trait || 'natural and expressive';
   const selectedModel = voiceSettings?.voiceModel || settings?.selectedVoiceModel || DEFAULT_VOICE_MODEL;
   const is38 = selectedModel.includes('3.8');
 
-  // Build consolidated style directives
+  // Build consolidated style directives (Feature C: togglable)
   const styleParts: string[] = [];
-  if (voiceSettings?.stylePrompt) {
-    styleParts.push(voiceSettings.stylePrompt);
-  } else if (traitDesc) {
-    styleParts.push(traitDesc);
-  }
-  if (voiceSettings?.paceSpeed && voiceSettings.paceSpeed !== 'default') {
-    styleParts.push(voiceSettings.paceSpeed);
-  }
-  if (voiceSettings?.pitchTone) {
-    styleParts.push(voiceSettings.pitchTone);
-  }
-  if (personaContext?.speechStyle) {
-    styleParts.push(personaContext.speechStyle.replace(/^manner:\s*/i, ''));
+  if (voiceSettings?.enableVoicePrompting !== false) {
+    if (voiceSettings?.stylePrompt) {
+      styleParts.push(voiceSettings.stylePrompt);
+    } else if (traitDesc && !isCustomVoiceId) {
+      styleParts.push(traitDesc);
+    }
+    if (voiceSettings?.paceSpeed && voiceSettings.paceSpeed !== 'default') {
+      styleParts.push(voiceSettings.paceSpeed);
+    }
+    if (voiceSettings?.pitchTone) {
+      styleParts.push(voiceSettings.pitchTone);
+    }
+    if (personaContext?.speechStyle) {
+      styleParts.push(personaContext.speechStyle.replace(/^manner:\s*/i, ''));
+    }
   }
   const combinedStyle = styleParts.filter(Boolean).join(', ');
 

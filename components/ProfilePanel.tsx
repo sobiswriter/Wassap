@@ -3,13 +3,15 @@ import {
   X, ArrowLeft, Camera, Link as LinkIcon, Save, Info, Globe, Check, 
   Users, Trash2, Eraser, Settings, ChevronDown, ChevronRight, 
   Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays, Smile, Download, Upload,
-  Mic, Volume2, Loader2, Play
+  Mic, Volume2, Loader2, Play, Sparkles, Wand2, Square, HelpCircle, AlertCircle, Copy
 } from 'lucide-react';
-import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate, AppSettings, PersonaVoiceSettings, VoiceNoteFrequency } from '../types';
+import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate, AppSettings, PersonaVoiceSettings, VoiceNoteFrequency, CustomVoiceItem } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey, getAppNow, getAppDateKey } from '../utils/dates';
 import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TTS_VOICE_DETAILS, AVAILABLE_IMAGE_MODELS, DEFAULT_IMAGE_MODEL, AVAILABLE_VOICE_MODELS, DEFAULT_VOICE_MODEL, VOICE_STYLE_PRESETS, DEFAULT_VARY_MESSAGE_LENGTH_PROMPT, VARY_MESSAGE_LENGTH_PRESETS } from '../constants';
 import { generateGeminiVoiceNote } from '../services/geminiService';
+import { getSavedCustomVoices, saveCustomVoice, deleteCustomVoiceComplete, craftCustomVoice, replicateCustomVoice, VOICE_DESIGN_INSPIRATIONS } from '../utils/customVoices';
+import { convertAudioTo24kMonoWav } from '../utils/audioResampler';
 
 interface ProfilePanelProps {
   chat: Chat;
@@ -159,6 +161,344 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     setUrlValue(chat.avatar);
     setEditingMemoryId(null);
   }, [chat]);
+
+  // Custom Voices & Modals State
+  const [customVoices, setCustomVoices] = useState<CustomVoiceItem[]>([]);
+  const [showVoiceDesignInfo, setShowVoiceDesignInfo] = useState(false);
+  const [showVoiceReplicationInfo, setShowVoiceReplicationInfo] = useState(false);
+  const [showVoicePromptingInfo, setShowVoicePromptingInfo] = useState(false);
+
+  // Feature A (Voice Design) Crafting State
+  const [showCraftVoicePanel, setShowCraftVoicePanel] = useState(false);
+  const [craftName, setCraftName] = useState('');
+  const [craftPrompt, setCraftPrompt] = useState('');
+  const [craftGender, setCraftGender] = useState<'FEMALE' | 'MALE'>('FEMALE');
+  const [craftLanguage, setCraftLanguage] = useState('en-US');
+  const [isCraftingVoice, setIsCraftingVoice] = useState(false);
+  const [craftError, setCraftError] = useState<string | null>(null);
+
+  // Feature B (Voice Replication) Cloning State
+  const [showReplicatePanel, setShowReplicatePanel] = useState(false);
+  const [replicateName, setReplicateName] = useState('');
+  // Reference Audio (10-30s)
+  const [isRecordingReplication, setIsRecordingReplication] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [replicationAudioB64, setReplicationAudioB64] = useState<string | null>(null);
+  const [replicationAudioUrl, setReplicationAudioUrl] = useState<string | null>(null);
+  // Consent Audio
+  const [isRecordingConsent, setIsRecordingConsent] = useState(false);
+  const [consentRecordingDuration, setConsentRecordingDuration] = useState(0);
+  const [consentAudioB64, setConsentAudioB64] = useState<string | null>(null);
+  const [consentAudioUrl, setConsentAudioUrl] = useState<string | null>(null);
+  const [hasCopiedConsentPhrase, setHasCopiedConsentPhrase] = useState(false);
+
+  const [isReplicatingVoice, setIsReplicatingVoice] = useState(false);
+  const [replicateError, setReplicateError] = useState<string | null>(null);
+
+  // Audio Preview & Media Recorder State
+  const [playingPreviewVoiceId, setPlayingPreviewVoiceId] = useState<string | null>(null);
+  const activeAudioPreviewRef = useRef<HTMLAudioElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<any>(null);
+  const replicationFileInputRef = useRef<HTMLInputElement>(null);
+
+  const mediaRecorderConsentRef = useRef<MediaRecorder | null>(null);
+  const consentAudioChunksRef = useRef<Blob[]>([]);
+  const consentRecordingTimerRef = useRef<any>(null);
+  const consentFileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setCustomVoices(getSavedCustomVoices());
+  }, []);
+
+  const playAudioPreview = (audioUrl: string, voiceId?: string) => {
+    if (activeAudioPreviewRef.current) {
+      activeAudioPreviewRef.current.pause();
+      const prevVoice = playingPreviewVoiceId;
+      activeAudioPreviewRef.current = null;
+      setPlayingPreviewVoiceId(null);
+      if (prevVoice === voiceId) {
+        return;
+      }
+    }
+
+    try {
+      const audio = new Audio(audioUrl);
+      activeAudioPreviewRef.current = audio;
+      if (voiceId) setPlayingPreviewVoiceId(voiceId);
+
+      audio.onended = () => {
+        setPlayingPreviewVoiceId(null);
+        activeAudioPreviewRef.current = null;
+      };
+      audio.onerror = () => {
+        setPlayingPreviewVoiceId(null);
+        activeAudioPreviewRef.current = null;
+      };
+      audio.play().catch(e => {
+        console.error("Audio playback error:", e);
+        setPlayingPreviewVoiceId(null);
+        activeAudioPreviewRef.current = null;
+      });
+    } catch (err) {
+      console.error("Audio initialize error:", err);
+      setPlayingPreviewVoiceId(null);
+    }
+  };
+
+  const startRecordingReplicationAudio = async () => {
+    try {
+      setReplicateError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const rawBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' });
+        try {
+          const wavRes = await convertAudioTo24kMonoWav(rawBlob);
+          setReplicationAudioB64(wavRes.base64Wav);
+          setReplicationAudioUrl(wavRes.dataUrl);
+        } catch (err: any) {
+          console.error("Audio resampling failed:", err);
+          setReplicateError("Failed to convert audio to 24kHz WAV: " + (err.message || err));
+        }
+      };
+
+      mediaRecorder.start(250);
+      setIsRecordingReplication(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error("Microphone access failed:", err);
+      setReplicateError("Could not access microphone: " + (err.message || err));
+    }
+  };
+
+  const stopRecordingReplicationAudio = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    setIsRecordingReplication(false);
+  };
+
+  const handleReplicationFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReplicateError(null);
+    try {
+      const wavRes = await convertAudioTo24kMonoWav(file);
+      setReplicationAudioB64(wavRes.base64Wav);
+      setReplicationAudioUrl(wavRes.dataUrl);
+      if (!replicateName.trim()) {
+        const suggestedName = file.name.replace(/\.[^/.]+$/, '').slice(0, 30);
+        setReplicateName(suggestedName);
+      }
+    } catch (err: any) {
+      console.error("Audio file conversion failed:", err);
+      setReplicateError("Could not process audio file: " + (err.message || err));
+    }
+  };
+
+  const GOOGLE_CONSENT_STATEMENT = "I am the owner of this voice and have consented to the creation of a synthetic model of my voice through the use of Google Cloud.";
+
+  const handleCopyConsentPhrase = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(GOOGLE_CONSENT_STATEMENT);
+      setHasCopiedConsentPhrase(true);
+      setTimeout(() => setHasCopiedConsentPhrase(false), 2000);
+    }
+  };
+
+  const startRecordingConsentAudio = async () => {
+    try {
+      setReplicateError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      consentAudioChunksRef.current = [];
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderConsentRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) consentAudioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const rawBlob = new Blob(consentAudioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' });
+        try {
+          const wavRes = await convertAudioTo24kMonoWav(rawBlob);
+          setConsentAudioB64(wavRes.base64Wav);
+          setConsentAudioUrl(wavRes.dataUrl);
+        } catch (err: any) {
+          console.error("Consent audio resampling failed:", err);
+          setReplicateError("Failed to convert consent audio to 24kHz WAV: " + (err.message || err));
+        }
+      };
+
+      mediaRecorder.start(250);
+      setIsRecordingConsent(true);
+      setConsentRecordingDuration(0);
+      consentRecordingTimerRef.current = setInterval(() => {
+        setConsentRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error("Microphone access failed for consent recording:", err);
+      setReplicateError("Could not access microphone: " + (err.message || err));
+    }
+  };
+
+  const stopRecordingConsentAudio = () => {
+    if (mediaRecorderConsentRef.current && mediaRecorderConsentRef.current.state !== 'inactive') {
+      mediaRecorderConsentRef.current.stop();
+    }
+    if (consentRecordingTimerRef.current) {
+      clearInterval(consentRecordingTimerRef.current);
+      consentRecordingTimerRef.current = null;
+    }
+    setIsRecordingConsent(false);
+  };
+
+  const handleConsentFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReplicateError(null);
+    try {
+      const wavRes = await convertAudioTo24kMonoWav(file);
+      setConsentAudioB64(wavRes.base64Wav);
+      setConsentAudioUrl(wavRes.dataUrl);
+    } catch (err: any) {
+      console.error("Consent audio file conversion failed:", err);
+      setReplicateError("Could not process consent audio file: " + (err.message || err));
+    }
+  };
+
+  const handleExecuteCraftVoice = async () => {
+    if (!craftPrompt.trim()) {
+      setCraftError("Please provide a prompt describing the voice you want to craft.");
+      return;
+    }
+    const nameToUse = craftName.trim() || `Custom Voice ${Date.now().toString().slice(-4)}`;
+    setIsCraftingVoice(true);
+    setCraftError(null);
+
+    try {
+      const res = await craftCustomVoice({
+        displayName: nameToUse,
+        prompt: craftPrompt.trim(),
+        gender: craftGender,
+        languageCode: craftLanguage
+      });
+
+      if (res.ok && res.voice) {
+        setCustomVoices(getSavedCustomVoices());
+        const updatedVoiceSettings: PersonaVoiceSettings = {
+          ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+          enableVoiceDesign: true,
+          designedVoiceId: res.voice.id,
+          designedVoiceName: res.voice.name
+        };
+        setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+        onUpdate({ voiceSettings: updatedVoiceSettings });
+        setShowCraftVoicePanel(false);
+        setCraftPrompt('');
+        setCraftName('');
+      } else {
+        setCraftError(res.error || "Failed to craft voice with Vertex AI.");
+      }
+    } catch (err: any) {
+      setCraftError(err?.message || "Crafting error.");
+    } finally {
+      setIsCraftingVoice(false);
+    }
+  };
+
+  const handleExecuteReplication = async () => {
+    if (!replicationAudioB64) {
+      setReplicateError("Please record or upload a reference voice sample (10-30s) first.");
+      return;
+    }
+    if (!consentAudioB64) {
+      setReplicateError("Please record or upload the consent recording of the speaker reading the required statement.");
+      return;
+    }
+    const nameToUse = replicateName.trim() || `${formData.name}'s Replicated Voice`;
+    setIsReplicatingVoice(true);
+    setReplicateError(null);
+
+    try {
+      const res = await replicateCustomVoice({
+        displayName: nameToUse,
+        sourceAudioBase64: replicationAudioB64,
+        consentAudioBase64: consentAudioB64,
+        previewAudioUrl: replicationAudioUrl || undefined,
+        store: true,
+        model: formData.voiceSettings?.voiceModel || settings?.selectedVoiceModel || DEFAULT_VOICE_MODEL
+      });
+
+      if (res.ok && res.voice) {
+        setCustomVoices(getSavedCustomVoices());
+        const updatedVoiceSettings: PersonaVoiceSettings = {
+          ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+          enableVoiceReplication: true,
+          replicatedVoiceId: res.voice.id,
+          replicatedVoiceName: res.voice.name
+        };
+        setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+        onUpdate({ voiceSettings: updatedVoiceSettings });
+        setShowReplicatePanel(false);
+        setReplicationAudioB64(null);
+        setReplicationAudioUrl(null);
+        setConsentAudioB64(null);
+        setConsentAudioUrl(null);
+        setReplicateName('');
+      } else {
+        setReplicateError(res.error || "Failed to replicate voice with Vertex AI.");
+      }
+    } catch (err: any) {
+      setReplicateError(err?.message || "Replication error.");
+    } finally {
+      setIsReplicatingVoice(false);
+    }
+  };
+
+  const handleDeleteCustomVoice = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (window.confirm("Are you sure you want to delete this custom voice from your saved voices?")) {
+      await deleteCustomVoiceComplete(id);
+      setCustomVoices(getSavedCustomVoices());
+      let needUpdate = false;
+      const updatedVoiceSettings = { ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS) };
+      if (updatedVoiceSettings.designedVoiceId === id) {
+        updatedVoiceSettings.designedVoiceId = undefined;
+        updatedVoiceSettings.designedVoiceName = undefined;
+        updatedVoiceSettings.enableVoiceDesign = false;
+        needUpdate = true;
+      }
+      if (updatedVoiceSettings.replicatedVoiceId === id) {
+        updatedVoiceSettings.replicatedVoiceId = undefined;
+        updatedVoiceSettings.replicatedVoiceName = undefined;
+        updatedVoiceSettings.enableVoiceReplication = false;
+        needUpdate = true;
+      }
+      if (needUpdate) {
+        setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+        onUpdate({ voiceSettings: updatedVoiceSettings });
+      }
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -423,6 +763,150 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
             </label>
           )}
         </ConfirmationModal>
+      )}
+
+      {/* Voice Design Info Modal */}
+      {showVoiceDesignInfo && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[5000] p-4 animate-in fade-in duration-200">
+          <div className="app-panel rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in duration-200 border app-border space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b app-border pb-3">
+              <div className="flex items-center gap-2.5 text-primary font-semibold text-lg">
+                <Sparkles size={20} className="text-[#21c063]" />
+                <span>Voice Design Guide</span>
+              </div>
+              <button 
+                onClick={() => setShowVoiceDesignInfo(false)}
+                className="p-1 text-secondary hover:text-primary rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3 text-[calc(var(--msg-font-size)-1px)] text-secondary leading-relaxed">
+              <p>
+                <strong className="text-primary">What is Voice Design?</strong><br />
+                Powered by Gemini 3.8's <code className="text-[#21c063] font-mono">VOICE_TYPE_PROMPTED</code> engine, Voice Design crafts completely novel, custom vocal personas from natural language descriptions.
+              </p>
+              <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-1.5">
+                <span className="font-semibold text-primary block text-xs uppercase tracking-wider">💡 Prompting Tips:</span>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li><strong>Specify age & accent:</strong> e.g., <em>"A Scottish astronomer in his late 60s"</em>.</li>
+                  <li><strong>Describe vocal texture:</strong> e.g., <em>"raspy baritone"</em>, <em>"soft breathy cadence"</em>, <em>"crisp articulation"</em>.</li>
+                  <li><strong>Set emotional timbre:</strong> e.g., <em>"wry and amused"</em>, <em>"warm motherly presence"</em>.</li>
+                </ul>
+              </div>
+              <p>
+                <strong className="text-primary">Saved in Browser:</strong><br />
+                All designed voices are safely stored in your browser's local storage. Once crafted, you can assign the voice to any persona across all your Wassap chats.
+              </p>
+              <p>
+                <strong className="text-primary">Togglable:</strong><br />
+                You can toggle Voice Design on or off anytime. When off, the persona seamlessly uses their base studio voice.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowVoiceDesignInfo(false)}
+              className="w-full bg-[#21c063] hover:bg-[#008069] text-white py-2.5 rounded-lg font-medium text-sm transition-colors uppercase"
+            >
+              Got It
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Voice Replication Info Modal */}
+      {showVoiceReplicationInfo && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[5000] p-4 animate-in fade-in duration-200">
+          <div className="app-panel rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in duration-200 border app-border space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b app-border pb-3">
+              <div className="flex items-center gap-2.5 text-primary font-semibold text-lg">
+                <Mic size={20} className="text-blue-500" />
+                <span>Voice Replication Guide</span>
+              </div>
+              <button 
+                onClick={() => setShowVoiceReplicationInfo(false)}
+                className="p-1 text-secondary hover:text-primary rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3 text-[calc(var(--msg-font-size)-1px)] text-secondary leading-relaxed">
+              <p>
+                <strong className="text-primary">What is Voice Replication?</strong><br />
+                Gemini 3.8's acoustic replication engine clones any voice timbre and cadence from a brief reference audio sample (10 to 30 seconds).
+              </p>
+              <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-1.5">
+                <span className="font-semibold text-primary block text-xs uppercase tracking-wider">🎙️ How It Works:</span>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li><strong>1. Reference Audio:</strong> Provide 10 to 30 seconds of clean, natural speech of the voice you wish to clone.</li>
+                  <li><strong>2. Spoken Consent:</strong> Record or upload the speaker reading Google Cloud's verification statement word-for-word. Google's API verifies this to ensure voice ownership.</li>
+                  <li><strong>Auto-Resampling:</strong> Wassap automatically resamples both files to 24kHz mono PCM WAV in the browser.</li>
+                </ul>
+              </div>
+              <p>
+                <strong className="text-primary">Browser Storage & Cross-Persona Reuse:</strong><br />
+                Cloned voices are stored in your browser's local storage and can be assigned to any persona across all your Wassap chats anytime.
+              </p>
+              <p>
+                <strong className="text-primary">Need 100% Consent-Free Custom Voices?</strong><br />
+                Use <strong className="text-[#21c063]">Voice Design</strong>! Voice Design generates brand-new custom voices directly from natural language prompts without any consent audio.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowVoiceReplicationInfo(false)}
+              className="w-full bg-[#21c063] hover:bg-[#008069] text-white py-2.5 rounded-lg font-medium text-sm transition-colors uppercase"
+            >
+              Got It
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Voice Prompting Info Modal */}
+      {showVoicePromptingInfo && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[5000] p-4 animate-in fade-in duration-200">
+          <div className="app-panel rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in duration-200 border app-border space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b app-border pb-3">
+              <div className="flex items-center gap-2.5 text-primary font-semibold text-lg">
+                <Volume2 size={20} className="text-purple-500" />
+                <span>Voice Prompting Guide</span>
+              </div>
+              <button 
+                onClick={() => setShowVoicePromptingInfo(false)}
+                className="p-1 text-secondary hover:text-primary rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3 text-[calc(var(--msg-font-size)-1px)] text-secondary leading-relaxed">
+              <p>
+                <strong className="text-primary">Single-Pass Acting Directives:</strong><br />
+                Directives, tempo, and pitch are applied alongside the persona prompt in a single API pass without multiple round-trip delays.
+              </p>
+              <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-1.5">
+                <span className="font-semibold text-primary block text-xs uppercase tracking-wider">🎭 Inline Vocal Bursts:</span>
+                <p className="text-xs">You can include natural human tags in the persona's style or messages:</p>
+                <div className="grid grid-cols-2 gap-1.5 font-mono text-xs text-[#21c063]">
+                  <span>&lt;laugh&gt;</span>
+                  <span>&lt;sigh&gt;</span>
+                  <span>&lt;gasp&gt;</span>
+                  <span>&lt;whisper&gt;</span>
+                  <span>&lt;cough&gt;</span>
+                  <span>&lt;yawn&gt;</span>
+                </div>
+              </div>
+              <p>
+                <strong className="text-primary">Togglable:</strong><br />
+                Toggle this feature off anytime to revert to neutral, standard studio pacing and delivery.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowVoicePromptingInfo(false)}
+              className="w-full bg-[#21c063] hover:bg-[#008069] text-white py-2.5 rounded-lg font-medium text-sm transition-colors uppercase"
+            >
+              Got It
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Header */}
@@ -1081,8 +1565,11 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
               {showVoiceSettings ? <ChevronDown size={20} className="text-secondary" /> : <ChevronRight size={20} className="text-secondary" />}
             </div>
 
-            {showVoiceSettings && (
-              <div className="px-6 py-6 space-y-6 border-t app-border bg-gray-50/50 dark:bg-black/10">
+            {showVoiceSettings && (() => {
+              const activeVoiceModel = formData.voiceSettings?.voiceModel || settings?.selectedVoiceModel || DEFAULT_VOICE_MODEL;
+              const is38VoiceModel = activeVoiceModel.includes('3.8');
+              return (
+                <div className="px-6 py-6 space-y-6 border-t app-border bg-gray-50/50 dark:bg-black/10">
                 {/* Voice Generation Model (Dropdown) */}
                 <div className="space-y-2">
                   <div>
@@ -1117,6 +1604,785 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                   </select>
                 </div>
 
+                {/* Gemini 3.8 Exclusivity Notice (if non-3.8 model selected) */}
+                {!is38VoiceModel ? (
+                  <div className="p-3.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[calc(var(--msg-font-size)-2px)] text-secondary space-y-1">
+                    <div className="flex items-center gap-2 font-semibold text-primary">
+                      <Sparkles size={16} className="text-blue-500 shrink-0" />
+                      <span>Gemini 3.8 Voice Studio Suite</span>
+                    </div>
+                    <p>
+                      Voice Design (prompted custom voices), Instant Voice Replication (acoustic cloning), and single-pass vocal acting directives are exclusive to Gemini 3.8 voice models. Switch Voice Generation Model above to <strong>Gemini 3.8 Flash TTS</strong> or <strong>Gemini 3.8 Flash-Lite TTS</strong> to unlock them!
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {/* FEATURE A: VOICE DESIGN (Togglable) */}
+                    <div className="space-y-3 p-3.5 bg-black/[0.02] dark:bg-white/[0.03] border app-border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Sparkles size={18} className="text-[#21c063]" />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Voice Design</label>
+                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#21c063]/10 text-[#21c063] border border-[#21c063]/20">Prompted</span>
+                            </div>
+                            <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Craft custom vocal personas from natural language</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowVoiceDesignInfo(true)}
+                            className="p-1 text-secondary hover:text-primary rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                            title="Voice Design Guide"
+                          >
+                            <HelpCircle size={16} />
+                          </button>
+                          {/* Toggle Switch */}
+                          <div
+                            onClick={() => {
+                              const newEnabled = !(formData.voiceSettings?.enableVoiceDesign ?? false);
+                              const updatedVoiceSettings: PersonaVoiceSettings = {
+                                ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                enableVoiceDesign: newEnabled,
+                                ...(newEnabled ? { enableVoiceReplication: false } : {})
+                              };
+                              setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                              onUpdate({ voiceSettings: updatedVoiceSettings });
+                            }}
+                            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors shrink-0 ${
+                              (formData.voiceSettings?.enableVoiceDesign ?? false) ? 'bg-[#21c063]' : 'bg-gray-400'
+                            }`}
+                          >
+                            <div
+                              className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
+                                (formData.voiceSettings?.enableVoiceDesign ?? false) ? 'left-[22px]' : 'left-[2px]'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {formData.voiceSettings?.enableVoiceDesign && (
+                        <div className="space-y-3 pt-2 border-t app-border animate-in fade-in duration-200">
+                          {/* Select saved designed voice */}
+                          <div className="space-y-1.5">
+                            <span className="text-[11px] text-secondary font-medium">Saved Designed Voice:</span>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={formData.voiceSettings?.designedVoiceId || ''}
+                                onChange={(e) => {
+                                  const selectedId = e.target.value;
+                                  const selected = customVoices.find(v => v.id === selectedId);
+                                  const updatedVoiceSettings: PersonaVoiceSettings = {
+                                    ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                    designedVoiceId: selectedId || undefined,
+                                    designedVoiceName: selected?.name || undefined
+                                  };
+                                  setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                                  onUpdate({ voiceSettings: updatedVoiceSettings });
+                                }}
+                                className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
+                              >
+                                <option value="">-- Choose a designed voice ({customVoices.filter(v => v.type === 'designed').length}) --</option>
+                                {customVoices.filter(v => v.type === 'designed').map(v => (
+                                  <option key={v.id} value={v.id}>
+                                    {v.name} ({v.gender || 'Designed'})
+                                  </option>
+                                ))}
+                              </select>
+
+                              {formData.voiceSettings?.designedVoiceId && (
+                                <>
+                                  {(() => {
+                                    const currentVoice = customVoices.find(v => v.id === formData.voiceSettings?.designedVoiceId);
+                                    if (currentVoice?.sampleAudioDataUrl) {
+                                      return (
+                                        <button
+                                          type="button"
+                                          onClick={() => playAudioPreview(currentVoice.sampleAudioDataUrl!, currentVoice.id)}
+                                          className="p-2 text-[#21c063] hover:bg-[#21c063]/10 rounded-lg transition-colors shrink-0"
+                                          title={playingPreviewVoiceId === currentVoice.id ? "Stop preview" : "Listen to sample"}
+                                        >
+                                          {playingPreviewVoiceId === currentVoice.id ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                                        </button>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleDeleteCustomVoice(formData.voiceSettings!.designedVoiceId!, e)}
+                                    className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
+                                    title="Delete this saved voice"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+
+                            {(() => {
+                              const currentVoice = customVoices.find(v => v.id === formData.voiceSettings?.designedVoiceId);
+                              if (currentVoice?.promptDescription) {
+                                return (
+                                  <p className="text-[11px] text-secondary italic px-1 line-clamp-2">
+                                    "{currentVoice.promptDescription}"
+                                  </p>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+
+                          {/* Toggle Craft Panel Button */}
+                          <button
+                            type="button"
+                            onClick={() => setShowCraftVoicePanel(!showCraftVoicePanel)}
+                            className="w-full flex items-center justify-center gap-1.5 text-xs text-[#21c063] font-medium py-1.5 hover:bg-[#21c063]/10 rounded-lg border border-[#21c063]/20 transition-colors"
+                          >
+                            <Plus size={14} />
+                            {showCraftVoicePanel ? "Close Craft Panel" : "Craft New Voice"}
+                          </button>
+
+                          {/* Collapsible Crafting Form */}
+                          {showCraftVoicePanel && (
+                            <div className="p-3 bg-white dark:bg-[#202c33] border app-border rounded-lg space-y-3 animate-in zoom-in-95 duration-150">
+                              <h6 className="text-xs font-semibold text-primary">Craft New Custom Voice</h6>
+
+                              <div className="space-y-1">
+                                <span className="text-[11px] text-secondary">Voice Name:</span>
+                                <input
+                                  type="text"
+                                  value={craftName}
+                                  onChange={(e) => setCraftName(e.target.value)}
+                                  placeholder="e.g. Victorian Butler, Cyberpunk AI..."
+                                  className="w-full bg-transparent border app-border rounded px-2.5 py-1.5 text-xs outline-none text-primary"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-secondary">Gender:</span>
+                                  <select
+                                    value={craftGender}
+                                    onChange={(e) => setCraftGender(e.target.value as any)}
+                                    className="w-full bg-white dark:bg-[#111b21] border app-border rounded px-2 py-1.5 text-xs outline-none text-primary"
+                                  >
+                                    <option value="FEMALE">Female</option>
+                                    <option value="MALE">Male</option>
+                                  </select>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-secondary">Language:</span>
+                                  <select
+                                    value={craftLanguage}
+                                    onChange={(e) => setCraftLanguage(e.target.value)}
+                                    className="w-full bg-white dark:bg-[#111b21] border app-border rounded px-2 py-1.5 text-xs outline-none text-primary"
+                                  >
+                                    <option value="en-US">English (US)</option>
+                                    <option value="en-GB">English (UK)</option>
+                                    <option value="es-ES">Spanish (ES)</option>
+                                    <option value="ja-JP">Japanese (JA)</option>
+                                    <option value="hi-IN">Hindi (IN)</option>
+                                    <option value="fr-FR">French (FR)</option>
+                                    <option value="de-DE">German (DE)</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              {/* Inspiration chips */}
+                              <div className="space-y-1.5">
+                                <span className="text-[10px] text-secondary font-medium uppercase tracking-wider">Inspirations:</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {VOICE_DESIGN_INSPIRATIONS.map((insp, idx) => (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => {
+                                        setCraftName(insp.title);
+                                        setCraftPrompt(insp.prompt);
+                                        setCraftGender(insp.gender === 'male' ? 'MALE' : 'FEMALE');
+                                        setCraftLanguage(insp.languageCode);
+                                      }}
+                                      className="text-[10px] px-2 py-1 bg-black/5 dark:bg-white/5 hover:bg-[#21c063]/10 hover:text-[#21c063] rounded border app-border transition-colors text-secondary"
+                                    >
+                                      {insp.title}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <span className="text-[11px] text-secondary">Natural Language Description:</span>
+                                <textarea
+                                  rows={3}
+                                  value={craftPrompt}
+                                  onChange={(e) => setCraftPrompt(e.target.value)}
+                                  placeholder="Describe age, accent, pitch, timbre, vocal texture, pace..."
+                                  className="w-full bg-transparent border app-border rounded p-2 text-xs outline-none text-primary resize-none"
+                                />
+                              </div>
+
+                              {craftError && (
+                                <div className="p-2 rounded bg-red-500/10 border border-red-500/20 text-[11px] text-red-500 flex items-center gap-1.5">
+                                  <AlertCircle size={14} className="shrink-0" />
+                                  <span>{craftError}</span>
+                                </div>
+                              )}
+
+                              <button
+                                type="button"
+                                disabled={isCraftingVoice || !craftPrompt.trim()}
+                                onClick={handleExecuteCraftVoice}
+                                className="w-full bg-[#21c063] hover:bg-[#008069] text-white py-2 rounded font-medium text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                              >
+                                {isCraftingVoice ? (
+                                  <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    <span>Synthesizing Voice via Vertex AI...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Wand2 size={14} />
+                                    <span>Synthesize & Save Voice</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* FEATURE B: VOICE REPLICATION (Togglable) */}
+                    <div className="space-y-3 p-3.5 bg-black/[0.02] dark:bg-white/[0.03] border app-border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Mic size={18} className="text-blue-500" />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Voice Replication</label>
+                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 border border-blue-500/20">Cloning</span>
+                            </div>
+                            <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Clone any voice from a 10-30s audio sample</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowVoiceReplicationInfo(true)}
+                            className="p-1 text-secondary hover:text-primary rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                            title="Voice Replication Guide"
+                          >
+                            <HelpCircle size={16} />
+                          </button>
+                          {/* Toggle Switch */}
+                          <div
+                            onClick={() => {
+                              const newEnabled = !(formData.voiceSettings?.enableVoiceReplication ?? false);
+                              const updatedVoiceSettings: PersonaVoiceSettings = {
+                                ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                enableVoiceReplication: newEnabled,
+                                ...(newEnabled ? { enableVoiceDesign: false } : {})
+                              };
+                              setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                              onUpdate({ voiceSettings: updatedVoiceSettings });
+                            }}
+                            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors shrink-0 ${
+                              (formData.voiceSettings?.enableVoiceReplication ?? false) ? 'bg-[#21c063]' : 'bg-gray-400'
+                            }`}
+                          >
+                            <div
+                              className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
+                                (formData.voiceSettings?.enableVoiceReplication ?? false) ? 'left-[22px]' : 'left-[2px]'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {formData.voiceSettings?.enableVoiceReplication && (
+                        <div className="space-y-3 pt-2 border-t app-border animate-in fade-in duration-200">
+                          {/* Select saved replicated voice */}
+                          <div className="space-y-1.5">
+                            <span className="text-[11px] text-secondary font-medium">Saved Replicated Voice:</span>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={formData.voiceSettings?.replicatedVoiceId || ''}
+                                onChange={(e) => {
+                                  const selectedId = e.target.value;
+                                  const selected = customVoices.find(v => v.id === selectedId);
+                                  const updatedVoiceSettings: PersonaVoiceSettings = {
+                                    ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                    replicatedVoiceId: selectedId || undefined,
+                                    replicatedVoiceName: selected?.name || undefined
+                                  };
+                                  setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                                  onUpdate({ voiceSettings: updatedVoiceSettings });
+                                }}
+                                className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
+                              >
+                                <option value="">-- Choose a replicated voice ({customVoices.filter(v => v.type === 'replicated').length}) --</option>
+                                {customVoices.filter(v => v.type === 'replicated').map(v => (
+                                  <option key={v.id} value={v.id}>
+                                    {v.name}
+                                  </option>
+                                ))}
+                              </select>
+
+                              {formData.voiceSettings?.replicatedVoiceId && (
+                                <>
+                                  {(() => {
+                                    const currentVoice = customVoices.find(v => v.id === formData.voiceSettings?.replicatedVoiceId);
+                                    if (currentVoice?.sampleAudioDataUrl) {
+                                      return (
+                                        <button
+                                          type="button"
+                                          onClick={() => playAudioPreview(currentVoice.sampleAudioDataUrl!, currentVoice.id)}
+                                          className="p-2 text-[#21c063] hover:bg-[#21c063]/10 rounded-lg transition-colors shrink-0"
+                                          title={playingPreviewVoiceId === currentVoice.id ? "Stop sample preview" : "Listen to reference audio"}
+                                        >
+                                          {playingPreviewVoiceId === currentVoice.id ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                                        </button>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleDeleteCustomVoice(formData.voiceSettings!.replicatedVoiceId!, e)}
+                                    className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
+                                    title="Delete this saved voice"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Toggle Clone Panel Button */}
+                          <button
+                            type="button"
+                            onClick={() => setShowReplicatePanel(!showReplicatePanel)}
+                            className="w-full flex items-center justify-center gap-1.5 text-xs text-blue-500 font-medium py-1.5 hover:bg-blue-500/10 rounded-lg border border-blue-500/20 transition-colors"
+                          >
+                            <Plus size={14} />
+                            {showReplicatePanel ? "Close Clone Panel" : "Clone New Voice"}
+                          </button>
+
+                          {/* Collapsible Cloning Form */}
+                          {showReplicatePanel && (
+                            <div className="p-3 bg-white dark:bg-[#202c33] border app-border rounded-lg space-y-3.5 animate-in zoom-in-95 duration-150">
+                              <div className="flex items-center justify-between border-b app-border pb-1.5">
+                                <h6 className="text-xs font-semibold text-primary">Clone New Voice (Replication)</h6>
+                                <span className="text-[10px] text-blue-500 font-medium">Vertex AI Voices</span>
+                              </div>
+
+                              <div className="space-y-1">
+                                <span className="text-[11px] text-secondary font-medium">Voice Name:</span>
+                                <input
+                                  type="text"
+                                  value={replicateName}
+                                  onChange={(e) => setReplicateName(e.target.value)}
+                                  placeholder="e.g. My Voice Clone, Persona Voice..."
+                                  className="w-full bg-transparent border app-border rounded px-2.5 py-1.5 text-xs outline-none text-primary shadow-sm"
+                                />
+                              </div>
+
+                              {/* SECTION 1: REFERENCE VOICE SAMPLE */}
+                              <div className="space-y-2 p-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.02] border app-border">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] text-primary font-semibold flex items-center gap-1.5">
+                                    <span>1. Reference Voice Sample (10–30s)</span>
+                                  </span>
+                                  {replicationAudioUrl && (
+                                    <span className="text-[10px] text-[#21c063] font-medium flex items-center gap-1">
+                                      <Check size={12} /> Ready
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-secondary">
+                                  Clean speech of the voice you want to clone without background music or noise.
+                                </p>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  {/* Mic Button */}
+                                  {!isRecordingReplication ? (
+                                    <button
+                                      type="button"
+                                      onClick={startRecordingReplicationAudio}
+                                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded border app-border hover:bg-black/5 dark:hover:bg-white/5 text-xs text-primary transition-colors shadow-sm"
+                                    >
+                                      <Mic size={14} className="text-red-500" />
+                                      <span>Record Mic</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={stopRecordingReplicationAudio}
+                                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded bg-red-500 text-white text-xs font-medium animate-pulse shadow-sm"
+                                    >
+                                      <Square size={12} fill="currentColor" />
+                                      <span>Stop ({recordingDuration}s)</span>
+                                    </button>
+                                  )}
+
+                                  {/* Upload File Button */}
+                                  <input
+                                    type="file"
+                                    ref={replicationFileInputRef}
+                                    accept="audio/*,.wav,.mp3,.m4a,.webm,.ogg"
+                                    onChange={handleReplicationFileUpload}
+                                    className="hidden"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => replicationFileInputRef.current?.click()}
+                                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded border app-border hover:bg-black/5 dark:hover:bg-white/5 text-xs text-primary transition-colors shadow-sm"
+                                  >
+                                    <Upload size={14} className="text-blue-500" />
+                                    <span>Upload File</span>
+                                  </button>
+                                </div>
+
+                                {/* Audio Sample Preview */}
+                                {replicationAudioUrl && (
+                                  <div className="flex items-center justify-between p-2 rounded bg-white dark:bg-[#111b21] border app-border">
+                                    <div className="flex items-center gap-2 text-xs text-primary">
+                                      <Check size={14} className="text-[#21c063]" />
+                                      <span className="text-[11px]">Reference Sample (24kHz WAV)</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => playAudioPreview(replicationAudioUrl)}
+                                      className="p-1 text-[#21c063] hover:bg-[#21c063]/10 rounded transition-colors"
+                                      title="Play reference audio"
+                                    >
+                                      <Play size={14} fill="currentColor" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* SECTION 2: SPOKEN CONSENT VERIFICATION */}
+                              <div className="space-y-2.5 p-2.5 rounded-lg bg-blue-500/[0.04] dark:bg-blue-500/[0.06] border border-blue-500/20">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1.5">
+                                    <span>2. Spoken Consent Verification</span>
+                                  </span>
+                                  {consentAudioUrl && (
+                                    <span className="text-[10px] text-[#21c063] font-medium flex items-center gap-1">
+                                      <Check size={12} /> Verified Ready
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <p className="text-[10px] text-secondary leading-snug">
+                                  Google Cloud requires the speaker to recite this exact statement word-for-word to verify voice ownership:
+                                </p>
+
+                                {/* Quote & Copy Block */}
+                                <div className="p-2.5 bg-white dark:bg-[#111b21] border app-border rounded-lg space-y-2">
+                                  <p className="text-[11px] text-primary italic font-serif leading-relaxed select-all">
+                                    "{GOOGLE_CONSENT_STATEMENT}"
+                                  </p>
+                                  <div className="flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={handleCopyConsentPhrase}
+                                      className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-600 font-medium px-2 py-0.5 rounded hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                                    >
+                                      {hasCopiedConsentPhrase ? (
+                                        <>
+                                          <Check size={12} className="text-[#21c063]" />
+                                          <span className="text-[#21c063]">Copied to clipboard</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy size={12} />
+                                          <span>Copy Statement</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  {/* Consent Mic Button */}
+                                  {!isRecordingConsent ? (
+                                    <button
+                                      type="button"
+                                      onClick={startRecordingConsentAudio}
+                                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded border app-border bg-white dark:bg-[#111b21] hover:bg-black/5 dark:hover:bg-white/5 text-xs text-primary transition-colors shadow-sm"
+                                    >
+                                      <Mic size={14} className="text-red-500" />
+                                      <span>Record Consent</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={stopRecordingConsentAudio}
+                                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded bg-red-500 text-white text-xs font-medium animate-pulse shadow-sm"
+                                    >
+                                      <Square size={12} fill="currentColor" />
+                                      <span>Stop ({consentRecordingDuration}s)</span>
+                                    </button>
+                                  )}
+
+                                  {/* Consent File Upload */}
+                                  <input
+                                    type="file"
+                                    ref={consentFileInputRef}
+                                    accept="audio/*,.wav,.mp3,.m4a,.webm,.ogg"
+                                    onChange={handleConsentFileUpload}
+                                    className="hidden"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => consentFileInputRef.current?.click()}
+                                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded border app-border bg-white dark:bg-[#111b21] hover:bg-black/5 dark:hover:bg-white/5 text-xs text-primary transition-colors shadow-sm"
+                                  >
+                                    <Upload size={14} className="text-blue-500" />
+                                    <span>Upload Consent</span>
+                                  </button>
+                                </div>
+
+                                {/* Consent Audio Preview */}
+                                {consentAudioUrl && (
+                                  <div className="flex items-center justify-between p-2 rounded bg-white dark:bg-[#111b21] border app-border">
+                                    <div className="flex items-center gap-2 text-xs text-primary">
+                                      <Check size={14} className="text-[#21c063]" />
+                                      <span className="text-[11px]">Consent Audio (24kHz WAV)</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => playAudioPreview(consentAudioUrl)}
+                                      className="p-1 text-[#21c063] hover:bg-[#21c063]/10 rounded transition-colors"
+                                      title="Play consent recording"
+                                    >
+                                      <Play size={14} fill="currentColor" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {replicateError && (
+                                <div className="p-2.5 rounded bg-red-500/10 border border-red-500/20 text-[11px] text-red-500 flex items-start gap-1.5 leading-snug">
+                                  <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                                  <span>{replicateError}</span>
+                                </div>
+                              )}
+
+                              <button
+                                type="button"
+                                disabled={isReplicatingVoice || !replicationAudioB64 || !consentAudioB64}
+                                onClick={handleExecuteReplication}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-medium text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-sm"
+                              >
+                                {isReplicatingVoice ? (
+                                  <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    <span>Replicating Voice via Vertex AI...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Mic size={14} />
+                                    <span>Replicate & Save Voice</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {(!replicationAudioB64 || !consentAudioB64) && (
+                                <p className="text-[10px] text-secondary text-center">
+                                  {!replicationAudioB64 && !consentAudioB64
+                                    ? "Provide both a reference speech sample and the consent recording to begin."
+                                    : !replicationAudioB64
+                                    ? "Almost ready: please provide the reference voice sample above."
+                                    : "Almost ready: please provide the spoken consent recording above."}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* FEATURE C: ADVANCED VOICE PROMPTING & ACTING (Togglable) */}
+                    <div className="space-y-3 p-3.5 bg-black/[0.02] dark:bg-white/[0.03] border app-border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Volume2 size={18} className="text-purple-500" />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Voice Prompting & Acting</label>
+                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">Single-Pass</span>
+                            </div>
+                            <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Turn-level emotional directives & vocal bursts</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowVoicePromptingInfo(true)}
+                            className="p-1 text-secondary hover:text-primary rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                            title="Voice Prompting Guide"
+                          >
+                            <HelpCircle size={16} />
+                          </button>
+                          {/* Toggle Switch */}
+                          <div
+                            onClick={() => {
+                              const newEnabled = !(formData.voiceSettings?.enableVoicePrompting ?? true);
+                              const updatedVoiceSettings: PersonaVoiceSettings = {
+                                ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                enableVoicePrompting: newEnabled
+                              };
+                              setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                              onUpdate({ voiceSettings: updatedVoiceSettings });
+                            }}
+                            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors shrink-0 ${
+                              (formData.voiceSettings?.enableVoicePrompting ?? true) ? 'bg-[#21c063]' : 'bg-gray-400'
+                            }`}
+                          >
+                            <div
+                              className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
+                                (formData.voiceSettings?.enableVoicePrompting ?? true) ? 'left-[22px]' : 'left-[2px]'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {formData.voiceSettings?.enableVoicePrompting !== false ? (
+                        <div className="space-y-3 pt-2 border-t app-border animate-in fade-in duration-200">
+                          {/* Style Presets */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] text-secondary">Emotional Acting Style Preset:</span>
+                              {formData.voiceSettings?.stylePrompt && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updatedVoiceSettings: PersonaVoiceSettings = {
+                                      ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                      stylePrompt: ''
+                                    };
+                                    setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                                    onUpdate({ voiceSettings: updatedVoiceSettings });
+                                  }}
+                                  className="text-[10px] text-secondary hover:text-primary transition-colors hover:underline"
+                                >
+                                  Reset
+                                </button>
+                              )}
+                            </div>
+                            <select
+                              value={(() => {
+                                const cur = (formData.voiceSettings?.stylePrompt || '').trim();
+                                if (!cur) return 'default';
+                                const match = VOICE_STYLE_PRESETS.find(p => p.prompt.trim() === cur);
+                                return match ? match.id : 'custom';
+                              })()}
+                              onChange={(e) => {
+                                const presetId = e.target.value;
+                                const preset = VOICE_STYLE_PRESETS.find(p => p.id === presetId);
+                                const newStyle = preset ? preset.prompt : (formData.voiceSettings?.stylePrompt || '');
+                                const updatedVoiceSettings: PersonaVoiceSettings = {
+                                  ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                  stylePrompt: newStyle
+                                };
+                                setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                                onUpdate({ voiceSettings: updatedVoiceSettings });
+                              }}
+                              className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
+                            >
+                              {VOICE_STYLE_PRESETS.map(preset => (
+                                <option key={preset.id} value={preset.id}>{preset.label}</option>
+                              ))}
+                              <option value="custom">Custom (User Defined Style)</option>
+                            </select>
+                          </div>
+
+                          {/* Custom Style Directives Prompt */}
+                          <div className="space-y-1">
+                            <span className="text-[11px] text-secondary">Custom Acting Directives Prompt:</span>
+                            <textarea
+                              rows={2}
+                              value={formData.voiceSettings?.stylePrompt || ''}
+                              onChange={(e) => {
+                                const updatedVoiceSettings: PersonaVoiceSettings = {
+                                  ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                  stylePrompt: e.target.value
+                                };
+                                setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                                onUpdate({ voiceSettings: updatedVoiceSettings });
+                              }}
+                              placeholder="e.g. native american accent, sarcastic and dry, whispered gently, cheerful Southern drawl..."
+                              className="w-full bg-white dark:bg-[#202c33] border app-border rounded-md p-2 text-[calc(var(--msg-font-size)-2px)] outline-none resize-none text-primary font-mono"
+                            />
+                          </div>
+
+                          {/* Speech Pacing / Speed */}
+                          <div className="space-y-1">
+                            <span className="text-[11px] text-secondary">Speech Delivery Cadence:</span>
+                            <select
+                              value={formData.voiceSettings?.paceSpeed || 'default'}
+                              onChange={(e) => {
+                                const updatedVoiceSettings: PersonaVoiceSettings = {
+                                  ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                  paceSpeed: e.target.value
+                                };
+                                setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                                onUpdate({ voiceSettings: updatedVoiceSettings });
+                              }}
+                              className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
+                            >
+                              <option value="default">Normal / Conversational Pace (Default)</option>
+                              <option value="speaking slowly">Speaking Slowly & Deliberately</option>
+                              <option value="speaking rapidly">Speaking Rapidly / Fast-Paced</option>
+                            </select>
+                          </div>
+
+                          {/* Pitch Tone */}
+                          <div className="space-y-1">
+                            <span className="text-[11px] text-secondary">Pitch & Vocal Tone:</span>
+                            <select
+                              value={formData.voiceSettings?.pitchTone || 'default'}
+                              onChange={(e) => {
+                                const updatedVoiceSettings: PersonaVoiceSettings = {
+                                  ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                  pitchTone: e.target.value === 'default' ? undefined : e.target.value
+                                };
+                                setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                                onUpdate({ voiceSettings: updatedVoiceSettings });
+                              }}
+                              className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
+                            >
+                              <option value="default">Natural Baseline Pitch (Default)</option>
+                              <option value="slightly higher pitch, bright">Slightly Higher Pitch / Bright Tone</option>
+                              <option value="deep pitch, lower resonance">Deep Pitch / Lower Resonance</option>
+                            </select>
+                          </div>
+
+                          <div className="p-2.5 rounded bg-[#21c063]/10 border border-[#21c063]/20 text-[11px] text-secondary leading-relaxed">
+                            <span className="font-semibold text-primary">💡 Gemini 3.8 Acting:</span> Style directives and inline vocal burst tags (<code className="text-[#21c063] font-mono">&lt;laugh&gt;</code>, <code className="text-[#21c063] font-mono">&lt;sigh&gt;</code>, <code className="text-[#21c063] font-mono">&lt;gasp&gt;</code>, <code className="text-[#21c063] font-mono">&lt;whisper&gt;</code>) are synthesized in a single API pass alongside your message.
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-2.5 rounded bg-black/5 dark:bg-white/5 border app-border text-[11px] text-secondary">
+                          Acting directives and vocal bursts are bypassed. Voice notes will use a neutral studio delivery.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
                 {/* Assigned Voice (Dropdown) with Live Preview */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -1150,8 +2416,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                             formData.voiceSettings
                           );
                           if (res.ok && res.audioDataUrl) {
-                            const audio = new Audio(res.audioDataUrl);
-                            audio.play().catch(e => console.error("Audio preview failed:", e));
+                            playAudioPreview(res.audioDataUrl);
                           } else {
                             alert(res.error || "Unable to generate voice preview. Check API key/Vertex connection.");
                           }
@@ -1167,6 +2432,19 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                       <span>Preview</span>
                     </button>
                   </div>
+
+                  {/* Priority Status Notification */}
+                  {formData.voiceSettings?.enableVoiceDesign && formData.voiceSettings?.designedVoiceId ? (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-[#21c063]/10 border border-[#21c063]/20 text-[11px] text-[#21c063] font-medium">
+                      <Sparkles size={14} className="shrink-0" />
+                      <span>Custom Designed Voice active: <strong>{formData.voiceSettings.designedVoiceName || 'Designed Voice'}</strong>. (Prebuilt voice will be used if toggled off)</span>
+                    </div>
+                  ) : formData.voiceSettings?.enableVoiceReplication && formData.voiceSettings?.replicatedVoiceId ? (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-500 font-medium">
+                      <Mic size={14} className="shrink-0" />
+                      <span>Custom Replicated Voice active: <strong>{formData.voiceSettings.replicatedVoiceName || 'Replicated Voice'}</strong>. (Prebuilt voice will be used if toggled off)</span>
+                    </div>
+                  ) : null}
 
                   <select
                     value={formData.voiceSettings?.voiceName || 'Aoede'}
@@ -1204,107 +2482,6 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                         );
                       })}
                     </optgroup>
-                  </select>
-                </div>
-
-                {/* Vocal Delivery & Acting Directives (Gemini 3.8 Style) */}
-                <div className="space-y-3 p-3.5 bg-black/[0.02] dark:bg-white/[0.03] border app-border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Vocal Delivery & Acting Style</label>
-                      <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Turn-level style directive & emotional tone</p>
-                    </div>
-                    {formData.voiceSettings?.stylePrompt && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updatedVoiceSettings: PersonaVoiceSettings = {
-                            ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
-                            stylePrompt: ''
-                          };
-                          setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
-                          onUpdate({ voiceSettings: updatedVoiceSettings });
-                        }}
-                        className="text-[11px] text-secondary hover:text-primary transition-colors hover:underline"
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Style Preset Selector */}
-                  <select
-                    value={(() => {
-                      const cur = (formData.voiceSettings?.stylePrompt || '').trim();
-                      if (!cur) return 'default';
-                      const match = VOICE_STYLE_PRESETS.find(p => p.prompt.trim() === cur);
-                      return match ? match.id : 'custom';
-                    })()}
-                    onChange={(e) => {
-                      const presetId = e.target.value;
-                      const preset = VOICE_STYLE_PRESETS.find(p => p.id === presetId);
-                      const newStyle = preset ? preset.prompt : (formData.voiceSettings?.stylePrompt || '');
-                      const updatedVoiceSettings: PersonaVoiceSettings = {
-                        ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
-                        stylePrompt: newStyle
-                      };
-                      setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
-                      onUpdate({ voiceSettings: updatedVoiceSettings });
-                    }}
-                    className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
-                  >
-                    {VOICE_STYLE_PRESETS.map(preset => (
-                      <option key={preset.id} value={preset.id}>{preset.label}</option>
-                    ))}
-                    <option value="custom">Custom (User Defined Style)</option>
-                  </select>
-
-                  {/* Custom Style Prompt Textarea */}
-                  <div className="space-y-1">
-                    <span className="text-[11px] text-secondary">Acting Directives Prompt:</span>
-                    <textarea
-                      rows={2}
-                      value={formData.voiceSettings?.stylePrompt || ''}
-                      onChange={(e) => {
-                        const updatedVoiceSettings: PersonaVoiceSettings = {
-                          ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
-                          stylePrompt: e.target.value
-                        };
-                        setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
-                        onUpdate({ voiceSettings: updatedVoiceSettings });
-                      }}
-                      placeholder="e.g. native american accent, sarcastic and dry, whispered gently, cheerful Southern drawl..."
-                      className="w-full bg-white dark:bg-[#202c33] border app-border rounded-md p-2 text-[calc(var(--msg-font-size)-2px)] outline-none resize-none text-primary font-mono"
-                    />
-                  </div>
-
-                  <div className="p-2.5 rounded bg-[#21c063]/10 border border-[#21c063]/20 text-[11px] text-secondary leading-relaxed">
-                    <span className="font-semibold text-primary">💡 Gemini 3.8 Acting:</span> Sustained emotional acting is guided by your style prompt above. Also, inline tags like <code className="text-[#21c063] font-mono">&lt;laugh&gt;</code>, <code className="text-[#21c063] font-mono">&lt;sigh&gt;</code>, <code className="text-[#21c063] font-mono">&lt;gasp&gt;</code>, <code className="text-[#21c063] font-mono">&lt;whisper&gt;</code> produce natural human vocal bursts.
-                  </div>
-                </div>
-
-                {/* Speech Pacing / Speed */}
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[calc(var(--msg-font-size)-0.5px)] font-medium text-primary">Speech Pacing / Speed</label>
-                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Delivery tempo and cadence</p>
-                  </div>
-
-                  <select
-                    value={formData.voiceSettings?.paceSpeed || 'default'}
-                    onChange={(e) => {
-                      const updatedVoiceSettings: PersonaVoiceSettings = {
-                        ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
-                        paceSpeed: e.target.value
-                      };
-                      setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
-                      onUpdate({ voiceSettings: updatedVoiceSettings });
-                    }}
-                    className="w-full bg-white dark:bg-[#202c33] border app-border rounded-lg px-3 py-2.5 text-[calc(var(--msg-font-size)-1px)] outline-none text-primary cursor-pointer shadow-sm"
-                  >
-                    <option value="default">Normal / Conversational Pace (Default)</option>
-                    <option value="speaking slowly">Speaking Slowly & Deliberately</option>
-                    <option value="speaking rapidly">Speaking Rapidly / Fast-Paced</option>
                   </select>
                 </div>
 
@@ -1372,7 +2549,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                 </div>
 
               </div>
-            )}
+              );
+            })()}
           </div>
         )}
 

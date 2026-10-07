@@ -8,6 +8,7 @@ import {
   handleVertexImageExcuse 
 } from './vertexHandler';
 import { VERTEX_PASSCODE, GCP_CONFIG } from '../constants';
+import voicesHandler from '../api/gemini/voices';
 
 export async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
   if (req.body !== undefined && req.body !== null) {
@@ -134,6 +135,11 @@ export async function handleGeminiApiMiddleware(
       console.error('[API Error /tts]:', err);
       sendJson(res, 400, { error: err.message || 'Invalid request body' });
     }
+    return;
+  }
+
+  if (url.startsWith('/api/gemini/voices')) {
+    await voicesHandler(req, res);
     return;
   }
 

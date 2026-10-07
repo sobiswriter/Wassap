@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.9.0`
+- **Current Version**: `v1.9.1`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -14,7 +14,53 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Multimedia Voice Notes with Photos & Gemini 3.8 Expressive Acting Overhaul (`v1.9.0`)
+### 1. Vertex AI Local Application Default Credentials (ADC) Quota Project Fix (`v1.9.1`)
+- **Issue**: When authenticating with user credentials via `gcloud auth application-default login`, Vertex AI (`aiplatform.googleapis.com`) rejected requests with:
+  `"Your application is authenticating by using local Application Default Credentials. The aiplatform.googleapis.com API requires a quota project, which is not set by default."`
+- **Resolution**:
+  - Automatically configured `httpOptions: { headers: { 'X-Goog-User-Project': project } }` and `googleAuthOptions: { projectId: project }` across all server endpoints: [`server/vertexHandler.ts`](file:///c:/Users/soura/OneDrive/Desktop/Completed%20Projects/Wassap/server/vertexHandler.ts), [`api/gemini/tts.ts`](file:///c:/Users/soura/OneDrive/Desktop/Completed%20Projects/Wassap/api/gemini/tts.ts), [`api/gemini/generate.ts`](file:///c:/Users/soura/OneDrive/Desktop/Completed%20Projects/Wassap/api/gemini/generate.ts), [`api/gemini/diary.ts`](file:///c:/Users/soura/OneDrive/Desktop/Completed%20Projects/Wassap/api/gemini/diary.ts), [`api/gemini/image*.ts`](file:///c:/Users/soura/OneDrive/Desktop/Completed%20Projects/Wassap/api/gemini/image.ts).
+  - Added `'X-Goog-User-Project': project` header to all direct REST calls in [`api/gemini/voices.ts`](file:///c:/Users/soura/OneDrive/Desktop/Completed%20Projects/Wassap/api/gemini/voices.ts).
+  - Both REST Voices API and `@google/genai` models (`gemini-3.8-flash-tts`) now automatically succeed with HTTP 200 without requiring manual quota flag pass-through.
+  - Provided command `gcloud auth application-default set-quota-project gen-lang-client-0100408368` for standard local gcloud profile configuration.
+
+### 2. Gemini 3.8 Voice Studio Suite: Voice Design, Frictionless Voice Replication & Turn-Level Voice Prompting (`v1.9.1`)
+- **Persona-Specific Settings Integration (`ProfilePanel.tsx`)**:
+  - Exclusively nested inside individual persona settings under the **Voice Settings** accordion (never leaking into global app settings).
+  - Unlocked when Gemini 3.8 models (`gemini-3.8-flash-tts` or `gemini-3.8-flash-lite-tts`) are selected, with an informative guidance banner displayed if an older model is active.
+  - Features A, B, and C are each strictly independent and togglable. Turning a toggle off instantly reverts the persona's voice generation back to baseline with 0 side-effects.
+
+- **Feature A: 🎨 Voice Design (Prompted Custom Voices)**:
+  - **Engine**: Integrates Google Cloud Vertex AI Voices API (`VOICE_TYPE_PROMPTED`, `store: true`) via backend route `/api/gemini/voices`.
+  - **In-App Crafting Suite**: Custom modal form supporting custom voice names, gender (Female / Male), language (en-US, en-GB, es-ES, ja-JP, hi-IN, fr-FR, de-DE), prompt inspiration chips (`VOICE_DESIGN_INSPIRATIONS`), and detailed natural language descriptions (age, accent, timbre, cadence).
+  - **Instant Cross-Persona Reuse & Browser Storage**: Persisted in `localStorage['wassap_custom_voices']` via `utils/customVoices.ts` with audio preview data URLs for instantaneous cross-chat auditioning and reuse on any persona.
+  - **Educational Guidance**: Built-in guide modal (`showVoiceDesignInfo`) detailing prompting strategies and acoustic descriptors.
+
+- **Feature B: 🎙️ Voice Replication (Audio Cloning with Spoken Consent)**:
+  - **Engine**: Integrates Google Cloud Vertex AI Voices API (`VOICE_TYPE_REPLICATED`, `store: true`) via backend route `/api/gemini/voices`.
+  - **Dual Audio Inputs**:
+    1. **Reference Voice Sample (`sourceAudio`)**: 10 to 30s of clean speech of the speaker to clone (record via Mic or upload audio file).
+    2. **Spoken Consent Verification (`consentAudio`)**: Recording of the speaker reading Google Cloud's required statement: `"I am the owner of this voice and have consented to the creation of a synthetic model of my voice through the use of Google Cloud."` (record via Mic or upload audio file, with one-click "Copy Statement" button).
+  - **Client-Side Audio Resampler (`utils/audioResampler.ts`)**: Built-in Web Audio API converter (`convertAudioTo24kMonoWav`) automatically converting both recordings and uploaded files (`.wav`, `.mp3`, `.m4a`, `.webm`, `.ogg`) into Google Cloud's voice specifications: 24,000 Hz, 16-bit linear PCM little-endian, single-channel mono RIFF WAV.
+  - **Browser Storage & Reuse**: Cloned voices are saved to `localStorage['wassap_custom_voices']` with in-app audio audition players and instant cross-persona availability.
+  - **Educational Guidance**: Built-in guide modal (`showVoiceReplicationInfo`) explaining reference audio and spoken consent verification.
+
+- **Feature C: 🎭 Voice Prompting & Acting Directives (Gemini 3.8 Style)**:
+  - **Single-Pass Integration**: Natural vocal directions, emotional style directives, tempo, and vocal bursts are passed alongside the persona prompt in a single API pass — zero waiting for multiple round trips!
+  - **Togglable Directives**: Independent toggle (`enableVoicePrompting`). When off, directives and vocal bursts are bypassed for a clean studio neutral delivery.
+  - **Fine-Grained Controls**: 8 emotional style presets (Whispering, Cheerful, Sarcastic, Dramatic, Sleepy, Energetic, Calm, Custom), speech delivery pacing (`Normal`, `Speaking Slowly & Deliberately`, `Speaking Rapidly`), and pitch tone (`Natural Baseline`, `Higher Pitch / Bright Tone`, `Deep Pitch / Lower Resonance`).
+  - **Native Human Vocal Bursts**: Full support for `<laugh>`, `<sigh>`, `<gasp>`, `<whisper>`, `<cough>`, `<yawn>`, `<groan>`, `<snicker>` tags.
+  - **Educational Guidance**: Built-in guide modal (`showVoicePromptingInfo`).
+
+- **Priority Hierarchy & Prebuilt Studio Voice Preservation**:
+  - Voice note synthesis priority:
+    1. If `enableVoiceDesign` is true and `designedVoiceId` is set $\rightarrow$ uses designed custom voice.
+    2. Else if `enableVoiceReplication` is true and `replicatedVoiceId` is set $\rightarrow$ uses replicated custom voice.
+    3. Else $\rightarrow$ uses assigned prebuilt studio voice (`voiceName`, 30 voices).
+  - Status indicator badges in the UI explicitly notify users whenever a custom voice overrides the prebuilt voice.
+
+---
+
+### 2. Multimedia Voice Notes with Photos & Gemini 3.8 Expressive Acting Overhaul (`v1.9.0`)
 - **Multimedia Image + Voice Note Integration**:
   - **Composer Staging (`MessageInput.tsx`)**:
     - Users can now attach a photo and record/attach a voice note simultaneously before hitting send.

@@ -1,0 +1,191 @@
+import { CustomVoiceItem } from '../types';
+
+const CUSTOM_VOICES_STORAGE_KEY = 'wassap_custom_voices';
+
+export const getSavedCustomVoices = (): CustomVoiceItem[] => {
+  if (typeof window === 'undefined' || !window.localStorage) return [];
+  try {
+    const raw = localStorage.getItem(CUSTOM_VOICES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.error('Failed to load custom voices from browser storage:', err);
+    return [];
+  }
+};
+
+export const saveCustomVoice = (voice: CustomVoiceItem): void => {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const voices = getSavedCustomVoices();
+    const existingIdx = voices.findIndex(v => v.id === voice.id);
+    if (existingIdx !== -1) {
+      voices[existingIdx] = voice;
+    } else {
+      voices.unshift(voice);
+    }
+    localStorage.setItem(CUSTOM_VOICES_STORAGE_KEY, JSON.stringify(voices));
+  } catch (err) {
+    console.error('Failed to save custom voice to browser storage:', err);
+  }
+};
+
+export const deleteCustomVoice = (id: string): void => {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const voices = getSavedCustomVoices().filter(v => v.id !== id);
+    localStorage.setItem(CUSTOM_VOICES_STORAGE_KEY, JSON.stringify(voices));
+  } catch (err) {
+    console.error('Failed to delete custom voice from browser storage:', err);
+  }
+};
+
+export const getCustomVoice = (id: string): CustomVoiceItem | undefined => {
+  return getSavedCustomVoices().find(v => v.id === id);
+};
+
+export async function craftCustomVoice(params: {
+  displayName: string;
+  prompt: string;
+  gender?: 'MALE' | 'FEMALE';
+  languageCode?: string;
+}): Promise<{ ok: boolean; voice?: CustomVoiceItem; error?: string }> {
+  try {
+    const res = await fetch('/api/gemini/voices', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-vertex-passcode': 'Ness2020',
+      },
+      body: JSON.stringify({
+        action: 'design',
+        displayName: params.displayName,
+        prompt: params.prompt,
+        gender: params.gender,
+        languageCode: params.languageCode || 'en-US'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      return { ok: false, error: data.error || 'Failed to craft voice with Vertex AI Voices API' };
+    }
+    const voiceItem: CustomVoiceItem = {
+      id: data.id,
+      name: data.displayName || params.displayName,
+      type: 'designed',
+      createdAt: Date.now(),
+      model: 'gemini-3.8-flash-tts',
+      gender: params.gender ? (params.gender.toLowerCase() as 'male' | 'female') : undefined,
+      languageCode: params.languageCode || 'en-US',
+      promptDescription: params.prompt,
+      sampleAudioDataUrl: data.sampleAudioDataUrl,
+      storageMode: 'stored'
+    };
+    saveCustomVoice(voiceItem);
+    return { ok: true, voice: voiceItem };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'Network error crafting voice' };
+  }
+}
+
+export async function replicateCustomVoice(params: {
+  displayName: string;
+  sourceAudioBase64: string;
+  consentAudioBase64?: string;
+  previewAudioUrl?: string;
+  store?: boolean;
+  model?: string;
+}): Promise<{ ok: boolean; voice?: CustomVoiceItem; error?: string }> {
+  try {
+    const res = await fetch('/api/gemini/voices', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-vertex-passcode': 'Ness2020',
+      },
+      body: JSON.stringify({
+        action: 'replicate',
+        displayName: params.displayName,
+        sourceAudio: params.sourceAudioBase64,
+        consentAudio: params.consentAudioBase64,
+        store: params.store ?? true,
+        model: params.model || 'gemini-3.8-flash-tts'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      return { ok: false, error: data.error || 'Failed to replicate voice with Vertex AI Voices API' };
+    }
+    const voiceId = data.id || data.key;
+    const voiceItem: CustomVoiceItem = {
+      id: voiceId,
+      name: data.displayName || params.displayName,
+      type: 'replicated',
+      createdAt: Date.now(),
+      model: params.model || 'gemini-3.8-flash-tts',
+      sampleAudioDataUrl: params.previewAudioUrl,
+      storageMode: (params.store ?? true) ? 'stored' : 'ephemeral'
+    };
+    saveCustomVoice(voiceItem);
+    return { ok: true, voice: voiceItem };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'Network error replicating voice' };
+  }
+}
+
+export async function deleteCustomVoiceComplete(id: string): Promise<void> {
+  deleteCustomVoice(id);
+  if (id.startsWith('voice_') || id.startsWith('voicekey_')) {
+    try {
+      await fetch(`/api/gemini/voices?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: {
+          'x-vertex-passcode': 'Ness2020',
+        }
+      });
+    } catch (e) {
+      console.warn('Remote voice delete warning:', e);
+    }
+  }
+}
+
+export interface VoiceDesignInspiration {
+  title: string;
+  gender: 'female' | 'male' | 'neutral';
+  languageCode: string;
+  prompt: string;
+}
+
+export const VOICE_DESIGN_INSPIRATIONS: VoiceDesignInspiration[] = [
+  {
+    title: 'British Astronomer',
+    gender: 'male',
+    languageCode: 'en-GB',
+    prompt: 'A warm, thoughtful astronomer in his late 60s with a gentle British accent, speaking with quiet wonder.'
+  },
+  {
+    title: 'Cyberpunk Netrunner',
+    gender: 'female',
+    languageCode: 'en-US',
+    prompt: 'A confident, witty hacker in her late 20s with a slight raspy vocal texture and rapid, sarcastic cadence.'
+  },
+  {
+    title: 'Southern Storyteller',
+    gender: 'female',
+    languageCode: 'en-US',
+    prompt: 'A gentle southern grandmother with a melodic drawl, honey-smooth timbre, and comforting cadence.'
+  },
+  {
+    title: 'Noir Detective',
+    gender: 'male',
+    languageCode: 'en-US',
+    prompt: 'A gravelly, cynical detective in his 40s with a deep baritone drawl, smoking cadence, and world-weary inflection.'
+  },
+  {
+    title: 'Upbeat Tech Podcaster',
+    gender: 'neutral',
+    languageCode: 'en-US',
+    prompt: 'An energetic, youthful host with crisp enunciation, bright timbre, and dynamic conversational pitch.'
+  }
+];

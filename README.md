@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.8.5)
+# Wassap Persona Simulation (v1.9.1)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.8.5-brightgreen)
+![Version](https://img.shields.io/badge/version-1.9.1-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -62,6 +62,37 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 *   **Master of Time (The Schedule)**:
     *   In the **Persona Schedule** section, you can set their 24/7 routine. 
     *   Are they at work? At the gym? Sleeping? You can even set custom **Weekend Days**. They won't blabber about it, but their mood and availability will change subtly. If it’s 3 AM and they’re "Sleeping", they might act a bit groggy if you wake them up. 😴👔
+
+---
+
+### 🌟 What's New in v1.9.1 (The "Gemini 3.8 Voice Studio Suite & Photo-Voice Attachment" Update)
+
+*   **Gemini 3.8 Voice Studio Suite (Persona-Specific Settings)**:
+    *   **Feature A: 🎨 Voice Design (Prompted Custom Voices)**:
+        *   Powered by Google Cloud Vertex AI's `VOICE_TYPE_PROMPTED` engine via `/api/gemini/voices`.
+        *   Craft completely custom vocal personas from natural language descriptions (age, accent, vocal texture, timbre, and cadence).
+        *   Persistent storage in browser `localStorage` with cross-chat auditioning and reuse on any persona.
+        *   100% consent-free custom voice generation.
+    *   **Feature B: 🎙️ Voice Replication (Audio Cloning with Spoken Consent)**:
+        *   Dual audio inputs: Reference Voice Sample (10–30s of clean speech) + Spoken Consent Recording reading Google's verification statement word-for-word.
+        *   Client-side Web Audio API resampler automatically converts both recordings and audio uploads (`.wav`, `.mp3`, `.m4a`, `.webm`, `.ogg`) to 24kHz mono PCM WAV.
+        *   Cloned voices saved to browser storage with audio audition player.
+    *   **Feature C: 🎭 Turn-Level Voice Prompting & Acting Directives**:
+        *   Single-pass generation combining conversational response with dynamic emotional style directives (Whispering, Cheerful, Sarcastic, Dramatic, Sleepy, Energetic, Calm), delivery pacing, and pitch modulation.
+        *   Official Gemini 3.8 angle-bracket vocal bursts: `<laugh>`, `<chuckle>`, `<sigh>`, `<gasp>`, `<cough>`, `<yawn>`, `<groan>`, `<whispers>`, `<short pause>`, `<long pause>`, etc.
+    *   **Independent Toggles**: Features A, B, and C can be toggled on or off at will with immediate fallback to prebuilt studio voices.
+
+*   **Multimedia Voice Notes with Photos**:
+    *   Attach photos and record/attach voice notes simultaneously before sending.
+    *   Composer staging tray with audio preview, playable waveform bar, and individual trash remove controls.
+    *   Unified WhatsApp media bubble (`📷 Photo + 🎤 Voice note: [caption]`) with dual IndexedDB storage keys.
+    *   Multimodal AI Vision & Hearing processing both attached image and audio simultaneously.
+
+*   **Zero-Lag Parallel AI Voice Pipeline**:
+    *   Concurrent eager generation running alongside authentic WhatsApp visual ticks and delivery transitions, slashing voice note response time to ~10–14s.
+
+*   **Vertex AI Application Default Credentials (ADC) Quota Project Fix**:
+    *   Automatic injection of `X-Goog-User-Project` and `projectId` across all server endpoints and `@google/genai` clients, eliminating quota project errors across local and cloud environments.
 
 ---
 
