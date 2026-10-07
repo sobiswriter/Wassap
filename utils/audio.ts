@@ -33,14 +33,17 @@ export function cleanSpokenTranscript(text: string): string {
 }
 
 /**
- * Converts bracketed emotional expressions (e.g., [laughs], [sighs], [scoffs], [whispers]) into native Gemini 3.8 TTS vocal burst tags
- * (e.g., <laugh>, <sigh>, <gasp>, <cough>, <whisper>). Also strips unpronounceable bracket directions and all emojis so the TTS
- * voice engine never reads emoji names aloud.
+ * Converts bracketed emotional expressions (e.g., [laughs], [sighs], [scoffs], [whispers], [pause])
+ * into official Google Gemini 3.8 TTS inline vocal tags:
+ * (<laugh>, <laughter>, <chuckle>, <sigh>, <gasp>, <cough>, <groan>, <whispers>, <short pause>, <long pause>, etc.)
+ * Also strips unpronounceable bracket directions and all emojis so the TTS voice engine never speaks them verbatim.
  */
 export function convertToGeminiVocalTags(text: string): string {
   if (!text) return '';
   const converted = text
-    .replace(/[\[\*(](?:laughs?|laughing|chuckles?|chuckling|giggles?|giggling|snickers?|snickering)[\]\*)]/gi, '<laugh>')
+    .replace(/[\[\*(](?:laughs?|laughing|cackles?)[\]\*)]/gi, '<laugh>')
+    .replace(/[\[\*(](?:chuckles?|chuckling)[\]\*)]/gi, '<chuckle>')
+    .replace(/[\[\*(](?:giggles?|giggling|snickers?|snickering)[\]\*)]/gi, '<chuckle>')
     .replace(/[\[\*(](?:sighs?|sighing|scoffs?|scoffing)[\]\*)]/gi, '<sigh>')
     .replace(/[\[\*(](?:gasps?|gasping)[\]\*)]/gi, '<gasp>')
     .replace(/[\[\*(](?:coughs?|coughing)[\]\*)]/gi, '<cough>')
@@ -49,8 +52,15 @@ export function convertToGeminiVocalTags(text: string): string {
     .replace(/[\[\*(](?:yawns?|yawning)[\]\*)]/gi, '<yawn>')
     .replace(/[\[\*(](?:snorts?|snorting)[\]\*)]/gi, '<snort>')
     .replace(/[\[\*(](?:pants?|panting)[\]\*)]/gi, '<pant>')
-    .replace(/[\[\*(](?:whispers?|whispering|softly)[\]\*)]/gi, '<whisper>')
-    .replace(/[\[\*(](?:pauses?|pause|short pause)[\]\*)]/gi, ' ... ')
+    .replace(/[\[\*(](?:whispers?|whispering|softly)[\]\*)]/gi, '<whispers>')
+    .replace(/[\[\*(](?:short\s+pause|brief\s+pause)[\]\*)]/gi, '<short pause>')
+    .replace(/[\[\*(](?:long\s+pause|awkward\s+pause)[\]\*)]/gi, '<long pause>')
+    .replace(/[\[\*(](?:pauses?|pause)[\]\*)]/gi, '<short pause>')
+    .replace(/[\[\*(](?:sobs?|sobbing|crying)[\]\*)]/gi, '<sob>')
+    .replace(/[\[\*(](?:cheers?|cheering)[\]\*)]/gi, '<cheer>')
+    .replace(/[\[\*(](?:phew|relieved)[\]\*)]/gi, '<phew>')
+    // Normalize any legacy <whisper> to official <whispers>
+    .replace(/<whisper>/gi, '<whispers>')
     // Strip any remaining bracketed or asterisked acting cues that are not pronounceable vocal bursts
     .replace(/\[[a-zA-Z\s_-]{2,30}\]/g, '')
     .replace(/\*[a-zA-Z\s_-]{2,30}\*/g, '');

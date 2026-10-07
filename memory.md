@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.8.7`
+- **Current Version**: `v1.9.0`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -14,7 +14,40 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Gemini 3.8 Flash-Lite TTS Optimization & Zero-Lag Parallel Generation Pipeline (`v1.8.7`)
+### 1. Multimedia Voice Notes with Photos & Gemini 3.8 Expressive Acting Overhaul (`v1.9.0`)
+- **Multimedia Image + Voice Note Integration**:
+  - **Composer Staging (`MessageInput.tsx`)**:
+    - Users can now attach a photo and record/attach a voice note simultaneously before hitting send.
+    - Added dedicated staging preview tray showing image thumbnail alongside voice note card (with playable audio bar, duration, and individual trash remove controls).
+    - Added quick-access microphone icon directly inside the composer action row whenever an image is staged.
+    - In-composer live recording bar with real-time timer (`formatAudioDuration`), cancel (`Trash2`), and confirm (`Check`) buttons.
+  - **Data Model & IndexedDB Isolation (`types.ts` & `App.tsx`)**:
+    - Extended `Message` with `voiceAttachment?: FileAttachment`, `voiceMediaId?: string`, and `voiceDuration?: number`.
+    - Maintained isolated storage keys in `media_store` (`mediaId` for photo, `voiceMediaId` for audio note) to prevent payload collisions while preserving single-responsibility IndexedDB blobs.
+    - Updated `lastMessage` calculation across the app: composite messages format as `📷 Photo + 🎤 Voice note: [caption]`.
+    - Integrated voice cleanup in `handleDeleteChat`, `handleClearChat`, and `handleDeleteMessages`.
+  - **High-Fidelity Bubble Rendering (`ChatWindow.tsx`)**:
+    - Single unified bubble for composite messages (`media-message-bubble`): renders photo on top and `VoiceNotePlayer` nestled directly beneath it, with caption text, message status ticks, and timestamps aligned below.
+    - Enhanced reply quote previews to accurately reflect `Photo + Voice`.
+  - **Multimodal AI Seeing & Hearing (`App.tsx` & `services/geminiService.ts`)**:
+    - Hydrates both photo (`image`) and audio (`audio`) from IndexedDB into history before calling `getGeminiResponse`.
+    - Persona prompt updated with Directive 5: personas inspect attached photos and listen to attached voice notes simultaneously when analyzing composite messages.
+
+- **Gemini 3.8 Flash Voice Delivery & Character Acting Fix**:
+  - **Root Cause Analysis (Why 3.8 sounded flat/stiff compared to 3.1)**:
+    - **Model Specialization**: `gemini-3.8-flash-lite-tts` (previously set as app default) is Google's ultra-fast model engineered for low-latency informational read-alouds, with prosody flattened. Conversely, `gemini-3.8-flash-tts` is Google's flagship model explicitly engineered for studio-grade character acting, emotional nuances, and dynamic vocal performance.
+    - **Verbatim Script Interpretation & Vocal Burst Tags**: Gemini 3.8 treats input text as verbatim scripts. Legacy square-bracket tags like `[laughs]`, `[sighs]`, `[chuckles]` were either causing awkward pauses or being read aloud verbatim. Google's official Gemini 3.8 standard requires angle brackets: `<laugh>`, `<chuckle>`, `<sigh>`, `<gasp>`, `<cough>`, `<groan>`, `<throat-clearing>`, `<yawn>`, `<snort>`, `<pant>`, `<whispers>`, `<short pause>`, `<long pause>`, `<sob>`, `<cheer>`, `<phew>`.
+    - **Sustained Style Directives**: `speechMetadata.style` requires clean sustained delivery attributes (e.g., `"warm and playful"`, `"whispered urgently"`) rather than prefixing with `"manner: "`.
+  - **Comprehensive Solution**:
+    - Promoted `gemini-3.8-flash-tts` as the default voice model (`DEFAULT_VOICE_MODEL`) in `constants.ts`.
+    - Configured automatic fallback hierarchy across both Vertex AI Cloud and Gemini AI Studio: `selectedModel` $\rightarrow$ `gemini-3.8-flash-tts` $\rightarrow$ `gemini-3.8-flash-lite-tts` $\rightarrow$ `gemini-3.1-flash-tts-preview`.
+    - Upgraded preprocessors (`utils/audio.ts`, `api/gemini/tts.ts`, `server/vertexHandler.ts`) to convert legacy square-bracket cues and natural stage directions into official 3.8 angle-bracket vocal bursts.
+    - Stripped artificial `"manner: "` prefixes from sustained style directives across both backends.
+    - Upgraded `buildFullPersonaSystemPrompt` to instruct personas on natural placement of official 3.8 angle-bracket vocal bursts and emotionally responsive voice note generation.
+
+---
+
+### 2. Gemini 3.8 Flash-Lite TTS Optimization & Zero-Lag Parallel Generation Pipeline (`v1.8.7`)
 - **Gemini 3.8 Speech Generation Architecture**:
   - Adopted `gemini-3.8-flash-lite-tts` (Ultra-Fast & Real-Time Default) as the default voice model across the entire application per Google Cloud's official documentation for high-throughput, low-latency conversational agents.
   - Retained `gemini-3.8-flash-tts` as the selectable option for high-fidelity studio acting and narration, with `gemini-3.1-flash-tts-preview` as legacy fallback.

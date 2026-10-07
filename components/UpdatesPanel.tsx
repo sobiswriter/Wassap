@@ -81,10 +81,24 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.9.0"
+              title="Multimedia Voice Notes with Photos & Gemini 3.8 Expressive Acting Overhaul"
+              date="October 2026"
+              isLatest={true}
+              changes={[
+                "Integrated Photo + Voice Attachments: Users can now record and attach high-fidelity voice notes directly alongside photos as unified multimedia messages in composer, chat bubble, and AI processing.",
+                "Gemini 3.8 Flash Studio-Grade Voice Delivery: Promoted Google's flagship gemini-3.8-flash-tts to default with automatic fallback hierarchy (gemini-3.8-flash-tts -> gemini-3.8-flash-lite-tts -> gemini-3.1-flash-tts-preview).",
+                "Official Angle-Bracket Vocal Burst Tags: Upgraded vocal cues to Google's official Gemini 3.8 standard (<laugh>, <chuckle>, <sigh>, <gasp>, <cough>, <groan>, <throat-clearing>, <yawn>, <snort>, <pant>, <whispers>, <short pause>, <long pause>, <sob>, <cheer>, <phew>), eliminating awkward verbatim tag readouts.",
+                "Refined Sustained Speech Styles: Cleaned speechMetadata.style directives across Vertex AI Cloud and Gemini AI Studio providers to generate rich, emotive cadence and character acting without robotic mannerisms.",
+                "Multimodal Persona Hearing & Seeing: AI personas simultaneously analyze attached images and listen to attached voice notes within composite messages for full context awareness.",
+                "Unified Storage & Bubble UI: IndexedDB media isolation for paired voice notes and photos, combined chat bubble rendering with audio player nestled beneath the image, and automatic cleanup on deletion."
+              ]}
+            />
+            <UpdateItem 
               version="v1.8.6"
               title="The Zero-Latency Mobile & Borderless WhatsApp Polish"
               date="September 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "Authentic Presence & Conversation Flow: Real-time WhatsApp presence progression where personas receive delivered double ticks, come online in the header, read messages with blue ticks, and think before typing.",
                 "Lingering Online State & Dynamic Last Seen: Personas now linger online for 28s after chatting to support active back-and-forth dialogue, dynamically stamping their exact 'last seen today at [time]' when disconnecting.",

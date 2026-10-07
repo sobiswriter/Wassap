@@ -269,21 +269,22 @@ export const AVAILABLE_IMAGE_MODELS = [
 export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-lite-image';
 
 export const AVAILABLE_VOICE_MODELS = [
-  { id: 'gemini-3.8-flash-lite-tts', label: 'Gemini 3.8 Flash-Lite TTS (Ultra-Fast & Real-Time Default)' },
-  { id: 'gemini-3.8-flash-tts', label: 'Gemini 3.8 Flash TTS (High-Fidelity Acting & Studio)' },
-  { id: 'gemini-3.1-flash-tts-preview', label: 'Gemini 3.1 Flash TTS Preview (Legacy Fallback)' },
+  { id: 'gemini-3.8-flash-tts', label: 'Gemini 3.8 Flash TTS (Studio Acting & Expressive Fidelity - Recommended)' },
+  { id: 'gemini-3.8-flash-lite-tts', label: 'Gemini 3.8 Flash-Lite TTS (Ultra-Fast Low-Latency)' },
+  { id: 'gemini-3.1-flash-tts-preview', label: 'Gemini 3.1 Flash TTS Preview (Legacy Character Acting)' },
 ];
 
-export const DEFAULT_VOICE_MODEL = 'gemini-3.8-flash-lite-tts';
+export const DEFAULT_VOICE_MODEL = 'gemini-3.8-flash-tts';
 
 export const VOICE_STYLE_PRESETS = [
-  { id: 'default', label: 'Natural & Expressive (Default)', prompt: '' },
-  { id: 'whispering', label: 'Whispering & Intimate', prompt: 'whispered gently, intimate and quiet late-night tone' },
-  { id: 'cheerful', label: 'Cheerful & Playful', prompt: 'cheerful, upbeat, playful and warm inflection' },
-  { id: 'teasing', label: 'Teasing & Sarcastic', prompt: 'sarcastic, dry humor, amused and slightly teasing cadence' },
-  { id: 'sleepy', label: 'Soft & Sleepy', prompt: 'soft, slow and sleepy, speaking softly with relaxed pauses' },
-  { id: 'energetic', label: 'Energetic & Fast-Paced', prompt: 'energetic, fast-paced and animated delivery' },
-  { id: 'serious', label: 'Calm & Composed', prompt: 'calm, steady, mature and reflective tone' },
+  { id: 'default', label: 'Natural & Expressive Acting (Default)', prompt: 'warm, natural, and expressive with authentic emotional cadence' },
+  { id: 'whispering', label: 'Whispering & Intimate', prompt: 'whispered gently, intimate, soft, and quiet late-night tone' },
+  { id: 'cheerful', label: 'Cheerful & Playful', prompt: 'cheerful, upbeat, playful, and warm inflection' },
+  { id: 'teasing', label: 'Teasing & Sarcastic', prompt: 'sarcastic, witty, amused, dry humor with a teasing cadence' },
+  { id: 'dramatic', label: 'Dramatic & Emotional', prompt: 'emotionally resonant, dramatic, with expressive pauses and heartfelt inflection' },
+  { id: 'sleepy', label: 'Soft & Sleepy', prompt: 'soft, slow, and sleepy, speaking gently with relaxed breathy pauses' },
+  { id: 'energetic', label: 'Energetic & Fast-Paced', prompt: 'energetic, fast-paced, spirited, and animated delivery' },
+  { id: 'serious', label: 'Calm & Composed', prompt: 'calm, steady, grounded, mature, and reflective tone' },
 ];
 
 

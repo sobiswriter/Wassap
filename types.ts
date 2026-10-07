@@ -20,8 +20,11 @@ export interface Message {
   status?: MessageStatus;
   isDeleted?: boolean;
   image?: string; // Base64 image data (fall back or small previews)
-  mediaId?: string; // ID for IndexedDB storage
+  mediaId?: string; // ID for IndexedDB storage (image / primary media)
   attachment?: FileAttachment;
+  voiceAttachment?: FileAttachment; // Attached voice note (when paired with image or standalone)
+  voiceMediaId?: string; // ID for IndexedDB storage for attached voice note
+  voiceDuration?: number; // Duration of attached voice note in seconds
   replyToMessage?: Message;
   isEvent?: boolean;
   eventTitle?: string;

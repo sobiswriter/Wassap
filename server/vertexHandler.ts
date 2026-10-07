@@ -640,7 +640,7 @@ export async function handleVertexTTS(payload: TTSPayload): Promise<{ ok: boolea
 
     const selectedVoice = voiceName || 'Aoede';
     const voiceDescriptor = getVoiceDescriptor(selectedVoice);
-    const selectedModel = voiceModel || 'gemini-3.8-flash-lite-tts';
+    const selectedModel = voiceModel || 'gemini-3.8-flash-tts';
     const is38 = selectedModel.includes('3.8');
 
     // Build consolidated style directives
@@ -657,7 +657,7 @@ export async function handleVertexTTS(payload: TTSPayload): Promise<{ ok: boolea
       styleParts.push(pitchTone);
     }
     if (speechStyle) {
-      styleParts.push(`manner: ${speechStyle}`);
+      styleParts.push(speechStyle.replace(/^manner:\s*/i, ''));
     }
     const combinedStyle = styleParts.filter(Boolean).join(', ');
 
@@ -669,8 +669,8 @@ export async function handleVertexTTS(payload: TTSPayload): Promise<{ ok: boolea
     // Build model candidate sequence with graceful fallbacks
     const modelsToTry: string[] = [
       selectedModel,
-      ...(selectedModel !== 'gemini-3.8-flash-lite-tts' ? ['gemini-3.8-flash-lite-tts'] : []),
       ...(selectedModel !== 'gemini-3.8-flash-tts' ? ['gemini-3.8-flash-tts'] : []),
+      ...(selectedModel !== 'gemini-3.8-flash-lite-tts' ? ['gemini-3.8-flash-lite-tts'] : []),
       ...(selectedModel !== 'gemini-3.1-flash-tts-preview' ? ['gemini-3.1-flash-tts-preview'] : [])
     ];
 

@@ -1302,13 +1302,15 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
       const hydratedHistory = await Promise.all(targetChat.messages.map(async m => {
         const mediaId = m.mediaId || m.attachment?.mediaId;
         const mediaData = mediaId ? await getMedia(mediaId) : undefined;
+        const voiceId = m.voiceMediaId || m.voiceAttachment?.mediaId;
+        const voiceData = voiceId ? await getMedia(voiceId) : undefined;
         let text = m.text;
         if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage, targetChat.name) + text;
         return {
           text,
           sender: m.sender,
           image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
-          audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
+          audio: (mediaData && m.attachment?.type === 'audio') ? mediaData : (voiceData || undefined)
         };
       }));
 
@@ -1756,7 +1758,15 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
 
 
-  const sendMessageToChat = async (targetChat: Chat, text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean, eventTitle?: string) => {
+  const sendMessageToChat = async (
+    targetChat: Chat, 
+    text: string, 
+    attachment?: FileAttachment, 
+    replyTo?: Message, 
+    isEvent?: boolean, 
+    eventTitle?: string,
+    voiceAttachment?: FileAttachment
+  ) => {
     if (leftOnReadTimeoutsRef.current[targetChat.id]) {
       clearTimeout(leftOnReadTimeoutsRef.current[targetChat.id]);
       delete leftOnReadTimeoutsRef.current[targetChat.id];
@@ -1772,6 +1782,16 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         await saveMedia(mediaId, attachment.data);
       } catch (err) {
         console.error("Failed to save media to IndexedDB", err);
+      }
+    }
+
+    let voiceMediaId = '';
+    if (voiceAttachment && voiceAttachment.type === 'audio') {
+      voiceMediaId = `media-${Date.now()}-voice`;
+      try {
+        await saveMedia(voiceMediaId, voiceAttachment.data);
+      } catch (err) {
+        console.error("Failed to save voice media to IndexedDB", err);
       }
     }
 
@@ -1798,6 +1818,12 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         data: (attachment.type === 'image' || attachment.type === 'audio') ? '' : attachment.data, // Strip media data for storage
         mediaId
       } : undefined,
+      voiceAttachment: voiceAttachment ? {
+        ...voiceAttachment,
+        data: '', // Strip audio data for storage
+        mediaId: voiceMediaId
+      } : undefined,
+      voiceMediaId: voiceMediaId || undefined,
       image: undefined, // No longer storing full Base64 in message object
       mediaId,
       sender: 'me',
@@ -1818,12 +1844,24 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     setChats(prev => prev.map(chat => {
       if (chat.id === targetChat.id) {
         let lastMsg = displayText || 'Attachment';
-        if (attachment?.type === 'image') lastMsg = '📷 Photo' + (displayText ? `: ${displayText}` : '');
-        if (attachment?.type === 'document') lastMsg = '📄 Document' + (displayText ? `: ${displayText}` : '');
-        if (attachment?.type === 'audio') lastMsg = '🎤 Voice message';
-        if (isEvent) lastMsg = `🎬 Event: ${eventTitle || displayText}`;
-        if (isImageRequest) lastMsg = `📷 Photo request: ${displayText}`;
-        if (isMemoryRecall) lastMsg = `💭 Remember: ${displayText}`;
+        const hasImg = attachment?.type === 'image';
+        const hasVoice = (attachment?.type === 'audio') || !!voiceAttachment;
+
+        if (hasImg && hasVoice) {
+          lastMsg = '📷 Photo + 🎤 Voice note' + (displayText ? `: ${displayText}` : '');
+        } else if (hasImg) {
+          lastMsg = '📷 Photo' + (displayText ? `: ${displayText}` : '');
+        } else if (attachment?.type === 'document') {
+          lastMsg = '📄 Document' + (displayText ? `: ${displayText}` : '');
+        } else if (hasVoice) {
+          lastMsg = '🎤 Voice message';
+        } else if (isEvent) {
+          lastMsg = `🎬 Event: ${eventTitle || displayText}`;
+        } else if (isImageRequest) {
+          lastMsg = `📷 Photo request: ${displayText}`;
+        } else if (isMemoryRecall) {
+          lastMsg = `💭 Remember: ${displayText}`;
+        }
 
         return {
           ...chat,
@@ -1892,7 +1930,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         pendingTimeGapsRef.current[chatId] = timeGapContext;
       }
 
-      const isVoiceNoteIncoming = userMsg?.attachment?.type === 'audio';
+      const isVoiceNoteIncoming = userMsg?.attachment?.type === 'audio' || !!userMsg?.voiceAttachment || !!userMsg?.voiceMediaId;
       const isOnlineSession = targetChat.status === 'online';
       const delaySeconds = isVoiceNoteIncoming
         ? 1.5
@@ -1945,9 +1983,16 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }
   };
 
-  const handleSendMessage = async (text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean, eventTitle?: string) => {
+  const handleSendMessage = async (
+    text: string, 
+    attachment?: FileAttachment, 
+    replyTo?: Message, 
+    isEvent?: boolean, 
+    eventTitle?: string,
+    voiceAttachment?: FileAttachment
+  ) => {
     if (!activeChat) return;
-    await sendMessageToChat(activeChat, text, attachment, replyTo, isEvent, eventTitle);
+    await sendMessageToChat(activeChat, text, attachment, replyTo, isEvent, eventTitle, voiceAttachment);
   };
 
   const handleSendPhotoToChat = async (targetChatId: string, fileData: string, caption?: string) => {
@@ -1982,13 +2027,15 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       const hydratedHistory = await Promise.all(updatedHistory.map(async m => {
         const mediaId = m.mediaId || m.attachment?.mediaId;
         const mediaData = mediaId ? await getMedia(mediaId) : undefined;
+        const voiceId = m.voiceMediaId || m.voiceAttachment?.mediaId;
+        const voiceData = voiceId ? await getMedia(voiceId) : undefined;
         let text = m.text;
         if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage, chat.name) + text;
         return {
           text,
           sender: m.sender,
           image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
-          audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
+          audio: (mediaData && m.attachment?.type === 'audio') ? mediaData : (voiceData || undefined)
         };
       }));
 
@@ -1996,7 +2043,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
       // Check if user sent a voice note or if persona will respond with voice
       const lastUserMsg = [...updatedHistory].reverse().find(m => m.sender === 'me');
-      const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio';
+      const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio' || !!lastUserMsg?.voiceAttachment || !!lastUserMsg?.voiceMediaId;
       const isVoiceNote = shouldReplyWithVoiceNote(chat.voiceSettings, userSentVoiceNote);
 
       // PIPELINED GENERATION: Eagerly launch LLM text & TTS audio synthesis in parallel with realistic visual presence delays
@@ -2494,6 +2541,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const hydratedGroupHistory = await Promise.all(currentHistory.map(async m => {
           const mediaId = m.mediaId || m.attachment?.mediaId;
           const mediaData = mediaId ? await getMedia(mediaId) : undefined;
+          const voiceId = m.voiceMediaId || m.voiceAttachment?.mediaId;
+          const voiceData = voiceId ? await getMedia(voiceId) : undefined;
           let text = m.text;
           if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage) + text;
           return {
@@ -2501,12 +2550,12 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             sender: m.sender,
             senderName: m.senderName,
             image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
-            audio: mediaData && m.attachment?.type === 'audio' ? mediaData : undefined
+            audio: (mediaData && m.attachment?.type === 'audio') ? mediaData : (voiceData || undefined)
           };
         }));
 
         const lastUserMsg = [...currentHistory].reverse().find(m => m.sender === 'me');
-        const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio';
+        const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio' || !!lastUserMsg?.voiceAttachment || !!lastUserMsg?.voiceMediaId;
         const isVoiceNote = shouldReplyWithVoiceNote(persona.voiceSettings, userSentVoiceNote);
 
         let responseText = await getGeminiResponse(
@@ -2914,6 +2963,19 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       alert("This is a permanent system chat and cannot be deleted.");
       return;
     }
+    const targetChat = chatsRef.current.find(c => c.id === activeChatId);
+    if (targetChat) {
+      for (const msg of targetChat.messages) {
+        const mediaId = msg.mediaId || msg.attachment?.mediaId;
+        if (mediaId) {
+          deleteMedia(mediaId).catch(() => {});
+        }
+        const voiceMediaId = msg.voiceMediaId || msg.voiceAttachment?.mediaId;
+        if (voiceMediaId) {
+          deleteMedia(voiceMediaId).catch(() => {});
+        }
+      }
+    }
     setChats(prev => prev.filter(c => c.id !== activeChatId));
     setActiveChatId('');
     setShowProfilePanel(false);
@@ -2927,6 +2989,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const mediaId = msg.mediaId || msg.attachment?.mediaId;
         if (mediaId) {
           deleteMedia(mediaId).catch(() => {});
+        }
+        const voiceMediaId = msg.voiceMediaId || msg.voiceAttachment?.mediaId;
+        if (voiceMediaId) {
+          deleteMedia(voiceMediaId).catch(() => {});
         }
       }
     }
@@ -2987,6 +3053,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           console.warn("Failed to delete media from IndexedDB:", e);
         }
       }
+      const voiceMediaId = msg?.voiceMediaId || msg?.voiceAttachment?.mediaId;
+      if (voiceMediaId) {
+        try {
+          await deleteMedia(voiceMediaId);
+        } catch (e) {
+          console.warn("Failed to delete voice media from IndexedDB:", e);
+        }
+      }
     }
 
     // Filter messages & recalculate lastMessage and lastMessageTime
@@ -2996,9 +3070,16 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const lastMsg = remaining[remaining.length - 1];
         let newLastMessage = '';
         if (lastMsg) {
-          if (lastMsg.attachment) {
-            newLastMessage = lastMsg.attachment.type === 'image' ? '📷 Photo' : 
-                             lastMsg.attachment.type === 'audio' ? '🎤 Voice message' : '📎 Attachment';
+          const hasImg = lastMsg.attachment?.type === 'image' || !!lastMsg.image;
+          const hasVoice = lastMsg.attachment?.type === 'audio' || !!lastMsg.voiceAttachment || !!lastMsg.voiceMediaId;
+          if (hasImg && hasVoice) {
+            newLastMessage = '📷 Photo + 🎤 Voice note';
+          } else if (hasImg) {
+            newLastMessage = '📷 Photo';
+          } else if (lastMsg.attachment?.type === 'document') {
+            newLastMessage = '📄 Document';
+          } else if (hasVoice) {
+            newLastMessage = '🎤 Voice message';
           } else {
             newLastMessage = lastMsg.text || '';
           }

@@ -265,8 +265,9 @@ const MessageBubble = React.memo<{
 }>(({ message, highlight, isGroup, chatName, chatAvatar, onReply, selected, onToggleSelect, selectionMode, isConsecutive, onOpenImage }) => {
   const isMe = message.sender === 'me';
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
-  const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId;
+  const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId || !!message.voiceAttachment || !!message.voiceMediaId;
   const [mediaData, setMediaData] = useState<string | null>(null);
+  const [voiceData, setVoiceData] = useState<string | null>(null);
   const [isEventExpanded, setIsEventExpanded] = useState(false);
   const lastTap = useRef(0);
   const holdTimerRef = useRef<any>(null);
@@ -305,13 +306,25 @@ const MessageBubble = React.memo<{
           console.error("Error loading media from IndexedDB", err);
         }
       }
+      const voiceId = message.voiceMediaId || message.voiceAttachment?.mediaId;
+      if (voiceId) {
+        try {
+          const vData = await getMedia(voiceId);
+          if (vData && isMounted) setVoiceData(vData);
+        } catch (err) {
+          console.error("Error loading voice note from IndexedDB", err);
+        }
+      }
     };
     loadMedia();
     return () => { isMounted = false; };
-  }, [message.mediaId, message.attachment?.mediaId]);
+  }, [message.mediaId, message.attachment?.mediaId, message.voiceMediaId, message.voiceAttachment?.mediaId]);
 
   const mediaSrc = mediaData || message.image || message.attachment?.data || null;
-  const isMediaMessage = Boolean(mediaSrc && message.attachment?.type !== 'audio');
+  const voiceSrc = voiceData || message.voiceAttachment?.data || (message.attachment?.type === 'audio' ? mediaSrc : null);
+  const hasImage = Boolean(mediaSrc && message.attachment?.type !== 'audio');
+  const hasVoice = Boolean(voiceSrc);
+  const isMediaMessage = hasImage;
 
   if (message.isEvent) {
     const trimmedText = message.text ? message.text.trim() : '';
@@ -460,9 +473,17 @@ const MessageBubble = React.memo<{
                  <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
                    <Camera size={13} className="text-secondary" />
                    <span>Photo</span>
+                   {(message.replyToMessage.voiceAttachment || message.replyToMessage.voiceMediaId || message.replyToMessage.attachment?.type === 'audio') && (
+                     <>
+                       <span className="text-secondary">+</span>
+                       <Mic size={13} className="text-[#21c063]" />
+                       <span>Voice</span>
+                     </>
+                   )}
                  </span>
                )}
-               {message.replyToMessage.attachment?.type === 'audio' && (
+               {!(message.replyToMessage.image || message.replyToMessage.attachment?.type === 'image') && 
+                (message.replyToMessage.voiceAttachment || message.replyToMessage.attachment?.type === 'audio') && (
                  <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
                    <Mic size={13} className="text-[#21c063]" />
                    <span>Voice message</span>
@@ -502,6 +523,19 @@ const MessageBubble = React.memo<{
                 loading="lazy"
               />
             </div>
+
+            {/* Attached Voice Note directly beneath image inside the same bubble */}
+            {hasVoice && (
+              <div className="w-full px-1 pt-1.5 pb-0.5">
+                <VoiceNotePlayer
+                  src={voiceSrc!}
+                  seedId={`${message.id}-attached-voice`}
+                  isMe={isMe}
+                  avatar={isMe ? undefined : chatAvatar}
+                  senderName={isMe ? 'You' : (message.senderName || 'Voice Note')}
+                />
+              </div>
+            )}
 
             {message.text ? (
               <div className="caption-text flex flex-col relative w-full">
@@ -555,10 +589,10 @@ const MessageBubble = React.memo<{
               </div>
             )}
 
-            {message.attachment?.type === 'audio' && (
+            {(message.attachment?.type === 'audio' || hasVoice) && (
               <div className="p-1 pb-0 w-full">
                 <VoiceNotePlayer
-                  src={mediaSrc || message.attachment?.data || ''}
+                  src={voiceSrc || mediaSrc || message.attachment?.data || ''}
                   seedId={message.id}
                   transcript={message.text}
                   isMe={isMe}

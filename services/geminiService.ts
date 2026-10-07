@@ -469,13 +469,15 @@ DO NOT include ANY emojis (no ❤️, 🏡, 😂, 🍲, 🥺, etc.) in your resp
 Express ALL emotion, warmth, humor, and feeling strictly through your spoken words, natural cadence, and vocal tags (<laugh>, <sigh>, <gasp>, <whisper>).
 
 VOCAL TAGS & SOUND EFFECTS INSTRUCTIONS:
-Gemini Speech Generation actively converts vocal cue tags into real human sound bursts. You MUST actively and expressively embed natural vocal tags or bracket cues into your speech where emotionally fitting!
-- Use <laugh> or [laughs] when amused, teasing, chuckling, or joking.
-- Use <sigh> or [sighs] / [scoffs] when tired, exasperated, scoffing, or relaxing.
-- Use <gasp> or [gasps] when shocked, surprised, or reacting to unexpected news.
-- Use <whisper> or [whispers] when sharing a secret, speaking intimately, or being quiet.
-- Use <cough> or [coughs] or <throat-clearing> if pausing or clearing your throat.
-- Use natural pauses ("...") and verbal fillers (e.g., "uh", "um", "well...", "yk", "wait...") to reflect real, spontaneous human speaking cadence.
+Gemini 3.8 Speech Generation natively converts official angle-bracket vocal event tags into real human sound bursts. You SHOULD actively and expressively embed these official tags into your speech where emotionally fitting:
+- Use <laugh> or <chuckle> when amused, teasing, chuckling, or joking.
+- Use <sigh> or <groan> when tired, exasperated, scoffing, or relaxing.
+- Use <gasp> when shocked, surprised, or reacting to unexpected news.
+- Use <whispers> when sharing a secret, speaking intimately, or being quiet.
+- Use <cough> or <throat-clearing> if pausing or clearing your throat.
+- Use <yawn> when sleepy or lazy, and <phew> when relieved.
+- Use <short pause> or <long pause> for hesitations and thoughtful silences.
+- Use natural verbal fillers (e.g., "uh", "um", "well...", "yk", "wait...") to reflect real spontaneous human speaking cadence.
 
 Do NOT speak like a written book or clinical assistant. Speak like a real human friend holding down the WhatsApp microphone button while talking to the user!
 `;
@@ -498,9 +500,10 @@ Instructions:
 2. Breathe life into this persona! Maintain your unique personality and speech style at all times.
 3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
 4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
-5. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
-6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? (responder.humaneSettings.varyMessageLengthPrompt ? 'Follow the custom message length and pacing directives defined below.' : 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.') : 'Respond naturally without any strict length restrictions.'}
-7. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
+5. If the user sent an image with an attached Voice Note, look at the image AND listen to what they said, responding cohesively to both!
+6. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
+7. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? (responder.humaneSettings.varyMessageLengthPrompt ? 'Follow the custom message length and pacing directives defined below.' : 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.') : 'Respond naturally without any strict length restrictions.'}
+8. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
 
 Conversation History:
 ${historyString}
@@ -773,7 +776,7 @@ export const generateGeminiVoiceNote = async (
     styleParts.push(voiceSettings.pitchTone);
   }
   if (personaContext?.speechStyle) {
-    styleParts.push(`manner: ${personaContext.speechStyle}`);
+    styleParts.push(personaContext.speechStyle.replace(/^manner:\s*/i, ''));
   }
   const combinedStyle = styleParts.filter(Boolean).join(', ');
 
@@ -786,7 +789,7 @@ export const generateGeminiVoiceNote = async (
     const promptParts = [
       personaContext?.name ? `as ${personaContext.name}` : '',
       `with a ${combinedStyle || traitDesc} voice delivery`,
-      personaContext?.speechStyle ? `(speech style: ${personaContext.speechStyle})` : ''
+      personaContext?.speechStyle ? `(${personaContext.speechStyle})` : ''
     ].filter(Boolean).join(' ');
 
     steeredInput = `Say the following in a natural WhatsApp voice note ${promptParts}: ${textWithCues.trim()}`;
@@ -825,11 +828,12 @@ export const generateGeminiVoiceNote = async (
     let audioBase64: string | undefined;
     let mimeType = 'audio/wav';
 
-    // Build model candidate sequence with graceful fallbacks
+    // Build model candidate sequence with graceful fallbacks:
+    // Try selectedModel -> gemini-3.8-flash-tts -> gemini-3.8-flash-lite-tts -> gemini-3.1-flash-tts-preview
     const modelsToTry = [
       selectedModel,
-      ...(selectedModel !== 'gemini-3.8-flash-lite-tts' ? ['gemini-3.8-flash-lite-tts'] : []),
       ...(selectedModel !== 'gemini-3.8-flash-tts' ? ['gemini-3.8-flash-tts'] : []),
+      ...(selectedModel !== 'gemini-3.8-flash-lite-tts' ? ['gemini-3.8-flash-lite-tts'] : []),
       ...(selectedModel !== 'gemini-3.1-flash-tts-preview' ? ['gemini-3.1-flash-tts-preview'] : [])
     ];
 
@@ -844,7 +848,7 @@ export const generateGeminiVoiceNote = async (
         const userPart: any = {
           text: isCandidate38
             ? verbatimWithVocalTags
-            : `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, <cough>: ${verbatimWithVocalTags}`
+            : `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <chuckle>, <sigh>, <gasp>, <whispers>, <cough>, <short pause>: ${verbatimWithVocalTags}`
         };
         if (isCandidate38 && styleDirective) {
           userPart.speechMetadata = { style: styleDirective };

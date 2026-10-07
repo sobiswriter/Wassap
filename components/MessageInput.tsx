@@ -1,11 +1,19 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Camera, MapPin, User, Headphones, BarChart, Calendar, Sparkles, Mic, Square, Sticker, Trash2 } from 'lucide-react';
+import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Camera, MapPin, User, Headphones, BarChart, Calendar, Sparkles, Mic, Square, Sticker, Trash2, Check } from 'lucide-react';
 import { FileAttachment, Message } from '../types';
 import { compressImage } from '../utils/imageCompressor';
+import { formatAudioDuration } from '../utils/audio';
 
 interface MessageInputProps {
-  onSendMessage: (text: string, attachment?: FileAttachment, replyTo?: Message, isEvent?: boolean, eventTitle?: string) => void;
+  onSendMessage: (
+    text: string, 
+    attachment?: FileAttachment, 
+    replyTo?: Message, 
+    isEvent?: boolean, 
+    eventTitle?: string,
+    voiceAttachment?: FileAttachment
+  ) => void;
   activeChatId: string;
   chatName?: string;
   replyingTo?: Message | null;
@@ -28,7 +36,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [stagedAttachment, setStagedAttachment] = useState<FileAttachment | null>(null);
+  const [stagedVoiceNote, setStagedVoiceNote] = useState<FileAttachment | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const [showEventModal, setShowEventModal] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
   const [eventText, setEventText] = useState('');
@@ -36,6 +46,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -57,13 +68,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     setShowEmojiPicker(false);
     setShowAttachmentMenu(false);
     setStagedAttachment(null);
+    setStagedVoiceNote(null);
     setShowEventModal(false);
     setEventTitle('');
     setEventText('');
     setEventImage(null);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
     if (isRecording) {
       stopRecording();
     }
+    setRecordingDuration(0);
     setText('');
 
     if (inputRef.current) {
@@ -95,10 +112,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   }, []);
 
   const handleSend = () => {
-    if (text.trim() || stagedAttachment) {
-      onSendMessage(text, stagedAttachment || undefined, replyingTo || undefined);
+    if (text.trim() || stagedAttachment || stagedVoiceNote) {
+      onSendMessage(
+        text, 
+        stagedAttachment || undefined, 
+        replyingTo || undefined, 
+        false, 
+        undefined, 
+        stagedVoiceNote || undefined
+      );
       setText('');
       setStagedAttachment(null);
+      setStagedVoiceNote(null);
       if (onCancelReply) onCancelReply();
       setShowEmojiPicker(false);
       if (inputRef.current) {
@@ -164,12 +189,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
       const reader = new FileReader();
       reader.onloadend = () => {
-        setStagedAttachment({
-          name: file.name,
-          data: reader.result as string,
-          type: type,
-          size: file.size
-        });
+        if (type === 'audio') {
+          setStagedVoiceNote({
+            name: file.name,
+            data: reader.result as string,
+            type: 'audio',
+            size: file.size
+          });
+        } else {
+          setStagedAttachment({
+            name: file.name,
+            data: reader.result as string,
+            type: type,
+            size: file.size
+          });
+        }
         setShowAttachmentMenu(false);
         // Reset file input so same file can be selected again if removed
         e.target.value = '';
@@ -185,6 +219,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+      setRecordingDuration(0);
+
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -193,11 +233,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
       };
 
       mediaRecorder.onstop = () => {
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
-          setStagedAttachment({
+          setStagedVoiceNote({
             name: 'Voice Note',
             data: reader.result as string,
             type: 'audio',
@@ -206,6 +250,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         };
         stream.getTracks().forEach(track => track.stop());
         setIsRecording(false);
+        setRecordingDuration(0);
       };
 
       mediaRecorder.start();
@@ -219,6 +264,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
     }
+  };
+
+  const cancelRecording = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current) {
+      try {
+        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      } catch {}
+      mediaRecorderRef.current = null;
+    }
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordingDuration(0);
   };
 
   return (
@@ -355,39 +416,71 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
       )}
 
       {/* Attachment Preview Area (Staged) */}
-      {stagedAttachment && (
-        <div className="bg-[#f0f2f5] dark:bg-[#182229] border-t app-border px-4 py-4 flex items-end animate-in slide-in-from-bottom-2 duration-300 shadow-inner">
-          <div className="relative group bg-white dark:bg-[#2a3942] p-2 rounded-xl border app-border shadow-md">
-            <button
-              onClick={() => setStagedAttachment(null)}
-              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 transition-colors z-20 active:scale-90"
-            >
-              <X size={16} />
-            </button>
-            {stagedAttachment.type === 'image' && (
-              <div className="relative w-32 h-32 overflow-hidden rounded-lg">
-                <img src={stagedAttachment.data} className="w-full h-full object-cover" alt="preview" />
+      {(stagedAttachment || stagedVoiceNote) && (
+        <div className="bg-[#f0f2f5] dark:bg-[#182229] border-t app-border px-4 py-3 flex items-end gap-3 animate-in slide-in-from-bottom-2 duration-300 shadow-inner overflow-x-auto">
+          {/* Staged Image or Document */}
+          {stagedAttachment && (
+            <div className="relative group bg-white dark:bg-[#2a3942] p-2 rounded-xl border app-border shadow-md shrink-0">
+              <button
+                onClick={() => setStagedAttachment(null)}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 transition-colors z-20 active:scale-90"
+                title="Remove attachment"
+              >
+                <X size={15} />
+              </button>
+              {stagedAttachment.type === 'image' && (
+                <div className="relative w-24 h-24 sm:w-28 sm:h-28 overflow-hidden rounded-lg">
+                  <img src={stagedAttachment.data} className="w-full h-full object-cover" alt="preview" />
+                </div>
+              )}
+              {stagedAttachment.type === 'document' && (
+                <div className="w-24 h-24 sm:w-28 sm:h-28 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#182229] rounded-lg border app-border p-2">
+                  <FileText className="text-[#7f66ff] mb-2" size={32} />
+                  <span className="text-[11px] text-[#667781] text-center line-clamp-2 w-full leading-tight font-medium">{stagedAttachment.name}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Staged Voice Note */}
+          {stagedVoiceNote && (
+            <div className="relative group bg-white dark:bg-[#2a3942] p-2.5 rounded-xl border app-border shadow-md shrink-0 flex items-center gap-2.5 min-w-[170px] sm:min-w-[200px]">
+              <button
+                onClick={() => setStagedVoiceNote(null)}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 transition-colors z-20 active:scale-90"
+                title="Remove voice note"
+              >
+                <X size={15} />
+              </button>
+              <div className="w-10 h-10 rounded-full bg-[#21c063] flex items-center justify-center text-white shrink-0 shadow-xs">
+                <Mic size={20} />
               </div>
-            )}
-            {stagedAttachment.type === 'document' && (
-              <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#182229] rounded-lg border app-border p-2">
-                <FileText className="text-[#7f66ff] mb-2" size={40} />
-                <span className="text-[calc(var(--input-font-size)-6px)] text-[#667781] text-center line-clamp-2 w-full leading-tight font-medium">{stagedAttachment.name}</span>
+              <div className="flex flex-col min-w-0 pr-2">
+                <span className="text-[12px] font-semibold text-primary truncate">Voice Note</span>
+                <span className="text-[11px] text-secondary">Audio attached</span>
               </div>
-            )}
-            {stagedAttachment.type === 'audio' && (
-              <div className="w-32 h-32 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#182229] rounded-lg border app-border p-2">
-                <Headphones className="text-[#fe7a15] mb-2" size={40} />
-                <span className="text-[calc(var(--input-font-size)-6px)] text-[#667781] text-center line-clamp-2 w-full leading-tight font-medium">{stagedAttachment.name || 'Audio file'}</span>
-              </div>
-            )}
-          </div>
-          <div className="ml-5 mb-2 flex flex-col">
-            <span className="text-[calc(var(--input-font-size)-2px)] text-primary font-semibold">
-              {stagedAttachment.type === 'image' ? 'Send Image' : stagedAttachment.type === 'audio' ? 'Send Audio' : 'Send Document'}
+            </div>
+          )}
+
+          {/* Title & Helper Description */}
+          <div className="ml-1 mb-1 flex flex-col min-w-0">
+            <span className="text-[13px] text-primary font-semibold truncate">
+              {stagedAttachment && stagedVoiceNote
+                ? 'Photo + Voice Note'
+                : stagedAttachment?.type === 'image'
+                  ? 'Send Photo'
+                  : stagedVoiceNote
+                    ? 'Send Voice Note'
+                    : 'Send Attachment'}
             </span>
-            <span className="text-[calc(var(--input-font-size)-5px)] text-secondary italic">
-              {stagedAttachment.type === 'image' ? 'Add a caption below' : stagedAttachment.name}
+            <span className="text-[11.5px] text-secondary italic truncate">
+              {stagedAttachment && stagedVoiceNote
+                ? 'Voice note and caption will be attached to this photo'
+                : stagedAttachment?.type === 'image'
+                  ? 'Add a caption below or tap mic to attach a voice note'
+                  : stagedVoiceNote
+                    ? 'Add an optional caption below'
+                    : stagedAttachment?.name}
             </span>
           </div>
         </div>
@@ -408,7 +501,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                    <span>Photo</span>
                  </span>
                )}
-               {replyingTo.attachment?.type === 'audio' && (
+               {(replyingTo.voiceAttachment || replyingTo.attachment?.type === 'audio') && (
                  <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
                    <Mic size={13} className="text-[#21c063]" />
                    <span>Voice message</span>
@@ -430,60 +523,116 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         <input type="file" ref={audioInputRef} className="hidden" accept="audio/*" onChange={(e) => handleFileSelection(e, 'audio')} />
 
         <div className="flex-1 bg-white dark:bg-[#233138] rounded-[24px] flex items-end shadow-[0_1px_2px_rgba(11,20,26,.1)] overflow-hidden min-h-[48px]">
-          <div className="relative p-[12px] pl-[14px] shrink-0" ref={emojiRef}>
-            <button
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className={`transition-colors flex items-center justify-center ${showEmojiPicker ? 'text-[#21c063]' : 'text-[#8696a0] hover:text-[#21c063]'}`}
-            >
-              <Smile size={26} strokeWidth={2} />
-            </button>
-          </div>
+          {isRecording ? (
+            <div className="flex-1 py-[10px] px-4 flex items-center justify-between text-primary animate-in fade-in duration-200">
+              <div className="flex items-center gap-2.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping shrink-0" />
+                <div className="flex items-center gap-1.5 text-red-500 font-semibold text-[14px]">
+                  <Mic size={17} />
+                  <span>{formatAudioDuration(recordingDuration)}</span>
+                </div>
+                <span className="text-[12px] text-secondary hidden sm:inline ml-2 animate-pulse">
+                  {stagedAttachment?.type === 'image' ? 'Recording voice note for attached photo...' : 'Recording audio...'}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={cancelRecording}
+                  className="text-secondary hover:text-red-500 p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  title="Discard voice note"
+                >
+                  <Trash2 size={20} />
+                </button>
+                <button
+                  type="button"
+                  onClick={stopRecording}
+                  className="bg-[#21c063] hover:bg-[#1eb05b] text-white p-1.5 rounded-full shadow transition-all active:scale-95"
+                  title="Attach voice note"
+                >
+                  <Check size={18} strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="relative p-[12px] pl-[14px] shrink-0" ref={emojiRef}>
+                <button
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className={`transition-colors flex items-center justify-center ${showEmojiPicker ? 'text-[#21c063]' : 'text-[#8696a0] hover:text-[#21c063]'}`}
+                >
+                  <Smile size={26} strokeWidth={2} />
+                </button>
+              </div>
 
-          <textarea
-            ref={inputRef}
-            placeholder={isRecording ? "Recording audio..." : (stagedAttachment ? (stagedAttachment.type === 'image' ? "Add a caption..." : "Message about this attachment...") : "Message")}
-            disabled={isRecording}
-            className="flex-1 bg-transparent outline-none text-[length:var(--input-font-size)] py-[12px] min-w-0 resize-none max-h-[140px] leading-relaxed custom-scrollbar disabled:opacity-70"
-            value={text}
-            rows={1}
-            onChange={(e) => {
-              setText(e.target.value);
-              e.target.style.height = 'auto';
-              e.target.style.height = `${e.target.scrollHeight}px`;
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
+              <textarea
+                ref={inputRef}
+                placeholder={
+                  stagedAttachment && stagedVoiceNote
+                    ? "Add a caption for this photo & voice note..."
+                    : stagedAttachment?.type === 'image'
+                      ? "Add a caption (or tap mic to attach voice note)..."
+                      : stagedVoiceNote
+                        ? "Add a caption for this voice note..."
+                        : "Message"
+                }
+                className="flex-1 bg-transparent outline-none text-[length:var(--input-font-size)] py-[12px] min-w-0 resize-none max-h-[140px] leading-relaxed custom-scrollbar disabled:opacity-70"
+                value={text}
+                rows={1}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${e.target.scrollHeight}px`;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+              />
 
-          <div className="relative p-[12px] pr-4 shrink-0 flex items-center gap-[18px] text-[#8696a0]" ref={attachRef}>
-            <button
-              type="button"
-              onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-              className={`transition-transform duration-200 hover:text-black/60 dark:hover:text-white/80 ${showAttachmentMenu ? 'text-[#21c063] -rotate-45' : ''}`}
-              title="Attach"
-            >
-              <Paperclip size={24} strokeWidth={2} className="rotate-[135deg]" />
-            </button>
-            <button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              className="transition-colors hover:text-black/60 dark:hover:text-white/80 active:scale-95"
-              title="Camera"
-            >
-              <Camera size={24} strokeWidth={2} />
-            </button>
-          </div>
+              <div className="relative p-[12px] pr-4 shrink-0 flex items-center gap-[16px] text-[#8696a0]" ref={attachRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+                  className={`transition-transform duration-200 hover:text-black/60 dark:hover:text-white/80 ${showAttachmentMenu ? 'text-[#21c063] -rotate-45' : ''}`}
+                  title="Attach"
+                >
+                  <Paperclip size={24} strokeWidth={2} className="rotate-[135deg]" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="transition-colors hover:text-black/60 dark:hover:text-white/80 active:scale-95"
+                  title="Camera"
+                >
+                  <Camera size={24} strokeWidth={2} />
+                </button>
+
+                {/* Quick Mic action inside composer when an image is staged and voice note not yet recorded */}
+                {stagedAttachment?.type === 'image' && !stagedVoiceNote && (
+                  <button
+                    type="button"
+                    onClick={startRecording}
+                    className="transition-colors text-[#21c063] hover:opacity-80 active:scale-95"
+                    title="Attach voice note to photo"
+                  >
+                    <Mic size={24} strokeWidth={2.2} />
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="w-[48px] h-[48px] shrink-0 mb-[0.5px]">
-          {text.trim() || stagedAttachment ? (
+          {text.trim() || stagedAttachment || stagedVoiceNote ? (
             <button
               onClick={handleSend}
               className="w-full h-full bg-[#21c063] hover:bg-[#1eb05b] rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-[0_2px_8px_rgba(33,192,99,0.3)]"
+              title="Send"
             >
               <SendHorizontal size={24} fill="currentColor" strokeWidth={1} className="ml-1" />
             </button>
@@ -491,6 +640,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             <button
               onClick={isRecording ? stopRecording : startRecording}
               className={`w-full h-full rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-[0_2px_8px_rgba(33,192,99,0.3)] ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-[#21c063] hover:bg-[#1eb05b]'}`}
+              title={isRecording ? "Stop recording" : "Record voice note"}
             >
               {isRecording ? <Square size={18} fill="currentColor" /> : <WhatsAppMicIcon size={24} className="ml-[1px]" />}
             </button>

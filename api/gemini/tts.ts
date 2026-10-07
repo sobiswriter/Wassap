@@ -69,7 +69,9 @@ interface TTSPayload {
 function convertToVocalTags(text: string): string {
   if (!text) return '';
   return text
-    .replace(/[\[\*(](?:laughs?|laughing|chuckles?|chuckling|giggles?|giggling|snickers?|snickering)[\]\*)]/gi, '<laugh>')
+    .replace(/[\[\*(](?:laughs?|laughing|cackles?)[\]\*)]/gi, '<laugh>')
+    .replace(/[\[\*(](?:chuckles?|chuckling)[\]\*)]/gi, '<chuckle>')
+    .replace(/[\[\*(](?:giggles?|giggling|snickers?|snickering)[\]\*)]/gi, '<chuckle>')
     .replace(/[\[\*(](?:sighs?|sighing|scoffs?|scoffing)[\]\*)]/gi, '<sigh>')
     .replace(/[\[\*(](?:gasps?|gasping)[\]\*)]/gi, '<gasp>')
     .replace(/[\[\*(](?:coughs?|coughing)[\]\*)]/gi, '<cough>')
@@ -78,8 +80,14 @@ function convertToVocalTags(text: string): string {
     .replace(/[\[\*(](?:yawns?|yawning)[\]\*)]/gi, '<yawn>')
     .replace(/[\[\*(](?:snorts?|snorting)[\]\*)]/gi, '<snort>')
     .replace(/[\[\*(](?:pants?|panting)[\]\*)]/gi, '<pant>')
-    .replace(/[\[\*(](?:whispers?|whispering|softly)[\]\*)]/gi, '<whisper>')
-    .replace(/[\[\*(](?:pauses?|pause|short pause)[\]\*)]/gi, ' ... ')
+    .replace(/[\[\*(](?:whispers?|whispering|softly)[\]\*)]/gi, '<whispers>')
+    .replace(/[\[\*(](?:short\s+pause|brief\s+pause)[\]\*)]/gi, '<short pause>')
+    .replace(/[\[\*(](?:long\s+pause|awkward\s+pause)[\]\*)]/gi, '<long pause>')
+    .replace(/[\[\*(](?:pauses?|pause)[\]\*)]/gi, '<short pause>')
+    .replace(/[\[\*(](?:sobs?|sobbing|crying)[\]\*)]/gi, '<sob>')
+    .replace(/[\[\*(](?:cheers?|cheering)[\]\*)]/gi, '<cheer>')
+    .replace(/[\[\*(](?:phew|relieved)[\]\*)]/gi, '<phew>')
+    .replace(/<whisper>/gi, '<whispers>')
     .replace(/\[[a-zA-Z\s_-]{2,30}\]/g, '')
     .replace(/\*[a-zA-Z\s_-]{2,30}\*/g, '')
     // Strip emojis so TTS engine never vocalizes emoji labels
@@ -308,7 +316,7 @@ export default async function handler(
 
     const selectedVoice = voiceName || 'Aoede';
     const voiceDescriptor = getVoiceDescriptor(selectedVoice);
-    const selectedModel = voiceModel || 'gemini-3.8-flash-lite-tts';
+    const selectedModel = voiceModel || 'gemini-3.8-flash-tts';
     const is38 = selectedModel.includes('3.8');
 
     // Build consolidated style directives
@@ -325,7 +333,7 @@ export default async function handler(
       styleParts.push(pitchTone);
     }
     if (speechStyle) {
-      styleParts.push(`manner: ${speechStyle}`);
+      styleParts.push(speechStyle.replace(/^manner:\s*/i, ''));
     }
     const combinedStyle = styleParts.filter(Boolean).join(', ');
 
@@ -334,11 +342,12 @@ export default async function handler(
     let audioBase64: string | undefined;
     let mimeType = 'audio/wav';
 
-    // Build model candidate sequence with graceful fallbacks
+    // Build model candidate sequence with graceful fallbacks:
+    // Try selectedModel -> gemini-3.8-flash-tts -> gemini-3.8-flash-lite-tts -> gemini-3.1-flash-tts-preview
     const modelsToTry: string[] = [
       selectedModel,
-      ...(selectedModel !== 'gemini-3.8-flash-lite-tts' ? ['gemini-3.8-flash-lite-tts'] : []),
       ...(selectedModel !== 'gemini-3.8-flash-tts' ? ['gemini-3.8-flash-tts'] : []),
+      ...(selectedModel !== 'gemini-3.8-flash-lite-tts' ? ['gemini-3.8-flash-lite-tts'] : []),
       ...(selectedModel !== 'gemini-3.1-flash-tts-preview' ? ['gemini-3.1-flash-tts-preview'] : [])
     ];
 
