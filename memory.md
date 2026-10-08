@@ -36,10 +36,10 @@
   - Every time `gemini-3.8-flash-tts` or `gemini-3.8-flash-lite-tts` was called, Google returned `400 INVALID_ARGUMENT`. The candidate fallback loop caught this error on Attempt 1, failed on Attempt 2 (also 3.8), and finally fell back to Attempt 3 (`gemini-3.1-flash-tts-preview`), which succeeded only because 3.1 happened to use the legacy `prebuiltVoiceConfig` schema.
   - Additionally, on Vertex AI, `gemini-3.8-flash-lite-tts` is not a publisher model (it is an AI Studio model), causing a 404 on Vertex if attempted first.
   - **The Resolution**:
-    - Standardized `speechConfig.voiceConfig` across all serverless and client code to use `prebuiltVoiceConfig: { voiceName: isCustomVoice ? 'Aoede' : selectedVoice }`.
-    - Removed `speechMetadata` and restored prompt steering with `generateConfig.systemInstruction` for 3.8 acting fidelity.
-    - Added environment-aware model candidate selection: on Vertex AI, primary candidate is the valid publisher model `gemini-3.8-flash-tts`; on AI Studio, `gemini-3.8-flash-lite-tts` and `gemini-3.8-flash-tts` both execute with zero schema errors.
-    - Synthesis now succeeds on Attempt 1 in 2-3 seconds instead of failing two models and taking 12-18 seconds.
+    - **Strict Model Priority**: Whichever model is configured as `selectedModel` is tried **FIRST** on Attempt 1. Fallback models (`gemini-3.8-flash-tts`, `gemini-3.8-flash-lite-tts`, `gemini-3.1-flash-tts-preview`) are only engaged if Attempt 1 actually throws an error.
+    - **3.8 Flash & Flash-Lite Specialization**: Native Voice Design and Voice Replication are preserved via standard `prebuiltVoiceConfig: { voiceName: isCustomVoice ? 'Aoede' : selectedVoice }`. Receives pure verbatim text with official vocal tags (`<laugh>`, `<sigh>`, `<gasp>`, `<whispers>`, `<cough>`). Completely removed `generateConfig.systemInstruction` (which caused `400 INVALID_ARGUMENT` as audio modalities reject system instructions) and removed extraneous acting prompt wrappers.
+    - **3.1 TTS Preview Acting Directives**: Acting directive prompt steering (`"Say the following in a natural WhatsApp voice note with a ... delivery: ..."`) is preserved exclusively for `gemini-3.1-flash-tts-preview`.
+    - Synthesis now succeeds on Attempt 1 in 2-3 seconds without schema rejection or premature model fallbacks.
 - **Voice Note & TTS Synthesis Headroom (`services/geminiService.ts`, `server/vertexHandler.ts`, `api/gemini/tts.ts`)**:
   - Extended TTS candidate synthesis timeouts across server and client to 18-22s, ensuring Gemini 3.8 Flash TTS has adequate time to synthesize audio on slow connections without prematurely failing over.
 - **Expanded Crafty & Creative English Excuses Library (`services/geminiService.ts`)**:

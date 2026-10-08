@@ -1090,12 +1090,15 @@ export const generateGeminiVoiceNote = async (
     let mimeType = 'audio/wav';
 
     // Build model candidate sequence with graceful fallbacks:
-    // Try selectedModel -> gemini-3.8-flash-tts -> gemini-3.8-flash-lite-tts -> gemini-3.1-flash-tts-preview
+    // Whichever model is selected is tried FIRST on Attempt 1. Only if it fails does it fall back to others.
+    const fallbackPool = [
+      'gemini-3.8-flash-tts',
+      'gemini-3.8-flash-lite-tts',
+      'gemini-3.1-flash-tts-preview'
+    ];
     const modelsToTry = [
       selectedModel,
-      ...(selectedModel !== 'gemini-3.8-flash-tts' ? ['gemini-3.8-flash-tts'] : []),
-      ...(selectedModel !== 'gemini-3.8-flash-lite-tts' ? ['gemini-3.8-flash-lite-tts'] : []),
-      ...(selectedModel !== 'gemini-3.1-flash-tts-preview' ? ['gemini-3.1-flash-tts-preview'] : [])
+      ...fallbackPool.filter(m => m !== selectedModel)
     ];
 
     let lastError: any = null;
@@ -1107,7 +1110,11 @@ export const generateGeminiVoiceNote = async (
         const styleDirective = combinedStyle || 'natural and expressive';
         const personaDirective = personaContext?.name ? `as ${personaContext.name} ` : '';
 
-        const inputText = `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <chuckle>, <sigh>, <gasp>, <whispers>, <cough>, <short pause>: ${verbatimWithVocalTags}`;
+        // 3.8 Flash & Flash-Lite models receive pure verbatim text with vocal tags (Voice Design & Replication configured via voiceConfig)
+        // 3.1 Preview models receive acting directive prompt steering
+        const inputText = isCandidate38
+          ? verbatimWithVocalTags
+          : `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <chuckle>, <sigh>, <gasp>, <whispers>, <cough>, <short pause>: ${verbatimWithVocalTags}`;
 
         const generateConfig: any = {
           responseModalities: ["AUDIO"],
@@ -1119,10 +1126,6 @@ export const generateGeminiVoiceNote = async (
             }
           }
         };
-
-        if (isCandidate38) {
-          generateConfig.systemInstruction = `You are a voice actor recording an authentic WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery. Accurately honor and express inline vocal tags (<laugh>, <chuckle>, <sigh>, <gasp>, <whispers>, <cough>, <short pause>). Speak only the message content naturally without preambles.`;
-        }
 
         const candidateTimeout = new Promise<never>((_, reject) => {
           const t = setTimeout(() => reject(new Error(`Studio TTS candidate ${modelCandidate} timed out after 18s`)), 18000);
