@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Plus, MoreVertical, Users, UserPlus, Camera, ScanLine, MessageSquarePlus, X, SendHorizontal, ExternalLink, QrCode, Settings } from 'lucide-react';
+import { Search, Plus, MoreVertical, Users, UserPlus, Camera, ScanLine, MessageSquarePlus, X, SendHorizontal, ExternalLink, QrCode, Settings, Mic } from 'lucide-react';
 import { Chat, FilterType } from '../types';
 import { compressImage } from '../utils/imageCompressor';
 
@@ -39,6 +39,10 @@ const ChatListItem = React.memo<ChatListItemProps>(({ chat, isActive, onSelect }
         <p className={`text-[calc(var(--msg-font-size)-0.5px)] truncate flex-1 ${chat.unreadCount ? 'text-primary font-semibold' : 'text-secondary'}`}>
           {chat.status === 'typing...' ? (
             <span className="text-[#21c063] font-medium italic animate-pulse">typing...</span>
+          ) : chat.status === 'recording audio...' ? (
+            <span className="text-[#21c063] font-medium italic animate-pulse flex items-center gap-1">
+              <Mic className="w-3 h-3 inline animate-bounce" /> recording audio...
+            </span>
           ) : (
             chat.lastMessage
           )}

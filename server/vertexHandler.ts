@@ -850,11 +850,17 @@ export async function handleVertexTTS(payload: TTSPayload): Promise<{ ok: boolea
           }
         };
 
-        const response = await aiClient.models.generateContent({
-          model: modelCandidate,
-          contents: [{ role: 'user', parts: [userPart] }],
-          config: generateConfig as any
-        });
+        const candidateTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`TTS candidate ${modelCandidate} timed out after 9s`)), 9000)
+        );
+        const response = await Promise.race([
+          aiClient.models.generateContent({
+            model: modelCandidate,
+            contents: [{ role: 'user', parts: [userPart] }],
+            config: generateConfig as any
+          }),
+          candidateTimeout
+        ]);
 
         const candidate = response.candidates?.[0];
         const part = candidate?.content?.parts?.find((p: any) => p.inlineData);

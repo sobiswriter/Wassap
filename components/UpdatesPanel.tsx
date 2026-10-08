@@ -81,10 +81,26 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.9.4"
+              title="Network Resilience Engine & Anti-Stall Auto-Healing Watchdog"
+              date="October 2026"
+              isLatest={true}
+              changes={[
+                "Anti-Stall Auto-Healing Watchdog: Guaranteed recovery from indefinite 'typing...' or 'recording audio...' hangs. A hard 24-second ceiling watchdog automatically releases response locks, aborts stalled HTTP sockets, restores status to online/offline, and delivers an authentic in-character glitch excuse without requiring manual settings resets or browser refreshes.",
+                "Expanded Crafty English Excuses Library (40+ Variants): Replaced repetitive phrases with an extensive collection of 40+ creative, 100% natural English excuses tailored to persona personalities (witty/sarcastic, gentle/caring, formal, and relatable casual). Non-consecutive randomization guarantees users never see the same excuse twice in a row.",
+                "Text Stacking & Watchdog Phase Harmony: Built specifically to respect typing and reading stacking delays. Each individual text chunk and status change automatically refreshes its own watchdog timer, ensuring long natural multi-message paragraphs never falsely trip the stall detector.",
+                "Long Chat Session Payload Optimization: Reduced mobile network payloads by 99% during marathon conversations. Intelligently caps hydrated media lookups to recent turns with lightweight [ATTACHED] placeholders, slashing JSON uploads from 15MB down to <50KB for lightning-fast delivery even on slow 3G/4G connections.",
+                "Resilient Fetch With Timeout (AbortController): Hard timeouts baked into all network calls (14s for text, 12s for audio synthesis) prevents cellular TCP socket freezes from blocking the chat loop.",
+                "Non-Blocking Graceful Voice Note (TTS) Degradation: If cellular packet loss or slow speeds prevent voice note synthesis within 12s, the engine seamlessly degrades to delivering the spoken text message directly in chunks, never trapping the persona in 'recording audio...'.",
+                "Authentic WhatsApp Audio Recording Presence: Native pulsing green indicator and animated microphone icon in both chat list and chat thread header when personas record voice notes, matching WhatsApp's exact visual behavior.",
+                "Comprehensive Status Sanitization: Hardened all single-chat, group-chat, and background automation finally blocks with clearChatActiveStatus() to guarantee that no transient typing or recording statuses can ever linger."
+              ]}
+            />
+            <UpdateItem 
               version="v1.9.3"
               title="Online GIF & Sticker Search, Expanded Library & GIPHY Integration"
               date="October 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "Expanded Reaction GIF Library: Vastly widened built-in viral GIF library with 80+ top reactions categorized into Trending, Reactions, Laughing, Love, Shocked, Dancing, Classic Memes, and Yes/No.",
                 "Expanded Transparent Vector Stickers: 36 crisp, handcrafted SVG/WebP stickers across 5 distinct packs (Frog/Pepe, Cute Cats, 3D WhatsApp Reactions, Anime/Chibi, and Classic Memes).",

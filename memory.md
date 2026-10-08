@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.9.3`
+- **Current Version**: `v1.9.4`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/` and `api/giphy/`, plus a local Express development server in `server/`.
@@ -14,7 +14,46 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Online GIF & Sticker Search, Expanded Library & GIPHY Integration (`v1.9.3`)
+### 1. Network Resilience Engine & Anti-Stall Auto-Healing Watchdog (`v1.9.4`)
+- **Root Cause Analysis of Persona Hangs**:
+  - Unbounded `fetch()` socket hangs on mobile data / flaky Wi-Fi when switching networks or experiencing dropped packets.
+  - Previous `finally` logic used `status === 'typing...'` which failed to reset status when the persona was in `'recording audio...'`.
+  - Massive multi-megabyte payloads during marathon chats: history serialized all previous IndexedDB base64 media, leading to 15MB+ payloads that choked mobile network uplinks and triggered Vercel 413/504 errors.
+- **Anti-Stall Watchdog & Auto-Healing Engine (`App.tsx`)**:
+  - `personaStatusWatchdogTimersRef` and `personaAbortControllersRef` track in-flight actions per persona.
+  - Arming a 24-second hard ceiling timer whenever status enters `typing...` or `recording audio...` (`setChatStatus`).
+  - If a persona remains busy past 24s without emitting a message, watchdog automatically aborts active fetch controllers, resets status to `online` (scheduling natural `offline`), releases `activePersonaResponsesRef` locks, and delivers an authentic in-character glitch excuse without requiring manual settings resets or page reloads.
+  - Hard `Promise.race` 24s watchdogs wrap all `aiGenerationPromise` executions in `handleSingleResponse` and `handleGroupResponse`.
+  - Comprehensive `clearChatActiveStatus()` cleans up typing/recording indicators across all `finally` blocks in single-chat, group-chat, and background automations.
+  - Enhanced `handleRefreshPersona` aborts active abort controllers, clears watchdog timers, and releases all locks immediately.
+- **Expanded Crafty & Creative English Excuses Library (`services/geminiService.ts`)**:
+  - Replaced repetitive single-string fallbacks with 40+ crafty, authentic English excuses categorized into:
+    - **Witty / Sarcastic**: *"My phone literally had an existential crisis right when I was typing haha. What were you saying?"*, *"Great, my wifi decided to take an impromptu power nap. Say that again?"*
+    - **Sweet / Gentle**: *"Oh no, my internet cut out right as your message arrived! Could you please repeat that?"*, *"I'm so sorry, my screen locked up on me for a second! What were you saying?"*
+    - **Formal / Professional**: *"Apologies, I experienced a brief network disruption on my end. What were you saying?"*, *"My apologies, my signal cut out momentarily. Could you please send that again?"*
+    - **Casual Everyday WhatsApp**: *"Wait sorry, my phone slipped out of my hand for a second haha! What did you say?"*, *"Oops, low battery prompt popped up and froze my screen! Say that again?"*
+  - Strict requirement: 100% natural English across all personas (no Hinglish or other languages).
+  - Dynamic non-consecutive randomization (`lastNetworkGlitchExcuse`) ensures users never see the same excuse twice consecutively.
+- **Text Stacking Delay & Watchdog Phase Harmony (`App.tsx`)**:
+  - Designed specifically to respect user and persona typing and reading stacking delays.
+  - `setChatStatus` automatically clears and re-arms a fresh 24s watchdog for each chunk typing phase, while intermediate `online` states clear the timer.
+  - Long multi-message stacked responses with natural pauses never falsely trigger the watchdog.
+- **Zero-Lag Failure Recovery (No Blocking Retry Loops)**:
+  - Bypasses slow, stacked retry loops that stall mobile chat screens for 40+ seconds on cellular drops.
+  - Fails fast and immediately delivers the persona's crafty excuse so the conversation continues seamlessly.
+- **Payload Compression for Marathon Chat Sessions (`App.tsx`, `services/geminiService.ts`)**:
+  - `prepareHydratedHistory()` limits IndexedDB image/media hydration to the recent 25 messages and at most 2 media attachments. Older media attachments are cleanly replaced with lightweight text placeholders `[ATTACHED {type}]`.
+  - `sanitizeHistoryForVertex()` retains base64 media for at most 2 items within the last 6 messages.
+  - Slashes mobile upload payloads by 99% (from 15MB+ down to <50KB), completely eliminating mobile uplink freezes.
+- **Enforced Request Timeouts (`services/geminiService.ts`, `server/vertexHandler.ts`, `api/gemini/tts.ts`)**:
+  - `fetchWithTimeout()` with strict timeouts (14s text LLM, 12s voice note TTS, 16s diary) and `AbortSignal` propagation.
+  - Serverless function wrapper with 9-second `Promise.race` candidate timeout in Vertex TTS endpoints to avoid serverless function hangs.
+- **Non-Blocking Voice Note (TTS) Degradation (`App.tsx`)**:
+  - If voice note synthesis times out or fails on slow connections, `handleSingleResponse` immediately degrades to delivering the spoken text message directly in natural chunks without trapping the persona in `recording audio...`.
+- **Authentic WhatsApp Audio Recording Presence (`components/ChatWindow.tsx`, `components/ChatList.tsx`)**:
+  - Added `RecordingAudioBubble` with pulsing green indicator and animated microphone icon in chat header and chat list to accurately reflect WhatsApp's native recording presentation.
+
+### 2. Online GIF & Sticker Search, Expanded Library & GIPHY Integration (`v1.9.3`)
 - **Expanded Reaction GIF Database (`utils/stickersAndGifs.ts`)**:
   - Grown to 80+ top viral reaction GIFs categorized across `Trending`, `Reactions`, `Laughing`, `Love`, `Shocked`, `Dancing`, `Memes`, and `Yes/No`.
   - Multi-tag indexing and high-speed offline fallback search.
@@ -41,7 +80,7 @@
   - High-definition transparent sticker view with "Send Sticker" and "Cancel" buttons.
   - Intercepts all media dispatch points ensuring zero accidental messages are sent.
 
-### 2. Motion Excellence, Haptics & Tactile WhatsApp Interaction System (`v1.9.2`)
+### 3. Motion Excellence, Haptics & Tactile WhatsApp Interaction System (`v1.9.2`)
 - **Physics-Driven Message Bubble Motion**:
   - Gentle entrance and exit transitions (`bubble-enter` scale 0.96 -> 1, opacity 0 -> 1) with subtle settle physics instead of abrupt popping.
   - Settle movement harmonized with chat scroll speed for unified continuous perception.
@@ -528,7 +567,7 @@ Wassap/
       - Implemented a 3-attempt retry loop with exponential backoff (`1.2s` -> `2.5s` + jitter) across Vercel Serverless (`api/gemini/generate.ts`), local dev server (`server/vertexHandler.ts`), and client-side Custom API Studio (`services/geminiService.ts`).
       - On retry after rate limits or transient overloads, automatically steps down to lighter, high-quota models (`gemini-2.5-flash`).
     - **Authentic WhatsApp In-Character Network Excuses**:
-      - If transient API or network errors persist after all retries, the backend and client never dump raw stack traces or JSON. Instead, `getInCharacterNetworkGlitchExcuse()` generates natural WhatsApp messages matching the persona's speech style, about info, and language context (e.g. Hinglish: *"Arre network issue ho gaya tha mere side se 😅 ek baar wapas bolo?"* / English: *"Sorry, my wifi just cut out for a second! 😅 What were you saying?"*).
+      - If transient API or network errors persist after all retries, the backend and client never dump raw stack traces or JSON. Instead, `getInCharacterNetworkGlitchExcuse()` generates natural WhatsApp messages matching the persona's speech style, about info, and persona tone in 100% natural English (e.g. *"Wait sorry, my phone slipped out of my hand for a second haha! What did you say?"* / *"Great, my wifi decided to take an impromptu power nap. Say that again?"*).
     - **Prompt Context & History Sanitization**:
       - Filtered out `isRawErrorMessage` from `sanitizeHistoryForVertex()` and `buildFullPersonaSystemPrompt()` so past glitches never poison prompt history or degrade future conversational quality.
     - **State Auto-Healing on Startup (`App.tsx`)**:

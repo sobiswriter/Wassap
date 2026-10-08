@@ -32,9 +32,60 @@ export async function checkVertexConnectionStatus(): Promise<{
 }
 
 /**
- * Sanitizes messageHistory to prevent Vercel Serverless Function 413 (FUNCTION_PAYLOAD_TOO_LARGE).
+ * Resilient fetch wrapper with hard timeout and parent abort signal support.
+ * Prevents mobile and flaky network socket hangs from stalling execution indefinitely.
+ */
+export async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit & { timeoutMs?: number } = {}
+): Promise<Response> {
+  const { timeoutMs = 15000, signal, ...rest } = init;
+  const controller = new AbortController();
+  let timedOut = false;
+
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort(new DOMException(`Request timed out after ${timeoutMs}ms`, 'TimeoutError'));
+  }, timeoutMs);
+
+  let onParentAbort: (() => void) | undefined;
+  if (signal) {
+    if (signal.aborted) {
+      clearTimeout(timer);
+      controller.abort(signal.reason);
+    } else {
+      onParentAbort = () => {
+        clearTimeout(timer);
+        controller.abort(signal.reason);
+      };
+      signal.addEventListener('abort', onParentAbort, { once: true });
+    }
+  }
+
+  try {
+    const response = await fetch(input, {
+      ...rest,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (err: any) {
+    if (timedOut) {
+      throw new Error(`Network request timed out after ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    if (signal && onParentAbort) {
+      signal.removeEventListener('abort', onParentAbort);
+    }
+  }
+}
+
+/**
+ * Sanitizes messageHistory to prevent Vercel Serverless Function 413 (FUNCTION_PAYLOAD_TOO_LARGE)
+ * and network socket stalls on slow mobile connections.
  * - Caps history to the most recent 30 messages.
- * - Retains raw base64 data only for the last 2 media messages (which the multimodal API processes).
+ * - Retains raw base64 data only for up to 2 most recent media messages (multimodal window).
  * - Replaces older base64 image/audio strings with lightweight '[ATTACHED]' placeholders so
  *   text prompt cues like '[IMAGE ATTACHED]' still fire accurately without sending megabytes of dead payload.
  */
@@ -44,13 +95,13 @@ export function sanitizeHistoryForVertex(
   if (!Array.isArray(messageHistory)) return [];
 
   const cleanHistory = messageHistory.filter(m => !isRawErrorMessage(m?.text));
-  const recent = cleanHistory.slice(-45);
+  const recent = cleanHistory.slice(-30);
 
   const mediaIndices = new Set<number>();
-  for (let i = recent.length - 1; i >= 0; i--) {
+  for (let i = recent.length - 1; i >= Math.max(0, recent.length - 6); i--) {
     if (recent[i].image || recent[i].audio) {
       mediaIndices.add(i);
-      if (mediaIndices.size >= 5) break;
+      if (mediaIndices.size >= 2) break;
     }
   }
 
@@ -94,6 +145,8 @@ export function isTransientError(error: any): boolean {
   );
 }
 
+let lastNetworkGlitchExcuse = '';
+
 export function getInCharacterNetworkGlitchExcuse(
   persona?: { name?: string; speechStyle?: string; role?: string; about?: string; systemInstruction?: string; humaneSettings?: any },
   userLastText?: string
@@ -102,34 +155,100 @@ export function getInCharacterNetworkGlitchExcuse(
     persona?.speechStyle || '',
     persona?.about || '',
     persona?.systemInstruction || '',
+    persona?.role || '',
     persona?.name || '',
     userLastText || ''
   ].join(' ').toLowerCase();
 
-  const isHinglish =
-    /hinglish|hindi|desi|indian|urdu/i.test(combinedContext) ||
-    /\b(hai|kya|toh|nahi|batao|kaho|arre|yaar|kar|rahe|tha|thi|the|mera|meri|tum|aap|haan|acha|mat|bhi|sach|kuch|kaise|suno|bolo|dekh|raha|rahi|samjhe|samjha|kumbhkaran)\b/i.test(combinedContext);
+  const isWittyOrSarcastic =
+    /\b(sarcas|witty|sassy|blunt|chaotic|savage|teas|playful|humor|joke|gamer|troll|dry|roast|silly)\b/i.test(combinedContext);
 
-  const hinglishExcuses = [
-    "Arre network issue ho gaya tha mere side se 😅 ek baar wapas bolo?",
-    "Sry yaar, message glitch kar gaya tha shayad... kya keh rahe the?",
-    "Arre wifi cut ho gaya tha ek sec ke liye! Kya bola tumne?",
-    "Sorry phone thoda hang ho gaya tha mera abhi haha, kya bol rahe the wapas bhejna!",
-    "Arey message theek se nahi aaya mere paas, firse bolo na?",
-    "Sorry network drop ho gaya tha achanak se 🥲 wapas batao kya bola?"
+  const isSweetOrCaring =
+    /\b(sweet|gentle|soft|caring|loving|kind|shy|cute|warm|polite|affectionate|wholesome|sister|mom|daughter)\b/i.test(combinedContext);
+
+  const isFormalOrProfessional =
+    /\b(formal|butler|professional|serious|calm|intellect|mentor|teacher|boss|official|stoic|proper|doctor|professor)\b/i.test(combinedContext);
+
+  const wittyExcuses = [
+    "My phone literally had an existential crisis right when I was typing haha. What were you saying?",
+    "Great, my wifi decided to take an impromptu power nap. Say that again?",
+    "I swear my internet is running on a hamster wheel today. What did you just text?",
+    "My phone froze right in the middle of replying, classic haha. What was that again?",
+    "My signal just evaporated into thin air for a second! Resend that please?",
+    "Phone lagged so hard I thought it was 2010 again haha. What did you say?",
+    "Technology is seriously testing my patience today. Say that one more time?",
+    "Wait, my keyboard literally threw a tantrum for two seconds haha. What did you say?",
+    "My chat just had a mini panic attack and froze. What were you saying?",
+    "Ugh, my screen decided to play dead for a second haha! What did you just text?",
+    "I think my phone just choked on its own bytes haha. What was that?",
+    "My connection briefly ghosted me right there. What were you saying?"
   ];
 
-  const englishExcuses = [
-    "Sorry, my wifi just cut out for a second! 😅 What were you saying?",
+  const gentleExcuses = [
+    "Oh no, my internet cut out right as your message arrived! Could you please repeat that?",
+    "I'm so sorry, my screen locked up on me for a second! What were you saying?",
+    "Ah sorry about that, my connection dropped for a quick moment! What did you text?",
+    "My wifi flickered right as you sent that! Would you mind saying it again?",
+    "Sorry, I think my message glitched out because of a signal dip! What was that?",
+    "Oops, my app had a tiny hiccup there! What were you saying?",
+    "Sorry about that, my connection was being a bit stubborn for a moment. What did you say?",
+    "Aww sorry, my phone just lagged out for a second! Could you send that again?",
+    "Oh dear, my wifi took a quick second to load! What did you just say?",
+    "Sorry for the delay, my phone froze up right as I opened your text! What was that?"
+  ];
+
+  const formalExcuses = [
+    "Apologies, I experienced a brief network disruption on my end. What were you saying?",
+    "My apologies, my signal cut out momentarily. Could you please send that again?",
+    "Pardon me, my app encountered a momentary lag. What did you just text?",
+    "Sorry about that, my connection fluctuated for a brief second. Please repeat that.",
+    "Apologies, my message failed to transmit due to a momentary signal drop. What was that?",
+    "My connection briefly paused there. Could you please reiterate your last point?",
+    "Pardon the interruption, my device briefly lost reception. Could you restate that?",
+    "Apologies for the momentary pause, my network dropped out. What were you saying?"
+  ];
+
+  const casualUniversalExcuses = [
+    "Sorry, my wifi literally cut out for a second! 😅 What were you saying?",
     "Ugh, network glitch on my end! Could you say that again?",
     "Wait, my phone completely froze for a moment haha. What did you just text?",
     "Sorry, connection dropped for a sec! Send that again please?",
     "Argh my signal vanished for a moment! What were you saying?",
-    "Sorry message didn't come through properly on my side, what was that?"
+    "Sorry message didn't come through properly on my side, what was that?",
+    "Wait sorry, my phone slipped out of my hand for a second haha! What did you say?",
+    "Oops, low battery prompt popped up and froze my screen! Say that again?",
+    "Ah sorry, cellular data randomly dropped to one bar! What were you saying?",
+    "Wait, did you just send something? My chat just refreshed itself for a sec!",
+    "My phone did a weird little freeze right when I opened your message haha. What was that?",
+    "Sorry, had a quick connection stutter right as I was reading that! What did you say?",
+    "Whoops, my internet lagged right as I went to reply! Say that again?",
+    "Ugh my phone got stuck on the lock screen for a second haha! What were you saying?",
+    "Sorry, my wifi just glitched out for two seconds! Resend that?",
+    "Wait sorry, WhatsApp just crashed and reopened on my end! What were you saying?",
+    "Oops, had a quick cellular glitch right there! What was that?",
+    "My phone lagged out right as I hit reply! Could you say that again?",
+    "Wait, my screen froze right as your message came in! What did you say?",
+    "Sorry about that! Wifi dropped for a quick second while I was typing. What was it?"
   ];
 
-  const pool = isHinglish ? hinglishExcuses : englishExcuses;
-  return pool[Math.floor(Math.random() * pool.length)];
+  let pool: string[];
+  if (isWittyOrSarcastic) {
+    pool = [...wittyExcuses, ...casualUniversalExcuses];
+  } else if (isSweetOrCaring) {
+    pool = [...gentleExcuses, ...casualUniversalExcuses];
+  } else if (isFormalOrProfessional) {
+    pool = [...formalExcuses, ...casualUniversalExcuses];
+  } else {
+    pool = [...casualUniversalExcuses, ...wittyExcuses];
+  }
+
+  // Ensure variety and prevent back-to-back duplicate excuses
+  let available = pool.filter(e => e !== lastNetworkGlitchExcuse);
+  if (available.length === 0) available = pool;
+
+  const chosen = available[Math.floor(Math.random() * available.length)];
+  lastNetworkGlitchExcuse = chosen;
+  return chosen;
 }
 
 export function isRawErrorMessage(text?: string): boolean {
@@ -144,18 +263,26 @@ export function isRawErrorMessage(text?: string): boolean {
   );
 }
 
-async function fetchVertexChat(payload: any, maxRetries = 2): Promise<string> {
+async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSignal): Promise<string> {
   const lastUserText = payload?.messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
 
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    if (signal?.aborted) {
+      return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
+    }
+
     try {
-      const res = await fetch('/api/gemini/generate', {
+      // 14s timeout on attempt 1, 10s on attempt 2 to prevent mobile stalling
+      const perAttemptTimeout = attempt === 1 ? 14000 : 10000;
+      const res = await fetchWithTimeout('/api/gemini/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-vertex-passcode': VERTEX_PASSCODE,
         },
         body: JSON.stringify(payload),
+        timeoutMs: perAttemptTimeout,
+        signal,
       });
 
       if (res.status === 413) {
@@ -170,8 +297,8 @@ async function fetchVertexChat(payload: any, maxRetries = 2): Promise<string> {
       if (res.status === 429 || res.status === 503 || res.status === 502 || res.status === 504) {
         console.warn(`[Vertex Chat HTTP ${res.status}] Attempt ${attempt}/${maxRetries + 1}. Retrying...`);
         if (attempt <= maxRetries) {
-          const delay = attempt === 1 ? 1400 : 2800;
-          await new Promise(r => setTimeout(r, delay + Math.random() * 500));
+          const delay = attempt === 1 ? 1200 : 2000;
+          await new Promise(r => setTimeout(r, delay + Math.random() * 300));
           continue;
         }
       }
@@ -181,7 +308,7 @@ async function fetchVertexChat(payload: any, maxRetries = 2): Promise<string> {
         const text = await res.text();
         console.error("Non-JSON response from Vertex backend:", res.status, text.slice(0, 300));
         if (attempt <= maxRetries) {
-          await new Promise(r => setTimeout(r, 1200));
+          await new Promise(r => setTimeout(r, 1000));
           continue;
         }
         return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
@@ -191,8 +318,8 @@ async function fetchVertexChat(payload: any, maxRetries = 2): Promise<string> {
       if (!res.ok || !data.text) {
         console.warn(`[Vertex AI Server Response Alert]:`, data?.error);
         if (attempt <= maxRetries && isTransientError(data?.error)) {
-          const delay = attempt === 1 ? 1400 : 2800;
-          await new Promise(r => setTimeout(r, delay + Math.random() * 500));
+          const delay = attempt === 1 ? 1200 : 2000;
+          await new Promise(r => setTimeout(r, delay + Math.random() * 300));
           continue;
         }
         return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
@@ -205,9 +332,13 @@ async function fetchVertexChat(payload: any, maxRetries = 2): Promise<string> {
 
       return data.text;
     } catch (e: any) {
-      console.warn(`[Vertex Chat Network Error Attempt ${attempt}/${maxRetries + 1}]:`, e);
-      if (attempt <= maxRetries) {
-        await new Promise(r => setTimeout(r, 1400 + Math.random() * 500));
+      console.warn(`[Vertex Chat Network Error Attempt ${attempt}/${maxRetries + 1}]:`, e?.message || e);
+      if (attempt <= maxRetries && !signal?.aborted) {
+        // If first attempt timed out or failed, trim history to recent 10 messages for lightweight recovery
+        if (payload?.messageHistory && payload.messageHistory.length > 10) {
+          payload.messageHistory = payload.messageHistory.slice(-10);
+        }
+        await new Promise(r => setTimeout(r, 1000 + Math.random() * 300));
         continue;
       }
       return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
@@ -217,15 +348,17 @@ async function fetchVertexChat(payload: any, maxRetries = 2): Promise<string> {
   return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
 }
 
-async function fetchVertexDiary(payload: any): Promise<string> {
+async function fetchVertexDiary(payload: any, signal?: AbortSignal): Promise<string> {
   try {
-    const res = await fetch('/api/gemini/diary', {
+    const res = await fetchWithTimeout('/api/gemini/diary', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-vertex-passcode': VERTEX_PASSCODE,
       },
       body: JSON.stringify(payload),
+      timeoutMs: 16000,
+      signal,
     });
 
     const contentType = res.headers.get('content-type') || '';
@@ -255,15 +388,17 @@ async function fetchVertexTTS(payload: {
   pitchTone?: string;
   personaName?: string;
   speechStyle?: string;
-}): Promise<{ ok: boolean; audioData?: string; error?: string }> {
+}, signal?: AbortSignal): Promise<{ ok: boolean; audioData?: string; error?: string }> {
   try {
-    const res = await fetch('/api/gemini/tts', {
+    const res = await fetchWithTimeout('/api/gemini/tts', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-vertex-passcode': VERTEX_PASSCODE,
       },
       body: JSON.stringify(payload),
+      timeoutMs: 12000,
+      signal,
     });
 
     const contentType = res.headers.get('content-type') || '';
@@ -280,7 +415,7 @@ async function fetchVertexTTS(payload: {
 
     return { ok: true, audioData: data.audioData };
   } catch (e: any) {
-    console.error("Failed to contact Vertex AI backend for TTS:", e);
+    console.warn("Failed or timed out contacting Vertex AI backend for TTS:", e?.message || e);
     return { ok: false, error: e.message || "Unable to connect to TTS server." };
   }
 }
@@ -617,7 +752,8 @@ export const getGeminiResponse = async (
   settings?: AppSettings,
   initiationContext?: string,
   isVoiceNoteReply?: boolean,
-  voiceSettings?: PersonaVoiceSettings
+  voiceSettings?: PersonaVoiceSettings,
+  abortSignal?: AbortSignal
 ) => {
   const provider = settings?.aiProvider || 'vertex';
 
@@ -643,7 +779,7 @@ export const getGeminiResponse = async (
       initiationContext,
       isVoiceNoteReply,
       voiceSettings,
-    });
+    }, 1, abortSignal);
   }
 
   // Option B: Custom API Key (Gemini AI Studio)
@@ -695,6 +831,10 @@ export const getGeminiResponse = async (
     const maxRetries = 2;
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      if (abortSignal?.aborted) {
+        return getInCharacterNetworkGlitchExcuse(responder, lastUserText);
+      }
+
       try {
         // On retries after a rate limit or server issue, fallback to a lighter model
         let modelToUse = settings?.selectedModel || DEFAULT_MODEL;
@@ -702,11 +842,24 @@ export const getGeminiResponse = async (
           modelToUse = 'gemini-2.5-flash';
         }
 
-        const response = await ai.models.generateContent({
-          model: modelToUse,
-          contents: [{ role: 'user', parts }],
-          config,
+        const candidateTimeout = new Promise<never>((_, reject) => {
+          const t = setTimeout(() => reject(new Error('Custom API request timed out')), 14000);
+          if (abortSignal) {
+            abortSignal.addEventListener('abort', () => {
+              clearTimeout(t);
+              reject(new Error('Request aborted'));
+            }, { once: true });
+          }
         });
+
+        const response = await Promise.race([
+          ai.models.generateContent({
+            model: modelToUse,
+            contents: [{ role: 'user', parts }],
+            config,
+          }),
+          candidateTimeout
+        ]);
 
         const replyText = response.text?.trim();
         if (replyText && !isRawErrorMessage(replyText)) {
@@ -719,7 +872,7 @@ export const getGeminiResponse = async (
         }
         return getInCharacterNetworkGlitchExcuse(responder, lastUserText);
       } catch (error: any) {
-        console.warn(`[Custom Gemini API Attempt ${attempt}/${maxRetries + 1} Error]:`, error);
+        console.warn(`[Custom Gemini API Attempt ${attempt}/${maxRetries + 1} Error]:`, error?.message || error);
         if (error.status === 401 || error.status === 403) {
           return "Invalid API Key. Please check your settings.";
         }
@@ -846,7 +999,8 @@ export const generateGeminiVoiceNote = async (
     speechStyle?: string;
     role?: string;
   },
-  voiceSettings?: PersonaVoiceSettings
+  voiceSettings?: PersonaVoiceSettings,
+  abortSignal?: AbortSignal
 ): Promise<{ ok: boolean; audioDataUrl?: string; error?: string }> => {
   const provider = settings?.aiProvider || 'vertex';
 
@@ -916,7 +1070,7 @@ export const generateGeminiVoiceNote = async (
       pitchTone: voiceSettings?.pitchTone,
       personaName: personaContext?.name,
       speechStyle: personaContext?.speechStyle
-    });
+    }, abortSignal);
     if (res.ok && res.audioData) {
       return { ok: true, audioDataUrl: res.audioData };
     }
@@ -946,6 +1100,8 @@ export const generateGeminiVoiceNote = async (
 
     let lastError: any = null;
     for (const modelCandidate of modelsToTry) {
+      if (abortSignal?.aborted) break;
+
       try {
         const isCandidate38 = modelCandidate.includes('3.8');
         const styleDirective = combinedStyle || 'natural and expressive';
@@ -970,11 +1126,24 @@ export const generateGeminiVoiceNote = async (
           }
         };
 
-        const response = await ai.models.generateContent({
-          model: modelCandidate,
-          contents: [{ role: 'user', parts: [userPart] }],
-          config: generateConfig as any
+        const candidateTimeout = new Promise<never>((_, reject) => {
+          const t = setTimeout(() => reject(new Error(`Studio TTS candidate ${modelCandidate} timed out after 7s`)), 7000);
+          if (abortSignal) {
+            abortSignal.addEventListener('abort', () => {
+              clearTimeout(t);
+              reject(new Error('TTS aborted'));
+            }, { once: true });
+          }
         });
+
+        const response = await Promise.race([
+          ai.models.generateContent({
+            model: modelCandidate,
+            contents: [{ role: 'user', parts: [userPart] }],
+            config: generateConfig as any
+          }),
+          candidateTimeout
+        ]);
 
         const candidate = response.candidates?.[0];
         const part = candidate?.content?.parts?.find((p: any) => p.inlineData);
@@ -1613,7 +1782,10 @@ export async function generatePersonaImageExcuse(
     "My camera app literally just crashed on me, hold on!",
     "Ugh, terrible lighting in here right now haha, I'll send one later!",
     "My lens is completely fogged up right now lol, give me a bit!",
-    "Phone is glitching out when I open the camera, hold up!"
+    "Phone is glitching out when I open the camera, hold up!",
+    "Wait, my camera shutter got stuck on black haha, let me restart the app!",
+    "My camera lens has a huge smudge on it right now haha, let me wipe it first!",
+    "Ugh, low battery warning just closed my camera app haha, one sec!"
   ];
   return excuses[Math.floor(Math.random() * excuses.length)];
 }

@@ -739,6 +739,8 @@ const App: React.FC = () => {
   const personaOnlineTimersRef = React.useRef<Record<string, number>>({});
   const personaDeliveryTimersRef = React.useRef<Record<string, number>>({});
   const personaComingOnlineTimersRef = React.useRef<Record<string, number>>({});
+  const personaStatusWatchdogTimersRef = React.useRef<Record<string, number>>({});
+  const personaAbortControllersRef = React.useRef<Record<string, AbortController>>({});
   useEffect(() => { chatsRef.current = chats; globalActiveChats = chats; }, [chats]);
 
   // Eagerly prefetch secondary component chunks during idle time for 0ms instantaneous opens
@@ -1108,7 +1110,75 @@ const App: React.FC = () => {
     }
   }, [settings.theme]);
 
+  const isBusyChatStatus = (status?: string): boolean => {
+    if (!status) return false;
+    return status === 'typing...' || 
+           status === 'recording audio...' || 
+           status.includes('typing') || 
+           status.includes('recording');
+  };
+
+  const clearChatActiveStatus = (chatId: string) => {
+    const current = chatsRef.current.find(c => c.id === chatId);
+    if (isBusyChatStatus(current?.status)) {
+      setChatStatus(chatId, 'online');
+    }
+  };
+
   const setChatStatus = (chatId: string, status: string, lastSeenTimeOverride?: string) => {
+    // 1. Clear any active watchdog timer for this chat
+    if (personaStatusWatchdogTimersRef.current[chatId]) {
+      clearTimeout(personaStatusWatchdogTimersRef.current[chatId]);
+      delete personaStatusWatchdogTimersRef.current[chatId];
+    }
+
+    // 2. If status is busy (typing... or recording audio...), arm a hard anti-stall watchdog (24s ceiling)
+    if (isBusyChatStatus(status)) {
+      personaStatusWatchdogTimersRef.current[chatId] = window.setTimeout(() => {
+        delete personaStatusWatchdogTimersRef.current[chatId];
+        const targetChat = chatsRef.current.find(c => c.id === chatId);
+        if (targetChat && isBusyChatStatus(targetChat.status)) {
+          console.warn(`[Anti-Stall Watchdog] Persona ${targetChat.name} (${chatId}) stuck in "${targetChat.status}" for >24s. Auto-recovering status.`);
+
+          // Release active generation locks and abort stuck network request
+          aiRespondingChatsRef.current.delete(chatId);
+          if (personaAbortControllersRef.current[chatId]) {
+            personaAbortControllersRef.current[chatId].abort();
+            delete personaAbortControllersRef.current[chatId];
+          }
+
+          // Recover status to online and schedule offline
+          setChatStatus(chatId, 'online');
+          schedulePersonaOffline(chatId);
+
+          // Gracefully deliver an in-character glitch excuse if last message was from user and unanswered
+          const msgs = targetChat.messages;
+          const lastMsg = msgs[msgs.length - 1];
+          if (lastMsg && lastMsg.sender === 'me') {
+            const excuse = getInCharacterNetworkGlitchExcuse(targetChat, lastMsg.text);
+            const excuseMsg: Message = {
+              id: `${Date.now()}-watchdog-excuse`,
+              text: excuse,
+              sender: 'other',
+              senderName: targetChat.name,
+              date: getDateKey(),
+              timestamp: getFormattedTime(),
+              timestampEpoch: Date.now(),
+              status: 'delivered'
+            };
+            setChats(prev => prev.map(c => c.id === chatId ? {
+              ...c,
+              messages: [...c.messages, excuseMsg],
+              lastMessage: excuse,
+              lastMessageTime: excuseMsg.timestamp,
+              unreadCount: (c.unreadCount || 0) + 1
+            } : c));
+            playIncomingMessageSound();
+          }
+        }
+      }, 24000);
+    }
+
     setChats(prev => prev.map(c => {
       if (c.id === chatId) {
         const updatedLastSeen = status === 'offline'
@@ -1145,7 +1215,7 @@ const App: React.FC = () => {
     personaOnlineTimersRef.current[chatId] = window.setTimeout(() => {
       delete personaOnlineTimersRef.current[chatId];
       const current = chatsRef.current.find(c => c.id === chatId);
-      if (current?.status !== 'typing...' && !aiRespondingChatsRef.current.has(chatId)) {
+      if (!isBusyChatStatus(current?.status) && !aiRespondingChatsRef.current.has(chatId)) {
         setChatStatus(chatId, 'offline', getFormattedTime());
       }
     }, effectiveDelay);
@@ -1303,6 +1373,61 @@ CONTEXT: It is currently a ${dayType}. According to your daily routine, ${timing
 CRITICAL RULE: Use this as SUBTLE background context only to influence your mood or availability. DO NOT announce what you are doing or mention the time/day unless the User explicitly asks "what are you up to" or similar. Keep it natural!`;
   };
 
+  const prepareHydratedHistory = async (
+    messages: Message[],
+    personaName?: string
+  ) => {
+    // Keep recent 25 messages max for LLM context to avoid huge memory/CPU spikes on mobile
+    const recentMessages = messages.slice(-25);
+
+    // Identify up to 2 most recent media messages to hydrate with base64 data from IndexedDB
+    const mediaIndicesToHydrate = new Set<number>();
+    for (let i = recentMessages.length - 1; i >= 0; i--) {
+      const m = recentMessages[i];
+      if (m.mediaId || m.attachment?.mediaId || m.voiceMediaId || m.voiceAttachment?.mediaId || m.image) {
+        mediaIndicesToHydrate.add(i);
+        if (mediaIndicesToHydrate.size >= 2) break;
+      }
+    }
+
+    return await Promise.all(
+      recentMessages.map(async (m, sliceIdx) => {
+        let text = m.text;
+        if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage, personaName) + text;
+        if (m.isSticker && !text) {
+          text = `[User sent a sticker: "${m.attachment?.name || 'Sticker'}"]`;
+        } else if ((m.isGif || m.attachment?.isGif) && !text) {
+          text = `[User sent a GIF animation: "${m.attachment?.name || 'GIF'}"]`;
+        }
+
+        const shouldHydrate = mediaIndicesToHydrate.has(sliceIdx);
+        let mediaData: string | undefined;
+        let voiceData: string | undefined;
+
+        if (shouldHydrate) {
+          const mediaId = m.mediaId || m.attachment?.mediaId;
+          if (mediaId) mediaData = await getMedia(mediaId);
+          const voiceId = m.voiceMediaId || m.voiceAttachment?.mediaId;
+          if (voiceId) voiceData = await getMedia(voiceId);
+        }
+
+        const hasImage = m.attachment?.type === 'image' || m.attachment?.type === 'video' || !!m.image;
+        const hasAudio = m.attachment?.type === 'audio' || !!m.voiceAttachment || !!m.voiceMediaId;
+
+        return {
+          text,
+          sender: m.sender,
+          senderName: m.senderName,
+          reactions: m.reactions,
+          isEvent: m.isEvent,
+          eventTitle: m.eventTitle,
+          image: mediaData && hasImage ? mediaData : (hasImage ? '[ATTACHED]' : undefined),
+          audio: (mediaData && m.attachment?.type === 'audio') ? mediaData : (voiceData || (hasAudio ? '[ATTACHED]' : undefined))
+        };
+      })
+    );
+  };
+
   const handleAutomationTrigger = async (
     chatId: string, 
     context: string, 
@@ -1316,20 +1441,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
     try {
       setChatStatus(chatId, 'online');
 
-      const hydratedHistory = await Promise.all(targetChat.messages.map(async m => {
-        const mediaId = m.mediaId || m.attachment?.mediaId;
-        const mediaData = mediaId ? await getMedia(mediaId) : undefined;
-        const voiceId = m.voiceMediaId || m.voiceAttachment?.mediaId;
-        const voiceData = voiceId ? await getMedia(voiceId) : undefined;
-        let text = m.text;
-        if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage, targetChat.name) + text;
-        return {
-          text,
-          sender: m.sender,
-          image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
-          audio: (mediaData && m.attachment?.type === 'audio') ? mediaData : (voiceData || undefined)
-        };
-      }));
+      const hydratedHistory = await prepareHydratedHistory(targetChat.messages, targetChat.name);
 
       // Update trigger metadata in state if applicable
       if (triggerId) {
@@ -1524,8 +1636,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
       setChatStatus(chatId, 'online');
       schedulePersonaOffline(chatId);
     } finally {
-      const isStillTyping = chatsRef.current.find(c => c.id === chatId)?.status === 'typing...';
-      if (isStillTyping) setChatStatus(chatId, 'online');
+      clearChatActiveStatus(chatId);
+      aiRespondingChatsRef.current.delete(chatId);
       schedulePersonaOffline(chatId);
     }
   };
@@ -1536,7 +1648,29 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
     // 1. Force state to offline
     setChatStatus(chatId, 'offline');
     
-    // 2. Clear any session locks in handledTriggersRef
+    // 2. Clear all locks, abort controllers, and pending timers
+    if (personaStatusWatchdogTimersRef.current[chatId]) {
+      clearTimeout(personaStatusWatchdogTimersRef.current[chatId]);
+      delete personaStatusWatchdogTimersRef.current[chatId];
+    }
+    if (personaAbortControllersRef.current[chatId]) {
+      personaAbortControllersRef.current[chatId].abort();
+      delete personaAbortControllersRef.current[chatId];
+    }
+    aiRespondingChatsRef.current.delete(chatId);
+    cancelPersonaOfflineTimer(chatId);
+    if (aiResponseTimeoutsRef.current[chatId]) {
+      clearTimeout(aiResponseTimeoutsRef.current[chatId]);
+      delete aiResponseTimeoutsRef.current[chatId];
+    }
+    if (personaDeliveryTimersRef.current[chatId]) {
+      clearTimeout(personaDeliveryTimersRef.current[chatId]);
+      delete personaDeliveryTimersRef.current[chatId];
+    }
+    delete pendingTimeGapsRef.current[chatId];
+    delete pendingReactionContextsRef.current[chatId];
+
+    // 3. Clear any session locks in handledTriggersRef
     const todayDateStr = getDateKey();
     const keysToRemove: string[] = [];
     handledTriggersRef.current.forEach(key => {
@@ -1544,7 +1678,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
     });
     keysToRemove.forEach(key => handledTriggersRef.current.delete(key));
     
-    console.log(`[DEBUG] Persona ${chatId} refreshed and locks cleared.`);
+    console.log(`[DEBUG] Persona ${chatId} completely refreshed, network requests aborted, and all locks cleared.`);
   };
 
   const runAutomationChecks = (isInitialMount: boolean = false) => {
@@ -2192,27 +2326,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     const isFastOnlineChat = !!(settingsRef.current.enableDynamicOnlinePresence && isAlreadyOnline);
     try {
       // Hydrate history with media data immediately so background generation can begin
-      const hydratedHistory = await Promise.all(updatedHistory.map(async m => {
-        const mediaId = m.mediaId || m.attachment?.mediaId;
-        const mediaData = mediaId ? await getMedia(mediaId) : undefined;
-        const voiceId = m.voiceMediaId || m.voiceAttachment?.mediaId;
-        const voiceData = voiceId ? await getMedia(voiceId) : undefined;
-        let text = m.text;
-        if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage, chat.name) + text;
-        if (m.isSticker && !text) {
-          text = `[User sent a sticker: "${m.attachment?.name || 'Sticker'}"]`;
-        } else if ((m.isGif || m.attachment?.isGif) && !text) {
-          text = `[User sent a GIF animation: "${m.attachment?.name || 'GIF'}"]`;
-        }
-        return {
-          text,
-          sender: m.sender,
-          senderName: m.senderName,
-          reactions: m.reactions,
-          image: mediaData && (m.attachment?.type === 'image' || m.attachment?.type === 'video' || m.image) ? mediaData : undefined,
-          audio: (mediaData && m.attachment?.type === 'audio') ? mediaData : (voiceData || undefined)
-        };
-      }));
+      const hydratedHistory = await prepareHydratedHistory(updatedHistory, chat.name);
 
       const checkImageReq = isImageRequest || updatedHistory.slice(-2).some(m => m.sender === 'me' && m.isImageRequest);
 
@@ -2220,6 +2334,12 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       const lastUserMsg = [...updatedHistory].reverse().find(m => m.sender === 'me');
       const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio' || !!lastUserMsg?.voiceAttachment || !!lastUserMsg?.voiceMediaId;
       const isVoiceNote = shouldReplyWithVoiceNote(chat.voiceSettings, userSentVoiceNote);
+
+      if (personaAbortControllersRef.current[chatId]) {
+        personaAbortControllersRef.current[chatId].abort();
+      }
+      const abortController = new AbortController();
+      personaAbortControllersRef.current[chatId] = abortController;
 
       // PIPELINED GENERATION: Eagerly launch LLM text & TTS audio synthesis in parallel with realistic visual presence delays
       const aiGenerationPromise = (!checkImageReq)
@@ -2232,7 +2352,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               settings,
               memoryContext,
               isVoiceNote,
-              chat.voiceSettings
+              chat.voiceSettings,
+              abortController.signal
             );
 
             if (!resText || isRawErrorMessage(resText)) {
@@ -2251,7 +2372,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
                   speechStyle: chat.speechStyle,
                   role: chat.role
                 },
-                chat.voiceSettings
+                chat.voiceSettings,
+                abortController.signal
               );
             }
 
@@ -2473,8 +2595,19 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         setChatStatus(chatId, 'recording audio...' as any);
       }
 
-      // Await background pipelined generation (which was executing in parallel with visual delays)
-      const aiResult = await aiGenerationPromise;
+      // Hard 24s ceiling watchdog race to guarantee recovery under catastrophic network stalls
+      const hardWatchdogPromise = new Promise<{ response: string; ttsRes: any }>((resolve) => {
+        setTimeout(() => {
+          console.warn(`[Pipeline Watchdog] Response for ${chat.name} hit hard 24s ceiling. Gracefully falling back to in-character glitch excuse.`);
+          resolve({
+            response: getInCharacterNetworkGlitchExcuse(chat, lastUserMsg?.text),
+            ttsRes: null
+          });
+        }, 24000);
+      });
+
+      // Await background pipelined generation or hard watchdog timeout
+      const aiResult = aiGenerationPromise ? await Promise.race([aiGenerationPromise, hardWatchdogPromise]) : null;
       let response = aiResult?.response || '';
       const ttsRes = aiResult?.ttsRes;
 
@@ -2646,9 +2779,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     } catch (error) {
       console.error("Error getting AI response for single chat:", error);
     } finally {
-      const isStillTyping = chatsRef.current.find(c => c.id === chatId)?.status === 'typing...';
-      if (isStillTyping) setChatStatus(chatId, 'online');
+      clearChatActiveStatus(chatId);
+      aiRespondingChatsRef.current.delete(chatId);
       schedulePersonaOffline(chatId);
+      delete personaAbortControllersRef.current[chatId];
     }
   };
 
@@ -2713,40 +2847,42 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         setChatStatus(group.id, 'typing...');
 
         // Hydrate group history with media data from IndexedDB
-        const hydratedGroupHistory = await Promise.all(currentHistory.map(async m => {
-          const mediaId = m.mediaId || m.attachment?.mediaId;
-          const mediaData = mediaId ? await getMedia(mediaId) : undefined;
-          const voiceId = m.voiceMediaId || m.voiceAttachment?.mediaId;
-          const voiceData = voiceId ? await getMedia(voiceId) : undefined;
-          let text = m.text;
-          if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage) + text;
-          return {
-            text,
-            sender: m.sender,
-            senderName: m.senderName,
-            reactions: m.reactions,
-            image: mediaData && (m.attachment?.type === 'image' || m.attachment?.type === 'video' || m.image) ? mediaData : undefined,
-            audio: (mediaData && m.attachment?.type === 'audio') ? mediaData : (voiceData || undefined)
-          };
-        }));
+        const hydratedGroupHistory = await prepareHydratedHistory(currentHistory, group.name);
 
         const lastUserMsg = [...currentHistory].reverse().find(m => m.sender === 'me');
         const userSentVoiceNote = lastUserMsg?.attachment?.type === 'audio' || !!lastUserMsg?.voiceAttachment || !!lastUserMsg?.voiceMediaId;
         const isVoiceNote = shouldReplyWithVoiceNote(persona.voiceSettings, userSentVoiceNote);
 
-        let responseText = await getGeminiResponse(
-          { ...persona },
-          hydratedGroupHistory,
-          settings.shareUserInfo ? user : undefined,
-          {
-            groupName: group.name,
-            otherMembers: group.memberIds?.filter(id => id !== responderId).map(id => chats.find(c => c.id === id)?.name || '') || []
-          },
-          settings,
-          combinePersonaContexts(memoryContext, buildScheduleContext(persona)),
-          isVoiceNote,
-          persona.voiceSettings
-        );
+        if (personaAbortControllersRef.current[group.id]) {
+          personaAbortControllersRef.current[group.id].abort();
+        }
+        const abortController = new AbortController();
+        personaAbortControllersRef.current[group.id] = abortController;
+
+        const hardWatchdogPromise = new Promise<string>((resolve) => {
+          setTimeout(() => {
+            console.warn(`[Pipeline Watchdog] Group response for ${persona.name} hit hard 24s ceiling. Gracefully falling back to excuse.`);
+            resolve(getInCharacterNetworkGlitchExcuse(persona, lastUserMsg?.text));
+          }, 24000);
+        });
+
+        let responseText = await Promise.race([
+          getGeminiResponse(
+            { ...persona },
+            hydratedGroupHistory,
+            settings.shareUserInfo ? user : undefined,
+            {
+              groupName: group.name,
+              otherMembers: group.memberIds?.filter(id => id !== responderId).map(id => chats.find(c => c.id === id)?.name || '') || []
+            },
+            settings,
+            combinePersonaContexts(memoryContext, buildScheduleContext(persona)),
+            isVoiceNote,
+            persona.voiceSettings,
+            abortController.signal
+          ),
+          hardWatchdogPromise
+        ]);
 
         if (!responseText || isRawErrorMessage(responseText)) {
           responseText = getInCharacterNetworkGlitchExcuse(persona, lastUserMsg?.text);
@@ -2764,7 +2900,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               speechStyle: persona.speechStyle,
               role: persona.role
             },
-            persona.voiceSettings
+            persona.voiceSettings,
+            abortController.signal
           );
 
           if (ttsRes.ok && ttsRes.audioDataUrl) {
@@ -2912,11 +3049,13 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       } catch (error) {
         console.error(`Error getting AI response for group member ${responderId}:`, error);
       } finally {
-        const isStillTyping = chatsRef.current.find(c => c.id === group.id)?.status === 'typing...';
-        if (isStillTyping) setChatStatus(group.id, 'online');
+        clearChatActiveStatus(group.id);
+        delete personaAbortControllersRef.current[group.id];
       }
     }
     
+    clearChatActiveStatus(group.id);
+    aiRespondingChatsRef.current.delete(group.id);
     schedulePersonaOffline(group.id);
   };
 

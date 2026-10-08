@@ -1053,6 +1053,22 @@ const TypingBubble: React.FC = () => (
   </div>
 );
 
+const RecordingAudioBubble: React.FC = () => (
+  <div className="flex w-full px-1 py-[2px] justify-start mb-2 animate-fade-in">
+    <div 
+      className="px-3 py-1.5 rounded-lg shadow-sm relative transition-all duration-300 select-none rounded-tl-none flex items-center gap-2"
+      style={{ backgroundColor: 'var(--bubble-other)' }}
+    >
+      <Mic className="w-3.5 h-3.5 text-[#21c063] animate-pulse" />
+      <span className="text-[12.5px] text-[#21c063] font-medium italic">recording audio...</span>
+      <div
+        className="absolute top-0 -left-2 border-r-[10px] border-t-[10px] border-t-transparent"
+        style={{ borderRightColor: 'var(--bubble-other)' }}
+      />
+    </div>
+  </div>
+);
+
 export const ChatWindow: React.FC<ChatWindowProps> = ({ 
   chat, 
   allChats, 
@@ -1263,6 +1279,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const getGroupMembersLabel = () => {
     if (chat.status === 'typing...') return <span className="text-[#21c063] font-medium italic animate-pulse">typing...</span>;
+    if (chat.status === 'recording audio...') {
+      return (
+        <span className="text-[#21c063] dark:text-[#25d366] font-medium italic animate-pulse flex items-center gap-1">
+          <Mic className="w-3.5 h-3.5 inline animate-bounce" />
+          recording audio...
+        </span>
+      );
+    }
     if (!chat.isGroup || !chat.memberIds) {
       if (chat.status === 'online') {
         return <span className="text-[#21c063] dark:text-[#25d366] font-medium transition-colors">online</span>;
@@ -1637,6 +1661,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         ))}
         {!searchTerm && chat.status === 'typing...' && <TypingBubble />}
+        {!searchTerm && chat.status === 'recording audio...' && <RecordingAudioBubble />}
         <div ref={scrollRef} />
       </div>
 
