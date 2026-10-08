@@ -34,6 +34,10 @@ export const ReactionTray: React.FC<ReactionTrayProps> = ({
   return (
     <div 
       className={`absolute z-50 -top-12 ${isMe ? 'right-0 origin-bottom-right' : 'left-0 origin-bottom-left'} select-none`}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="animate-reaction-tray bg-white dark:bg-[#202c33] px-2 py-1.5 rounded-full shadow-[0_4px_20px_rgba(0,0,0,0.18)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.45)] border border-black/5 dark:border-white/10 flex items-center gap-1">

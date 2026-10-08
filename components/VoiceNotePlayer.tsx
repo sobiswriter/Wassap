@@ -154,6 +154,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
     if (e.touches.length > 0) {
       isDraggingRef.current = true;
       seekToPosition(e.touches[0].clientX);
@@ -161,12 +162,14 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    e.stopPropagation();
     if (isDraggingRef.current && e.touches.length > 0) {
       seekToPosition(e.touches[0].clientX);
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e?: React.TouchEvent) => {
+    e?.stopPropagation();
     isDraggingRef.current = false;
   };
 
@@ -199,7 +202,12 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
 
         {/* Play/Pause Button */}
         <button
-          onClick={togglePlay}
+          onClick={(e) => {
+            e.stopPropagation();
+            togglePlay();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
           type="button"
           aria-label={isPlaying ? "Pause voice note" : "Play voice note"}
           className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#00a884] hover:bg-[#008f6f] text-white flex items-center justify-center transition-all duration-200 active:scale-95 shrink-0 shadow-sm"

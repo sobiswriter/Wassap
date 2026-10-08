@@ -277,35 +277,158 @@ const MessageBubble = React.memo<{
   const [isEventExpanded, setIsEventExpanded] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const dragStartX = useRef<number | null>(null);
+  const dragStartY = useRef<number | null>(null);
   const hasTriggeredThreshold = useRef(false);
   const lastTap = useRef(0);
   const holdTimerRef = useRef<any>(null);
   const isHoldTriggered = useRef(false);
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
-    dragStartX.current = e.clientX;
+  // Dedicated Mobile Touch & Gesture Tracking
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const isTouchActiveRef = useRef(false);
+  const isVerticalScrollRef = useRef(false);
+  const isHorizontalDragRef = useRef(false);
+
+  // --- Mobile Touch Handlers ---
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    isTouchActiveRef.current = true;
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+    isVerticalScrollRef.current = false;
+    isHorizontalDragRef.current = false;
     hasTriggeredThreshold.current = false;
     isHoldTriggered.current = false;
+
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+    }
+
     holdTimerRef.current = setTimeout(() => {
       isHoldTriggered.current = true;
       if (onToggleSelect) {
         onToggleSelect(message);
         triggerHaptic('selection');
       }
-    }, 400);
+    }, 420);
   };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (dragStartX.current === null) return;
-    const diff = e.clientX - dragStartX.current;
-    if (Math.abs(diff) > 8 && holdTimerRef.current) {
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartRef.current || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    const distance = Math.hypot(deltaX, deltaY);
+
+    // Cancel hold timer if finger moved beyond micro-jitter threshold (14px)
+    if (distance > 14 && holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
+
+    // Directional locking
+    if (!isVerticalScrollRef.current && !isHorizontalDragRef.current) {
+      // If moving predominantly vertically: lock to vertical scrolling
+      if (Math.abs(deltaY) > 8 && Math.abs(deltaY) > Math.abs(deltaX)) {
+        isVerticalScrollRef.current = true;
+        return;
+      }
+      // If swiping right and not in selectionMode: lock to horizontal reply swipe
+      if (deltaX > 10 && deltaX > Math.abs(deltaY) * 1.2 && onReply && !selectionMode) {
+        isHorizontalDragRef.current = true;
+      }
+    }
+
+    // Apply horizontal drag translation if locked
+    if (isHorizontalDragRef.current && onReply && !selectionMode) {
+      const damped = Math.min(Math.max(0, deltaX - 10) * 0.46, 55);
+      setDragOffset(damped);
+
+      if (damped >= 36 && !hasTriggeredThreshold.current) {
+        hasTriggeredThreshold.current = true;
+        triggerHaptic('threshold');
+      } else if (damped < 36 && hasTriggeredThreshold.current) {
+        hasTriggeredThreshold.current = false;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+
+    if (dragOffset >= 36 && onReply && !selectionMode) {
+      onReply({
+        ...message,
+        senderName: message.senderName || (isMe ? 'You' : (!isGroup ? chatName : undefined))
+      });
+      triggerHaptic('threshold');
+    }
+
+    setDragOffset(0);
+    touchStartRef.current = null;
+    isVerticalScrollRef.current = false;
+    isHorizontalDragRef.current = false;
+    hasTriggeredThreshold.current = false;
+
+    // Suppress synthetic mouse events on touch devices
+    setTimeout(() => {
+      isTouchActiveRef.current = false;
+    }, 350);
+  };
+
+  const handleTouchCancel = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    setDragOffset(0);
+    touchStartRef.current = null;
+    isVerticalScrollRef.current = false;
+    isHorizontalDragRef.current = false;
+    hasTriggeredThreshold.current = false;
+
+    setTimeout(() => {
+      isTouchActiveRef.current = false;
+    }, 350);
+  };
+
+  // --- Desktop Mouse Handlers ---
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (isTouchActiveRef.current || e.button !== 0) return;
+    dragStartX.current = e.clientX;
+    dragStartY.current = e.clientY;
+    hasTriggeredThreshold.current = false;
+    isHoldTriggered.current = false;
+
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+    }
+
+    holdTimerRef.current = setTimeout(() => {
+      isHoldTriggered.current = true;
+      if (onToggleSelect) {
+        onToggleSelect(message);
+        triggerHaptic('selection');
+      }
+    }, 420);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isTouchActiveRef.current || dragStartX.current === null) return;
+    const diffX = e.clientX - dragStartX.current;
+    const diffY = e.clientY - (dragStartY.current || e.clientY);
+
+    if (Math.hypot(diffX, diffY) > 8 && holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+
     // Pull right to reply
-    if (diff > 0 && onReply && !selectionMode) {
-      const damped = Math.min(diff * 0.44, 55);
+    if (diffX > 0 && onReply && !selectionMode) {
+      const damped = Math.min(diffX * 0.44, 55);
       setDragOffset(damped);
       if (damped >= 36 && !hasTriggeredThreshold.current) {
         hasTriggeredThreshold.current = true;
@@ -316,7 +439,8 @@ const MessageBubble = React.memo<{
     }
   };
 
-  const handlePointerUpOrCancel = () => {
+  const handleMouseUpOrLeave = () => {
+    if (isTouchActiveRef.current) return;
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
@@ -330,7 +454,53 @@ const MessageBubble = React.memo<{
     }
     setDragOffset(0);
     dragStartX.current = null;
+    dragStartY.current = null;
     hasTriggeredThreshold.current = false;
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!isTouchActiveRef.current && onToggleSelect) {
+      onToggleSelect(message);
+    }
+  };
+
+  const handleBubbleClick = (e: React.MouseEvent) => {
+    if (isHoldTriggered.current) {
+      isHoldTriggered.current = false;
+      e.stopPropagation();
+      return;
+    }
+    if (dragOffset > 5) {
+      e.stopPropagation();
+      return;
+    }
+    if (!onToggleSelect) return;
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      // Double Tap Detected
+      e.stopPropagation();
+      onToggleSelect(message);
+      lastTap.current = 0;
+    } else {
+      lastTap.current = now;
+      if (selectionMode) {
+        e.stopPropagation();
+        onToggleSelect(message);
+      }
+    }
+  };
+
+  const gestureProps = {
+    onTouchStart: handleTouchStart,
+    onTouchMove: handleTouchMove,
+    onTouchEnd: handleTouchEnd,
+    onTouchCancel: handleTouchCancel,
+    onMouseDown: handleMouseDown,
+    onMouseMove: handleMouseMove,
+    onMouseUp: handleMouseUpOrLeave,
+    onMouseLeave: handleMouseUpOrLeave,
+    onContextMenu: handleContextMenu,
   };
 
   useEffect(() => {
@@ -457,31 +627,9 @@ const MessageBubble = React.memo<{
   return (
     <div 
       className={`flex w-full group/bubble px-1 relative ${isConsecutive ? 'py-[0.5px]' : 'py-[2px]'} transition-colors duration-150 ${selected ? 'bg-[#21c063]/20 dark:bg-white/10 selection-highlight' : ''} ${selectionMode && !selected ? 'opacity-85' : 'opacity-100'} ${isMe ? 'justify-end' : 'justify-start'}`}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUpOrCancel}
-      onPointerLeave={handlePointerUpOrCancel}
-      onPointerCancel={handlePointerUpOrCancel}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        if (onToggleSelect) onToggleSelect(message);
-      }}
       onClick={() => {
-        if (isHoldTriggered.current) {
-          isHoldTriggered.current = false;
-          return;
-        }
-        if (!onToggleSelect) return;
-        const now = Date.now();
-        if (now - lastTap.current < 300) {
-          // Double Tap Detected
+        if (selectionMode && onToggleSelect) {
           onToggleSelect(message);
-          lastTap.current = 0;
-        } else {
-          lastTap.current = now;
-          if (selectionMode) {
-             onToggleSelect(message);
-          }
         }
       }}
     >
@@ -513,14 +661,23 @@ const MessageBubble = React.memo<{
       {/* Transparent Sticker Rendering */}
       {message.isSticker ? (
         <div 
+          {...gestureProps}
           className={`sticker-message-container p-1 cursor-pointer touch-bubble relative ${isRecent ? 'animate-bubble-enter' : ''} ${selected ? 'scale-[1.03] ring-2 ring-[#21c063] rounded-2xl p-2' : ''}`}
           style={{
             transform: dragOffset > 0 ? `translateX(${dragOffset}px)` : undefined,
-            transition: dragOffset === 0 ? 'transform 200ms var(--ease-micro), scale 150ms ease' : 'none'
+            transition: dragOffset === 0 ? 'transform 200ms var(--ease-micro), scale 150ms ease' : 'none',
+            touchAction: 'pan-y'
           }}
           onClick={(e) => {
-            if (selectionMode && onToggleSelect) onToggleSelect(message);
-            else if (onOpenImage && mediaSrc) {
+            if (isHoldTriggered.current) {
+              isHoldTriggered.current = false;
+              e.stopPropagation();
+              return;
+            }
+            if (selectionMode && onToggleSelect) {
+              e.stopPropagation();
+              onToggleSelect(message);
+            } else if (onOpenImage && mediaSrc) {
               e.stopPropagation();
               onOpenImage(mediaSrc, undefined, isMe ? 'You' : (message.senderName || undefined), message.timestamp);
             }
@@ -579,6 +736,8 @@ const MessageBubble = React.memo<{
           {/* Reaction Badge on Sticker */}
           {message.reactions && message.reactions.length > 0 && (
             <div
+              onTouchStart={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 if (onToggleReaction) {
@@ -595,6 +754,8 @@ const MessageBubble = React.memo<{
         </div>
       ) : (
         <div
+          {...gestureProps}
+          onClick={handleBubbleClick}
           className={`${
             isMediaMessage
               ? 'media-message-bubble'
@@ -604,6 +765,7 @@ const MessageBubble = React.memo<{
             backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)',
             transform: dragOffset > 0 ? `translateX(${dragOffset}px)` : undefined,
             transition: dragOffset === 0 ? 'transform 200ms var(--ease-micro), scale 150ms ease' : 'none',
+            touchAction: 'pan-y',
             ...(isMediaMessage ? { width: 'fit-content', maxWidth: isGifMessage ? '230px' : '330px' } : {})
           }}
         >
@@ -664,6 +826,16 @@ const MessageBubble = React.memo<{
               <div 
                 className="image-wrapper cursor-pointer group/img relative"
                 onClick={(e) => {
+                  if (isHoldTriggered.current) {
+                    isHoldTriggered.current = false;
+                    e.stopPropagation();
+                    return;
+                  }
+                  if (selectionMode && onToggleSelect) {
+                    e.stopPropagation();
+                    onToggleSelect(message);
+                    return;
+                  }
                   e.stopPropagation();
                   onOpenImage?.(
                     mediaSrc,
@@ -832,6 +1004,8 @@ const MessageBubble = React.memo<{
           {/* Reaction Badge on standard bubble */}
           {message.reactions && message.reactions.length > 0 && (
             <div
+              onTouchStart={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 if (onToggleReaction) {

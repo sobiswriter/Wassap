@@ -300,11 +300,22 @@ body {
 }
 
 .touch-bubble {
+  touch-action: pan-y;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   transition: transform 120ms var(--ease-micro), filter 120ms ease;
   will-change: transform;
 }
 .touch-bubble:active {
   transform: scale(0.992);
+}
+
+@media (min-width: 768px) {
+  .touch-bubble {
+    user-select: text;
+    -webkit-user-select: text;
+  }
 }
 
 .touch-card {
