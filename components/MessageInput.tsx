@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Camera, MapPin, User, Headphones, BarChart, Calendar, Sparkles, Mic, Square, Sticker, Trash2, Check } from 'lucide-react';
-import { FileAttachment, Message } from '../types';
+import { FileAttachment, Message, AppSettings } from '../types';
 import { compressImage } from '../utils/imageCompressor';
 import { formatAudioDuration } from '../utils/audio';
 import { triggerHaptic } from '../utils/haptics';
@@ -22,6 +22,15 @@ interface MessageInputProps {
   chatName?: string;
   replyingTo?: Message | null;
   onCancelReply?: () => void;
+  settings?: AppSettings;
+  onOpenSettings?: () => void;
+}
+
+export interface MediaPreviewState {
+  type: 'gif' | 'sticker';
+  url: string;
+  name?: string;
+  isVideo?: boolean;
 }
 
 const EMOJIS = [
@@ -35,7 +44,7 @@ const WhatsAppMicIcon = ({ size = 20, className = '' }) => (
   </svg>
 );
 
-export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activeChatId, chatName, replyingTo, onCancelReply }) => {
+export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activeChatId, chatName, replyingTo, onCancelReply, settings, onOpenSettings }) => {
   const [text, setText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showNativeHint, setShowNativeHint] = useState(false);
@@ -49,6 +58,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   const [eventTitle, setEventTitle] = useState('');
   const [eventText, setEventText] = useState('');
   const [eventImage, setEventImage] = useState<FileAttachment | null>(null);
+
+  // Live GIF & Sticker Preview / Confirmation State
+  const [mediaPreview, setMediaPreview] = useState<MediaPreviewState | null>(null);
+  const [previewCaption, setPreviewCaption] = useState('');
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -60,6 +73,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   const eventImageInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const stickerInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
   const emojiMenuRef = useRef<HTMLDivElement>(null);
@@ -80,6 +94,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     setEventTitle('');
     setEventText('');
     setEventImage(null);
+    setMediaPreview(null);
+    setPreviewCaption('');
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
@@ -96,6 +112,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
     return () => clearTimeout(focusTimer);
   }, [activeChatId]);
+
+  // Global Escape key listener to close media confirmation modal
+  useEffect(() => {
+    if (!mediaPreview) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMediaPreview(null);
+        setPreviewCaption('');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mediaPreview]);
 
   // Click outside handlers
   useEffect(() => {
@@ -171,6 +200,96 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     });
   };
 
+  const handleSelectGif = (gifUrl: string, name?: string) => {
+    triggerHaptic('tap');
+    setShowEmojiPicker(false);
+    setMediaPreview({
+      type: 'gif',
+      url: gifUrl,
+      name: name || 'GIF'
+    });
+    setPreviewCaption('');
+  };
+
+  const handleSelectSticker = (stickerUrl: string, name?: string) => {
+    triggerHaptic('tap');
+    setShowEmojiPicker(false);
+    setMediaPreview({
+      type: 'sticker',
+      url: stickerUrl,
+      name: name || 'Sticker'
+    });
+    setPreviewCaption('');
+  };
+
+  const handleStickerFileSelection = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      if (dataUrl) {
+        triggerHaptic('tap');
+        setMediaPreview({
+          type: 'sticker',
+          url: dataUrl,
+          name: file.name || 'custom-sticker.webp'
+        });
+        setPreviewCaption('');
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleConfirmSendPreview = () => {
+    if (!mediaPreview) return;
+    triggerHaptic('send');
+    if (mediaPreview.type === 'gif') {
+      onSendMessage(
+        previewCaption.trim(),
+        {
+          name: mediaPreview.name || (mediaPreview.isVideo ? 'clip.mp4' : 'animation.gif'),
+          data: mediaPreview.url,
+          type: mediaPreview.isVideo ? 'video' : 'image',
+          size: 0,
+          isGif: true
+        },
+        replyingTo || undefined,
+        false,
+        undefined,
+        undefined,
+        false,
+        true
+      );
+    } else {
+      onSendMessage(
+        previewCaption.trim(),
+        {
+          name: mediaPreview.name || 'sticker.webp',
+          data: mediaPreview.url,
+          type: 'image',
+          size: 0
+        },
+        replyingTo || undefined,
+        false,
+        undefined,
+        undefined,
+        true,
+        false
+      );
+    }
+    setMediaPreview(null);
+    setPreviewCaption('');
+    if (onCancelReply) onCancelReply();
+  };
+
+  const handleCancelPreview = () => {
+    triggerHaptic('tap');
+    setMediaPreview(null);
+    setPreviewCaption('');
+  };
+
   const handleRichFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
     const file = files[0];
@@ -186,29 +305,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
       if (!dataUrl) return;
 
       if (isGif || isVideo) {
-        // Native GIF or short looping video frames without sound
-        const gifAttachment: FileAttachment = {
+        triggerHaptic('tap');
+        setMediaPreview({
+          type: 'gif',
+          url: dataUrl,
           name: file.name || (isVideo ? 'clip.mp4' : 'animation.gif'),
-          data: dataUrl,
-          type: isVideo ? 'video' : 'image',
-          size: file.size,
-          isGif: true
-        };
-        triggerHaptic('send');
-        onSendMessage(text.trim(), gifAttachment, replyingTo || undefined, false, undefined, undefined, false, true);
+          isVideo
+        });
+        setPreviewCaption(text.trim());
         setText('');
-        if (onCancelReply) onCancelReply();
       } else if (isWebpSticker) {
-        // Native Sticker
-        const stickerAttachment: FileAttachment = {
-          name: file.name || 'sticker.webp',
-          data: dataUrl,
-          type: 'image',
-          size: file.size
-        };
-        triggerHaptic('send');
-        onSendMessage('', stickerAttachment, replyingTo || undefined, false, undefined, undefined, true, false);
-        if (onCancelReply) onCancelReply();
+        triggerHaptic('tap');
+        setMediaPreview({
+          type: 'sticker',
+          url: dataUrl,
+          name: file.name || 'sticker.webp'
+        });
+        setPreviewCaption('');
       } else if (file.type.startsWith('image/')) {
         // Standard pasted image
         setStagedAttachment({
@@ -540,6 +653,142 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         </div>
       )}
 
+      {/* Live GIF & Sticker Preview / Confirmation Window */}
+      {mediaPreview && (
+        <div
+          className="fixed inset-0 z-[2500] bg-black/85 backdrop-blur-md flex flex-col justify-between p-3 sm:p-6 animate-in fade-in duration-200"
+          onClick={handleCancelPreview}
+        >
+          {/* Top Navigation Bar */}
+          <div
+            className="w-full max-w-4xl mx-auto flex items-center justify-between z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={handleCancelPreview}
+              className="p-2 sm:p-2.5 rounded-full text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Cancel (Esc)"
+            >
+              <X size={22} />
+              <span className="text-[13px] font-medium hidden sm:inline">Cancel</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[14px] sm:text-[15px] font-medium text-white truncate max-w-[200px] sm:max-w-md">
+                Send to {chatName || 'Chat'}
+              </span>
+              <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full ${
+                mediaPreview.type === 'gif'
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+              }`}>
+                {mediaPreview.type === 'gif' ? 'GIF' : 'Sticker'}
+              </span>
+            </div>
+
+            <div className="w-10 sm:w-16" />
+          </div>
+
+          {/* Center Stage: High-Resolution Live Preview */}
+          <div
+            className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 min-h-0 overflow-hidden my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {mediaPreview.type === 'gif' ? (
+              <div className="relative max-w-full max-h-[55vh] sm:max-h-[62vh] rounded-2xl overflow-hidden shadow-2xl border border-white/15 bg-black/40 flex items-center justify-center animate-in zoom-in-95 duration-200">
+                {mediaPreview.isVideo ? (
+                  <video
+                    src={mediaPreview.url}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="max-h-[55vh] sm:max-h-[62vh] max-w-full object-contain"
+                  />
+                ) : (
+                  <img
+                    src={mediaPreview.url}
+                    alt={mediaPreview.name || 'GIF Preview'}
+                    className="max-h-[55vh] sm:max-h-[62vh] max-w-full object-contain"
+                  />
+                )}
+                <span className="absolute top-2.5 left-2.5 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded tracking-wider uppercase">
+                  GIF
+                </span>
+              </div>
+            ) : (
+              <div className="relative max-w-[280px] sm:max-w-[340px] aspect-square rounded-2xl flex items-center justify-center p-4 animate-in zoom-in-95 duration-200">
+                <img
+                  src={mediaPreview.url}
+                  alt={mediaPreview.name || 'Sticker Preview'}
+                  className="max-h-full max-w-full object-contain filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.4)] transition-transform hover:scale-105"
+                />
+              </div>
+            )}
+
+            {mediaPreview.name && (
+              <p className="mt-3 text-white/60 text-[12px] font-medium text-center truncate max-w-sm px-2">
+                {mediaPreview.name}
+              </p>
+            )}
+          </div>
+
+          {/* Bottom Controls / Caption Bar */}
+          <div
+            className="w-full max-w-2xl mx-auto z-10 pb-1 sm:pb-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {mediaPreview.type === 'gif' ? (
+              <div className="flex items-center gap-3">
+                <div className="flex-1 bg-white/10 dark:bg-[#202c33] border border-white/15 rounded-full px-4 py-2.5 flex items-center gap-2.5 text-white focus-within:border-[#21c063] transition-colors shadow-lg">
+                  <input
+                    type="text"
+                    placeholder="Add a caption... (optional, press Enter to send)"
+                    value={previewCaption}
+                    onChange={(e) => setPreviewCaption(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleConfirmSendPreview();
+                      }
+                    }}
+                    autoFocus
+                    className="flex-1 bg-transparent outline-none text-[14px] text-white placeholder:text-white/45 min-w-0"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleConfirmSendPreview}
+                  className="w-[48px] h-[48px] sm:w-[52px] sm:h-[52px] rounded-full bg-[#21c063] hover:bg-[#1eb05b] text-white flex items-center justify-center shadow-[0_4px_16px_rgba(33,192,99,0.4)] active:scale-95 transition-all touch-btn shrink-0 cursor-pointer"
+                  title="Send GIF (Enter)"
+                >
+                  <SendHorizontal size={22} className="ml-0.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-3 max-w-sm mx-auto">
+                <button
+                  type="button"
+                  onClick={handleCancelPreview}
+                  className="flex-1 py-2.5 px-4 rounded-full bg-white/10 hover:bg-white/15 text-white text-[13.5px] font-medium transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSendPreview}
+                  className="flex-1 py-2.5 px-5 rounded-full bg-[#21c063] hover:bg-[#1eb05b] text-white text-[13.5px] font-semibold transition-all shadow-[0_4px_16px_rgba(33,192,99,0.35)] flex items-center justify-center gap-2 active:scale-95 touch-btn cursor-pointer"
+                >
+                  <SendHorizontal size={17} />
+                  <span>Send Sticker</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Attachment Preview Area (Staged) */}
       {(stagedAttachment || stagedVoiceNote) && (
         <div className="bg-[#f0f2f5] dark:bg-[#182229] border-t app-border px-4 py-3 flex items-end gap-3 animate-in slide-in-from-bottom-2 duration-300 shadow-inner overflow-x-auto">
@@ -646,6 +895,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileSelection(e, 'image')} />
         <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.doc,.docx,.txt,.md,.xlsx,.pptx" onChange={(e) => handleFileSelection(e, 'document')} />
         <input type="file" ref={audioInputRef} className="hidden" accept="audio/*" onChange={(e) => handleFileSelection(e, 'audio')} />
+        <input type="file" ref={stickerInputRef} className="hidden" accept="image/*,.webp" onChange={handleStickerFileSelection} />
 
         <div className="flex-1 bg-white dark:bg-[#233138] rounded-[24px] flex items-end shadow-[0_1px_2px_rgba(11,20,26,.1)] overflow-hidden min-h-[48px]">
           {isRecording ? (
@@ -876,6 +1126,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                 <span className="text-[12px] font-normal text-primary text-center">Event</span>
               </div>
 
+              {/* Sticker */}
+              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); stickerInputRef.current?.click(); }}>
+                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#00bfa5] to-[#1de9b6] shadow-[0_4px_12px_rgba(0,191,165,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                  <Sticker size={26} strokeWidth={2} />
+                </div>
+                <span className="text-[12px] font-normal text-primary text-center">Sticker</span>
+              </div>
+
               {/* AI Images */}
               <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => {
                 setShowAttachmentMenu(false);
@@ -891,17 +1149,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
           </div>
         )}
 
-        {/* Authentic WhatsApp Emoji Picker Tray */}
+        {/* Authentic WhatsApp Emoji, GIF & Sticker Picker Tray */}
         {showEmojiPicker && (
           <div
             ref={emojiMenuRef}
-            className="absolute bottom-[60px] left-[8px] sm:left-[12px] z-[100] w-[calc(100vw-16px)] sm:w-[380px] max-w-[420px]"
+            className="absolute bottom-[60px] left-[8px] sm:left-[12px] z-[100] w-[calc(100vw-16px)] sm:w-[390px] max-w-[420px]"
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
           >
             <EmojiPickerTray
               onSelectEmoji={handleSelectEmoji}
+              onSelectGif={handleSelectGif}
+              onSelectSticker={handleSelectSticker}
               onClose={() => setShowEmojiPicker(false)}
+              giphyApiKey={settings?.giphyApiKey}
+              onOpenSettings={onOpenSettings}
             />
           </div>
         )}

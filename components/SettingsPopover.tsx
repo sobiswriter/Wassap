@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw, Camera, Mic, Zap } from 'lucide-react';
+import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw, Camera, Mic, Zap, Film } from 'lucide-react';
 import { AppSettings, AiProvider } from '../types';
 import { AVAILABLE_MODELS, AVAILABLE_IMAGE_MODELS, AVAILABLE_VOICE_MODELS, GCP_CONFIG, DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE, VERTEX_PASSCODE_HINT } from '../constants';
 import { compressWallpaperImage } from '../utils/imageCompressor';
@@ -15,6 +15,7 @@ interface SettingsPopoverProps {
 
 export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUpdate, onClose, onTestNotification }) => {
   const [showKey, setShowKey] = useState(false);
+  const [showGiphyKey, setShowGiphyKey] = useState(false);
   const [passcodeDraft, setPasscodeDraft] = useState('');
   const [showPasscode, setShowPasscode] = useState(false);
   const [showPasscodeHint, setShowPasscodeHint] = useState(false);
@@ -446,6 +447,59 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
               )}
             </div>
           )}
+        </div>
+
+        {/* GIPHY Online GIF & Sticker Search */}
+        <div className="space-y-3 pt-3 border-t app-border">
+          <div className="flex items-center gap-3">
+            <Film size={20} className="text-[#00a884]" />
+            <div>
+              <p className="text-[length:var(--msg-font-size)] font-medium">Live GIF & Sticker Search (GIPHY)</p>
+              <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Search millions of live GIFs & stickers directly in the tray</p>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-lg border app-border bg-black/[0.02] dark:bg-white/[0.02] space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[calc(var(--msg-font-size)-2px)] font-medium">GIPHY API Key</span>
+              <a
+                href="https://developers.giphy.com/dashboard/"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-[#00a884] hover:underline font-medium flex items-center gap-1"
+              >
+                Get Free Key ↗
+              </a>
+            </div>
+
+            <div className="relative">
+              <input
+                type={showGiphyKey ? "text" : "password"}
+                value={draftSettings.giphyApiKey || ''}
+                onChange={(e) => {
+                  const updated = { ...draftSettings, giphyApiKey: e.target.value.trim() };
+                  setDraftSettings(updated);
+                  onUpdate(updated);
+                }}
+                placeholder="Paste free GIPHY API key..."
+                className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded-lg px-3 py-1.5 text-[calc(var(--msg-font-size)-2px)] outline-none focus:border-[#00a884] transition-all pr-10 font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowGiphyKey(!showGiphyKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors cursor-pointer"
+                title={showGiphyKey ? "Hide key" : "Show key"}
+              >
+                {showGiphyKey ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+
+            <p className="text-[calc(var(--msg-font-size)-3.5px)] text-secondary leading-tight">
+              {draftSettings.giphyApiKey?.trim() 
+                ? "✓ Live online searching active! You can search all GIPHY GIFs and stickers in real-time."
+                : "Optional: Get a free instant key at developers.giphy.com. Even without a key, you can search our 100+ built-in library, upload customs, or paste any media URL!"}
+            </p>
+          </div>
         </div>
 
         {/* Font Size Selector */}

@@ -31,6 +31,9 @@ export interface ChatPayload {
     audio?: string;
     isEvent?: boolean;
     eventTitle?: string;
+    reactions?: string[];
+    isSticker?: boolean;
+    isGif?: boolean;
   }[];
   userProfile?: UserProfile;
   groupContext?: { groupName: string; otherMembers: string[] };
@@ -265,6 +268,114 @@ export const resolveVertexModel = (selectedModel?: string): string => {
   return selectedModel.trim();
 };
 
+/**
+ * Safely resolves a media data URL, remote URL (e.g. Giphy/Tenor GIF or image),
+ * or base64 string to a valid Gemini inlineData part.
+ * Returns null if the media cannot be parsed, exceeds size limits, or is an unsupported format like SVG.
+ */
+export async function resolveMediaToInlineData(
+  mediaStr?: string,
+  defaultMime = 'image/jpeg'
+): Promise<{ inlineData: { mimeType: string; data: string } } | null> {
+  if (!mediaStr || typeof mediaStr !== 'string') return null;
+
+  const trimmed = mediaStr.trim();
+  if (!trimmed || trimmed === '[ATTACHED]') return null;
+
+  // Case 1: Data URI (e.g., data:image/png;base64,iVBOR...)
+  if (trimmed.startsWith('data:')) {
+    const commaIdx = trimmed.indexOf(',');
+    if (commaIdx === -1) return null;
+
+    const meta = trimmed.substring(0, commaIdx).toLowerCase();
+    const rawData = trimmed.substring(commaIdx + 1);
+
+    const mimeMatch = meta.match(/data:([^;,]+)/);
+    const mimeType = mimeMatch ? mimeMatch[1] : defaultMime;
+
+    // Vector graphics (SVG) are not supported by Gemini's multimodal vision decoder
+    if (mimeType.includes('svg')) {
+      return null;
+    }
+
+    if (!rawData || !rawData.trim()) return null;
+
+    return {
+      inlineData: {
+        mimeType: mimeType || defaultMime,
+        data: rawData.trim(),
+      },
+    };
+  }
+
+  // Case 2: Remote URL (e.g., https://i.giphy.com/... or https://...)
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (trimmed.toLowerCase().endsWith('.svg') || trimmed.toLowerCase().includes('.svg?')) {
+      return null;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
+
+      const response = await fetch(trimmed, {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'image/*,audio/*,*/*',
+          'User-Agent': 'Mozilla/5.0 (compatible; WassapBot/1.0)',
+        },
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.warn(`[resolveMediaToInlineData] HTTP ${response.status} fetching remote media: ${trimmed}`);
+        return null;
+      }
+
+      const contentTypeHeader = (response.headers.get('content-type') || '').toLowerCase().split(';')[0].trim();
+      if (contentTypeHeader.includes('svg') || contentTypeHeader.includes('html')) {
+        return null;
+      }
+
+      const mimeType = contentTypeHeader && (contentTypeHeader.startsWith('image/') || contentTypeHeader.startsWith('audio/'))
+        ? contentTypeHeader
+        : (trimmed.toLowerCase().endsWith('.gif') ? 'image/gif' : defaultMime);
+
+      const arrayBuffer = await response.arrayBuffer();
+      // Cap at 8MB to stay within Vercel and Vertex inlineData payload thresholds
+      if (arrayBuffer.byteLength > 8 * 1024 * 1024) {
+        console.warn(`[resolveMediaToInlineData] Media too large (${arrayBuffer.byteLength} bytes) for: ${trimmed}`);
+        return null;
+      }
+
+      const base64Data = Buffer.from(arrayBuffer).toString('base64');
+      if (!base64Data) return null;
+
+      return {
+        inlineData: {
+          mimeType,
+          data: base64Data,
+        },
+      };
+    } catch (err: any) {
+      console.warn(`[resolveMediaToInlineData] Could not fetch remote media ${trimmed}:`, err?.message || err);
+      return null;
+    }
+  }
+
+  // Case 3: Raw Base64 string without data: prefix
+  if (trimmed.length > 20 && !trimmed.includes('://') && /^[A-Za-z0-9+/=_\s-]+$/.test(trimmed.slice(0, 50))) {
+    return {
+      inlineData: {
+        mimeType: defaultMime,
+        data: trimmed.replace(/\s+/g, ''),
+      },
+    };
+  }
+
+  return null;
+}
+
 export async function handleVertexChat(payload: ChatPayload): Promise<{ ok: boolean; text?: string; error?: string }> {
   try {
     const { responder, messageHistory, userProfile, groupContext, settings, initiationContext, clientTimeContext } = payload;
@@ -279,8 +390,19 @@ export async function handleVertexChat(payload: ChatPayload): Promise<{ ok: bool
           return `[ENVIRONMENTAL EVENT OCCURS${titleStr}]: *${m.text || ''}* ${imgTag}`.trim();
         }
         const name = m.sender === 'me' ? (userProfile?.name || 'User') : (m.senderName || responder.name);
-        const imgTag = m.image ? "[IMAGE ATTACHED]" : "";
-        return `${name}: ${imgTag} ${m.text || ''}`.trim();
+        let imgTag = "";
+        if (m.image) {
+          if (m.isGif || m.image.toLowerCase().includes('.gif') || m.image.startsWith('data:image/gif')) {
+            imgTag = "[GIF ANIMATION ATTACHED]";
+          } else if (m.isSticker || m.image.includes('sticker') || m.image.startsWith('data:image/svg')) {
+            imgTag = "[STICKER ATTACHED]";
+          } else {
+            imgTag = "[IMAGE ATTACHED]";
+          }
+        }
+        const voiceTag = m.audio ? "[VOICE NOTE ATTACHED]" : "";
+        const reactionTag = m.reactions && m.reactions.length > 0 ? `[REACTIONS ON THIS MESSAGE: ${m.reactions.join(', ')}]` : "";
+        return `${name}: ${imgTag} ${voiceTag} ${reactionTag} ${m.text || ''}`.trim();
       })
       .join('\n');
 
@@ -470,32 +592,36 @@ Instructions:
 2. Breathe life into this persona! Maintain your unique personality and speech style at all times.
 3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
 4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
-5. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
-6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? (responder.humaneSettings.varyMessageLengthPrompt ? 'Follow the custom message length and pacing directives defined below.' : 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.') : 'Respond naturally without any strict length restrictions.'}
-7. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
+5. If the user sent an image with an attached Voice Note, look at the image AND listen to what they said, responding cohesively to both!
+6. If the user sent a GIF animation or sticker, react playfully, humorously, or warmly to what it shows/expresses in-character!
+7. If the user stacked or sent multiple messages, images, audio clips, or expressions together, acknowledge and respond cohesively to ALL of them in a single combined reply turn!
+8. If the user reacted to a message or photo with an expression (e.g. ❤️, 😂, 😮, 😢, 🙏, 👍, 🔥), naturally acknowledge and warmly or playfully reply back to their reaction/expression in-character!
+9. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
+10. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? (responder.humaneSettings.varyMessageLengthPrompt ? 'Follow the custom message length and pacing directives defined below.' : 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.') : 'Respond naturally without any strict length restrictions.'}
+11. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
 
 Conversation History:
 ${historyString}
 
 Response as ${responder.name}:`;
 
-    const recentMessagesWithMedia = (messageHistory || []).slice(-5).filter(m => m.image || m.audio);
+    const recentMessagesWithMedia = (messageHistory || []).slice(-8).filter(m => (m.image && m.image !== '[ATTACHED]') || (m.audio && m.audio !== '[ATTACHED]'));
     const parts: any[] = [{ text: systemPrompt }];
 
-    recentMessagesWithMedia.slice(-2).forEach(msg => {
-      if (msg.image) {
-        const base64Data = msg.image.split(',')[1] || msg.image;
-        parts.push({
-          inlineData: { mimeType: "image/jpeg", data: base64Data }
-        });
+    for (const msg of recentMessagesWithMedia.slice(-5)) {
+      if (msg.image && msg.image !== '[ATTACHED]') {
+        const resolved = await resolveMediaToInlineData(msg.image, 'image/jpeg');
+        if (resolved) {
+          parts.push(resolved);
+        }
       }
-      if (msg.audio) {
-        const base64Data = msg.audio.split(',')[1] || msg.audio;
-        parts.push({
-          inlineData: { mimeType: "audio/webm", data: base64Data }
-        });
+      if (msg.audio && msg.audio !== '[ATTACHED]') {
+        const resolved = await resolveMediaToInlineData(msg.audio, 'audio/webm');
+        if (resolved) {
+          parts.push(resolved);
+        }
       }
-    });
+    }
 
     const config: any = {};
     if (settings?.useSearchGrounding) {

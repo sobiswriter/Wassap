@@ -6,15 +6,42 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.9.2`
+- **Current Version**: `v1.9.3`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
-- **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
+- **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/` and `api/giphy/`, plus a local Express development server in `server/`.
 
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Motion Excellence, Haptics & Tactile WhatsApp Interaction System (`v1.9.2`)
+### 1. Online GIF & Sticker Search, Expanded Library & GIPHY Integration (`v1.9.3`)
+- **Expanded Reaction GIF Database (`utils/stickersAndGifs.ts`)**:
+  - Grown to 80+ top viral reaction GIFs categorized across `Trending`, `Reactions`, `Laughing`, `Love`, `Shocked`, `Dancing`, `Memes`, and `Yes/No`.
+  - Multi-tag indexing and high-speed offline fallback search.
+- **Expanded Vector Sticker Collection (`utils/stickersAndGifs.ts`)**:
+  - 36 handcrafted SVG/WebP vector stickers across 5 packs: `Pepe & Frog`, `Cute Cats`, `3D WhatsApp`, `Anime & Chibi`, and `Classic Memes`.
+- **Live GIPHY Search Integration (`api/giphy/search.ts`, `server/api.ts`, `EmojiPickerTray.tsx`)**:
+  - Debounced (350ms) online querying for both GIFs and transparent Stickers.
+  - Dual-tier fetching: server proxy endpoint `/api/giphy/search` + direct client browser fetch fallback.
+  - "Powered by GIPHY" attribution and live status badge.
+- **GIPHY API Key Management (`SettingsPopover.tsx` & `types.ts`)**:
+  - User can enter their personal free GIPHY Developer API Key directly in Settings.
+  - 1-click shortcut from the media tray footer opens Settings to configure GIPHY key instantly.
+- **Instant Pasted Media Link Detection**:
+  - Pasting any URL (`http://`, `https://`, `data:image/`) into the search bar displays an immediate live preview card with 1-click "Send this GIF" or "Send this Sticker".
+- **Vertex AI Base64 Multimodal Image Inlining Fix**:
+  - Resolved Gemini 400 Invalid Argument error (`Base64 decoding failed for url`) when sending GIF/sticker URLs to Vertex AI models.
+  - Automatically fetches remote URLs and encodes into valid base64 `inlineData` in `geminiService.ts`, `server/vertexHandler.ts`, and `api/gemini/generate.ts`.
+- **GIF Database Health Check & Dynamic Placeholder Shield (`utils/stickersAndGifs.ts` & `EmojiPickerTray.tsx`)**:
+  - Replaced all 23 broken/deprecated GIPHY IDs with 100% verified, live animated GIFs (automated HTTP check verified 56/56 passing with zero unavailable placeholders).
+  - Added real-time client-side detection in `EmojiPickerTray.tsx`: checks image natural dimensions (`480x270`) and `onError` events to immediately suppress any unavailable GIPHY placeholder graphics from ever rendering in the tray.
+- **Live GIF & Sticker Confirmation & Preview Window (`components/MessageInput.tsx`)**:
+  - Selecting any GIF or sticker from the media tray, live online search, pasted URL preview, or device upload opens an authentic WhatsApp-style full preview stage before sending.
+  - Large animated GIF view with optional caption composer and keyboard shortcuts (`Enter` to send, `Escape` or backdrop click to dismiss).
+  - High-definition transparent sticker view with "Send Sticker" and "Cancel" buttons.
+  - Intercepts all media dispatch points ensuring zero accidental messages are sent.
+
+### 2. Motion Excellence, Haptics & Tactile WhatsApp Interaction System (`v1.9.2`)
 - **Physics-Driven Message Bubble Motion**:
   - Gentle entrance and exit transitions (`bubble-enter` scale 0.96 -> 1, opacity 0 -> 1) with subtle settle physics instead of abrupt popping.
   - Settle movement harmonized with chat scroll speed for unified continuous perception.
@@ -36,14 +63,13 @@
   - Restrained spring animation emerging directly above the selected bubble with popular emoji shortcuts (👍, ❤️, 😂, 😮, 😢, 🙏).
   - Selected reaction attaches to the bubble with a subtle badge pop animation.
   - **Persona Reaction Awareness**: Personas dynamically receive reaction context in their prompt loop (`[USER REACTION: User reacted with {emoji} to message: "{text}"]`) and respond in-character to your expressions!
-- **In-App WhatsApp Emoji Picker (`EmojiPickerTray.tsx`)**:
-  - Responsive, unclipped drawer anchored above the composer at `bottom-[60px] left-[8px] z-[100]`.
-  - Zero disruption to typing flow: inserts directly at cursor position without closing the tray, allowing rapid consecutive emoji input.
-  - Features real-time search, categorization (**Smileys**, **Hands**, **Hearts**, **Fun**), and persistent "Recently Used" memory in `localStorage`.
-- **Native Keyboard Rich Content (Stickers & Looping GIFs)**:
-  - Supports rich media input from mobile keyboards (Gboard, iOS) and Windows (`Win + .`) via clipboard paste and drag-drop.
-  - GIFs rendered as compact looping soundless frames.
-  - WebP stickers rendered with authentic tight bubble wrapping.
+- **In-App WhatsApp Media Drawer (`EmojiPickerTray.tsx` & `utils/stickersAndGifs.ts`)**:
+  - Responsive, multi-tab drawer anchored above composer with 3 tabs: **Emojis**, **GIFs**, and **Stickers**.
+  - **Emojis**: Real-time search, categorization (**Smileys**, **Hands**, **Hearts**, **Fun**), recent memory, and cursor insertion.
+  - **GIFs**: Curated library of trending reaction GIFs with real-time search, category filters (Trending, Reactions, Laughing, Love, Shocked, Dancing), and 1-tap custom GIF/video upload.
+  - **Stickers**: High-res transparent sticker packs (**Pepe & Memes**, **Cute Cats**, **3D Expressions**, **Anime & Chibi**), and 1-tap "+ Custom Sticker" upload from phone gallery/PC.
+  - **Attachment Menu Integration**: Direct "Sticker" item in the paperclip sheet for instant custom sticker dispatch.
+  - **Mobile Web Keyboard Compatibility**: Solves Android Gboard's native `"This app does not support images here"` restriction by providing WhatsApp Web-grade in-app selection while preserving clipboard paste and drag-and-drop.
 - **Multimodal Message Stacking Cohesion**:
   - Message stacking rules apply cohesively across images, audio notes, reactions, and text into a unified conversational turn.
 - **Monotonic Chronological Date Categorization (`utils/dates.ts`)**:
@@ -597,6 +623,16 @@ Wassap/
     - *Streamlined Stacking Mode Cycle*: Removed premature and intrusive online status flips during the active text-stacking window. User messages are naturally marked delivered at 1.8s – 2.5s. When the stacking delay timer ends, all messages are immediately confirmed delivered (skipping redundant delivery waits) and the clean cycle begins immediately: Online (1.8s – 2.5s) $\to$ Seen / Blue ticks (1.8s – 2.5s) $\to$ Typing (1.8s – 2.5s) $\to$ Delivery.
     - *Preserved Lingering Online*: Persona stays online for 35 seconds (`schedulePersonaOffline` with 35,000 ms) before transitioning to offline, allowing seamless continued conversations without re-triggering the pickup phase.
     - *Service Worker Cache v13*: Bumped cache to `wassap-shell-v13`.
+- [x] **v1.9.2**:
+  - **Vertex AI Multimodal Remote Media & GIF Decoding Fix**:
+    - *Root Cause*: When users sent remote media (such as Giphy or Tenor GIFs, or external image URLs), `handleVertexChat` in `server/vertexHandler.ts` and `api/gemini/generate.ts` passed raw URL strings (`https://i.giphy.com/...`) into Gemini's `inline_data.data` field, expecting base64-encoded bytes. This caused Vertex AI 400 errors: `Invalid value at 'contents[0].parts[1].inline_data.data' (TYPE_BYTES), Base64 decoding failed`.
+    - *Safe Media Resolvers*:
+      - Implemented `resolveMediaToInlineData` in `server/vertexHandler.ts` and `api/gemini/generate.ts` (Node.js/Vercel serverless): fetches remote image and GIF URLs with a 6-second timeout, verifies content size ($\le$ 8MB) and MIME type, and converts buffer to valid base64 bytes (`Buffer.from(buf).toString('base64')`). Also parses data URIs and discards vector SVGs (`image/svg+xml`), which Gemini vision models do not support.
+      - Implemented `resolveMediaToInlineDataBrowser` in `services/geminiService.ts` for Custom API Key mode using browser `fetch()` and `FileReader`.
+    - *Rich Text Context*:
+      - Enhanced history formatting so GIFs and stickers receive distinct prompt tags (`[GIF ANIMATION ATTACHED]`, `[STICKER ATTACHED]`) in addition to standard `[IMAGE ATTACHED]`.
+      - Added directive instructing personas to react humorously, warmly, or playfully in-character to GIFs and stickers sent by the user.
+      - Fixed `messageHistory` mapping in `server/vertexHandler.ts` to include voice note tags (`[VOICE NOTE ATTACHED]`) and reaction tags (`[REACTIONS ON THIS MESSAGE: ...]`).
 
 ---
 

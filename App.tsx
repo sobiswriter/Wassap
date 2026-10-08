@@ -2199,6 +2199,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const voiceData = voiceId ? await getMedia(voiceId) : undefined;
         let text = m.text;
         if (m.replyToMessage) text = formatQuotedReplyContext(m.replyToMessage, chat.name) + text;
+        if (m.isSticker && !text) {
+          text = `[User sent a sticker: "${m.attachment?.name || 'Sticker'}"]`;
+        } else if ((m.isGif || m.attachment?.isGif) && !text) {
+          text = `[User sent a GIF animation: "${m.attachment?.name || 'GIF'}"]`;
+        }
         return {
           text,
           sender: m.sender,
@@ -3372,6 +3377,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               onSendMessage={handleSendMessage}
               replyingTo={replyingTo}
               onCancelReply={() => setReplyingTo(null)}
+              settings={settings}
+              onOpenSettings={() => setShowSettingsPopover(true)}
             />
           )}
         </div>

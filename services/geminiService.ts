@@ -305,7 +305,16 @@ export const buildFullPersonaSystemPrompt = (
         return `[ENVIRONMENTAL EVENT OCCURS${titleStr}]: *${m.text || ''}* ${imgTag}`.trim();
       }
       const name = m.sender === 'me' ? (userProfile?.name || 'User') : (m.senderName || responder.name);
-      const imgTag = m.image ? "[IMAGE ATTACHED]" : "";
+      let imgTag = "";
+      if (m.image) {
+        if ((m as any).isGif || m.image.toLowerCase().includes('.gif') || m.image.startsWith('data:image/gif')) {
+          imgTag = "[GIF ANIMATION ATTACHED]";
+        } else if ((m as any).isSticker || m.image.includes('sticker') || m.image.startsWith('data:image/svg')) {
+          imgTag = "[STICKER ATTACHED]";
+        } else {
+          imgTag = "[IMAGE ATTACHED]";
+        }
+      }
       const voiceTag = m.audio ? "[VOICE NOTE ATTACHED]" : "";
       const reactionTag = m.reactions && m.reactions.length > 0 ? `[REACTIONS ON THIS MESSAGE: ${m.reactions.join(', ')}]` : "";
       return `${name}: ${imgTag} ${voiceTag} ${reactionTag} ${m.text || ''}`.trim();
@@ -505,17 +514,100 @@ Instructions:
 3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
 4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
 5. If the user sent an image with an attached Voice Note, look at the image AND listen to what they said, responding cohesively to both!
-6. If the user stacked or sent multiple messages, images, audio clips, or expressions together, acknowledge and respond cohesively to ALL of them in a single combined reply turn!
-7. If the user reacted to a message or photo with an expression (e.g. ❤️, 😂, 😮, 😢, 🙏, 👍, 🔥), naturally acknowledge and warmly or playfully reply back to their reaction/expression in-character!
-8. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
-9. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? (responder.humaneSettings.varyMessageLengthPrompt ? 'Follow the custom message length and pacing directives defined below.' : 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.') : 'Respond naturally without any strict length restrictions.'}
-10. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
+6. If the user sent a GIF animation or sticker, react playfully, humorously, or warmly to what it shows/expresses in-character!
+7. If the user stacked or sent multiple messages, images, audio clips, or expressions together, acknowledge and respond cohesively to ALL of them in a single combined reply turn!
+8. If the user reacted to a message or photo with an expression (e.g. ❤️, 😂, 😮, 😢, 🙏, 👍, 🔥), naturally acknowledge and warmly or playfully reply back to their reaction/expression in-character!
+9. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
+10. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? (responder.humaneSettings.varyMessageLengthPrompt ? 'Follow the custom message length and pacing directives defined below.' : 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.') : 'Respond naturally without any strict length restrictions.'}
+11. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
 
 Conversation History:
 ${historyString}
 
 Response as ${responder.name}:`;
 };
+
+/**
+ * Browser-safe resolver for media data URIs or remote URLs to inlineData parts for Gemini API.
+ */
+export async function resolveMediaToInlineDataBrowser(
+  mediaStr?: string,
+  defaultMime = 'image/jpeg'
+): Promise<{ inlineData: { mimeType: string; data: string } } | null> {
+  if (!mediaStr || typeof mediaStr !== 'string') return null;
+
+  const trimmed = mediaStr.trim();
+  if (!trimmed || trimmed === '[ATTACHED]') return null;
+
+  if (trimmed.startsWith('data:')) {
+    const commaIdx = trimmed.indexOf(',');
+    if (commaIdx === -1) return null;
+
+    const meta = trimmed.substring(0, commaIdx).toLowerCase();
+    const rawData = trimmed.substring(commaIdx + 1);
+
+    const mimeMatch = meta.match(/data:([^;,]+)/);
+    const mimeType = mimeMatch ? mimeMatch[1] : defaultMime;
+
+    if (mimeType.includes('svg')) return null;
+    if (!rawData || !rawData.trim()) return null;
+
+    return {
+      inlineData: {
+        mimeType: mimeType || defaultMime,
+        data: rawData.trim(),
+      },
+    };
+  }
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (trimmed.toLowerCase().endsWith('.svg') || trimmed.toLowerCase().includes('.svg?')) {
+      return null;
+    }
+    try {
+      const response = await fetch(trimmed);
+      if (!response.ok) return null;
+      const blob = await response.blob();
+      if (blob.type.includes('svg')) return null;
+
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const res = reader.result as string;
+          if (res && res.startsWith('data:')) {
+            const parts = res.split(',');
+            const mimeMatch = parts[0].match(/data:(.*?);base64/);
+            const mime = mimeMatch ? mimeMatch[1] : (blob.type || defaultMime);
+            resolve({
+              inlineData: {
+                mimeType: mime || defaultMime,
+                data: parts[1] || '',
+              },
+            });
+          } else {
+            resolve(null);
+          }
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch (err) {
+      console.warn("Could not resolve remote media to inlineData in browser:", err);
+      return null;
+    }
+  }
+
+  if (trimmed.length > 20 && !trimmed.includes('://') && /^[A-Za-z0-9+/=_\s-]+$/.test(trimmed.slice(0, 50))) {
+    return {
+      inlineData: {
+        mimeType: defaultMime,
+        data: trimmed.replace(/\s+/g, ''),
+      },
+    };
+  }
+
+  return null;
+}
 
 export const getGeminiResponse = async (
   responder: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string; humaneSettings?: HumaneSettings },
@@ -576,23 +668,23 @@ export const getGeminiResponse = async (
       voiceSettings
     );
 
-    const recentMessagesWithMedia = messageHistory.slice(-8).filter(m => (m.image && m.image.startsWith('data:')) || (m.audio && m.audio.startsWith('data:')));
+    const recentMessagesWithMedia = messageHistory.slice(-8).filter(m => (m.image && m.image !== '[ATTACHED]') || (m.audio && m.audio !== '[ATTACHED]'));
     const parts: any[] = [{ text: systemPrompt }];
 
-    recentMessagesWithMedia.slice(-5).forEach(msg => {
-      if (msg.image && msg.image.startsWith('data:')) {
-        const base64Data = msg.image.split(',')[1] || msg.image;
-        parts.push({
-          inlineData: { mimeType: "image/jpeg", data: base64Data }
-        });
+    for (const msg of recentMessagesWithMedia.slice(-5)) {
+      if (msg.image && msg.image !== '[ATTACHED]') {
+        const resolved = await resolveMediaToInlineDataBrowser(msg.image, 'image/jpeg');
+        if (resolved) {
+          parts.push(resolved);
+        }
       }
-      if (msg.audio && msg.audio.startsWith('data:')) {
-        const base64Data = msg.audio.split(',')[1] || msg.audio;
-        parts.push({
-          inlineData: { mimeType: "audio/webm", data: base64Data }
-        });
+      if (msg.audio && msg.audio !== '[ATTACHED]') {
+        const resolved = await resolveMediaToInlineDataBrowser(msg.audio, 'audio/webm');
+        if (resolved) {
+          parts.push(resolved);
+        }
       }
-    });
+    }
 
     const config: any = {};
     if (settings?.useSearchGrounding) {

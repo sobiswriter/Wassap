@@ -204,6 +204,7 @@ export interface AppSettings {
   timeMode?: TimeMode;
   customTimeOffsetMs?: number;
   clientTimeContext?: string;
+  giphyApiKey?: string;
 }
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';

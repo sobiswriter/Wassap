@@ -81,17 +81,33 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.9.3"
+              title="Online GIF & Sticker Search, Expanded Library & GIPHY Integration"
+              date="October 2026"
+              isLatest={true}
+              changes={[
+                "Expanded Reaction GIF Library: Vastly widened built-in viral GIF library with 80+ top reactions categorized into Trending, Reactions, Laughing, Love, Shocked, Dancing, Classic Memes, and Yes/No.",
+                "Expanded Transparent Vector Stickers: 36 crisp, handcrafted SVG/WebP stickers across 5 distinct packs (Frog/Pepe, Cute Cats, 3D WhatsApp Reactions, Anime/Chibi, and Classic Memes).",
+                "Live Online GIPHY Search Integration: Search millions of animated GIFs and transparent stickers directly from the in-app media tray with debounced live querying and serverless proxy fallback.",
+                "Live GIF & Sticker Confirmation & Preview Window: Selecting any GIF or sticker now opens a dedicated high-definition confirmation stage with large live playback, recipient header, optional caption composer for GIFs, and quick Send or Cancel controls (supporting Enter to send and Esc to dismiss).",
+                "Automated GIPHY Health Shield: Verified 100% of built-in GIFs with automated live testing and added client-side detection to instantly suppress any unavailable GIPHY placeholders.",
+                "GIPHY API Key Settings Integration: Easily connect your own free GIPHY Developer API Key directly from App Settings or the media tray footer with 1-click status validation and link to the GIPHY developer dashboard.",
+                "Instant Pasted Media Link Detection: Paste any web image or GIF URL (https:// or data:image/) into the search bar for an immediate live preview and 1-tap send as GIF or Sticker.",
+                "Vertex AI Base64 Image Fetching Fix: Fully resolved Gemini multimodal 400 invalid argument errors by automatically fetching remote image/GIF URLs into inline base64 bytes before sending to Vertex AI models."
+              ]}
+            />
+            <UpdateItem 
               version="v1.9.2"
               title="Motion Excellence, Haptics & Tactile WhatsApp Interaction Update"
               date="October 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "Message Bubble Motion & Physics: Entrance and exit scale/opacity animations that settle naturally into the conversation stream without distracting bounce.",
                 "Tactile Touch Feedback & Haptics: Subtle compression and tonal feedback on message press, composer buttons, reactions, and send action, paired with an authentic haptic vibration system.",
                 "Long-Press Message Selection & Header Morph: Long-pressing messages smoothly lifts the bubble and transforms the top navigation into WhatsApp's selection toolbar (Count, Star, Delete, Reply, Copy, Save as Memory).",
                 "Anchored Quick Reaction Tray: Restrained spring-animated emoji reaction bar (👍, ❤️, 😂, 😮, 😢, 🙏) emerging directly above the message, with persona reaction awareness where AI characters react in-character to your emojis.",
                 "In-App WhatsApp Emoji Picker: Instant, unclipped emoji drawer with fast search, categorized tabs (Smileys, Hands, Hearts, Fun), and recent emojis memory, inserting directly at cursor position without disrupting typing flow.",
-                "Native Stickers & Looping GIFs: Gboard, iOS keyboard, and Windows rich stickers (WebP) and GIFs (looping video/frame clips without sound) automatically format into native compact chat bubbles.",
+                "In-App Multi-Tab Media Drawer (Emojis, GIFs & Stickers): Authentic WhatsApp-grade media drawer with Emojis, curated trending reaction GIFs (looping soundless clips), transparent sticker packs (Pepe, Cute Cats, 3D Reactions, Anime), and 1-tap custom sticker/GIF device uploads (bypassing mobile keyboard OS restrictions).",
                 "Swipe-to-Reply & Physics Pull: Constrained horizontal swipe-to-reply with gradual reply indicator reveal and spring return.",
                 "Chronological Date Groups & Legacy Compatibility: Monotonic forward date groupings eliminating duplicate 'Today' headers, cleanly categorizing historic legacy chats under 'Older Messages'."
               ]}

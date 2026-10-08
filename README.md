@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.9.2)
+# Wassap Persona Simulation (v1.9.3)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.9.2-brightgreen)
+![Version](https://img.shields.io/badge/version-1.9.3-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -63,6 +63,31 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
     *   In the **Persona Schedule** section, you can set their 24/7 routine. 
     *   Are they at work? At the gym? Sleeping? You can even set custom **Weekend Days**. They won't blabber about it, but their mood and availability will change subtly. If it’s 3 AM and they’re "Sleeping", they might act a bit groggy if you wake them up. 😴👔
 
+### 🌟 What's New in v1.9.3 (The "Online GIF & Sticker Search, Expanded Media Library & GIPHY Integration" Update)
+
+*   **Vastly Expanded Built-In Reaction GIF Library**:
+    *   Over 80 top viral reaction GIFs curated and categorized into **Trending**, **Reactions**, **Laughing**, **Love**, **Shocked**, **Dancing**, **Classic Memes**, and **Yes / No**.
+    *   Instant search with multi-tag indexing and high-performance offline fallback.
+*   **Expanded Transparent Vector Sticker Packs**:
+    *   36 handcrafted, high-definition SVG/WebP vector stickers across 5 distinct sticker packs: **Pepe & Frog**, **Cute Cats**, **3D WhatsApp Expressions**, **Anime & Chibi**, and **Classic Memes**.
+*   **Live Online GIPHY Search Integration**:
+    *   Direct in-app search powered by the official GIPHY Search & Trending API with debounced querying (350ms) and automatic Vercel serverless proxy + client fallback.
+    *   Search millions of animated reaction GIFs and transparent stickers directly inside the composer media drawer.
+*   **GIPHY Developer API Key Settings Card**:
+    *   Clean configuration card in **Settings** (`SettingsPopover.tsx`) allowing users to enter and save their personal free GIPHY API key with 1-click status validation and link to the GIPHY developer dashboard.
+    *   Convenient 1-click link directly from the media drawer footer to open Settings and configure GIPHY in seconds.
+*   **Live GIF & Sticker Confirmation & Preview Window**:
+    *   Selecting any GIF or sticker from the media tray, live search, pasted link, or device upload now opens a dedicated high-definition confirmation stage before anything is sent.
+    *   Live looping playback for GIFs with GIF badge, large transparent canvas for stickers, chat recipient indicator, and optional caption bar for GIFs.
+    *   Immediate Send and Cancel controls with full keyboard accessibility (`Enter` to confirm, `Esc` or backdrop tap to dismiss).
+*   **Automated GIPHY Health Shield**:
+    *   Replaced all 23 deprecated/broken GIPHY IDs with 100% verified, active live viral GIFs.
+    *   Added client-side natural dimension filtering (`480x270`) on image load so unavailable GIPHY placeholders are automatically suppressed from ever appearing.
+*   **Vertex AI Base64 Image Inlining Fix**:
+    *   Resolved Google Vertex AI Gemini 400 Invalid Argument error (`Base64 decoding failed for url`) by automatically detecting remote image URLs in `geminiService.ts`, `vertexHandler.ts`, and `api/gemini/generate.ts`, fetching image bytes, and passing valid base64 data to Google's multimodal models.
+
+---
+
 ### 🌟 What's New in v1.9.2 (The "Motion Excellence, Haptics & Tactile WhatsApp Interaction" Update)
 
 *   **Message Bubble Motion & Physics**:
@@ -85,9 +110,11 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
     *   Fast, unclipped emoji drawer anchored directly above the composer with spring scale & fade animations.
     *   Real-time search, categorization (**Smileys**, **Hands**, **Hearts**, **Fun**), and persistent "Recently Used" memory in `localStorage`.
     *   Zero-lag cursor insertion allowing multi-emoji selection without closing the tray.
-*   **Native Keyboard Stickers (WebP) & GIFs**:
-    *   Stickers and GIFs sent via native keyboards (Gboard, iOS, Windows `Win + .`) or drag/drop paste are automatically detected.
-    *   Rendered as looping soundless animation frames (GIFs) and authentic compact sticker frames without excessive image padding.
+*   **In-App Multi-Tab Media Drawer (Emojis, GIFs & Stickers)**:
+    *   Multi-tab drawer anchored directly above the composer with dedicated **Emojis**, **GIFs**, and **Stickers** tabs.
+    *   **Curated GIFs**: Trending reactions, Laughing, Love, Shocked, and Dancing GIF library with real-time search and 1-tap custom GIF/video upload.
+    *   **Transparent Sticker Packs**: High-resolution transparent stickers (**Pepe & Memes**, **Cute Cats**, **3D Expressions**, **Anime & Chibi**) plus 1-tap custom photo/sticker picker from device gallery.
+    *   **Mobile Web Compatibility**: Seamlessly circumvents mobile OS browser limitations (where Gboard shows *"This app does not support images here"*) with first-class in-app WhatsApp media selection and attachment sheet integration.
 *   **Constrained Swipe-to-Reply**:
     *   Physical horizontal gesture tracking with gradual reply icon reveal and spring return when released before threshold.
 *   **Monotonic Chronological Date Categorization**:
