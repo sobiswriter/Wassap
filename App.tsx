@@ -741,6 +741,7 @@ const App: React.FC = () => {
   const personaComingOnlineTimersRef = React.useRef<Record<string, number>>({});
   const personaStatusWatchdogTimersRef = React.useRef<Record<string, number>>({});
   const personaAbortControllersRef = React.useRef<Record<string, AbortController>>({});
+  const personaTurnTokensRef = React.useRef<Record<string, number>>({});
   useEffect(() => { chatsRef.current = chats; globalActiveChats = chats; }, [chats]);
 
   // Eagerly prefetch secondary component chunks during idle time for 0ms instantaneous opens
@@ -1132,13 +1133,24 @@ const App: React.FC = () => {
       delete personaStatusWatchdogTimersRef.current[chatId];
     }
 
-    // 2. If status is busy (typing... or recording audio...), arm a hard anti-stall watchdog (24s ceiling)
+    // 2. If status is busy (typing... or recording audio...), arm a hard anti-stall watchdog (30s ceiling)
     if (isBusyChatStatus(status)) {
+      const currentTurnToken = personaTurnTokensRef.current[chatId] || Date.now();
+      personaTurnTokensRef.current[chatId] = currentTurnToken;
+
       personaStatusWatchdogTimersRef.current[chatId] = window.setTimeout(() => {
         delete personaStatusWatchdogTimersRef.current[chatId];
         const targetChat = chatsRef.current.find(c => c.id === chatId);
         if (targetChat && isBusyChatStatus(targetChat.status)) {
-          console.warn(`[Anti-Stall Watchdog] Persona ${targetChat.name} (${chatId}) stuck in "${targetChat.status}" for >24s. Auto-recovering status.`);
+          // If turn token has already progressed or completed, do not trigger stale watchdog
+          if (personaTurnTokensRef.current[chatId] !== currentTurnToken) {
+            return;
+          }
+
+          console.warn(`[Anti-Stall Watchdog] Persona ${targetChat.name} (${chatId}) stuck in "${targetChat.status}" for >30s. Auto-recovering status.`);
+
+          // Invalidate turn token immediately so any late background response is strictly dropped
+          personaTurnTokensRef.current[chatId] = 0;
 
           // Release active generation locks and abort stuck network request
           aiRespondingChatsRef.current.delete(chatId);
@@ -1176,7 +1188,7 @@ const App: React.FC = () => {
             playIncomingMessageSound();
           }
         }
-      }, 24000);
+      }, 30000);
     }
 
     setChats(prev => prev.map(c => {
@@ -2341,6 +2353,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       const abortController = new AbortController();
       personaAbortControllersRef.current[chatId] = abortController;
 
+      const turnToken = Date.now();
+      personaTurnTokensRef.current[chatId] = turnToken;
+
       // PIPELINED GENERATION: Eagerly launch LLM text & TTS audio synthesis in parallel with realistic visual presence delays
       const aiGenerationPromise = (!checkImageReq)
         ? (async () => {
@@ -2595,19 +2610,32 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         setChatStatus(chatId, 'recording audio...' as any);
       }
 
-      // Hard 24s ceiling watchdog race to guarantee recovery under catastrophic network stalls
+      // Hard 30s ceiling watchdog race to guarantee recovery under catastrophic network stalls
       const hardWatchdogPromise = new Promise<{ response: string; ttsRes: any }>((resolve) => {
         setTimeout(() => {
-          console.warn(`[Pipeline Watchdog] Response for ${chat.name} hit hard 24s ceiling. Gracefully falling back to in-character glitch excuse.`);
+          console.warn(`[Pipeline Watchdog] Response for ${chat.name} hit hard 30s ceiling. Gracefully falling back to in-character glitch excuse.`);
           resolve({
             response: getInCharacterNetworkGlitchExcuse(chat, lastUserMsg?.text),
             ttsRes: null
           });
-        }, 24000);
+        }, 30000);
       });
 
       // Await background pipelined generation or hard watchdog timeout
       const aiResult = aiGenerationPromise ? await Promise.race([aiGenerationPromise, hardWatchdogPromise]) : null;
+
+      // 1. Immediately disarm status watchdog since generation is complete
+      if (personaStatusWatchdogTimersRef.current[chatId]) {
+        clearTimeout(personaStatusWatchdogTimersRef.current[chatId]);
+        delete personaStatusWatchdogTimersRef.current[chatId];
+      }
+
+      // 2. TURN GUARD: If watchdog already tripped and handled this turn, or turn was cancelled, discard late response!
+      if (personaTurnTokensRef.current[chatId] !== turnToken || abortController.signal.aborted) {
+        console.warn(`[Turn Guard] Response for ${chat.name} arrived after turn was cancelled/timed out. Discarding to prevent double reply.`);
+        return;
+      }
+
       let response = aiResult?.response || '';
       const ttsRes = aiResult?.ttsRes;
 
@@ -2629,6 +2657,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           // Simulated realistic delay for finishing voice note (1.0s - 1.8s)
           const recordingDelay = 1000 + Math.random() * 800;
           await new Promise(resolve => setTimeout(resolve, recordingDelay));
+
+          if (personaTurnTokensRef.current[chatId] !== turnToken || abortController.signal.aborted) {
+            console.warn(`[Turn Guard] Voice note for ${chat.name} arrived after turn was cancelled. Discarding.`);
+            return;
+          }
 
           const aiMsg: Message = {
             id: `${Date.now()}-vn`,
@@ -2689,6 +2722,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       const chunks = splitMessage(cleanedResponse);
 
       for (let i = 0; i < chunks.length; i++) {
+        if (personaTurnTokensRef.current[chatId] !== turnToken || abortController.signal.aborted) {
+          return;
+        }
+
         const chunk = chunks[i];
 
         setChatStatus(chatId, 'typing...');
@@ -2705,6 +2742,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             ? Math.min(Math.max(chunk.length * 10, 300), 800)
             : Math.min(Math.max(chunk.length * 16, 500), 1500);
           await new Promise(resolve => setTimeout(resolve, typingDuration));
+        }
+
+        if (personaTurnTokensRef.current[chatId] !== turnToken || abortController.signal.aborted) {
+          return;
         }
 
         const aiMsg: Message = {
@@ -2859,11 +2900,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const abortController = new AbortController();
         personaAbortControllersRef.current[group.id] = abortController;
 
+        const turnToken = Date.now();
+        personaTurnTokensRef.current[group.id] = turnToken;
+
         const hardWatchdogPromise = new Promise<string>((resolve) => {
           setTimeout(() => {
-            console.warn(`[Pipeline Watchdog] Group response for ${persona.name} hit hard 24s ceiling. Gracefully falling back to excuse.`);
+            console.warn(`[Pipeline Watchdog] Group response for ${persona.name} hit hard 30s ceiling. Gracefully falling back to excuse.`);
             resolve(getInCharacterNetworkGlitchExcuse(persona, lastUserMsg?.text));
-          }, 24000);
+          }, 30000);
         });
 
         let responseText = await Promise.race([
@@ -2883,6 +2927,16 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           ),
           hardWatchdogPromise
         ]);
+
+        if (personaStatusWatchdogTimersRef.current[group.id]) {
+          clearTimeout(personaStatusWatchdogTimersRef.current[group.id]);
+          delete personaStatusWatchdogTimersRef.current[group.id];
+        }
+
+        if (personaTurnTokensRef.current[group.id] !== turnToken || abortController.signal.aborted) {
+          console.warn(`[Turn Guard] Group response for ${persona.name} arrived after turn was cancelled/timed out. Discarding.`);
+          continue;
+        }
 
         if (!responseText || isRawErrorMessage(responseText)) {
           responseText = getInCharacterNetworkGlitchExcuse(persona, lastUserMsg?.text);
@@ -2915,6 +2969,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             const cleanedTranscript = cleanSpokenTranscript(responseText);
             const recordingDelay = Math.min(Math.max(cleanedTranscript.length * 25, 2000), 5000);
             await new Promise(resolve => setTimeout(resolve, recordingDelay));
+
+            if (personaTurnTokensRef.current[group.id] !== turnToken || abortController.signal.aborted) {
+              console.warn(`[Turn Guard] Group voice note for ${persona.name} arrived after turn was cancelled. Discarding.`);
+              continue;
+            }
 
             const aiMsg: Message = {
               id: `${Date.now()}-${i}-vn`,
@@ -2961,6 +3020,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const chunks = splitMessage(cleanedResponse);
 
         for (let j = 0; j < chunks.length; j++) {
+          if (personaTurnTokensRef.current[group.id] !== turnToken || abortController.signal.aborted) {
+            break;
+          }
+
           const chunk = chunks[j];
 
           // 3. Typing Duration for group personas (1.8s - 2.5s)
@@ -2973,6 +3036,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               ? Math.min(Math.max(chunk.length * 10, 300), 800)
               : Math.min(Math.max(chunk.length * 16, 500), 1500);
             await new Promise(resolve => setTimeout(resolve, typingDuration));
+          }
+
+          if (personaTurnTokensRef.current[group.id] !== turnToken || abortController.signal.aborted) {
+            break;
           }
 
           const aiMsg: Message = {

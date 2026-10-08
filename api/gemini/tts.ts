@@ -365,14 +365,27 @@ export default async function handler(
     let audioBase64: string | undefined;
     let mimeType = 'audio/wav';
 
+    // Check if running on Vertex AI directly or using Studio API key
+    const hasStudioApiKey = !!(process.env.VERTEX_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY);
+
     // Build model candidate sequence with graceful fallbacks:
-    // Try selectedModel -> gemini-3.8-flash-tts -> gemini-3.8-flash-lite-tts -> gemini-3.1-flash-tts-preview
-    const modelsToTry: string[] = [
-      selectedModel,
-      ...(selectedModel !== 'gemini-3.8-flash-tts' ? ['gemini-3.8-flash-tts'] : []),
-      ...(selectedModel !== 'gemini-3.8-flash-lite-tts' ? ['gemini-3.8-flash-lite-tts'] : []),
-      ...(selectedModel !== 'gemini-3.1-flash-tts-preview' ? ['gemini-3.1-flash-tts-preview'] : [])
-    ];
+    // On Vertex AI, gemini-3.8-flash-tts is the publisher model (lite is not published on Vertex);
+    // On AI Studio, both gemini-3.8-flash-tts and gemini-3.8-flash-lite-tts are available.
+    const modelsToTry: string[] = [];
+    if (!hasStudioApiKey) {
+      if (selectedModel === 'gemini-3.1-flash-tts-preview') {
+        modelsToTry.push('gemini-3.1-flash-tts-preview', 'gemini-3.8-flash-tts');
+      } else {
+        modelsToTry.push('gemini-3.8-flash-tts', 'gemini-3.1-flash-tts-preview');
+      }
+    } else {
+      modelsToTry.push(
+        selectedModel,
+        ...(selectedModel !== 'gemini-3.8-flash-lite-tts' ? ['gemini-3.8-flash-lite-tts'] : []),
+        ...(selectedModel !== 'gemini-3.8-flash-tts' ? ['gemini-3.8-flash-tts'] : []),
+        ...(selectedModel !== 'gemini-3.1-flash-tts-preview' ? ['gemini-3.1-flash-tts-preview'] : [])
+      );
+    }
 
     const aiClient = getVertexClient('global');
 
@@ -383,31 +396,30 @@ export default async function handler(
       const personaDirective = personaName ? `as ${personaName} ` : '';
 
       try {
-        const userPart: any = {
-          text: isCandidate38
-            ? verbatimWithVocalTags
-            : `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, <cough>: ${verbatimWithVocalTags}`
-        };
-        if (isCandidate38 && styleDirective) {
-          userPart.speechMetadata = { style: styleDirective };
-        }
+        const inputText = `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, <cough>: ${verbatimWithVocalTags}`;
 
         const generateConfig: any = {
           responseModalities: ["AUDIO"],
           speechConfig: {
-            voiceConfig: isCandidate38
-              ? { voice: selectedVoice }
-              : { prebuiltVoiceConfig: { voiceName: isCustomVoice ? 'Aoede' : selectedVoice } }
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: isCustomVoice ? 'Aoede' : selectedVoice,
+              }
+            }
           }
         };
 
+        if (isCandidate38) {
+          generateConfig.systemInstruction = `You are a voice actor recording an authentic WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery. Accurately honor and express inline vocal tags (<laugh>, <sigh>, <gasp>, <whisper>, <cough>). Speak only the message content naturally without preambles.`;
+        }
+
         const candidateTimeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`TTS candidate ${modelCandidate} timed out after 9s`)), 9000)
+          setTimeout(() => reject(new Error(`TTS candidate ${modelCandidate} timed out after 18s`)), 18000)
         );
         const response = await Promise.race([
           aiClient.models.generateContent({
             model: modelCandidate,
-            contents: [{ role: 'user', parts: [userPart] }],
+            contents: [{ role: 'user', parts: [{ text: inputText }] }],
             config: generateConfig as any
           }),
           candidateTimeout

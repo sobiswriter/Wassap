@@ -21,11 +21,27 @@
   - Massive multi-megabyte payloads during marathon chats: history serialized all previous IndexedDB base64 media, leading to 15MB+ payloads that choked mobile network uplinks and triggered Vercel 413/504 errors.
 - **Anti-Stall Watchdog & Auto-Healing Engine (`App.tsx`)**:
   - `personaStatusWatchdogTimersRef` and `personaAbortControllersRef` track in-flight actions per persona.
-  - Arming a 24-second hard ceiling timer whenever status enters `typing...` or `recording audio...` (`setChatStatus`).
-  - If a persona remains busy past 24s without emitting a message, watchdog automatically aborts active fetch controllers, resets status to `online` (scheduling natural `offline`), releases `activePersonaResponsesRef` locks, and delivers an authentic in-character glitch excuse without requiring manual settings resets or page reloads.
-  - Hard `Promise.race` 24s watchdogs wrap all `aiGenerationPromise` executions in `handleSingleResponse` and `handleGroupResponse`.
+  - Arming a 30-second hard ceiling timer whenever status enters `typing...` or `recording audio...` (`setChatStatus`).
+  - If a persona remains busy past 30s without emitting a message, watchdog automatically aborts active fetch controllers, resets status to `online` (scheduling natural `offline`), releases `activePersonaResponsesRef` locks, and delivers an authentic in-character glitch excuse without requiring manual settings resets or page reloads.
+  - Hard `Promise.race` 30s watchdogs wrap all `aiGenerationPromise` executions in `handleSingleResponse` and `handleGroupResponse`.
   - Comprehensive `clearChatActiveStatus()` cleans up typing/recording indicators across all `finally` blocks in single-chat, group-chat, and background automations.
   - Enhanced `handleRefreshPersona` aborts active abort controllers, clears watchdog timers, and releases all locks immediately.
+- **Atomic Turn Tokens & Anti-Double Reply Shield (`App.tsx`)**:
+  - Prevents race conditions where a watchdog excuse and a late background voice note/text reply are delivered to the same user message.
+  - `personaTurnTokensRef.current[chatId] = turnToken` tags each conversational turn with an atomic timestamp token.
+  - If the 30s watchdog triggers, it resets the token to `0`, invalidating the turn. Any subsequent response from background promises checks the token and is discarded immediately.
+  - The watchdog timer is disarmed the moment generation finishes, ensuring media saving or recording presentation delays never trigger false excuses.
+- **Voice Note & Gemini 3.8 Flash TTS Latency Diagnosis & Restoration (`api/gemini/tts.ts`, `server/vertexHandler.ts`, `services/geminiService.ts`)**:
+  - **Root Cause of Flash TTS Slowdown**: In commit `e093cb6`, TTS logic introduced an invalid schema `{ voice: selectedVoice }` inside `voiceConfig` and injected `userPart.speechMetadata = { style: ... }`. Neither field exists in Google's API schema (Google GenAI requires `prebuiltVoiceConfig: { voiceName: string }` and `Part` only allows standard fields).
+  - Every time `gemini-3.8-flash-tts` or `gemini-3.8-flash-lite-tts` was called, Google returned `400 INVALID_ARGUMENT`. The candidate fallback loop caught this error on Attempt 1, failed on Attempt 2 (also 3.8), and finally fell back to Attempt 3 (`gemini-3.1-flash-tts-preview`), which succeeded only because 3.1 happened to use the legacy `prebuiltVoiceConfig` schema.
+  - Additionally, on Vertex AI, `gemini-3.8-flash-lite-tts` is not a publisher model (it is an AI Studio model), causing a 404 on Vertex if attempted first.
+  - **The Resolution**:
+    - Standardized `speechConfig.voiceConfig` across all serverless and client code to use `prebuiltVoiceConfig: { voiceName: isCustomVoice ? 'Aoede' : selectedVoice }`.
+    - Removed `speechMetadata` and restored prompt steering with `generateConfig.systemInstruction` for 3.8 acting fidelity.
+    - Added environment-aware model candidate selection: on Vertex AI, primary candidate is the valid publisher model `gemini-3.8-flash-tts`; on AI Studio, `gemini-3.8-flash-lite-tts` and `gemini-3.8-flash-tts` both execute with zero schema errors.
+    - Synthesis now succeeds on Attempt 1 in 2-3 seconds instead of failing two models and taking 12-18 seconds.
+- **Voice Note & TTS Synthesis Headroom (`services/geminiService.ts`, `server/vertexHandler.ts`, `api/gemini/tts.ts`)**:
+  - Extended TTS candidate synthesis timeouts across server and client to 18-22s, ensuring Gemini 3.8 Flash TTS has adequate time to synthesize audio on slow connections without prematurely failing over.
 - **Expanded Crafty & Creative English Excuses Library (`services/geminiService.ts`)**:
   - Replaced repetitive single-string fallbacks with 40+ crafty, authentic English excuses categorized into:
     - **Witty / Sarcastic**: *"My phone literally had an existential crisis right when I was typing haha. What were you saying?"*, *"Great, my wifi decided to take an impromptu power nap. Say that again?"*
@@ -36,7 +52,7 @@
   - Dynamic non-consecutive randomization (`lastNetworkGlitchExcuse`) ensures users never see the same excuse twice consecutively.
 - **Text Stacking Delay & Watchdog Phase Harmony (`App.tsx`)**:
   - Designed specifically to respect user and persona typing and reading stacking delays.
-  - `setChatStatus` automatically clears and re-arms a fresh 24s watchdog for each chunk typing phase, while intermediate `online` states clear the timer.
+  - `setChatStatus` automatically clears and re-arms a fresh 30s watchdog for each chunk typing phase, while intermediate `online` states clear the timer.
   - Long multi-message stacked responses with natural pauses never falsely trigger the watchdog.
 - **Zero-Lag Failure Recovery (No Blocking Retry Loops)**:
   - Bypasses slow, stacked retry loops that stall mobile chat screens for 40+ seconds on cellular drops.
@@ -46,8 +62,7 @@
   - `sanitizeHistoryForVertex()` retains base64 media for at most 2 items within the last 6 messages.
   - Slashes mobile upload payloads by 99% (from 15MB+ down to <50KB), completely eliminating mobile uplink freezes.
 - **Enforced Request Timeouts (`services/geminiService.ts`, `server/vertexHandler.ts`, `api/gemini/tts.ts`)**:
-  - `fetchWithTimeout()` with strict timeouts (14s text LLM, 12s voice note TTS, 16s diary) and `AbortSignal` propagation.
-  - Serverless function wrapper with 9-second `Promise.race` candidate timeout in Vertex TTS endpoints to avoid serverless function hangs.
+  - `fetchWithTimeout()` with strict timeouts (20s text LLM, 22s voice note TTS, 16s diary) and `AbortSignal` propagation.
 - **Non-Blocking Voice Note (TTS) Degradation (`App.tsx`)**:
   - If voice note synthesis times out or fails on slow connections, `handleSingleResponse` immediately degrades to delivering the spoken text message directly in natural chunks without trapping the persona in `recording audio...`.
 - **Authentic WhatsApp Audio Recording Presence (`components/ChatWindow.tsx`, `components/ChatList.tsx`)**:

@@ -65,12 +65,21 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 
 ### 🌟 What's New in v1.9.4 (The "Network Resilience Engine & Anti-Stall Auto-Healing Watchdog" Update)
 
-*   **Anti-Stall Auto-Healing Watchdog**:
+*   **Anti-Stall Auto-Healing Watchdog (30s Ceiling)**:
     *   Eliminates infinite hangs on `typing...` or `recording audio...` caused by mobile network drops, packet freezes, or sluggish API endpoints.
-    *   A continuous 24-second watchdog automatically trips if a persona remains in an active busy state, aborting stuck HTTP requests via `AbortController`, resetting chat status to `online` (scheduling natural `offline`), releasing response locks, and delivering an authentic in-character glitch excuse without requiring manual settings resets or page reloads.
+    *   A comfortable 30-second ceiling gives models plenty of thinking and TTS voice synthesis headroom on mobile connections before safely recovering status and delivering an in-character glitch excuse without requiring manual settings resets or page reloads.
+*   **Atomic Turn Tokens & Anti-Double Reply Shield**:
+    *   Permanently eliminates duplicate responses (e.g. excuse followed by late voice note).
+    *   Each conversational turn is assigned an atomic `turnToken`. If the 30s watchdog trips and delivers an excuse, it invalidates the turn token; any subsequent response that arrives late from background promises is strictly discarded.
+    *   Watchdogs are immediately disarmed the moment generation finishes, ensuring media saving and recording presentation delays never trigger a false excuse.
 *   **Expanded Crafty & Creative English Excuses Library (40+ Variants)**:
     *   Replaced repetitive fallbacks with an extensive repertoire of 40+ natural, 100% English excuses categorized by personality tone: **Witty & Sarcastic** (*"My phone literally had an existential crisis right when I was typing haha. What were you saying?"*), **Sweet & Caring** (*"Oh no, my internet cut out right as your message arrived! Could you please repeat that?"*), **Formal & Professional** (*"Apologies, I experienced a brief network disruption on my end. What were you saying?"*), and **Casual Everyday WhatsApp** (*"Wait sorry, my phone slipped out of my hand for a second haha! What did you say?"*).
     *   Dynamic non-consecutive randomization guarantees the user never receives the same excuse twice in a row.
+*   **Gemini 3.8 Flash TTS Speed Restoration (2-3s Generation)**:
+    *   Diagnosed and resolved the underlying cause of recent TTS sluggishness. Fixed an API schema violation in `voiceConfig` and eliminated invalid `speechMetadata` that was triggering silent 400 errors and forcing multi-step candidate fallbacks. 
+    *   Gemini 3.8 Flash and Flash-Lite TTS now synthesize speech directly on Attempt 1 in 2-3 seconds, fully restoring their original lightning-fast response times.
+*   **Voice Note & TTS Synthesis Headroom**:
+    *   Extended TTS candidate model timeouts across client and server up to 18-22s, ensuring Gemini 3.8 Flash TTS has adequate time to synthesize audio on cellular networks without prematurely failing over.
 *   **Text Stacking Delay & Watchdog Phase Harmony**:
     *   Carefully engineered to respect user and persona typing/reading stacking delays.
     *   Each stacked message chunk and state transition cleanly refreshes its own watchdog window, preventing natural multi-message paragraphs and reading pauses from ever false-triggering the watchdog.

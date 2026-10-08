@@ -272,8 +272,8 @@ async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSigna
     }
 
     try {
-      // 14s timeout on attempt 1, 10s on attempt 2 to prevent mobile stalling
-      const perAttemptTimeout = attempt === 1 ? 14000 : 10000;
+      // 20s timeout on attempt 1, 8s on attempt 2 to give model adequate thinking headroom
+      const perAttemptTimeout = attempt === 1 ? 20000 : 8000;
       const res = await fetchWithTimeout('/api/gemini/generate', {
         method: 'POST',
         headers: {
@@ -397,7 +397,7 @@ async function fetchVertexTTS(payload: {
         'x-vertex-passcode': VERTEX_PASSCODE,
       },
       body: JSON.stringify(payload),
-      timeoutMs: 12000,
+      timeoutMs: 22000,
       signal,
     });
 
@@ -843,7 +843,7 @@ export const getGeminiResponse = async (
         }
 
         const candidateTimeout = new Promise<never>((_, reject) => {
-          const t = setTimeout(() => reject(new Error('Custom API request timed out')), 14000);
+          const t = setTimeout(() => reject(new Error('Custom API request timed out')), 20000);
           if (abortSignal) {
             abortSignal.addEventListener('abort', () => {
               clearTimeout(t);
@@ -1107,27 +1107,25 @@ export const generateGeminiVoiceNote = async (
         const styleDirective = combinedStyle || 'natural and expressive';
         const personaDirective = personaContext?.name ? `as ${personaContext.name} ` : '';
 
-        // On 3.8 models, style directives are placed inside parts[0].speechMetadata rather than concatenated into text
-        const userPart: any = {
-          text: isCandidate38
-            ? verbatimWithVocalTags
-            : `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <chuckle>, <sigh>, <gasp>, <whispers>, <cough>, <short pause>: ${verbatimWithVocalTags}`
-        };
-        if (isCandidate38 && styleDirective) {
-          userPart.speechMetadata = { style: styleDirective };
-        }
+        const inputText = `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <chuckle>, <sigh>, <gasp>, <whispers>, <cough>, <short pause>: ${verbatimWithVocalTags}`;
 
         const generateConfig: any = {
           responseModalities: ["AUDIO"],
           speechConfig: {
-            voiceConfig: isCandidate38
-              ? { voice: selectedVoice }
-              : { prebuiltVoiceConfig: { voiceName: selectedVoice } }
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: isCustomVoiceId ? 'Aoede' : selectedVoice,
+              }
+            }
           }
         };
 
+        if (isCandidate38) {
+          generateConfig.systemInstruction = `You are a voice actor recording an authentic WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery. Accurately honor and express inline vocal tags (<laugh>, <chuckle>, <sigh>, <gasp>, <whispers>, <cough>, <short pause>). Speak only the message content naturally without preambles.`;
+        }
+
         const candidateTimeout = new Promise<never>((_, reject) => {
-          const t = setTimeout(() => reject(new Error(`Studio TTS candidate ${modelCandidate} timed out after 7s`)), 7000);
+          const t = setTimeout(() => reject(new Error(`Studio TTS candidate ${modelCandidate} timed out after 18s`)), 18000);
           if (abortSignal) {
             abortSignal.addEventListener('abort', () => {
               clearTimeout(t);
@@ -1139,7 +1137,7 @@ export const generateGeminiVoiceNote = async (
         const response = await Promise.race([
           ai.models.generateContent({
             model: modelCandidate,
-            contents: [{ role: 'user', parts: [userPart] }],
+            contents: [{ role: 'user', parts: [{ text: inputText }] }],
             config: generateConfig as any
           }),
           candidateTimeout
