@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.9.1)
+# Wassap Persona Simulation (v1.9.2)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.9.1-brightgreen)
+![Version](https://img.shields.io/badge/version-1.9.2-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -62,6 +62,37 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 *   **Master of Time (The Schedule)**:
     *   In the **Persona Schedule** section, you can set their 24/7 routine. 
     *   Are they at work? At the gym? Sleeping? You can even set custom **Weekend Days**. They won't blabber about it, but their mood and availability will change subtly. If it’s 3 AM and they’re "Sleeping", they might act a bit groggy if you wake them up. 😴👔
+
+### 🌟 What's New in v1.9.2 (The "Motion Excellence, Haptics & Tactile WhatsApp Interaction" Update)
+
+*   **Message Bubble Motion & Physics**:
+    *   Subtle entrance and exit scale/opacity transitions (`bubble-enter`) with natural settle physics.
+    *   Unified bubble enter and scroll velocity so sending feels physically continuous rather than static rendering.
+    *   Restrained removal transitions on delete.
+*   **Tactile Touch Feedback & Multi-Pattern Haptics**:
+    *   Micro-compression and tonal response on message press (`active:scale-[0.995] active:brightness-95`).
+    *   Consistent tactile feedback across composer buttons, emojis, reactions, and the send action.
+    *   Dedicated haptic engine (`utils/haptics.ts`) generating distinct vibration signatures: `tap` (10ms light), `select` (20ms medium), `send` (15ms + 25ms double pulse), `reaction` (12ms), `delete` (35ms heavy).
+*   **Long-Press Message Selection & Header Morph**:
+    *   Seamless touch-and-hold / long-press detection on desktop and mobile.
+    *   Selected bubble physically lifts with elevated drop-shadow while surrounding viewport gently subdues.
+    *   Top navigation morphs into the WhatsApp Message Selection Toolbar: selection count, exit, reply, copy, star, delete, and 1-click memory capture.
+*   **Anchored Quick Reaction Tray (`ReactionTray.tsx`)**:
+    *   Restrained spring-animated emoji bar (👍, ❤️, 😂, 😮, 😢, 🙏) anchored directly over the selected bubble.
+    *   Selecting a reaction smoothly places a badge with a micro-pop scale animation.
+    *   **Persona Reaction Awareness**: AI personas dynamically register when you react to their messages or photos, responding with in-character context and emotion.
+*   **In-App WhatsApp Emoji Tray (`EmojiPickerTray.tsx`)**:
+    *   Fast, unclipped emoji drawer anchored directly above the composer with spring scale & fade animations.
+    *   Real-time search, categorization (**Smileys**, **Hands**, **Hearts**, **Fun**), and persistent "Recently Used" memory in `localStorage`.
+    *   Zero-lag cursor insertion allowing multi-emoji selection without closing the tray.
+*   **Native Keyboard Stickers (WebP) & GIFs**:
+    *   Stickers and GIFs sent via native keyboards (Gboard, iOS, Windows `Win + .`) or drag/drop paste are automatically detected.
+    *   Rendered as looping soundless animation frames (GIFs) and authentic compact sticker frames without excessive image padding.
+*   **Constrained Swipe-to-Reply**:
+    *   Physical horizontal gesture tracking with gradual reply icon reveal and spring return when released before threshold.
+*   **Monotonic Chronological Date Categorization**:
+    *   Forward monotonic date groupings eliminate duplicate "Today" and "Yesterday" date headers.
+    *   Historic legacy chats safely categorized under "Older Messages" with zero parsing crashes.
 
 ---
 

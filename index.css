@@ -267,4 +267,218 @@ body {
   object-fit: cover;
   display: block;
 }
+
+/* ==========================================================================
+   MOTION DESIGN SYSTEM & TACTILE FEEDBACK
+   Physics-inspired, restrained easing curves & hardware-accelerated transitions
+   ========================================================================== */
+
+:root {
+  --ease-micro: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-micro: 120ms;
+  --dur-fast: 180ms;
+  --dur-standard: 260ms;
+}
+
+/* Tactile micro-press feedback */
+.touch-btn {
+  transition: transform 120ms var(--ease-micro), opacity 120ms ease;
+  will-change: transform;
+}
+.touch-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.touch-icon {
+  transition: transform 120ms var(--ease-micro), color 120ms ease;
+  will-change: transform;
+}
+.touch-icon:active:not(:disabled) {
+  transform: scale(0.88);
+}
+
+.touch-bubble {
+  transition: transform 120ms var(--ease-micro), filter 120ms ease;
+  will-change: transform;
+}
+.touch-bubble:active {
+  transform: scale(0.992);
+}
+
+.touch-card {
+  transition: transform 140ms var(--ease-micro), box-shadow 140ms ease;
+  will-change: transform;
+}
+.touch-card:active {
+  transform: scale(0.96);
+}
+
+/* Message Bubble Entrance & Exit */
+@keyframes bubbleEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-bubble-enter {
+  animation: bubbleEntrance 180ms var(--ease-micro) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes bubbleCollapse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    max-height: 300px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.92);
+    max-height: 0px;
+    margin-top: 0px;
+    margin-bottom: 0px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+  }
+}
+
+.animate-bubble-exit {
+  animation: bubbleCollapse 180ms ease-out forwards;
+  overflow: hidden;
+  will-change: transform, opacity, max-height;
+}
+
+/* Reaction popup tray animation */
+@keyframes reactionTrayEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.72) translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-reaction-tray {
+  animation: reactionTrayEnter 200ms var(--ease-spring) forwards;
+  will-change: transform, opacity;
+  transform-origin: bottom center;
+}
+
+/* Reaction badge attached to message bubble */
+@keyframes reactionBadgePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.22);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-reaction-pop {
+  animation: reactionBadgePop 230ms var(--ease-spring) forwards;
+  will-change: transform, opacity;
+}
+
+/* Status tick smooth micro-transition */
+@keyframes statusTickChange {
+  0% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-status-tick {
+  animation: statusTickChange 160ms var(--ease-micro) forwards;
+  will-change: transform, opacity;
+}
+
+/* Toolbar header transition */
+@keyframes toolbarFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-toolbar-in {
+  animation: toolbarFadeSlide 180ms var(--ease-micro) forwards;
+  will-change: transform, opacity;
+}
+
+/* Scroll to bottom floating pill animation */
+@keyframes floatButtonEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-float-in {
+  animation: floatButtonEntrance 200ms var(--ease-spring) forwards;
+  will-change: transform, opacity;
+}
+
+/* Transparent Sticker rendering */
+.sticker-message-container {
+  display: inline-block;
+  position: relative;
+  max-width: 145px;
+  max-height: 145px;
+  user-select: none;
+}
+
+.sticker-message-img {
+  width: 100%;
+  height: 100%;
+  max-width: 135px;
+  max-height: 135px;
+  object-fit: contain;
+  border-radius: 12px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.12));
+  transition: transform 120ms var(--ease-micro);
+}
+
+.sticker-message-container:active .sticker-message-img {
+  transform: scale(0.95);
+}
+
+/* Reduced Motion preference support */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 

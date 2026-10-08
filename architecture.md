@@ -1,6 +1,6 @@
 # Wassap System Architecture (`architecture.md`)
 
-This document provides a comprehensive technical overview of the architecture, data flow, tech stack, and directory structure of the **Wassap Persona Simulation** platform (`v1.8.3`).
+This document provides a comprehensive technical overview of the architecture, data flow, tech stack, and directory structure of the **Wassap Persona Simulation** platform (`v1.9.2`).
 
 ---
 
@@ -165,6 +165,7 @@ Wassap/
 │   ├── ChatList.tsx              # Left sidebar conversation list with unread counters
 │   ├── ChatWindow.tsx            # Main chat viewport, message cards, grouping, media bubbles
 │   ├── ConfirmationModal.tsx     # Generic confirmation dialog for deletions/resets
+│   ├── EmojiPickerTray.tsx       # WhatsApp-native unclipped emoji drawer with search & recents
 │   ├── GuidePanel.tsx            # In-app user manual & tips
 │   ├── ImageLightboxModal.tsx    # Full-screen media viewer with download capability
 │   ├── MessageInput.tsx          # Message composer, @img trigger, audio recording, emoji/events
@@ -173,6 +174,7 @@ Wassap/
 │   ├── NewChatPanel.tsx          # Persona creation & search interface
 │   ├── NewGroupPanel.tsx         # Multi-persona group chat creator
 │   ├── ProfilePanel.tsx          # Comprehensive persona editor (Voice, Sentience, Schedule, Humane)
+│   ├── ReactionTray.tsx          # Anchored spring-animated floating emoji reaction tray
 │   ├── SettingsPopover.tsx       # Global preferences (Providers, Keys, Passcode, Wallpaper, Models)
 │   ├── Sidebar.tsx               # Left navigation rail (Chats, Communities/Guide, Updates, Settings)
 │   ├── UpdatesPanel.tsx          # In-app changelog timeline
@@ -185,7 +187,8 @@ Wassap/
 │   └── geminiService.ts          # Client-side gateway orchestrator (routes Vertex vs AI Studio)
 ├── utils/
 │   ├── audio.ts                  # Web Audio API recording, PCM converter, WAV header builder
-│   ├── dates.ts                  # WhatsApp date formatter ("Today", "Yesterday", 24h clock)
+│   ├── dates.ts                  # Monotonic chronological date grouping ("Today", "Yesterday", 24h clock)
+│   ├── haptics.ts                # Multi-pattern tactile haptic vibration engine
 │   ├── imageCompressor.ts        # Client-side canvas image compression
 │   └── storage.ts                # IndexedDB persistence for large audio & image blobs
 ├── public/                       # Static public assets

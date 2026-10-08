@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.9.1`
+- **Current Version**: `v1.9.2`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/`, plus a local Express development server in `server/`.
@@ -14,7 +14,43 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Vertex AI Local Application Default Credentials (ADC) Quota Project Fix (`v1.9.1`)
+### 1. Motion Excellence, Haptics & Tactile WhatsApp Interaction System (`v1.9.2`)
+- **Physics-Driven Message Bubble Motion**:
+  - Gentle entrance and exit transitions (`bubble-enter` scale 0.96 -> 1, opacity 0 -> 1) with subtle settle physics instead of abrupt popping.
+  - Settle movement harmonized with chat scroll speed for unified continuous perception.
+  - Graceful collapse animation on message deletion.
+- **Tactile Touch Feedback & Multi-Pattern Haptic Engine (`utils/haptics.ts`)**:
+  - Micro-compression on message press (`active:scale-[0.995] active:brightness-95`).
+  - Tactile feedback across interactive controls: composer buttons (`touch-icon`), send button (`touch-btn`), media thumbnails, reaction buttons.
+  - Multi-pattern Web Vibration API with safe fallback:
+    - `tap`: 10ms light pulse
+    - `select`: 20ms medium pulse
+    - `send`: 15ms + 25ms double pulse
+    - `reaction`: 12ms soft pulse
+    - `delete`: 35ms heavy pulse
+- **Long-Press Message Selection & Header Morphing (`ChatWindow.tsx`)**:
+  - Hold-to-select detection for touch and mouse interactions.
+  - Selected bubble elevates with physical lift and drop-shadow, surrounding area subtly subdued.
+  - Top header transitions seamlessly into WhatsApp's selection toolbar: counter, exit, star, delete, reply, copy, and 1-click memory capture.
+- **Anchored Quick Reaction Tray (`ReactionTray.tsx`)**:
+  - Restrained spring animation emerging directly above the selected bubble with popular emoji shortcuts (👍, ❤️, 😂, 😮, 😢, 🙏).
+  - Selected reaction attaches to the bubble with a subtle badge pop animation.
+  - **Persona Reaction Awareness**: Personas dynamically receive reaction context in their prompt loop (`[USER REACTION: User reacted with {emoji} to message: "{text}"]`) and respond in-character to your expressions!
+- **In-App WhatsApp Emoji Picker (`EmojiPickerTray.tsx`)**:
+  - Responsive, unclipped drawer anchored above the composer at `bottom-[60px] left-[8px] z-[100]`.
+  - Zero disruption to typing flow: inserts directly at cursor position without closing the tray, allowing rapid consecutive emoji input.
+  - Features real-time search, categorization (**Smileys**, **Hands**, **Hearts**, **Fun**), and persistent "Recently Used" memory in `localStorage`.
+- **Native Keyboard Rich Content (Stickers & Looping GIFs)**:
+  - Supports rich media input from mobile keyboards (Gboard, iOS) and Windows (`Win + .`) via clipboard paste and drag-drop.
+  - GIFs rendered as compact looping soundless frames.
+  - WebP stickers rendered with authentic tight bubble wrapping.
+- **Multimodal Message Stacking Cohesion**:
+  - Message stacking rules apply cohesively across images, audio notes, reactions, and text into a unified conversational turn.
+- **Monotonic Chronological Date Categorization (`utils/dates.ts`)**:
+  - Monotonic forward date groupings prevent duplicate "Today" and "Yesterday" headers.
+  - Historic legacy messages safely grouped under `"Older Messages"` without parser crashes.
+
+### 2. Vertex AI Local Application Default Credentials (ADC) Quota Project Fix (`v1.9.1`)
 - **Issue**: When authenticating with user credentials via `gcloud auth application-default login`, Vertex AI (`aiplatform.googleapis.com`) rejected requests with:
   `"Your application is authenticating by using local Application Default Credentials. The aiplatform.googleapis.com API requires a quota project, which is not set by default."`
 - **Resolution**:

@@ -135,3 +135,27 @@ body, input, button, textarea {
 - Mobile bottom navigation rail replaces the desktop left navigation rail.
 - Floating Action Button (FAB) appears in the bottom right for fast persona creation.
 - Native browser scrollbars are hidden (`width: 0px; height: 0px;`) for app-like presentation.
+
+### H. Motion Excellence, Tactile Physics & Haptics Tokens
+- **Message Bubble Motion**:
+  - **Entrance Transition**: Fast, subtle CSS animation (`bubble-enter`: 150ms `cubic-bezier(0.16, 1, 0.3, 1)`, scale `0.96` to `1.0`, opacity `0` to `1`) that settles without rubbery bounce.
+  - **Press Compression Feedback**: `active:scale-[0.995] active:brightness-95` on bubble touch for immediate physical response within the first few frames.
+  - **Consistent Touch Targets**: Added `touch-btn` and `touch-icon` micro-scale transitions across composer icons, send button, and action controls.
+- **Haptic Vibration Signatures (`utils/haptics.ts`)**:
+  - `tap`: 10ms micro-vibration for emoji/button presses.
+  - `select`: 20ms tactile confirmation for message selection.
+  - `send`: 15ms + 25ms rhythmic double pulse on message transmission.
+  - `reaction`: 12ms soft pop when reacting.
+  - `delete`: 35ms heavy warning vibration on destructive action.
+- **Anchored Quick Reaction Tray (`ReactionTray.tsx`)**:
+  - Restrained spring animation emerging from the bubble interaction point (`cubic-bezier(0.34, 1.56, 0.64, 1)`).
+  - WhatsApp-native floating capsule (`bg-white dark:bg-[#202c33] rounded-full shadow-2xl px-2 py-1.5 border app-border`).
+  - Reaction badges scale smoothly on attach with a micro-pop animation.
+- **In-App WhatsApp Emoji Tray (`EmojiPickerTray.tsx`)**:
+  - Anchored at `bottom-[60px] left-[8px] sm:left-[12px] z-[100]` above the composer without being clipped by parent overflow boundaries.
+  - Responsive layout: `w-[calc(100vw-16px)] sm:w-[380px] max-w-[420px] max-h-[360px]`.
+  - Thumb-friendly 8-column emoji grid, category pills, real-time search, and `localStorage` recent emojis.
+- **Constrained Swipe-to-Reply Gesture**:
+  - Constrained horizontal translation tracking finger movement up to 60px with elastic damping.
+  - Activation threshold at 45px triggering visual reply indicator reveal and haptic confirmation.
+

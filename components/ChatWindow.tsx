@@ -1,13 +1,15 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Search, MoreVertical, CheckCheck, Check, Clock, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
+import { Search, MoreVertical, CheckCheck, Check, Clock, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar, Star, Share2 } from 'lucide-react';
 import { Chat, MemoryBubble, Message, AppSettings } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
-import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, getMessageTimestampEpoch, isDateInRange, normalizeDateKey } from '../utils/dates';
+import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, getMessageTimestampEpoch, isDateInRange, normalizeDateKey, resolveChatMessagesDates, getAppDateKey } from '../utils/dates';
 import { getGeminiDiaryEntry } from '../services/geminiService';
 import { getMedia } from '../utils/storage';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { VoiceNotePlayer } from './VoiceNotePlayer';
 import { ImageLightboxModal } from './ImageLightboxModal';
+import { ReactionTray } from './ReactionTray';
+import { triggerHaptic } from '../utils/haptics';
 
 interface ChatWindowProps {
   chat: Chat | null;
@@ -25,6 +27,8 @@ interface ChatWindowProps {
   onSaveMemory?: (chatId: string, memory: MemoryBubble) => void;
   onDeleteMessages?: (chatId: string, messageIds: string[]) => void;
   onMarkAsRead?: (chatId: string, messageIds?: string[]) => void;
+  onToggleReaction?: (chatId: string, messageId: string, emoji: string) => void;
+  onToggleStar?: (chatId: string, messageId: string) => void;
   settings?: AppSettings;
 }
 
@@ -47,7 +51,7 @@ const buildCapturedMemorySummary = (chat: Chat, messages: Message[], startDate: 
   return `Dear Diary, reflecting on ${dateLabel} with ${chat.name}. We spent time talking and sharing moments together. An intimate day I want to hold onto.`;
 };
 
-const DateDivider: React.FC<{ dateKey: string; onClick?: () => void }> = ({ dateKey, onClick }) => (
+const DateDivider: React.FC<{ dateKey: string; onClick?: () => void; settings?: AppSettings }> = ({ dateKey, onClick, settings }) => (
   <div className="flex justify-center sticky top-1 sm:top-2 z-10 my-1.5 sm:my-2.5 pointer-events-none">
     <button
       type="button"
@@ -56,7 +60,7 @@ const DateDivider: React.FC<{ dateKey: string; onClick?: () => void }> = ({ date
       title={onClick ? 'Save this day as a diary memory' : undefined}
       className={`bg-white dark:bg-[#182229] text-[#54656f] dark:text-[#8696a0] text-[10px] sm:text-[11.5px] px-3 py-1 rounded-lg font-medium tracking-wide shadow-xs transition-all ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#21c063]' : 'pointer-events-none opacity-90'}`}
     >
-      {formatChatDividerLabel(dateKey)}
+      {formatChatDividerLabel(dateKey, settings)}
     </button>
   </div>
 );
@@ -259,32 +263,57 @@ const MessageBubble = React.memo<{
   onReply?: (message: Message) => void;
   selected?: boolean;
   onToggleSelect?: (message: Message) => void;
+  onToggleReaction?: (messageId: string, emoji: string) => void;
   selectionMode?: boolean;
   isConsecutive?: boolean;
+  isRecent?: boolean;
   onOpenImage?: (src: string, caption?: string, senderName?: string, timestamp?: string) => void;
-}>(({ message, highlight, isGroup, chatName, chatAvatar, onReply, selected, onToggleSelect, selectionMode, isConsecutive, onOpenImage }) => {
+}>(({ message, highlight, isGroup, chatName, chatAvatar, onReply, selected, onToggleSelect, onToggleReaction, selectionMode, isConsecutive, isRecent, onOpenImage }) => {
   const isMe = message.sender === 'me';
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId || !!message.voiceAttachment || !!message.voiceMediaId;
   const [mediaData, setMediaData] = useState<string | null>(null);
   const [voiceData, setVoiceData] = useState<string | null>(null);
   const [isEventExpanded, setIsEventExpanded] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const dragStartX = useRef<number | null>(null);
+  const hasTriggeredThreshold = useRef(false);
   const lastTap = useRef(0);
   const holdTimerRef = useRef<any>(null);
   const isHoldTriggered = useRef(false);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
+    dragStartX.current = e.clientX;
+    hasTriggeredThreshold.current = false;
     isHoldTriggered.current = false;
     holdTimerRef.current = setTimeout(() => {
       isHoldTriggered.current = true;
       if (onToggleSelect) {
         onToggleSelect(message);
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          try { navigator.vibrate(40); } catch (_) {}
-        }
+        triggerHaptic('selection');
       }
-    }, 450);
+    }, 400);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (dragStartX.current === null) return;
+    const diff = e.clientX - dragStartX.current;
+    if (Math.abs(diff) > 8 && holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    // Pull right to reply
+    if (diff > 0 && onReply && !selectionMode) {
+      const damped = Math.min(diff * 0.44, 55);
+      setDragOffset(damped);
+      if (damped >= 36 && !hasTriggeredThreshold.current) {
+        hasTriggeredThreshold.current = true;
+        triggerHaptic('threshold');
+      } else if (damped < 36 && hasTriggeredThreshold.current) {
+        hasTriggeredThreshold.current = false;
+      }
+    }
   };
 
   const handlePointerUpOrCancel = () => {
@@ -292,6 +321,16 @@ const MessageBubble = React.memo<{
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
+    if (dragOffset >= 36 && onReply && !selectionMode) {
+      onReply({
+        ...message,
+        senderName: message.senderName || (isMe ? 'You' : (!isGroup ? chatName : undefined))
+      });
+      triggerHaptic('threshold');
+    }
+    setDragOffset(0);
+    dragStartX.current = null;
+    hasTriggeredThreshold.current = false;
   };
 
   useEffect(() => {
@@ -322,6 +361,12 @@ const MessageBubble = React.memo<{
 
   const mediaSrc = mediaData || message.image || message.attachment?.data || null;
   const voiceSrc = voiceData || message.voiceAttachment?.data || (message.attachment?.type === 'audio' ? mediaSrc : null);
+  const isGifMessage = Boolean(
+    message.isGif ||
+    message.attachment?.isGif ||
+    (message.attachment?.type === 'video' && !message.isSticker) ||
+    (mediaSrc && message.attachment?.name && /\.gif$/i.test(message.attachment.name))
+  );
   const hasImage = Boolean(mediaSrc && message.attachment?.type !== 'audio');
   const hasVoice = Boolean(voiceSrc);
   const isMediaMessage = hasImage;
@@ -411,8 +456,9 @@ const MessageBubble = React.memo<{
 
   return (
     <div 
-      className={`flex w-full group/bubble px-1 ${isConsecutive ? 'py-[0.5px]' : 'py-[2px]'} transition-colors duration-200 ${selected ? 'bg-[#21c063]/25 dark:bg-white/10 selection-highlight' : ''} ${isMe ? 'justify-end' : 'justify-start'}`}
+      className={`flex w-full group/bubble px-1 relative ${isConsecutive ? 'py-[0.5px]' : 'py-[2px]'} transition-colors duration-150 ${selected ? 'bg-[#21c063]/20 dark:bg-white/10 selection-highlight' : ''} ${selectionMode && !selected ? 'opacity-85' : 'opacity-100'} ${isMe ? 'justify-end' : 'justify-start'}`}
       onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUpOrCancel}
       onPointerLeave={handlePointerUpOrCancel}
       onPointerCancel={handlePointerUpOrCancel}
@@ -430,122 +476,335 @@ const MessageBubble = React.memo<{
         if (now - lastTap.current < 300) {
           // Double Tap Detected
           onToggleSelect(message);
-          lastTap.current = 0; // Prevent triple-tap loops
+          lastTap.current = 0;
         } else {
           lastTap.current = now;
-          // Normal Tap in Selection Mode
           if (selectionMode) {
              onToggleSelect(message);
           }
         }
       }}
     >
+      {/* Swipe to reply reveal indicator */}
+      {dragOffset > 0 && (
+        <div 
+          className="absolute left-2 self-center flex items-center justify-center w-8 h-8 rounded-full bg-[#21c063]/20 text-[#21c063] transition-transform duration-75 pointer-events-none z-10"
+          style={{
+            transform: `scale(${Math.min(dragOffset / 36, 1.2)}) rotate(${Math.min(dragOffset * 3, 180)}deg)`,
+            opacity: Math.min(dragOffset / 20, 1)
+          }}
+        >
+          <CornerDownLeft size={18} />
+        </div>
+      )}
+
       {!isMe && onReply && !selectionMode && (
         <button 
           onClick={() => onReply({
             ...message,
             senderName: message.senderName || (!isGroup ? chatName : undefined)
           })} 
-          className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity mr-1 self-center scale-x-[-1]"
+          className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity mr-1 self-center scale-x-[-1] touch-btn"
         >
           <CornerDownLeft size={18} />
         </button>
       )}
-      <div
-        className={`${
-          isMediaMessage
-            ? 'media-message-bubble'
-            : (message.attachment?.type === 'audio' ? 'w-auto max-w-[95%] sm:max-w-[88%] md:max-w-[540px]' : 'max-w-[85%] sm:max-w-[75%]')
-        } p-1 rounded-lg shadow-sm relative transition-all duration-300 select-none md:select-auto my-[2px] ${highlight ? 'ring-2 ring-[#21c063]' : ''} ${!isConsecutive ? (isMe ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
-        style={{ 
-          backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)',
-          ...(isMediaMessage ? { width: 'fit-content', maxWidth: '330px' } : {})
-        }}
-      >
-        {message.replyToMessage && (
-          <div className="p-2 rounded-md mb-1 border-l-4 text-[calc(var(--msg-font-size)-1.5px)] bg-black/5 dark:bg-black/20 overflow-hidden cursor-pointer"
-               style={{ borderLeftColor: message.replyToMessage.sender === 'me' ? '#53bdeb' : (nameColor || '#35a62e') }}>
-             <div className="font-bold mb-0.5" style={{ color: message.replyToMessage.sender === 'me' ? '#53bdeb' : (nameColor || '#35a62e') }}>
-                {message.replyToMessage.sender === 'me' ? 'You' : (message.replyToMessage.senderName || (!isGroup ? chatName : 'Contact') || 'Contact')}
-             </div>
-             <div className="text-secondary truncate flex items-center gap-1.5">
-               {(message.replyToMessage.image || message.replyToMessage.attachment?.type === 'image') && (
-                 <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
-                   <Camera size={13} className="text-secondary" />
-                   <span>Photo</span>
-                   {(message.replyToMessage.voiceAttachment || message.replyToMessage.voiceMediaId || message.replyToMessage.attachment?.type === 'audio') && (
-                     <>
-                       <span className="text-secondary">+</span>
-                       <Mic size={13} className="text-[#21c063]" />
-                       <span>Voice</span>
-                     </>
-                   )}
-                 </span>
-               )}
-               {!(message.replyToMessage.image || message.replyToMessage.attachment?.type === 'image') && 
-                (message.replyToMessage.voiceAttachment || message.replyToMessage.attachment?.type === 'audio') && (
-                 <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
-                   <Mic size={13} className="text-[#21c063]" />
-                   <span>Voice message</span>
-                 </span>
-               )}
-               <span className="truncate">
-                 {message.replyToMessage.text || ((message.replyToMessage.image || message.replyToMessage.attachment?.type === 'image') ? '' : message.replyToMessage.attachment ? 'Attachment' : 'Message')}
-               </span>
-             </div>
-          </div>
-        )}
 
-        {isGroup && !isMe && message.senderName && !isConsecutive && (
-          <div className="text-[calc(var(--msg-font-size)-1.5px)] font-bold mb-1 px-2 pt-1" style={{ color: nameColor }}>
-            {message.senderName}
-          </div>
-        )}
+      {/* Transparent Sticker Rendering */}
+      {message.isSticker ? (
+        <div 
+          className={`sticker-message-container p-1 cursor-pointer touch-bubble relative ${isRecent ? 'animate-bubble-enter' : ''} ${selected ? 'scale-[1.03] ring-2 ring-[#21c063] rounded-2xl p-2' : ''}`}
+          style={{
+            transform: dragOffset > 0 ? `translateX(${dragOffset}px)` : undefined,
+            transition: dragOffset === 0 ? 'transform 200ms var(--ease-micro), scale 150ms ease' : 'none'
+          }}
+          onClick={(e) => {
+            if (selectionMode && onToggleSelect) onToggleSelect(message);
+            else if (onOpenImage && mediaSrc) {
+              e.stopPropagation();
+              onOpenImage(mediaSrc, undefined, isMe ? 'You' : (message.senderName || undefined), message.timestamp);
+            }
+          }}
+        >
+          {selected && onToggleReaction && (
+            <ReactionTray
+              onSelectReaction={(emoji) => {
+                onToggleReaction(message.id, emoji);
+                onToggleSelect?.(message);
+              }}
+              onClose={() => onToggleSelect?.(message)}
+              currentReaction={message.reactions?.[0]}
+              isMe={isMe}
+            />
+          )}
 
-        {isMediaMessage ? (
-          <>
-            <div 
-              className="image-wrapper cursor-pointer group/img relative"
+          {message.attachment?.type === 'video' ? (
+            <video
+              src={mediaSrc || ''}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="sticker-message-img"
+            />
+          ) : (
+            <img
+              src={mediaSrc || ''}
+              alt="Sticker"
+              className="sticker-message-img"
+              loading="lazy"
+            />
+          )}
+
+          <div className="flex items-center gap-1 justify-end mt-1 px-1">
+            {message.isStarred && (
+              <Star size={11} className="text-amber-500 fill-amber-500 shrink-0 inline mr-0.5" />
+            )}
+            <span className="text-[10px] text-secondary font-medium bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded-full">
+              {message.timestamp}
+            </span>
+            {isMe && (
+              <span key={message.status} className={`${message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"} animate-status-tick`}>
+                {message.status === 'pending' ? (
+                  <Clock size={12} className="text-secondary/70 animate-pulse" />
+                ) : message.status === 'sent' ? (
+                  <Check size={14} />
+                ) : (
+                  <CheckCheck size={14} />
+                )}
+              </span>
+            )}
+          </div>
+
+          {/* Reaction Badge on Sticker */}
+          {message.reactions && message.reactions.length > 0 && (
+            <div
               onClick={(e) => {
                 e.stopPropagation();
-                onOpenImage?.(
-                  mediaSrc,
-                  message.text,
-                  isMe ? 'You' : (message.senderName || undefined),
-                  message.timestamp
-                );
+                if (onToggleReaction) {
+                  triggerHaptic('reaction');
+                  onToggleReaction(message.id, message.reactions![0]);
+                }
               }}
+              className={`absolute -bottom-2 ${isMe ? 'right-2' : 'left-2'} z-20 flex items-center gap-0.5 bg-white dark:bg-[#1f2c34] border border-black/10 dark:border-white/10 rounded-full px-1.5 py-0.5 shadow-sm text-[12px] cursor-pointer hover:scale-110 active:scale-90 transition-transform animate-reaction-pop`}
+              title="Reaction (click to toggle)"
             >
-              <img
-                src={mediaSrc}
-                alt="Sent photo"
-                className="transition-transform duration-200 group-hover/img:scale-[1.01]"
-                loading="lazy"
-              />
+              <span>{message.reactions.join(' ')}</span>
             </div>
+          )}
+        </div>
+      ) : (
+        <div
+          className={`${
+            isMediaMessage
+              ? 'media-message-bubble'
+              : (message.attachment?.type === 'audio' ? 'w-auto max-w-[95%] sm:max-w-[88%] md:max-w-[540px]' : 'max-w-[85%] sm:max-w-[75%]')
+          } p-1 rounded-lg shadow-sm relative transition-all duration-200 select-none md:select-auto my-[2px] touch-bubble ${isRecent ? 'animate-bubble-enter' : ''} ${selected ? 'ring-2 ring-[#21c063] scale-[1.01] shadow-md z-30' : ''} ${highlight ? 'ring-2 ring-[#21c063]' : ''} ${!isConsecutive ? (isMe ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
+          style={{ 
+            backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)',
+            transform: dragOffset > 0 ? `translateX(${dragOffset}px)` : undefined,
+            transition: dragOffset === 0 ? 'transform 200ms var(--ease-micro), scale 150ms ease' : 'none',
+            ...(isMediaMessage ? { width: 'fit-content', maxWidth: isGifMessage ? '230px' : '330px' } : {})
+          }}
+        >
+          {selected && onToggleReaction && (
+            <ReactionTray
+              onSelectReaction={(emoji) => {
+                onToggleReaction(message.id, emoji);
+                onToggleSelect?.(message);
+              }}
+              onClose={() => onToggleSelect?.(message)}
+              currentReaction={message.reactions?.[0]}
+              isMe={isMe}
+            />
+          )}
 
-            {/* Attached Voice Note directly beneath image inside the same bubble */}
-            {hasVoice && (
-              <div className="w-full px-1 pt-1.5 pb-0.5">
-                <VoiceNotePlayer
-                  src={voiceSrc!}
-                  seedId={`${message.id}-attached-voice`}
-                  isMe={isMe}
-                  avatar={isMe ? undefined : chatAvatar}
-                  senderName={isMe ? 'You' : (message.senderName || 'Voice Note')}
-                />
+          {message.replyToMessage && (
+            <div className="p-2 rounded-md mb-1 border-l-4 text-[calc(var(--msg-font-size)-1.5px)] bg-black/5 dark:bg-black/20 overflow-hidden cursor-pointer"
+                 style={{ borderLeftColor: message.replyToMessage.sender === 'me' ? '#53bdeb' : (nameColor || '#35a62e') }}>
+               <div className="font-bold mb-0.5" style={{ color: message.replyToMessage.sender === 'me' ? '#53bdeb' : (nameColor || '#35a62e') }}>
+                  {message.replyToMessage.sender === 'me' ? 'You' : (message.replyToMessage.senderName || (!isGroup ? chatName : 'Contact') || 'Contact')}
+               </div>
+               <div className="text-secondary truncate flex items-center gap-1.5">
+                 {(message.replyToMessage.image || message.replyToMessage.attachment?.type === 'image') && (
+                   <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
+                     <Camera size={13} className="text-secondary" />
+                     <span>Photo</span>
+                     {(message.replyToMessage.voiceAttachment || message.replyToMessage.voiceMediaId || message.replyToMessage.attachment?.type === 'audio') && (
+                       <>
+                         <span className="text-secondary">+</span>
+                         <Mic size={13} className="text-[#21c063]" />
+                         <span>Voice</span>
+                       </>
+                     )}
+                   </span>
+                 )}
+                 {!(message.replyToMessage.image || message.replyToMessage.attachment?.type === 'image') && 
+                  (message.replyToMessage.voiceAttachment || message.replyToMessage.attachment?.type === 'audio') && (
+                   <span className="inline-flex items-center gap-1 text-primary font-medium shrink-0">
+                     <Mic size={13} className="text-[#21c063]" />
+                     <span>Voice message</span>
+                   </span>
+                 )}
+                 <span className="truncate">
+                   {message.replyToMessage.text || ((message.replyToMessage.image || message.replyToMessage.attachment?.type === 'image') ? '' : message.replyToMessage.attachment ? 'Attachment' : 'Message')}
+                 </span>
+               </div>
+            </div>
+          )}
+
+          {isGroup && !isMe && message.senderName && !isConsecutive && (
+            <div className="text-[calc(var(--msg-font-size)-1.5px)] font-bold mb-1 px-2 pt-1" style={{ color: nameColor }}>
+              {message.senderName}
+            </div>
+          )}
+
+          {isMediaMessage ? (
+            <>
+              <div 
+                className="image-wrapper cursor-pointer group/img relative"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenImage?.(
+                    mediaSrc,
+                    message.text,
+                    isMe ? 'You' : (message.senderName || undefined),
+                    message.timestamp
+                  );
+                }}
+              >
+                {isGifMessage ? (
+                  <div className="relative overflow-hidden rounded-lg max-w-[220px] max-h-[220px] mx-auto">
+                    {message.attachment?.type === 'video' ? (
+                      <video
+                        src={mediaSrc}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        disablePictureInPicture
+                        className="w-full h-auto max-h-[220px] object-cover rounded-lg"
+                      />
+                    ) : (
+                      <img
+                        src={mediaSrc}
+                        alt="GIF"
+                        className="w-full h-auto max-h-[220px] object-cover rounded-lg"
+                        loading="lazy"
+                      />
+                    )}
+                    <span className="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[9.5px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider backdrop-blur-xs select-none">
+                      GIF
+                    </span>
+                  </div>
+                ) : (
+                  <img
+                    src={mediaSrc}
+                    alt="Sent photo"
+                    className="transition-transform duration-200 group-hover/img:scale-[1.01]"
+                    loading="lazy"
+                  />
+                )}
               </div>
-            )}
 
-            {message.text ? (
-              <div className="caption-text flex flex-col relative w-full">
-                <p className="text-primary whitespace-pre-wrap break-words pr-12 pb-2">
-                  {formatMessageText(message.text)}
-                </p>
-                <div className="flex items-center gap-1 self-end absolute bottom-1 right-2">
+              {/* Attached Voice Note directly beneath image inside the same bubble */}
+              {hasVoice && (
+                <div className="w-full px-1 pt-1.5 pb-0.5">
+                  <VoiceNotePlayer
+                    src={voiceSrc!}
+                    seedId={`${message.id}-attached-voice`}
+                    isMe={isMe}
+                    avatar={isMe ? undefined : chatAvatar}
+                    senderName={isMe ? 'You' : (message.senderName || 'Voice Note')}
+                  />
+                </div>
+              )}
+
+              {message.text ? (
+                <div className="caption-text flex flex-col relative w-full">
+                  <p className="text-primary whitespace-pre-wrap break-words pr-12 pb-2">
+                    {formatMessageText(message.text)}
+                  </p>
+                  <div className="flex items-center gap-1 self-end absolute bottom-1 right-2">
+                    {message.isStarred && (
+                      <Star size={11} className="text-amber-500 fill-amber-500 shrink-0 inline mr-0.5" />
+                    )}
+                    <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
+                    {isMe && (
+                      <span key={message.status} className={`${message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"} animate-status-tick`}>
+                        {message.status === 'pending' ? (
+                          <Clock size={13} className="text-secondary/70 animate-pulse" />
+                        ) : message.status === 'sent' ? (
+                          <Check size={16} />
+                        ) : (
+                          <CheckCheck size={16} />
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 self-end mt-1 mb-0.5 mr-1.5">
+                  {message.isStarred && (
+                    <Star size={11} className="text-amber-500 fill-amber-500 shrink-0 inline mr-0.5" />
+                  )}
                   <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
                   {isMe && (
-                    <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
+                    <span key={message.status} className={`${message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"} animate-status-tick`}>
+                      {message.status === 'pending' ? (
+                        <Clock size={13} className="text-secondary/70 animate-pulse" />
+                      ) : message.status === 'sent' ? (
+                        <Check size={16} />
+                      ) : (
+                        <CheckCheck size={16} />
+                      )}
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {message.attachment?.type === 'document' && (
+                <div className="p-2 flex items-center gap-3 bg-black/5 dark:bg-black/20 rounded-md mb-1 border border-black/5 hover:bg-black/10 transition-colors cursor-pointer group">
+                  <div className="w-12 h-12 bg-[#21c063] rounded flex items-center justify-center text-white shadow-sm shrink-0 group-hover:scale-105 transition-transform">
+                    <FileText size={24} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[calc(var(--msg-font-size)-0.5px)] text-primary font-medium truncate">{message.attachment.name}</p>
+                    <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary uppercase font-bold tracking-tighter">Document</p>
+                  </div>
+                  <Download size={20} className="text-secondary cursor-pointer hover:text-[#21c063] transition-colors" />
+                </div>
+              )}
+
+              {(message.attachment?.type === 'audio' || hasVoice) && (
+                <div className="p-1 pb-0 w-full">
+                  <VoiceNotePlayer
+                    src={voiceSrc || mediaSrc || message.attachment?.data || ''}
+                    seedId={message.id}
+                    transcript={message.text}
+                    isMe={isMe}
+                    avatar={isMe ? undefined : chatAvatar}
+                    senderName={isMe ? 'You' : (message.senderName || 'Voice Note')}
+                  />
+                </div>
+              )}
+
+              <div className="px-2 py-1 flex flex-col relative">
+                {(!message.attachment || message.attachment.type !== 'audio') && message.text && (
+                  <p className={`text-[length:var(--msg-font-size)] text-primary whitespace-pre-wrap break-words pr-12 ${hasAttachment ? 'pt-1 pb-4' : 'pb-3'}`}>
+                    {formatMessageText(message.text)}
+                  </p>
+                )}
+
+                <div className={`flex items-center gap-1 self-end ${(!message.attachment || message.attachment.type !== 'audio') && message.text ? 'absolute bottom-1 right-2' : 'mt-1 mb-0.5 mr-1'}`}>
+                  {message.isStarred && (
+                    <Star size={11} className="text-amber-500 fill-amber-500 shrink-0 inline mr-0.5" />
+                  )}
+                  <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
+                  {isMe && (
+                    <span key={message.status} className={`${message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"} animate-status-tick`}>
                       {message.status === 'pending' ? (
                         <Clock size={13} className="text-secondary/70 animate-pulse" />
                       ) : message.status === 'sent' ? (
@@ -557,91 +816,42 @@ const MessageBubble = React.memo<{
                   )}
                 </div>
               </div>
-            ) : (
-              <div className="flex items-center gap-1 self-end mt-1 mb-0.5 mr-1.5">
-                <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
-                {isMe && (
-                  <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
-                    {message.status === 'pending' ? (
-                      <Clock size={13} className="text-secondary/70 animate-pulse" />
-                    ) : message.status === 'sent' ? (
-                      <Check size={16} />
-                    ) : (
-                      <CheckCheck size={16} />
-                    )}
-                  </span>
-                )}
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            {message.attachment?.type === 'document' && (
-              <div className="p-2 flex items-center gap-3 bg-black/5 dark:bg-black/20 rounded-md mb-1 border border-black/5 hover:bg-black/10 transition-colors cursor-pointer group">
-                <div className="w-12 h-12 bg-[#21c063] rounded flex items-center justify-center text-white shadow-sm shrink-0 group-hover:scale-105 transition-transform">
-                  <FileText size={24} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[calc(var(--msg-font-size)-0.5px)] text-primary font-medium truncate">{message.attachment.name}</p>
-                  <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary uppercase font-bold tracking-tighter">Document</p>
-                </div>
-                <Download size={20} className="text-secondary cursor-pointer hover:text-[#21c063] transition-colors" />
-              </div>
-            )}
+            </>
+          )}
 
-            {(message.attachment?.type === 'audio' || hasVoice) && (
-              <div className="p-1 pb-0 w-full">
-                <VoiceNotePlayer
-                  src={voiceSrc || mediaSrc || message.attachment?.data || ''}
-                  seedId={message.id}
-                  transcript={message.text}
-                  isMe={isMe}
-                  avatar={isMe ? undefined : chatAvatar}
-                  senderName={isMe ? 'You' : (message.senderName || 'Voice Note')}
-                />
-              </div>
-            )}
+          {!isConsecutive && (
+            <div
+              className={`absolute top-0 ${isMe ? '-right-2 border-l-[10px]' : '-left-2 border-r-[10px]'} border-t-[10px] border-t-transparent`}
+              style={{
+                borderLeftColor: isMe ? 'var(--bubble-me)' : 'transparent',
+                borderRightColor: !isMe ? 'var(--bubble-other)' : 'transparent'
+              }}
+            />
+          )}
 
-            <div className="px-2 py-1 flex flex-col relative">
-              {(!message.attachment || message.attachment.type !== 'audio') && message.text && (
-                <p className={`text-[length:var(--msg-font-size)] text-primary whitespace-pre-wrap break-words pr-12 ${hasAttachment ? 'pt-1 pb-4' : 'pb-3'}`}>
-                  {formatMessageText(message.text)}
-                </p>
-              )}
-
-              <div className={`flex items-center gap-1 self-end ${(!message.attachment || message.attachment.type !== 'audio') && message.text ? 'absolute bottom-1 right-2' : 'mt-1 mb-0.5 mr-1'}`}>
-                <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
-                {isMe && (
-                  <span className={message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"}>
-                    {message.status === 'pending' ? (
-                      <Clock size={13} className="text-secondary/70 animate-pulse" />
-                    ) : message.status === 'sent' ? (
-                      <Check size={16} />
-                    ) : (
-                      <CheckCheck size={16} />
-                    )}
-                  </span>
-                )}
-              </div>
+          {/* Reaction Badge on standard bubble */}
+          {message.reactions && message.reactions.length > 0 && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onToggleReaction) {
+                  triggerHaptic('reaction');
+                  onToggleReaction(message.id, message.reactions![0]);
+                }
+              }}
+              className={`absolute -bottom-2.5 ${isMe ? 'right-2' : 'left-2'} z-20 flex items-center gap-0.5 bg-white dark:bg-[#1f2c34] border border-black/10 dark:border-white/10 rounded-full px-1.5 py-0.5 shadow-sm text-[12px] cursor-pointer hover:scale-110 active:scale-90 transition-transform animate-reaction-pop`}
+              title="Reaction (click to toggle)"
+            >
+              <span>{message.reactions.join(' ')}</span>
             </div>
-          </>
-        )}
-
-        {!isConsecutive && (
-          <div
-            className={`absolute top-0 ${isMe ? '-right-2 border-l-[10px]' : '-left-2 border-r-[10px]'} border-t-[10px] border-t-transparent`}
-            style={{
-              borderLeftColor: isMe ? 'var(--bubble-me)' : 'transparent',
-              borderRightColor: !isMe ? 'var(--bubble-other)' : 'transparent'
-            }}
-          />
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {isMe && onReply && !selectionMode && (
         <button 
           onClick={() => onReply({ ...message, senderName: 'You' })} 
-          className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity ml-1 self-center"
+          className="hidden md:block opacity-0 group-hover/bubble:opacity-100 p-2 text-secondary hover:text-primary transition-opacity ml-1 self-center touch-btn"
         >
           <CornerDownLeft size={18} />
         </button>
@@ -669,8 +879,34 @@ const TypingBubble: React.FC = () => (
   </div>
 );
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeaderClick, onDeleteChat, onClearChat, searchTerm, setSearchTerm, onBack, onProfileClick, onMetaAIClick, onAddContact, onReply, onSaveMemory, onDeleteMessages, onMarkAsRead, settings }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ 
+  chat, 
+  allChats, 
+  onHeaderClick, 
+  onDeleteChat, 
+  onClearChat, 
+  searchTerm, 
+  setSearchTerm, 
+  onBack, 
+  onProfileClick, 
+  onMetaAIClick, 
+  onAddContact, 
+  onReply, 
+  onSaveMemory, 
+  onDeleteMessages, 
+  onMarkAsRead, 
+  onToggleReaction,
+  onToggleStar,
+  settings 
+}) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [hasNewUnreadWhileScrolled, setHasNewUnreadWhileScrolled] = useState(false);
+  const lastMessageCountRef = useRef(chat?.messages?.length || 0);
+  const initialLoadedIds = useRef<Set<string>>(new Set());
+  const [newOutgoingIds, setNewOutgoingIds] = useState<Set<string>>(new Set());
+
   const [showSearch, setShowSearch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -690,13 +926,53 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
 
   useEffect(() => {
     setSelectedMessageIds([]);
+    initialLoadedIds.current = new Set(chat?.messages?.map(m => m.id) || []);
+    setNewOutgoingIds(new Set());
+    lastMessageCountRef.current = chat?.messages?.length || 0;
+    setShowScrollBottom(false);
+    setHasNewUnreadWhileScrolled(false);
   }, [chat?.id]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+    if (!chat?.messages) return;
+    const currentCount = chat.messages.length;
+    if (currentCount > lastMessageCountRef.current) {
+      const newest = chat.messages[currentCount - 1];
+      if (newest.sender === 'me') {
+        setNewOutgoingIds(prev => new Set([...prev, newest.id]));
+      }
+
+      if (showScrollBottom) {
+        setHasNewUnreadWhileScrolled(true);
+      } else if (scrollRef.current) {
+        scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
+    } else {
+      if (!showScrollBottom && scrollRef.current) {
+        scrollRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+      }
     }
-  }, [chat?.id, chat?.messages]);
+    lastMessageCountRef.current = currentCount;
+  }, [chat?.messages?.length]);
+
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const isFarFromBottom = scrollHeight - scrollTop - clientHeight > 140;
+    setShowScrollBottom(isFarFromBottom);
+    if (!isFarFromBottom) {
+      setHasNewUnreadWhileScrolled(false);
+    }
+  };
+
+  const scrollToBottom = () => {
+    triggerHaptic('tap');
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+    setHasNewUnreadWhileScrolled(false);
+    setShowScrollBottom(false);
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -715,37 +991,66 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
     );
   }, [chat?.messages, searchTerm]);
 
+  // Dynamic clock listener to automatically update relative date labels (e.g. Today -> Yesterday at midnight or on time changes)
+  const [liveDateKey, setLiveDateKey] = useState(() => getAppDateKey(settings));
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const nextKey = getAppDateKey(settings);
+      if (nextKey !== liveDateKey) {
+        setLiveDateKey(nextKey);
+      }
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [settings, liveDateKey]);
+
   const messageGroups = useMemo(() => {
     if (!chat) return [];
-    const groups: { dateKey: string; items: { msg: Message; isConsecutive: boolean }[] }[] = [];
-    let currentGroup: { dateKey: string; items: { msg: Message; isConsecutive: boolean }[] } | null = null;
 
-    filteredMessages.forEach((msg, index) => {
-      const dateKey = getMessageDateKey(msg);
-      const previousDateKey = index > 0 ? getMessageDateKey(filteredMessages[index - 1]) : '';
+    try {
+      // Heal all messages with strictly monotonic forward-flowing dates
+      const healedList = resolveChatMessagesDates(filteredMessages, settings);
 
-      const isConsecutive = (() => {
-        if (index === 0) return false;
-        const prevMsg = filteredMessages[index - 1];
-        if (msg.isEvent || prevMsg.isEvent) return false;
-        if (msg.sender !== prevMsg.sender) return false;
-        if (chat?.isGroup && msg.senderName !== prevMsg.senderName) return false;
-        if (dateKey !== previousDateKey) return false;
+      // Map strictly keyed by unique dateKey to mathematically eliminate duplicate date dividers
+      const groupMap = new Map<string, { msg: Message; isConsecutive: boolean }[]>();
 
-        const currentMs = getMessageTimestampEpoch(msg);
-        const prevMs = getMessageTimestampEpoch(prevMsg);
-        return (currentMs - prevMs) < 120000; // 2 minutes
-      })();
+      healedList.forEach((msg, index) => {
+        const dateKey = msg.date || 'old';
+        const previousDateKey = index > 0 ? (healedList[index - 1].date || '') : '';
 
-      if (!currentGroup || currentGroup.dateKey !== dateKey) {
-        currentGroup = { dateKey, items: [] };
-        groups.push(currentGroup);
-      }
-      currentGroup.items.push({ msg, isConsecutive });
-    });
+        const isConsecutive = (() => {
+          if (index === 0) return false;
+          const prevMsg = healedList[index - 1];
+          if (msg.isEvent || prevMsg.isEvent) return false;
+          if (msg.sender !== prevMsg.sender) return false;
+          if (chat?.isGroup && msg.senderName !== prevMsg.senderName) return false;
+          if (dateKey !== previousDateKey) return false;
 
-    return groups;
-  }, [filteredMessages, chat]);
+          const currentMs = getMessageTimestampEpoch(msg, settings);
+          const prevMs = getMessageTimestampEpoch(prevMsg, settings);
+          return (currentMs - prevMs) < 120000; // 2 minutes
+        })();
+
+        if (!groupMap.has(dateKey)) {
+          groupMap.set(dateKey, []);
+        }
+        groupMap.get(dateKey)!.push({ msg, isConsecutive });
+      });
+
+      return Array.from(groupMap.entries()).map(([dateKey, items]) => ({
+        dateKey,
+        items
+      }));
+    } catch (err) {
+      console.error("Failsafe caught in messageGroups:", err);
+      return [{
+        dateKey: 'old',
+        items: (filteredMessages || []).map((msg, index) => ({
+          msg,
+          isConsecutive: index > 0 && filteredMessages[index - 1]?.sender === msg.sender
+        }))
+      }];
+    }
+  }, [filteredMessages, chat, settings, liveDateKey]);
 
   if (!chat) {
     return (
@@ -888,17 +1193,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
       )}
 
       {selectedMessageIds.length > 0 ? (
-        <div className="h-[59px] bg-[#f0f2f5] dark:bg-[#202c33] border-b app-border px-3 sm:px-4 flex items-center justify-between z-20 shrink-0">
+        <div className="h-[59px] bg-[#f0f2f5] dark:bg-[#202c33] border-b app-border px-3 sm:px-4 flex items-center justify-between z-20 shrink-0 animate-toolbar-in shadow-xs">
           <div className="flex items-center">
-            <button onClick={() => setSelectedMessageIds([])} title="Cancel selection" className="p-2 mr-1 sm:mr-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full text-secondary transition-colors">
+            <button 
+              onClick={() => {
+                triggerHaptic('tap');
+                setSelectedMessageIds([]);
+              }} 
+              title="Cancel selection" 
+              className="p-2 mr-1 sm:mr-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full text-secondary transition-colors touch-btn"
+            >
               <X size={20} />
             </button>
             <span className="text-[calc(var(--msg-font-size)+4.5px)] ml-2 sm:ml-4 text-primary font-medium">{selectedMessageIds.length}</span>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4 text-secondary">
+          <div className="flex items-center gap-1 sm:gap-2 text-secondary">
              {selectedMessageIds.length === 1 && onReply && (
                 <button 
                   onClick={() => {
+                     triggerHaptic('tap');
                      const msg = chat.messages.find(m => m.id === selectedMessageIds[0]);
                      if (msg) onReply({
                        ...msg,
@@ -907,21 +1220,35 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                      setSelectedMessageIds([]);
                   }} 
                   title="Reply"
-                  className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors scale-x-[-1]"
+                  className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors scale-x-[-1] touch-btn"
                 >
                   <CornerDownLeft size={20} />
+                </button>
+             )}
+             {onToggleStar && (
+                <button
+                  onClick={() => {
+                    triggerHaptic('tap');
+                    selectedMessageIds.forEach(id => onToggleStar(chat.id, id));
+                    setSelectedMessageIds([]);
+                  }}
+                  title="Star / Unstar"
+                  className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors hover:text-amber-500 touch-btn"
+                >
+                  <Star size={20} className={chat.messages.some(m => selectedMessageIds.includes(m.id) && m.isStarred) ? "text-amber-500 fill-amber-500" : ""} />
                 </button>
              )}
              {!chat.isGroup && onSaveMemory && (
                 <button
                   onClick={() => {
+                    triggerHaptic('tap');
                     const selMsgs = chat.messages.filter(m => selectedMessageIds.includes(m.id));
                     if (selMsgs.length > 0) {
                       setMemoryFromSelectionMessages(selMsgs);
                     }
                   }}
                   title="Save selected messages as memory"
-                  className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors hover:text-[#21c063]"
+                  className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors hover:text-[#21c063] touch-btn"
                 >
                   <Sparkles size={20} />
                 </button>
@@ -929,32 +1256,52 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
              {onMarkAsRead && (
                 <button
                   onClick={() => {
+                    triggerHaptic('tap');
                     onMarkAsRead(chat.id, selectedMessageIds);
                     setSelectedMessageIds([]);
                   }}
                   title="Mark as read"
-                  className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors hover:text-[#53bdeb] text-secondary flex items-center justify-center"
+                  className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors hover:text-[#53bdeb] text-secondary flex items-center justify-center touch-btn"
                 >
                   <CheckCheck size={20} className="text-[#53bdeb]" />
                 </button>
              )}
              <button 
                onClick={() => {
+                  triggerHaptic('tap');
                   const texts = chat.messages.filter(m => selectedMessageIds.includes(m.id)).map(m => m.text).join('\n\n');
                   if (texts) {
                       navigator.clipboard.writeText(texts).then(() => setSelectedMessageIds([]));
                   }
                }} 
                title="Copy message text"
-               className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"
+               className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors touch-btn"
              >
                <Copy size={20} />
              </button>
+             <button
+               onClick={() => {
+                 triggerHaptic('tap');
+                 const texts = chat.messages.filter(m => selectedMessageIds.includes(m.id)).map(m => m.text).join('\n\n');
+                 if (texts && typeof navigator !== 'undefined' && navigator.share) {
+                   navigator.share({ text: texts }).catch(() => {});
+                 } else if (texts) {
+                   navigator.clipboard.writeText(texts).then(() => setSelectedMessageIds([]));
+                 }
+               }}
+               title="Forward message"
+               className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors touch-btn"
+             >
+               <Share2 size={20} />
+             </button>
              {onDeleteMessages && (
                 <button
-                  onClick={() => setShowDeleteMessagesModal(true)}
+                  onClick={() => {
+                    triggerHaptic('tap');
+                    setShowDeleteMessagesModal(true);
+                  }}
                   title="Delete message"
-                  className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors hover:text-red-500"
+                  className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors hover:text-red-500 touch-btn"
                 >
                   <Trash2 size={20} />
                 </button>
@@ -1053,7 +1400,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
         </div>
       )}
 
-      <div className="flex-1 flex flex-col p-4 sm:p-10 space-y-1 overflow-y-auto pointer-events-auto z-10 relative">
+      <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 flex flex-col p-4 sm:p-10 space-y-1 overflow-y-auto pointer-events-auto z-10 relative custom-scrollbar"
+      >
         <div className="flex justify-center my-4">
           <div className="encryption-box text-[calc(var(--msg-font-size)-2px)] px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 max-w-[500px] text-center border app-border">
             <Lock size={12} className="shrink-0 opacity-60" />
@@ -1073,7 +1424,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
           <div key={group.dateKey} className="relative space-y-1">
             <DateDivider
               dateKey={group.dateKey}
-              onClick={!chat.isGroup && onSaveMemory ? () => setMemoryCaptureDate(group.dateKey) : undefined}
+              settings={settings}
+              onClick={!chat.isGroup && onSaveMemory && group.dateKey !== 'old' ? () => setMemoryCaptureDate(group.dateKey) : undefined}
             />
             {group.items.map(({ msg, isConsecutive }) => (
               <MessageBubble
@@ -1094,8 +1446,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
                 onToggleSelect={(m) => {
                    setSelectedMessageIds(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]);
                 }}
+                onToggleReaction={(messageId, emoji) => onToggleReaction?.(chat.id, messageId, emoji)}
                 selectionMode={selectedMessageIds.length > 0}
                 isConsecutive={isConsecutive}
+                isRecent={newOutgoingIds.has(msg.id)}
                 onOpenImage={(src, caption, senderName, timestamp) => {
                   setLightboxImage({
                     src,
@@ -1111,6 +1465,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ chat, allChats, onHeader
         {!searchTerm && chat.status === 'typing...' && <TypingBubble />}
         <div ref={scrollRef} />
       </div>
+
+      {/* Floating Scroll to Bottom Pill */}
+      {showScrollBottom && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          className="absolute bottom-4 right-4 z-40 w-10 h-10 rounded-full bg-white dark:bg-[#202c33] text-secondary hover:text-primary shadow-lg border app-border flex items-center justify-center animate-float-in touch-btn hover:scale-105 active:scale-90"
+          title="Scroll to bottom"
+        >
+          <ChevronDown size={22} />
+          {hasNewUnreadWhileScrolled && (
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#21c063] border-2 border-white dark:border-[#202c33]" />
+          )}
+        </button>
+      )}
 
       {lightboxImage && (
         <ImageLightboxModal

@@ -57,6 +57,7 @@ interface ChatPayload {
     audio?: string;
     isEvent?: boolean;
     eventTitle?: string;
+    reactions?: string[];
   }[];
   userProfile?: UserProfile;
   groupContext?: { groupName: string; otherMembers: string[] };
@@ -341,7 +342,9 @@ async function handleVertexChat(payload: ChatPayload): Promise<{ ok: boolean; te
         }
         const name = m.sender === 'me' ? (userProfile?.name || 'User') : (m.senderName || responder.name);
         const imgTag = m.image ? "[IMAGE ATTACHED]" : "";
-        return `${name}: ${imgTag} ${m.text || ''}`.trim();
+        const voiceTag = m.audio ? "[VOICE NOTE ATTACHED]" : "";
+        const reactionTag = m.reactions && m.reactions.length > 0 ? `[REACTIONS ON THIS MESSAGE: ${m.reactions.join(', ')}]` : "";
+        return `${name}: ${imgTag} ${voiceTag} ${reactionTag} ${m.text || ''}`.trim();
       })
       .join('\n');
 
@@ -520,23 +523,26 @@ ${eventInstruction}
 ${voiceNotePrompt}
 
 Instructions:
-1. If an initiation INTENT or CONTEXT is provided above, follow its prioritization directive.
+1. If an initiation INTENT or CONTEXT is provided above (such as a USER REACTION EVENT), follow its prioritization directive.
 2. Breathe life into this persona! Maintain your unique personality and speech style at all times.
 3. If the user sent an image, look at it and comment on it specifically using the provided caption (if any).
 4. If the user sent a Voice Note (audio), listen to it carefully and respond based on what you hear!
-5. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
-6. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? (responder.humaneSettings.varyMessageLengthPrompt ? 'Follow the custom message length and pacing directives defined below.' : 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.') : 'Respond naturally without any strict length restrictions.'}
-7. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
+5. If the user sent an image with an attached Voice Note, look at the image AND listen to what they said, responding cohesively to both!
+6. If the user stacked or sent multiple messages, images, audio clips, or expressions together, acknowledge and respond cohesively to ALL of them in a single combined reply turn!
+7. If the user reacted to a message or photo with an expression (e.g. ❤️, 😂, 😮, 😢, 🙏, 👍, 🔥), naturally acknowledge and warmly or playfully reply back to their reaction/expression in-character!
+8. If in a group chat, you can reply to another member's comment naturally without always addressing the user.
+9. ${responder.humaneSettings?.enabled && responder.humaneSettings.varyMessageLength ? (responder.humaneSettings.varyMessageLengthPrompt ? 'Follow the custom message length and pacing directives defined below.' : 'Keep responses EXTREMELY SHORT (1-2 lines maximum), like rapid-fire texting. Never write a paragraph.') : 'Respond naturally without any strict length restrictions.'}
+10. ${responder.humaneSettings?.enabled && responder.humaneSettings.banRoboticLanguage ? 'Follow the strict anti-robot and human texting guidelines below.' : 'Do not use AI clichés or reveal you are an AI.'}${humaneInstructions}
 
 Conversation History:
 ${historyString}
 
 Response as ${responder.name}:`;
 
-    const recentMessagesWithMedia = (messageHistory || []).slice(-5).filter(m => m.image || m.audio);
+    const recentMessagesWithMedia = (messageHistory || []).slice(-8).filter(m => m.image || m.audio);
     const parts: any[] = [{ text: systemPrompt }];
 
-    recentMessagesWithMedia.slice(-2).forEach(msg => {
+    recentMessagesWithMedia.slice(-5).forEach(msg => {
       if (msg.image) {
         const base64Data = msg.image.split(',')[1] || msg.image;
         parts.push({

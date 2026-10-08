@@ -81,10 +81,26 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.9.2"
+              title="Motion Excellence, Haptics & Tactile WhatsApp Interaction Update"
+              date="October 2026"
+              isLatest={true}
+              changes={[
+                "Message Bubble Motion & Physics: Entrance and exit scale/opacity animations that settle naturally into the conversation stream without distracting bounce.",
+                "Tactile Touch Feedback & Haptics: Subtle compression and tonal feedback on message press, composer buttons, reactions, and send action, paired with an authentic haptic vibration system.",
+                "Long-Press Message Selection & Header Morph: Long-pressing messages smoothly lifts the bubble and transforms the top navigation into WhatsApp's selection toolbar (Count, Star, Delete, Reply, Copy, Save as Memory).",
+                "Anchored Quick Reaction Tray: Restrained spring-animated emoji reaction bar (👍, ❤️, 😂, 😮, 😢, 🙏) emerging directly above the message, with persona reaction awareness where AI characters react in-character to your emojis.",
+                "In-App WhatsApp Emoji Picker: Instant, unclipped emoji drawer with fast search, categorized tabs (Smileys, Hands, Hearts, Fun), and recent emojis memory, inserting directly at cursor position without disrupting typing flow.",
+                "Native Stickers & Looping GIFs: Gboard, iOS keyboard, and Windows rich stickers (WebP) and GIFs (looping video/frame clips without sound) automatically format into native compact chat bubbles.",
+                "Swipe-to-Reply & Physics Pull: Constrained horizontal swipe-to-reply with gradual reply indicator reveal and spring return.",
+                "Chronological Date Groups & Legacy Compatibility: Monotonic forward date groupings eliminating duplicate 'Today' headers, cleanly categorizing historic legacy chats under 'Older Messages'."
+              ]}
+            />
+            <UpdateItem 
               version="v1.9.0"
               title="Multimedia Voice Notes with Photos & Gemini 3.8 Expressive Acting Overhaul"
               date="October 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "Integrated Photo + Voice Attachments: Users can now record and attach high-fidelity voice notes directly alongside photos as unified multimedia messages in composer, chat bubble, and AI processing.",
                 "Gemini 3.8 Flash Studio-Grade Voice Delivery: Promoted Google's flagship gemini-3.8-flash-tts to default with automatic fallback hierarchy (gemini-3.8-flash-tts -> gemini-3.8-flash-lite-tts -> gemini-3.1-flash-tts-preview).",

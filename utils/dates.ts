@@ -31,27 +31,37 @@ export const getAppTimeContext = (settings?: AppSettings): string => {
 };
 
 export const getLocalDateKey = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+  const year = safeDate.getFullYear();
+  const month = String(safeDate.getMonth() + 1).padStart(2, '0');
+  const day = String(safeDate.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
-export const parseDateKey = (dateKey: string) => {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  return new Date(year, month - 1, day);
+export const parseDateKey = (dateKey?: string | null): Date => {
+  if (!dateKey || typeof dateKey !== 'string') {
+    return new Date();
+  }
+  if (dateKey === 'old' || dateKey.toLowerCase().includes('old')) {
+    return new Date(2026, 0, 1);
+  }
+  const parts = dateKey.split('-').map(Number);
+  if (parts.length === 3 && !parts.some(Number.isNaN)) {
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const fallback = new Date(dateKey);
+  if (!Number.isNaN(fallback.getTime())) return fallback;
+  return new Date();
 };
 
-export const normalizeDateKey = (value?: string, fallback = getLocalDateKey()) => {
-  if (!value) return fallback;
+export const normalizeDateKey = (value?: string, fallback = getLocalDateKey()): string => {
+  if (!value || typeof value !== 'string') return fallback;
+  if (value === 'old' || value === 'Older Messages') return 'old';
 
   if (DATE_KEY_PATTERN.test(value)) {
-    const parsed = parseDateKey(value);
-    if (
-      parsed.getFullYear() === Number(value.slice(0, 4)) &&
-      parsed.getMonth() === Number(value.slice(5, 7)) - 1 &&
-      parsed.getDate() === Number(value.slice(8, 10))
-    ) {
+    const [year, month, day] = value.split('-').map(Number);
+    if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
       return value;
     }
   }
@@ -91,25 +101,191 @@ export const formatDateRangeLabel = (startDate: string, endDate: string) => {
   return start === end ? format(start) : `${format(start)} - ${format(end)}`;
 };
 
-export const formatChatDividerLabel = (dateKey: string) => {
-  const normalized = normalizeDateKey(dateKey);
-  const date = parseDateKey(normalized);
-  const today = parseDateKey(getLocalDateKey());
-  const diffDays = Math.round((today.getTime() - date.getTime()) / 86400000);
+export const formatChatDividerLabel = (dateKey: string, settings?: AppSettings): string => {
+  try {
+    if (!dateKey || typeof dateKey !== 'string' || dateKey === 'old' || dateKey === 'Older Messages') {
+      return 'Older Messages';
+    }
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  
-  // Older dates: Day Month Year (e.g., 15 May 2024)
-  return date.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'long',
-    year: today.getFullYear() === date.getFullYear() ? undefined : 'numeric'
-  });
+    if (dateKey === 'Today') return 'Today';
+    if (dateKey === 'Yesterday') return 'Yesterday';
+
+    const normalized = normalizeDateKey(dateKey);
+    if (normalized === 'old') return 'Older Messages';
+
+    const date = parseDateKey(normalized);
+    if (Number.isNaN(date.getTime())) return 'Older Messages';
+
+    const appNow = getAppNow(settings);
+    const todayKey = getAppDateKey(settings);
+    const today = parseDateKey(todayKey);
+    const diffDays = Math.round((today.getTime() - date.getTime()) / 86400000);
+
+    if (diffDays <= 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    
+    // Older dates: Day Month Year (e.g., 15 May or 15 May 2024)
+    return date.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: appNow.getFullYear() === date.getFullYear() ? undefined : 'numeric'
+    });
+  } catch (err) {
+    console.warn("Failed to format chat divider label safely:", err);
+    return 'Older Messages';
+  }
 };
 
-export const getMessageTimestampEpoch = (message: Message): number => {
-  if (message.timestampEpoch) return message.timestampEpoch;
+/**
+ * Strict comparator for date keys:
+ * 'old' is strictly before any ISO date (e.g., 'old' < '2024-01-01' < '2026-08-01').
+ */
+const compareDateKeys = (a: string, b: string): number => {
+  if (a === b) return 0;
+  if (a === 'old') return -1;
+  if (b === 'old') return 1;
+  return a.localeCompare(b);
+};
+
+/**
+ * Resolves and heals chat messages so that:
+ * 1. Historical messages without an explicit date are cleanly categorized as 'old' (rendered as "Older Messages").
+ * 2. Earlier messages are never newer than subsequent messages.
+ * 3. Dates are strictly monotonic non-decreasing (Date(i) <= Date(i+1)).
+ * 4. "Today", "Yesterday", or any specific date will NEVER appear in multiple places.
+ * 5. Complete data preservation: all user messages and properties remain intact.
+ */
+export const resolveChatMessagesDates = (messages: Message[], settings?: AppSettings): Message[] => {
+  try {
+    if (!messages || !Array.isArray(messages) || messages.length === 0) return [];
+
+    const appTodayKey = getAppDateKey(settings);
+    const validMessages = messages.filter((m): m is Message => Boolean(m && typeof m === 'object'));
+    if (validMessages.length === 0) return [];
+
+    const n = validMessages.length;
+    const resolvedDateKeys: string[] = new Array(n);
+
+    // Step 1: Identify explicit valid dates
+    for (let i = 0; i < n; i++) {
+      const rawDate = validMessages[i]?.date;
+      if (rawDate === 'old' || rawDate === 'Older Messages') {
+        resolvedDateKeys[i] = 'old';
+      } else if (rawDate && DATE_KEY_PATTERN.test(rawDate)) {
+        resolvedDateKeys[i] = rawDate;
+      } else {
+        resolvedDateKeys[i] = '';
+      }
+    }
+
+    // Step 2: Backward pass - If an earlier message has no date, it cannot be newer
+    // than the next known date in the conversation history!
+    let nextKnownDate = '';
+    for (let i = n - 1; i >= 0; i--) {
+      if (resolvedDateKeys[i]) {
+        nextKnownDate = resolvedDateKeys[i];
+      } else if (nextKnownDate) {
+        if (nextKnownDate === 'old') {
+          resolvedDateKeys[i] = 'old';
+        } else {
+          const currTime = validMessages[i]?.timestamp || '00:00';
+          const nextTime = validMessages[i + 1]?.timestamp || '23:59';
+          if (currTime > nextTime && i + 1 < n) {
+            // Timestamp boundary indicates a day transition backward
+            const nextD = parseDateKey(nextKnownDate);
+            nextD.setDate(nextD.getDate() - 1);
+            nextKnownDate = getLocalDateKey(nextD);
+          }
+          resolvedDateKeys[i] = nextKnownDate;
+        }
+      }
+    }
+
+    // Step 3: Forward pass - For any messages that still have no date:
+    // If preceded by a known date, anchor forward; otherwise mark as legacy 'old'!
+    let prevKnownDate = '';
+    for (let i = 0; i < n; i++) {
+      if (resolvedDateKeys[i]) {
+        prevKnownDate = resolvedDateKeys[i];
+      } else if (prevKnownDate) {
+        if (prevKnownDate === 'old') {
+          resolvedDateKeys[i] = 'old';
+        } else {
+          const currTime = validMessages[i]?.timestamp || '00:00';
+          const prevTime = validMessages[i - 1]?.timestamp || '00:00';
+          if (currTime < prevTime && i > 0) {
+            const prevD = parseDateKey(prevKnownDate);
+            prevD.setDate(prevD.getDate() + 1);
+            prevKnownDate = getLocalDateKey(prevD);
+          }
+          resolvedDateKeys[i] = prevKnownDate;
+        }
+      } else {
+        // Legacy message prior to this update with no date context: declare cleanly as 'old'
+        resolvedDateKeys[i] = 'old';
+      }
+    }
+
+    // Step 4: Strict Monotonic Non-Decreasing Guarantee
+    // Backward clamp: dateKeys[i] <= dateKeys[i+1]
+    for (let i = n - 2; i >= 0; i--) {
+      if (compareDateKeys(resolvedDateKeys[i], resolvedDateKeys[i + 1]) > 0) {
+        resolvedDateKeys[i] = resolvedDateKeys[i + 1];
+      }
+    }
+
+    // Forward cap at app today
+    for (let i = 0; i < n; i++) {
+      if (resolvedDateKeys[i] !== 'old' && compareDateKeys(resolvedDateKeys[i], appTodayKey) > 0) {
+        resolvedDateKeys[i] = appTodayKey;
+      }
+    }
+
+    // Final forward check: date[i] <= date[i+1]
+    for (let i = 0; i < n - 1; i++) {
+      if (compareDateKeys(resolvedDateKeys[i], resolvedDateKeys[i + 1]) > 0) {
+        resolvedDateKeys[i + 1] = resolvedDateKeys[i];
+      }
+    }
+
+    // Step 5: Return messages with healed date and synchronized epoch
+    return validMessages.map((msg, i) => {
+      const finalDateKey = resolvedDateKeys[i] || 'old';
+      const timeStr = msg.timestamp || '00:00';
+
+      let calculatedEpoch = msg.timestampEpoch;
+      if (!calculatedEpoch || Number.isNaN(calculatedEpoch)) {
+        if (finalDateKey === 'old') {
+          calculatedEpoch = 1704067200000 + i * 60000; // Jan 1, 2024 sequential
+        } else {
+          const [year, month, day] = finalDateKey.split('-').map(Number);
+          const [hours, minutes] = (timeStr.includes(':') ? timeStr : '00:00').split(':').map(Number);
+          const d = new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, 0, 0);
+          calculatedEpoch = !Number.isNaN(d.getTime()) ? d.getTime() : Date.now();
+        }
+      }
+
+      if (msg.date === finalDateKey && msg.timestampEpoch === calculatedEpoch) {
+        return msg;
+      }
+
+      return {
+        ...msg,
+        date: finalDateKey,
+        timestampEpoch: calculatedEpoch
+      };
+    });
+  } catch (err) {
+    console.error("resolveChatMessagesDates caught error safely:", err);
+    return messages;
+  }
+};
+
+export const getMessageTimestampEpoch = (message?: Message | null, settings?: AppSettings): number => {
+  if (!message) return Date.now();
+  if (typeof message.timestampEpoch === 'number' && !Number.isNaN(message.timestampEpoch)) {
+    return message.timestampEpoch;
+  }
   
   if (message.id && /^\d+(\.\d+)?$/.test(message.id)) {
     const parsedId = parseInt(message.id.split('-')[0], 10);
@@ -118,13 +294,20 @@ export const getMessageTimestampEpoch = (message: Message): number => {
     }
   }
 
-  const dateKey = message.date || getLocalDateKey();
+  const dateKey = (message.date && message.date !== 'old') ? message.date : getAppDateKey(settings);
   const timeStr = message.timestamp || '00:00';
-  const [year, month, day] = dateKey.split('-').map(Number);
-  const [hours, minutes] = timeStr.split(':').map(Number);
+  const parts = dateKey.split('-').map(Number);
+  const timeParts = (timeStr.includes(':') ? timeStr : '00:00').split(':').map(Number);
   
-  const d = new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
-  return d.getTime();
+  const year = parts[0] || 2026;
+  const month = parts[1] || 1;
+  const day = parts[2] || 1;
+  const hours = timeParts[0] || 0;
+  const minutes = timeParts[1] || 0;
+
+  const d = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  const epoch = d.getTime();
+  return Number.isNaN(epoch) ? Date.now() : epoch;
 };
 
 export const getTimeGapAndFrequencyContext = (messages: Message[], isInitiationTrigger: boolean, settings?: AppSettings): string | undefined => {

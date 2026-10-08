@@ -4,6 +4,8 @@ import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Came
 import { FileAttachment, Message } from '../types';
 import { compressImage } from '../utils/imageCompressor';
 import { formatAudioDuration } from '../utils/audio';
+import { triggerHaptic } from '../utils/haptics';
+import { EmojiPickerTray } from './EmojiPickerTray';
 
 interface MessageInputProps {
   onSendMessage: (
@@ -12,7 +14,9 @@ interface MessageInputProps {
     replyTo?: Message, 
     isEvent?: boolean, 
     eventTitle?: string,
-    voiceAttachment?: FileAttachment
+    voiceAttachment?: FileAttachment,
+    isSticker?: boolean,
+    isGif?: boolean
   ) => void;
   activeChatId: string;
   chatName?: string;
@@ -34,6 +38,8 @@ const WhatsAppMicIcon = ({ size = 20, className = '' }) => (
 export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activeChatId, chatName, replyingTo, onCancelReply }) => {
   const [text, setText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showNativeHint, setShowNativeHint] = useState(false);
+  const nativeHintTimerRef = useRef<number | null>(null);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [stagedAttachment, setStagedAttachment] = useState<FileAttachment | null>(null);
   const [stagedVoiceNote, setStagedVoiceNote] = useState<FileAttachment | null>(null);
@@ -66,6 +72,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     }, 100);
 
     setShowEmojiPicker(false);
+    setShowNativeHint(false);
     setShowAttachmentMenu(false);
     setStagedAttachment(null);
     setStagedVoiceNote(null);
@@ -92,27 +99,33 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
   // Click outside handlers
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      // Check emoji picker
-      const isEmojiToggleClick = emojiRef.current?.contains(event.target as Node);
-      const isEmojiMenuClick = emojiMenuRef.current?.contains(event.target as Node);
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      // Check emoji trigger or emoji menu
+      const isEmojiToggleClick = emojiRef.current?.contains(target);
+      const isEmojiMenuClick = emojiMenuRef.current?.contains(target);
       if (!isEmojiToggleClick && !isEmojiMenuClick) {
         setShowEmojiPicker(false);
       }
 
       // Check attachment menu
-      const isAttachToggleClick = attachRef.current?.contains(event.target as Node);
-      const isAttachMenuClick = attachMenuRef.current?.contains(event.target as Node);
+      const isAttachToggleClick = attachRef.current?.contains(target);
+      const isAttachMenuClick = attachMenuRef.current?.contains(target);
       if (!isAttachToggleClick && !isAttachMenuClick) {
         setShowAttachmentMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   const handleSend = () => {
     if (text.trim() || stagedAttachment || stagedVoiceNote) {
+      triggerHaptic('send');
       onSendMessage(
         text, 
         stagedAttachment || undefined, 
@@ -125,11 +138,127 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
       setStagedAttachment(null);
       setStagedVoiceNote(null);
       if (onCancelReply) onCancelReply();
-      setShowEmojiPicker(false);
       if (inputRef.current) {
         inputRef.current.style.height = 'auto';
         inputRef.current.focus();
       }
+    }
+  };
+
+  const handleEmojiClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    triggerHaptic('tap');
+    setShowAttachmentMenu(false);
+    setShowEmojiPicker(prev => !prev);
+  };
+
+  const handleSelectEmoji = (emoji: string) => {
+    const textarea = inputRef.current;
+    if (!textarea) {
+      setText(prev => prev + emoji);
+      return;
+    }
+    const start = textarea.selectionStart ?? text.length;
+    const end = textarea.selectionEnd ?? text.length;
+    const newText = text.substring(0, start) + emoji + text.substring(end);
+    setText(newText);
+
+    requestAnimationFrame(() => {
+      const newPos = start + emoji.length;
+      textarea.setSelectionRange(newPos, newPos);
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    });
+  };
+
+  const handleRichFiles = async (files: FileList | File[]) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    if (!file) return;
+
+    const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
+    const isVideo = file.type.startsWith('video/') || file.name.toLowerCase().endsWith('.mp4') || file.name.toLowerCase().endsWith('.webm');
+    const isWebpSticker = file.type === 'image/webp' || file.name.toLowerCase().includes('sticker');
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      if (!dataUrl) return;
+
+      if (isGif || isVideo) {
+        // Native GIF or short looping video frames without sound
+        const gifAttachment: FileAttachment = {
+          name: file.name || (isVideo ? 'clip.mp4' : 'animation.gif'),
+          data: dataUrl,
+          type: isVideo ? 'video' : 'image',
+          size: file.size,
+          isGif: true
+        };
+        triggerHaptic('send');
+        onSendMessage(text.trim(), gifAttachment, replyingTo || undefined, false, undefined, undefined, false, true);
+        setText('');
+        if (onCancelReply) onCancelReply();
+      } else if (isWebpSticker) {
+        // Native Sticker
+        const stickerAttachment: FileAttachment = {
+          name: file.name || 'sticker.webp',
+          data: dataUrl,
+          type: 'image',
+          size: file.size
+        };
+        triggerHaptic('send');
+        onSendMessage('', stickerAttachment, replyingTo || undefined, false, undefined, undefined, true, false);
+        if (onCancelReply) onCancelReply();
+      } else if (file.type.startsWith('image/')) {
+        // Standard pasted image
+        setStagedAttachment({
+          name: file.name || 'pasted-image.png',
+          data: dataUrl,
+          type: 'image',
+          size: file.size
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+
+    const files: File[] = [];
+    if (clipboardData.files && clipboardData.files.length > 0) {
+      for (let i = 0; i < clipboardData.files.length; i++) {
+        files.push(clipboardData.files[i]);
+      }
+    } else if (clipboardData.items && clipboardData.items.length > 0) {
+      for (let i = 0; i < clipboardData.items.length; i++) {
+        const item = clipboardData.items[i];
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      e.preventDefault();
+      handleRichFiles(files);
+    }
+  };
+
+  const handleBeforeInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const inputEvent = e.nativeEvent as any;
+    if (inputEvent?.dataTransfer?.files && inputEvent.dataTransfer.files.length > 0) {
+      e.preventDefault();
+      handleRichFiles(inputEvent.dataTransfer.files);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      e.preventDefault();
+      handleRichFiles(e.dataTransfer.files);
     }
   };
 
@@ -161,10 +290,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     }
   };
 
-  const handleEmojiClick = (emoji: string) => {
-    setText(prev => prev + emoji);
-    inputRef.current?.focus();
-  };
 
   const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'document' | 'audio') => {
     const file = e.target.files?.[0];
@@ -558,8 +683,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             <>
               <div className="relative p-[12px] pl-[14px] shrink-0" ref={emojiRef}>
                 <button
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className={`transition-colors flex items-center justify-center ${showEmojiPicker ? 'text-[#21c063]' : 'text-[#8696a0] hover:text-[#21c063]'}`}
+                  type="button"
+                  onClick={handleEmojiClick}
+                  className={`transition-colors flex items-center justify-center ${showEmojiPicker ? 'text-[#21c063]' : 'text-[#8696a0] hover:text-[#21c063]'} active:scale-90 touch-icon cursor-pointer`}
+                  title="Open emojis"
+                  aria-label="Open emojis"
                 >
                   <Smile size={26} strokeWidth={2} />
                 </button>
@@ -590,12 +718,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                     handleSend();
                   }
                 }}
+                onPaste={handlePaste}
+                onBeforeInput={handleBeforeInput}
+                onDrop={handleDrop}
               />
 
               <div className="relative p-[12px] pr-4 shrink-0 flex items-center gap-[16px] text-[#8696a0]" ref={attachRef}>
                 <button
                   type="button"
-                  onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+                  onClick={() => {
+                    setShowEmojiPicker(false);
+                    setShowAttachmentMenu(!showAttachmentMenu);
+                  }}
                   className={`transition-transform duration-200 hover:text-black/60 dark:hover:text-white/80 ${showAttachmentMenu ? 'text-[#21c063] -rotate-45' : ''}`}
                   title="Attach"
                 >
@@ -631,15 +765,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
           {text.trim() || stagedAttachment || stagedVoiceNote ? (
             <button
               onClick={handleSend}
-              className="w-full h-full bg-[#21c063] hover:bg-[#1eb05b] rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-[0_2px_8px_rgba(33,192,99,0.3)]"
+              className="w-full h-full bg-[#21c063] hover:bg-[#1eb05b] rounded-full flex items-center justify-center text-white transition-all duration-150 active:scale-90 hover:scale-105 shadow-[0_2px_8px_rgba(33,192,99,0.3)] touch-btn"
               title="Send"
             >
               <SendHorizontal size={24} fill="currentColor" strokeWidth={1} className="ml-1" />
             </button>
           ) : (
             <button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`w-full h-full rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-[0_2px_8px_rgba(33,192,99,0.3)] ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-[#21c063] hover:bg-[#1eb05b]'}`}
+              onClick={() => {
+                triggerHaptic(isRecording ? 'tap' : 'send');
+                if (isRecording) stopRecording();
+                else startRecording();
+              }}
+              className={`w-full h-full rounded-full flex items-center justify-center text-white transition-all duration-150 active:scale-90 hover:scale-105 shadow-[0_2px_8px_rgba(33,192,99,0.3)] touch-btn ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-[#21c063] hover:bg-[#1eb05b]'}`}
               title={isRecording ? "Stop recording" : "Record voice note"}
             >
               {isRecording ? <Square size={18} fill="currentColor" /> : <WhatsAppMicIcon size={24} className="ml-[1px]" />}
@@ -753,27 +891,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
           </div>
         )}
 
-        {/* Emoji Picker (Absolute) */}
+        {/* Authentic WhatsApp Emoji Picker Tray */}
         {showEmojiPicker && (
-          <div ref={emojiMenuRef} className="absolute bottom-[60px] left-2 md:left-4 w-[calc(100vw-16px)] md:w-[320px] h-[340px] app-panel shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200 border app-border z-[100]">
-            <div className="p-3 bg-gray-50 dark:bg-[#182229] text-[calc(var(--msg-font-size)-1.5px)] font-medium text-[#21c063] border-b app-border">
-              RECENTLY USED
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 grid grid-cols-7 sm:grid-cols-8 gap-1">
-              {EMOJIS.map((emoji, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleEmojiClick(emoji)}
-                  className="text-2xl hover:bg-black/5 dark:hover:bg-white/5 p-1 rounded transition-colors"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
+          <div
+            ref={emojiMenuRef}
+            className="absolute bottom-[60px] left-[8px] sm:left-[12px] z-[100] w-[calc(100vw-16px)] sm:w-[380px] max-w-[420px]"
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            <EmojiPickerTray
+              onSelectEmoji={handleSelectEmoji}
+              onClose={() => setShowEmojiPicker(false)}
+            />
           </div>
         )}
 
       </div>
+
     </div>
   );
 };

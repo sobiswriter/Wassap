@@ -4,9 +4,10 @@ export type MessageStatus = 'sent' | 'delivered' | 'read' | 'failed' | 'pending'
 export interface FileAttachment {
   name: string;
   data: string; // Base64 (original or preview)
-  type: 'image' | 'document' | 'audio';
+  type: 'image' | 'document' | 'audio' | 'video';
   size?: number;
   mediaId?: string; // ID for IndexedDB storage
+  isGif?: boolean;
 }
 
 export interface Message {
@@ -31,6 +32,10 @@ export interface Message {
   timestampEpoch?: number;
   isImageRequest?: boolean;
   isMemoryRecall?: boolean;
+  reactions?: string[];
+  isStarred?: boolean;
+  isSticker?: boolean;
+  isGif?: boolean;
 }
 
 export interface MemoryBubble {

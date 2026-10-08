@@ -49,7 +49,7 @@ import {
   isRawErrorMessage,
   getInCharacterNetworkGlitchExcuse
 } from './services/geminiService';
-import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext, getAppNow, getAppDateKey, getAppFormattedTime, getAppTimeContext } from './utils/dates';
+import { formatDateRangeLabel, getLocalDateKey, getTimeGapAndFrequencyContext, getAppNow, getAppDateKey, getAppFormattedTime, getAppTimeContext, resolveChatMessagesDates } from './utils/dates';
 import { cleanSpokenTranscript } from './utils/audio';
 import { 
   saveMedia, 
@@ -109,7 +109,8 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
     timestamp: m.timestamp,
     date: m.date,
     isEvent: (m as any).isEvent,
-    eventTitle: (m as any).eventTitle
+    eventTitle: (m as any).eventTitle,
+    reactions: m.reactions
   }));
 
   const groupContext = chat.isGroup ? {
@@ -636,7 +637,7 @@ const App: React.FC = () => {
               voiceForVoice: true
             };
 
-            const healedMessages = (Array.isArray(chat?.messages) ? chat.messages : []).map(msg => {
+            const rawMappedMessages = (Array.isArray(chat?.messages) ? chat.messages : []).map(msg => {
               const cleanMsg = {
                 ...msg,
                 senderName: msg.senderName || (msg.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined)),
@@ -659,6 +660,14 @@ const App: React.FC = () => {
               return cleanMsg;
             });
 
+            // Dynamically resolve & heal non-regressive monotonic dates for all messages
+            let healedMessages = rawMappedMessages;
+            try {
+              healedMessages = resolveChatMessagesDates(rawMappedMessages, globalActiveSettings);
+            } catch (err) {
+              console.warn("Date healing fallback for chat:", chat.id, err);
+            }
+
             let healedLastMessage = chat.lastMessage;
             if (isRawErrorMessage(healedLastMessage)) {
               healedLastMessage = healedMessages[healedMessages.length - 1]?.text || "Hey!";
@@ -677,13 +686,20 @@ const App: React.FC = () => {
         console.error("Failed to parse chats safely", e);
       }
     }
-    return INITIAL_CHATS.map(chat => ({
-      ...chat,
-      messages: (chat.messages || []).map(msg => ({
+    return INITIAL_CHATS.map(chat => {
+      const msgs = (chat.messages || []).map(msg => ({
         ...msg,
         senderName: msg.senderName || (msg.sender === 'me' ? 'You' : (!chat.isGroup ? chat.name : undefined))
-      }))
-    }));
+      }));
+      try {
+        return {
+          ...chat,
+          messages: resolveChatMessagesDates(msgs, globalActiveSettings)
+        };
+      } catch {
+        return { ...chat, messages: msgs };
+      }
+    });
   });
 
   const getInitialChatId = (): string => {
@@ -717,6 +733,7 @@ const App: React.FC = () => {
   const aiResponseTimeoutsRef = React.useRef<Record<string, number>>({});
   const aiRespondingChatsRef = React.useRef<Set<string>>(new Set());
   const pendingTimeGapsRef = React.useRef<Record<string, string | undefined>>({});
+  const pendingReactionContextsRef = React.useRef<Record<string, string | undefined>>({});
   const leftOnReadTimeoutsRef = React.useRef<Record<string, number>>({});
   const handleAutomationTriggerRef = React.useRef<((chatId: string, context: string, triggerId?: string, type?: 'normal' | 'catchup' | 'inactivity', forceNotification?: boolean) => Promise<void>) | null>(null);
   const personaOnlineTimersRef = React.useRef<Record<string, number>>({});
@@ -1765,7 +1782,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     replyTo?: Message, 
     isEvent?: boolean, 
     eventTitle?: string,
-    voiceAttachment?: FileAttachment
+    voiceAttachment?: FileAttachment,
+    isSticker?: boolean,
+    isGif?: boolean
   ) => {
     if (leftOnReadTimeoutsRef.current[targetChat.id]) {
       clearTimeout(leftOnReadTimeoutsRef.current[targetChat.id]);
@@ -1776,7 +1795,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     const date = getDateKey();
 
     let mediaId = '';
-    if (attachment && (attachment.type === 'image' || attachment.type === 'audio')) {
+    if (attachment && (attachment.type === 'image' || attachment.type === 'audio' || attachment.type === 'video')) {
       mediaId = `media-${Date.now()}`;
       try {
         await saveMedia(mediaId, attachment.data);
@@ -1815,8 +1834,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       text: displayText,
       attachment: attachment ? {
         ...attachment,
-        data: (attachment.type === 'image' || attachment.type === 'audio') ? '' : attachment.data, // Strip media data for storage
-        mediaId
+        data: (attachment.type === 'image' || attachment.type === 'audio' || attachment.type === 'video') ? '' : attachment.data, // Strip media data for storage
+        mediaId,
+        isGif: isGif || attachment.isGif
       } : undefined,
       voiceAttachment: voiceAttachment ? {
         ...voiceAttachment,
@@ -1836,7 +1856,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       isEvent,
       eventTitle: isEvent ? eventTitle : undefined,
       isImageRequest,
-      isMemoryRecall
+      isMemoryRecall,
+      isSticker,
+      isGif: isGif || attachment?.isGif
     };
 
     setReplyingTo(null);
@@ -1844,10 +1866,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     setChats(prev => prev.map(chat => {
       if (chat.id === targetChat.id) {
         let lastMsg = displayText || 'Attachment';
-        const hasImg = attachment?.type === 'image';
+        const hasImg = attachment?.type === 'image' || attachment?.type === 'video';
         const hasVoice = (attachment?.type === 'audio') || !!voiceAttachment;
 
-        if (hasImg && hasVoice) {
+        if (isSticker) {
+          lastMsg = '🎨 Sticker';
+        } else if (isGif || attachment?.isGif) {
+          lastMsg = '👾 GIF' + (displayText ? `: ${displayText}` : '');
+        } else if (hasImg && hasVoice) {
           lastMsg = '📷 Photo + 🎤 Voice note' + (displayText ? `: ${displayText}` : '');
         } else if (hasImg) {
           lastMsg = '📷 Photo' + (displayText ? `: ${displayText}` : '');
@@ -1903,15 +1929,18 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }, deliveryDelay);
 
     // Trigger AI response(s)
-    if (isImageRequest || isMemoryRecall || settings.enableTextStacking === false || bypassStacking) {
-      if (bypassStacking && aiResponseTimeoutsRef.current[chatId]) {
+    const isStackingEnabled = settings.enableTextStacking !== false;
+    if (!isStackingEnabled) {
+      if (aiResponseTimeoutsRef.current[chatId]) {
         clearTimeout(aiResponseTimeoutsRef.current[chatId]);
         delete aiResponseTimeoutsRef.current[chatId];
       }
       const memoryContext = buildMemoryRecallContext(targetChat, text);
       const scheduleContext = buildScheduleContext(targetChat);
       const timeGapContext = getTimeGapAndFrequencyContext([...targetChat.messages, userMsg], false, settingsRef.current);
-      const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
+      const reactionCtx = pendingReactionContextsRef.current[chatId];
+      delete pendingReactionContextsRef.current[chatId];
+      const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext, reactionCtx);
 
       if (targetChat.isGroup) {
         handleGroupResponse(targetChat, [...targetChat.messages, userMsg], combinedContexts);
@@ -1919,6 +1948,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         handleSingleResponse(targetChat, [...targetChat.messages, userMsg], combinedContexts, isImageRequest, displayText);
       }
     } else {
+      // Stacking is enabled: all messages, images, audio, and expressions obey the stack up rule
       const hasPendingTimeout = !!aiResponseTimeoutsRef.current[chatId];
       if (hasPendingTimeout) {
         clearTimeout(aiResponseTimeoutsRef.current[chatId]);
@@ -1930,11 +1960,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         pendingTimeGapsRef.current[chatId] = timeGapContext;
       }
 
-      const isVoiceNoteIncoming = userMsg?.attachment?.type === 'audio' || !!userMsg?.voiceAttachment || !!userMsg?.voiceMediaId;
       const isOnlineSession = targetChat.status === 'online';
-      const delaySeconds = isVoiceNoteIncoming
-        ? 1.5
-        : (isOnlineSession ? Math.min(settings.textStackingDelay || 10, 3) : (settings.textStackingDelay || 10));
+      const delaySeconds = isOnlineSession
+        ? Math.min(settings.textStackingDelay || 10, 4)
+        : (settings.textStackingDelay || 10);
 
       aiResponseTimeoutsRef.current[chatId] = window.setTimeout(async () => {
         delete aiResponseTimeoutsRef.current[chatId];
@@ -1954,6 +1983,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           try {
             const savedTimeGap = pendingTimeGapsRef.current[chatId];
             delete pendingTimeGapsRef.current[chatId];
+            const reactionCtx = pendingReactionContextsRef.current[chatId];
+            delete pendingReactionContextsRef.current[chatId];
 
             // Extract the user's stack of messages since last AI message
             const lastAiMsgIdx = [...freshChat.messages].reverse().findIndex(m => m.sender === 'other');
@@ -1961,12 +1992,12 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               ? freshChat.messages
               : freshChat.messages.slice(freshChat.messages.length - lastAiMsgIdx);
             
-            const combinedText = userStackMessages.map(m => m.text).join(' ');
+            const combinedText = userStackMessages.map(m => m.text).filter(Boolean).join(' ');
             const hasImgReq = userStackMessages.some(m => m.isImageRequest);
 
             const memoryContext = buildMemoryRecallContext(freshChat, combinedText);
             const scheduleContext = buildScheduleContext(freshChat);
-            const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, savedTimeGap);
+            const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, savedTimeGap, reactionCtx);
 
             if (freshChat.isGroup) {
               await handleGroupResponse(freshChat, freshChat.messages, combinedContexts);
@@ -1989,10 +2020,147 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     replyTo?: Message, 
     isEvent?: boolean, 
     eventTitle?: string,
-    voiceAttachment?: FileAttachment
+    voiceAttachment?: FileAttachment,
+    isSticker?: boolean,
+    isGif?: boolean
   ) => {
     if (!activeChat) return;
-    await sendMessageToChat(activeChat, text, attachment, replyTo, isEvent, eventTitle, voiceAttachment);
+    await sendMessageToChat(activeChat, text, attachment, replyTo, isEvent, eventTitle, voiceAttachment, isSticker, isGif);
+  };
+
+  const handleToggleReaction = (chatId: string, messageId: string, emoji: string) => {
+    let wasAdded = false;
+    let targetMessage: Message | undefined;
+
+    setChats(prev => prev.map(chat => {
+      if (chat.id !== chatId) return chat;
+      return {
+        ...chat,
+        messages: chat.messages.map(msg => {
+          if (msg.id !== messageId) return msg;
+          targetMessage = msg;
+          const currentReactions = msg.reactions || [];
+          const exists = currentReactions.includes(emoji);
+          wasAdded = !exists;
+          const updatedReactions = exists
+            ? currentReactions.filter(r => r !== emoji)
+            : [...currentReactions.filter(r => r !== emoji), emoji];
+          return {
+            ...msg,
+            reactions: updatedReactions.length > 0 ? updatedReactions : undefined
+          };
+        })
+      };
+    }));
+
+    // If reaction was added, provide context and trigger persona interaction following stacking rules
+    if (wasAdded && targetMessage) {
+      const targetChat = chatsRef.current.find(c => c.id === chatId);
+      if (!targetChat) return;
+
+      const isTargetMe = targetMessage.sender === 'me';
+      const authorLabel = isTargetMe ? 'their own' : (targetChat.isGroup ? (targetMessage.senderName || 'another member') : 'your');
+      const msgDesc = targetMessage.attachment?.type === 'image' || targetMessage.image
+        ? 'photo'
+        : (targetMessage.attachment?.type === 'video' || targetMessage.isGif ? 'GIF' : (targetMessage.attachment?.type === 'audio' || targetMessage.voiceAttachment ? 'voice note' : 'message'));
+      const textPreview = targetMessage.text ? ` ("${targetMessage.text.slice(0, 80)}")` : '';
+      
+      const reactionPrompt = `[USER REACTION EVENT]: The user just reacted with "${emoji}" to ${authorLabel} ${msgDesc}${textPreview}. Acknowledge or react naturally to this expression/emotion in-character!`;
+
+      // Merge into pending reaction context for this chat
+      const prevReaction = pendingReactionContextsRef.current[chatId];
+      pendingReactionContextsRef.current[chatId] = prevReaction
+        ? `${prevReaction} and also reacted with "${emoji}"`
+        : reactionPrompt;
+
+      const settings = settingsRef.current;
+      const isStackingEnabled = settings.enableTextStacking !== false;
+
+      if (!isStackingEnabled) {
+        const reactionCtx = pendingReactionContextsRef.current[chatId];
+        delete pendingReactionContextsRef.current[chatId];
+        
+        const scheduleContext = buildScheduleContext(targetChat);
+        const combinedContexts = combinePersonaContexts(scheduleContext, reactionCtx);
+
+        if (targetChat.isGroup) {
+          handleGroupResponse(targetChat, targetChat.messages, combinedContexts);
+        } else {
+          handleSingleResponse(targetChat, targetChat.messages, combinedContexts, false, `[Reacted ${emoji}]`);
+        }
+      } else {
+        // Stacking rule: debounce / pool with other messages, images, audio, or reactions
+        if (aiResponseTimeoutsRef.current[chatId]) {
+          clearTimeout(aiResponseTimeoutsRef.current[chatId]);
+        }
+
+        const isOnlineSession = targetChat.status === 'online';
+        const delaySeconds = isOnlineSession
+          ? Math.min(settings.textStackingDelay || 10, 4)
+          : (settings.textStackingDelay || 10);
+
+        aiResponseTimeoutsRef.current[chatId] = window.setTimeout(async () => {
+          delete aiResponseTimeoutsRef.current[chatId];
+          markUserMessagesDelivered(chatId);
+
+          const checkBusyAndTrigger = async () => {
+            if (aiRespondingChatsRef.current.has(chatId)) {
+              aiResponseTimeoutsRef.current[chatId] = window.setTimeout(checkBusyAndTrigger, 1000);
+              return;
+            }
+
+            const freshChat = chatsRef.current.find(c => c.id === chatId);
+            if (!freshChat) return;
+
+            aiRespondingChatsRef.current.add(chatId);
+            try {
+              const reactionCtx = pendingReactionContextsRef.current[chatId];
+              delete pendingReactionContextsRef.current[chatId];
+              const savedTimeGap = pendingTimeGapsRef.current[chatId];
+              delete pendingTimeGapsRef.current[chatId];
+
+              const lastAiMsgIdx = [...freshChat.messages].reverse().findIndex(m => m.sender === 'other');
+              const userStackMessages = lastAiMsgIdx === -1
+                ? freshChat.messages
+                : freshChat.messages.slice(freshChat.messages.length - lastAiMsgIdx);
+              
+              const combinedText = userStackMessages.map(m => m.text).filter(Boolean).join(' ');
+              const hasImgReq = userStackMessages.some(m => m.isImageRequest);
+
+              const memoryContext = buildMemoryRecallContext(freshChat, combinedText);
+              const scheduleContext = buildScheduleContext(freshChat);
+              const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, savedTimeGap, reactionCtx);
+
+              if (freshChat.isGroup) {
+                await handleGroupResponse(freshChat, freshChat.messages, combinedContexts);
+              } else {
+                await handleSingleResponse(freshChat, freshChat.messages, combinedContexts, hasImgReq, combinedText || `[Reacted ${emoji}]`);
+              }
+            } finally {
+              aiRespondingChatsRef.current.delete(chatId);
+            }
+          };
+
+          checkBusyAndTrigger();
+        }, delaySeconds * 1000);
+      }
+    }
+  };
+
+  const handleToggleStar = (chatId: string, messageId: string) => {
+    setChats(prev => prev.map(chat => {
+      if (chat.id !== chatId) return chat;
+      return {
+        ...chat,
+        messages: chat.messages.map(msg => {
+          if (msg.id !== messageId) return msg;
+          return {
+            ...msg,
+            isStarred: !msg.isStarred
+          };
+        })
+      };
+    }));
   };
 
   const handleSendPhotoToChat = async (targetChatId: string, fileData: string, caption?: string) => {
@@ -2034,7 +2202,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         return {
           text,
           sender: m.sender,
-          image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
+          senderName: m.senderName,
+          reactions: m.reactions,
+          image: mediaData && (m.attachment?.type === 'image' || m.attachment?.type === 'video' || m.image) ? mediaData : undefined,
           audio: (mediaData && m.attachment?.type === 'audio') ? mediaData : (voiceData || undefined)
         };
       }));
@@ -2549,7 +2719,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             text,
             sender: m.sender,
             senderName: m.senderName,
-            image: mediaData && (m.attachment?.type === 'image' || m.image) ? mediaData : undefined,
+            reactions: m.reactions,
+            image: mediaData && (m.attachment?.type === 'image' || m.attachment?.type === 'video' || m.image) ? mediaData : undefined,
             audio: (mediaData && m.attachment?.type === 'audio') ? mediaData : (voiceData || undefined)
           };
         }));
@@ -3190,6 +3361,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onSaveMemory={handleSaveMemory}
             onDeleteMessages={handleDeleteMessages}
             onMarkAsRead={handleMarkAsRead}
+            onToggleReaction={handleToggleReaction}
+            onToggleStar={handleToggleStar}
             settings={settings}
           />
           {activeChat && (!isMobile || !showProfilePanel) && (

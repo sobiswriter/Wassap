@@ -9,6 +9,7 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  error?: Error;
 }
 
 class AppErrorBoundary extends Component<Props, State> {
@@ -21,8 +22,8 @@ class AppErrorBoundary extends Component<Props, State> {
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(_: Error): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -59,12 +60,21 @@ class AppErrorBoundary extends Component<Props, State> {
           <p className="text-sm text-gray-400 max-w-sm mb-6 leading-relaxed">
             Wassap encountered a temporary error. Your chats and data are safely saved. Click below to reload.
           </p>
-          <button
-            onClick={this.handleReset}
-            className="px-6 py-2.5 bg-[#00a884] hover:bg-[#008f6f] text-white font-semibold rounded-lg shadow-lg transition-colors cursor-pointer"
-          >
-            Reload App Cleanly
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={this.handleReset}
+              className="px-6 py-2.5 bg-[#00a884] hover:bg-[#008f6f] text-white font-semibold rounded-lg shadow-lg transition-colors cursor-pointer"
+            >
+              Reload App Cleanly
+            </button>
+          </div>
+          {this.state.error && (
+            <details className="mt-6 text-left max-w-md w-full bg-black/30 rounded-lg p-3 text-xs text-red-400 font-mono overflow-auto max-h-40 border border-white/10 select-text">
+              <summary className="cursor-pointer text-gray-400 font-sans text-xs mb-1 hover:text-white">Error Details</summary>
+              <div>{this.state.error.name}: {this.state.error.message}</div>
+              {this.state.error.stack && <pre className="mt-1 text-[10px] text-gray-500 whitespace-pre-wrap">{this.state.error.stack}</pre>}
+            </details>
+          )}
         </div>
       );
     }
