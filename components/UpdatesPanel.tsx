@@ -81,10 +81,23 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.9.6-hotfix1"
+              title="Voice Design Synthesis & Multi-Voice Persistence Hotfix"
+              date="October 2026"
+              isLatest={true}
+              changes={[
+                "Voice Design Direct Synthesis Routing: Fixed custom voice synthesis routing in Gemini 3.8 Flash TTS. Voice Design now properly injects custom voice configuration into speechConfig.voiceConfig: { voice: selectedVoice } on 3.8 models, with prompt-steered studio voice fallback on 3.1 fallback tiers, ensuring crafted voices (e.g. 'Lil Sis') are actually spoken instead of reverting to prebuilt studio voices.",
+                "Multi-Voice Crafting & Persistence Fix: Corrected unique ID generation and storage parsing across Vertex AI custom voices. Newly crafted and cloned voices now reliably persist in local storage with guaranteed unique non-colliding IDs and immediately show up in the saved voice selector without overwriting earlier voices.",
+                "Voice Crafted Confirmation Modal: Added a dedicated confirmation dialog immediately after synthesis that celebrates newly crafted voices, shows their prompt directives, provides a quick sample player, and features an instant 'Test Voice Note as [Persona]' button.",
+                "Direct Voice Note Auditioning: Added an instant 'Test Voice Note as [Persona]' button directly inside both Voice Design and Voice Replication cards in the Profile Panel, letting users audition their crafted personas with vocal bursts before sending chats.",
+                "Dynamic Contact Info Header: Voice Settings header subtitle now clearly reflects the active custom voice label (e.g. 'Lil Sis (female) (Prompted) · frequent · App Default') rather than displaying the studio voice name."
+              ]}
+            />
+            <UpdateItem 
               version="v1.9.6"
               title="Multi-Day Journal Recollections (Chronicle of Events) & Local Persona Migration Engine"
               date="October 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "Multi-Day Journal Recollection (Chronicle of Events): Overhauled diary generation for multi-day date spans. Fully resolved recency bias by grouping conversations chronologically by calendar date with balanced sampling for each day, ensuring the persona reflects on the full narrative arc and emotional milestones across the entire timeframe without skipping earlier days.",
                 "Adaptive Journal Titles & Range Presets: Intelligently titles memories based on duration—'Persona's Diary' for single days, 'Persona's Weekly Chronicle' for 6–8 day spans, and 'Persona's Recollection of Events' for extended date ranges up to 31 days.",

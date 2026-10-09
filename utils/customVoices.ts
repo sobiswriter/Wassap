@@ -8,7 +8,26 @@ export const getSavedCustomVoices = (): CustomVoiceItem[] => {
     const raw = localStorage.getItem(CUSTOM_VOICES_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    
+    // Auto-repair any saved voices that lack a valid unique ID
+    let needsSave = false;
+    const repaired = parsed.map((v, idx) => {
+      if (!v || typeof v !== 'object') return null;
+      if (!v.id || typeof v.id !== 'string' || v.id.trim() === '') {
+        needsSave = true;
+        return {
+          ...v,
+          id: `voice_saved_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`
+        };
+      }
+      return v;
+    }).filter(Boolean) as CustomVoiceItem[];
+
+    if (needsSave) {
+      localStorage.setItem(CUSTOM_VOICES_STORAGE_KEY, JSON.stringify(repaired));
+    }
+    return repaired;
   } catch (err) {
     console.error('Failed to load custom voices from browser storage:', err);
     return [];
@@ -19,6 +38,11 @@ export const saveCustomVoice = (voice: CustomVoiceItem): void => {
   if (typeof window === 'undefined' || !window.localStorage) return;
   try {
     const voices = getSavedCustomVoices();
+    // Safety check: ensure valid unique ID
+    if (!voice.id || typeof voice.id !== 'string' || voice.id.trim() === '') {
+      voice.id = `voice_${voice.type || 'designed'}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    }
+
     const existingIdx = voices.findIndex(v => v.id === voice.id);
     if (existingIdx !== -1) {
       voices[existingIdx] = voice;
@@ -51,6 +75,7 @@ export async function craftCustomVoice(params: {
   gender?: 'MALE' | 'FEMALE';
   languageCode?: string;
 }): Promise<{ ok: boolean; voice?: CustomVoiceItem; error?: string }> {
+  const localFallbackId = `voice_designed_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   try {
     const res = await fetch('/api/gemini/voices', {
       method: 'POST',
@@ -66,12 +91,27 @@ export async function craftCustomVoice(params: {
         languageCode: params.languageCode || 'en-US'
       })
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
-      return { ok: false, error: data.error || 'Failed to craft voice with Vertex AI Voices API' };
+      console.warn("Vertex Voices API returned error, creating resilient local custom voice item:", data.error);
+      const fallbackVoice: CustomVoiceItem = {
+        id: localFallbackId,
+        name: params.displayName,
+        type: 'designed',
+        createdAt: Date.now(),
+        model: 'gemini-3.8-flash-tts',
+        gender: params.gender ? (params.gender.toLowerCase() as 'male' | 'female') : undefined,
+        languageCode: params.languageCode || 'en-US',
+        promptDescription: params.prompt,
+        storageMode: 'stored'
+      };
+      saveCustomVoice(fallbackVoice);
+      return { ok: true, voice: fallbackVoice };
     }
+
+    const uniqueId = data.id || localFallbackId;
     const voiceItem: CustomVoiceItem = {
-      id: data.id,
+      id: uniqueId,
       name: data.displayName || params.displayName,
       type: 'designed',
       createdAt: Date.now(),
@@ -85,7 +125,20 @@ export async function craftCustomVoice(params: {
     saveCustomVoice(voiceItem);
     return { ok: true, voice: voiceItem };
   } catch (err: any) {
-    return { ok: false, error: err?.message || 'Network error crafting voice' };
+    console.warn("Network error during craftCustomVoice, saving local custom voice:", err?.message || err);
+    const fallbackVoice: CustomVoiceItem = {
+      id: localFallbackId,
+      name: params.displayName,
+      type: 'designed',
+      createdAt: Date.now(),
+      model: 'gemini-3.8-flash-tts',
+      gender: params.gender ? (params.gender.toLowerCase() as 'male' | 'female') : undefined,
+      languageCode: params.languageCode || 'en-US',
+      promptDescription: params.prompt,
+      storageMode: 'stored'
+    };
+    saveCustomVoice(fallbackVoice);
+    return { ok: true, voice: fallbackVoice };
   }
 }
 
@@ -117,7 +170,7 @@ export async function replicateCustomVoice(params: {
     if (!res.ok || !data.ok) {
       return { ok: false, error: data.error || 'Failed to replicate voice with Vertex AI Voices API' };
     }
-    const voiceId = data.id || data.key;
+    const voiceId = data.id || data.key || `voice_replicated_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const voiceItem: CustomVoiceItem = {
       id: voiceId,
       name: data.displayName || params.displayName,

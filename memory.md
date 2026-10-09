@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.9.6`
+- **Current Version**: `v1.9.6-hotfix1`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/` and `api/giphy/`, plus a local Express development server in `server/`.
@@ -14,7 +14,19 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Multi-Day Journal Recollections (Chronicle of Events) & Local Persona Migration Engine (`v1.9.6`)
+### 1. Voice Design Synthesis & Multi-Voice Persistence Hotfix (`v1.9.6-hotfix1`)
+- **Root Cause Analysis of Voice Design & Multi-Voice Issues**:
+  1. *Studio voice override*: `api/gemini/tts.ts`, `server/vertexHandler.ts`, and `services/geminiService.ts` hardcoded `voiceName: isCustomVoice ? 'Aoede' : selectedVoice` in `prebuiltVoiceConfig`. Gemini 3.8 Flash TTS expects custom voice resource names in `voiceConfig: { voice: selectedVoice }`, not `prebuiltVoiceConfig`.
+  2. *Custom voices not saving / disappearing*: The Vertex Voices API returns resource `name: "projects/.../locations/global/voices/voice_xxx"`, not a root `id` property. Thus `data.id` was `undefined`. In `utils/customVoices.ts`, `saveCustomVoice` called `findIndex(v => v.id === undefined)`, which continuously matched index 0 and overwrote the first saved voice on every craft/clone operation.
+  3. *No confirmation dialog or immediate feedback*: When a custom voice was crafted, there was no feedback modal showing its details or allowing an immediate test note, leaving users uncertain if it worked.
+- **The Resolution**:
+  - **Direct Voice Config Routing (`speechConfig.voiceConfig: { voice: selectedVoice }`)**: For custom voices on Gemini 3.8 models, synthesis payloads pass `{ voice: selectedVoice }` directly to Vertex AI, with automatic in-candidate fallback to a gender-matched studio voice + injected prompt directives if the custom voice is unresolved or falls back to Gemini 3.1.
+  - **Guaranteed Unique ID Generation & Auto-Repair (`utils/customVoices.ts`, `api/gemini/voices.ts`)**: Assigned guaranteed unique IDs (`res.voice?.id || res.voice?.name || ...`) and added auto-repair in `getSavedCustomVoices()` to repair legacy items with undefined IDs, ensuring all crafted voices display and persist.
+  - **Voice Crafted Confirmation Modal (`components/ProfilePanel.tsx`)**: Displays an interactive modal immediately upon successful crafting with the voice name, gender, prompt directive, sample audio preview, and a direct "Test Voice Note as [Persona]" button.
+  - **Direct Test Voice Note Action**: Added "Test Voice Note as [Persona]" buttons directly within both the Voice Design and Voice Replication cards in `ProfilePanel.tsx`.
+  - **Dynamic Contact Info Subtitle**: Contact Info header now dynamically displays the active voice name with `(Prompted)` or `(Cloned)` tags (e.g. `Lil Sis (female) (Prompted) · frequent · App Default`).
+
+### 2. Multi-Day Journal Recollections (Chronicle of Events) & Local Persona Migration Engine (`v1.9.6`)
 - **Root Cause Analysis of Multi-Day Diary Skipping**:
   - `messageHistory.slice(-40)` was discarding earlier days completely if the most recent 1–2 days contained 30–40 messages.
   - Messages passed to the diary endpoint previously lacked `date` and `timestamp`, giving the model a flat stream of text with zero day boundaries.

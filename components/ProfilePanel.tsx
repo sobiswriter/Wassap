@@ -176,6 +176,9 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   const [craftLanguage, setCraftLanguage] = useState('en-US');
   const [isCraftingVoice, setIsCraftingVoice] = useState(false);
   const [craftError, setCraftError] = useState<string | null>(null);
+  const [craftedSuccessVoice, setCraftedSuccessVoice] = useState<CustomVoiceItem | null>(null);
+  const [showCraftSuccessModal, setShowCraftSuccessModal] = useState(false);
+  const [isTestingVoiceNote, setIsTestingVoiceNote] = useState(false);
 
   // Feature B (Voice Replication) Cloning State
   const [showReplicatePanel, setShowReplicatePanel] = useState(false);
@@ -385,6 +388,44 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     }
   };
 
+  const handleTestDesignedVoiceNote = async (voiceOverride?: CustomVoiceItem) => {
+    setIsTestingVoiceNote(true);
+    try {
+      const activeVoice = voiceOverride?.id || formData.voiceSettings?.designedVoiceId || formData.voiceSettings?.voiceName || 'Aoede';
+      const promptToUse = voiceOverride?.promptDescription || customVoices.find(v => v.id === activeVoice)?.promptDescription;
+      const testText = `Hey! Just trying out my new voice on Wassap. Can you hear me clearly? <chuckle>`;
+      
+      const testVoiceSettings: PersonaVoiceSettings = {
+        ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+        enableVoiceDesign: true,
+        designedVoiceId: activeVoice,
+        designedVoiceName: voiceOverride?.name || formData.voiceSettings?.designedVoiceName,
+        stylePrompt: promptToUse || formData.voiceSettings?.stylePrompt
+      };
+
+      const res = await generateGeminiVoiceNote(
+        testText,
+        activeVoice,
+        settings,
+        {
+          name: formData.name,
+          speechStyle: formData.speechStyle,
+          role: formData.role
+        },
+        testVoiceSettings
+      );
+      if (res.ok && res.audioDataUrl) {
+        playAudioPreview(res.audioDataUrl, 'test-voice-note');
+      } else {
+        alert(res.error || "Failed to generate test voice note.");
+      }
+    } catch (err: any) {
+      alert("Error generating test voice note: " + (err?.message || err));
+    } finally {
+      setIsTestingVoiceNote(false);
+    }
+  };
+
   const handleExecuteCraftVoice = async () => {
     if (!craftPrompt.trim()) {
       setCraftError("Please provide a prompt describing the voice you want to craft.");
@@ -403,7 +444,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       });
 
       if (res.ok && res.voice) {
-        setCustomVoices(getSavedCustomVoices());
+        const freshVoices = getSavedCustomVoices();
+        setCustomVoices(freshVoices);
         const updatedVoiceSettings: PersonaVoiceSettings = {
           ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
           enableVoiceDesign: true,
@@ -415,6 +457,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
         setShowCraftVoicePanel(false);
         setCraftPrompt('');
         setCraftName('');
+        setCraftedSuccessVoice(res.voice);
+        setShowCraftSuccessModal(true);
       } else {
         setCraftError(res.error || "Failed to craft voice with Vertex AI.");
       }
@@ -940,6 +984,99 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
             >
               Got It
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Craft Voice Success Modal */}
+      {showCraftSuccessModal && craftedSuccessVoice && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[5000] p-4 animate-in fade-in duration-200">
+          <div className="app-panel rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in duration-200 border app-border space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b app-border pb-3">
+              <div className="flex items-center gap-2.5 text-primary font-semibold text-lg">
+                <Sparkles size={20} className="text-[#21c063]" />
+                <span>Voice Crafted Successfully!</span>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowCraftSuccessModal(false);
+                  setCraftedSuccessVoice(null);
+                }}
+                className="p-1 text-secondary hover:text-primary rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-[calc(var(--msg-font-size)-1px)]">
+              <div className="p-3 bg-[#21c063]/10 border border-[#21c063]/30 rounded-lg flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#21c063]/20 flex items-center justify-center text-[#21c063] shrink-0 font-bold">
+                  ✓
+                </div>
+                <div>
+                  <h4 className="font-semibold text-primary">{craftedSuccessVoice.name}</h4>
+                  <p className="text-xs text-secondary capitalize">
+                    {craftedSuccessVoice.gender?.toLowerCase() || 'Custom'} · {craftedSuccessVoice.type === 'prompted' ? 'Designed Voice' : 'Cloned Voice'}
+                  </p>
+                </div>
+              </div>
+
+              {craftedSuccessVoice.promptDescription && (
+                <div className="p-3 bg-black/5 dark:bg-white/5 rounded-lg space-y-1">
+                  <span className="text-[11px] font-semibold text-secondary uppercase tracking-wider block">Prompt Directive</span>
+                  <p className="text-xs text-primary italic">"{craftedSuccessVoice.promptDescription}"</p>
+                </div>
+              )}
+
+              <p className="text-xs text-secondary leading-relaxed">
+                This custom voice has been saved to your browser and automatically activated for <strong className="text-primary">{formData.name}</strong>. Gemini 3.8 TTS will synthesize audio using this tailored vocal profile.
+              </p>
+
+              {craftedSuccessVoice.sampleAudioDataUrl && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-black/5 dark:bg-white/5">
+                  <button
+                    type="button"
+                    onClick={() => playAudioPreview(craftedSuccessVoice.sampleAudioDataUrl!, craftedSuccessVoice.id)}
+                    className="p-2 bg-[#21c063] text-white rounded-lg hover:bg-[#008069] transition-colors flex items-center gap-1.5 text-xs font-medium"
+                  >
+                    {playingPreviewVoiceId === craftedSuccessVoice.id ? <Square size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                    <span>{playingPreviewVoiceId === craftedSuccessVoice.id ? "Stop Sample" : "Play Quick Sample"}</span>
+                  </button>
+                  <span className="text-[11px] text-secondary">Pre-rendered voice preview</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t app-border">
+              <button
+                type="button"
+                disabled={isTestingVoiceNote}
+                onClick={() => handleTestDesignedVoiceNote(craftedSuccessVoice)}
+                className="w-full sm:flex-1 bg-[#00a884] hover:bg-[#008f6f] text-white py-2.5 px-3 rounded-lg font-medium text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+              >
+                {isTestingVoiceNote ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Generating Voice Note...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play size={14} fill="currentColor" />
+                    <span>Test Voice Note as {formData.name}</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCraftSuccessModal(false);
+                  setCraftedSuccessVoice(null);
+                }}
+                className="w-full sm:w-auto px-5 py-2.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-primary rounded-lg font-medium text-xs transition-colors"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1587,13 +1724,20 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                 <div>
                   <h4 className="text-[calc(var(--msg-font-size)+0.5px)] text-primary font-medium">Voice Settings</h4>
                   <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary">
-                    {formData.voiceSettings?.frequency === 'off' 
-                      ? 'Off · Plain text only' 
-                      : `${formData.voiceSettings?.voiceName || 'Aoede'} · ${formData.voiceSettings?.frequency || 'off'} · ${
-                          formData.voiceSettings?.voiceModel
-                            ? (AVAILABLE_VOICE_MODELS.find(m => m.id === formData.voiceSettings?.voiceModel)?.label?.split(' ')[0] + ' ' + AVAILABLE_VOICE_MODELS.find(m => m.id === formData.voiceSettings?.voiceModel)?.label?.split(' ')[1] || formData.voiceSettings?.voiceModel)
-                            : 'App Default'
-                        }`}
+                    {(() => {
+                      if (formData.voiceSettings?.frequency === 'off') return 'Off · Plain text only';
+                      let activeVoiceLabel = formData.voiceSettings?.voiceName || 'Aoede';
+                      if (formData.voiceSettings?.enableVoiceDesign && formData.voiceSettings?.designedVoiceId) {
+                        activeVoiceLabel = `${formData.voiceSettings?.designedVoiceName || 'Designed Voice'} (Prompted)`;
+                      } else if (formData.voiceSettings?.enableVoiceReplication && formData.voiceSettings?.replicatedVoiceId) {
+                        activeVoiceLabel = `${formData.voiceSettings?.replicatedVoiceName || 'Replicated Voice'} (Cloned)`;
+                      }
+                      const freq = formData.voiceSettings?.frequency || 'off';
+                      const modelLabel = formData.voiceSettings?.voiceModel
+                        ? (AVAILABLE_VOICE_MODELS.find(m => m.id === formData.voiceSettings?.voiceModel)?.label?.split(' ')[0] + ' ' + AVAILABLE_VOICE_MODELS.find(m => m.id === formData.voiceSettings?.voiceModel)?.label?.split(' ')[1] || formData.voiceSettings?.voiceModel)
+                        : 'App Default';
+                      return `${activeVoiceLabel} · ${freq} · ${modelLabel}`;
+                    })()}
                   </p>
                 </div>
               </div>
@@ -1770,6 +1914,27 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                               }
                               return null;
                             })()}
+
+                            {formData.voiceSettings?.designedVoiceId && (
+                              <button
+                                type="button"
+                                disabled={isTestingVoiceNote}
+                                onClick={() => handleTestDesignedVoiceNote()}
+                                className="w-full flex items-center justify-center gap-1.5 text-xs text-white bg-[#00a884] hover:bg-[#008f6f] py-1.5 px-3 rounded-lg font-medium shadow-sm transition-all disabled:opacity-50"
+                              >
+                                {isTestingVoiceNote ? (
+                                  <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    <span>Generating Test Note...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play size={14} fill="currentColor" />
+                                    <span>Test Voice Note as {formData.name || 'Persona'}</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
                           </div>
 
                           {/* Toggle Craft Panel Button */}
@@ -1998,6 +2163,30 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                                 </>
                               )}
                             </div>
+
+                            {formData.voiceSettings?.replicatedVoiceId && (
+                              <button
+                                type="button"
+                                disabled={isTestingVoiceNote}
+                                onClick={() => {
+                                  const repVoice = customVoices.find(v => v.id === formData.voiceSettings?.replicatedVoiceId);
+                                  handleTestDesignedVoiceNote(repVoice);
+                                }}
+                                className="w-full flex items-center justify-center gap-1.5 text-xs text-white bg-blue-600 hover:bg-blue-700 py-1.5 px-3 rounded-lg font-medium shadow-sm transition-all disabled:opacity-50"
+                              >
+                                {isTestingVoiceNote ? (
+                                  <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    <span>Generating Test Note...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play size={14} fill="currentColor" />
+                                    <span>Test Cloned Voice as {formData.name || 'Persona'}</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
                           </div>
 
                           {/* Toggle Clone Panel Button */}

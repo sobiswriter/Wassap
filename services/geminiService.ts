@@ -3,6 +3,7 @@ import { UserProfile, AppSettings, HumaneSettings, MemoryBubble, PersonaVoiceSet
 import { DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, VERTEX_PASSCODE, getVoiceDescriptor, DEFAULT_VARY_MESSAGE_LENGTH_PROMPT } from "../constants";
 import { getAppTimeContext } from "../utils/dates";
 import { pcmBase64ToWavDataUrl, convertToGeminiVocalTags } from "../utils/audio";
+import { getSavedCustomVoices } from "../utils/customVoices";
 
 export async function checkVertexConnectionStatus(): Promise<{
   ok: boolean;
@@ -415,6 +416,7 @@ async function fetchVertexTTS(payload: {
   pitchTone?: string;
   personaName?: string;
   speechStyle?: string;
+  customVoicePrompt?: string;
 }, signal?: AbortSignal): Promise<{ ok: boolean; audioData?: string; error?: string }> {
   try {
     const res = await fetchWithTimeout('/api/gemini/tts', {
@@ -1137,13 +1139,28 @@ export const generateGeminiVoiceNote = async (
   }
 
   let selectedVoice = voiceName || voiceSettings?.voiceName || 'Aoede';
+  let isCustomVoiceId = false;
+  let customVoiceItem: any = undefined;
+
+  const savedVoices = typeof window !== 'undefined' ? getSavedCustomVoices() : [];
+
   if (voiceSettings?.enableVoiceDesign && voiceSettings.designedVoiceId) {
     selectedVoice = voiceSettings.designedVoiceId;
+    isCustomVoiceId = true;
+    customVoiceItem = savedVoices.find(v => v.id === voiceSettings.designedVoiceId);
   } else if (voiceSettings?.enableVoiceReplication && voiceSettings.replicatedVoiceId) {
     selectedVoice = voiceSettings.replicatedVoiceId;
+    isCustomVoiceId = true;
+    customVoiceItem = savedVoices.find(v => v.id === voiceSettings.replicatedVoiceId);
+  } else if (selectedVoice.startsWith('voice_') || selectedVoice.startsWith('voicekey_')) {
+    isCustomVoiceId = true;
+    customVoiceItem = savedVoices.find(v => v.id === selectedVoice);
   }
 
-  const isCustomVoiceId = selectedVoice.startsWith('voice_') || selectedVoice.startsWith('voicekey_');
+  if (isCustomVoiceId) {
+    console.info(`[Gemini TTS] Activating custom voice: "${customVoiceItem?.name || selectedVoice}" (Prompt: "${customVoiceItem?.promptDescription || 'N/A'}")`);
+  }
+
   const voiceDescriptor = getVoiceDescriptor(selectedVoice);
   const traitDesc = voiceDescriptor?.stylePrompt || voiceDescriptor?.trait || 'natural and expressive';
   const selectedModel = voiceSettings?.voiceModel || settings?.selectedVoiceModel || DEFAULT_VOICE_MODEL;
@@ -1151,6 +1168,9 @@ export const generateGeminiVoiceNote = async (
 
   // Build consolidated style directives (Feature C: togglable)
   const styleParts: string[] = [];
+  if (customVoiceItem?.promptDescription) {
+    styleParts.push(`custom vocal design: ${customVoiceItem.promptDescription}`);
+  }
   if (voiceSettings?.enableVoicePrompting !== false) {
     if (voiceSettings?.stylePrompt) {
       styleParts.push(voiceSettings.stylePrompt);
@@ -1197,7 +1217,8 @@ export const generateGeminiVoiceNote = async (
       paceSpeed: voiceSettings?.paceSpeed,
       pitchTone: voiceSettings?.pitchTone,
       personaName: personaContext?.name,
-      speechStyle: personaContext?.speechStyle
+      speechStyle: personaContext?.speechStyle,
+      customVoicePrompt: customVoiceItem?.promptDescription
     }, abortSignal);
     if (res.ok && res.audioData) {
       return { ok: true, audioDataUrl: res.audioData };
@@ -1238,20 +1259,24 @@ export const generateGeminiVoiceNote = async (
         const styleDirective = combinedStyle || 'natural and expressive';
         const personaDirective = personaContext?.name ? `as ${personaContext.name} ` : '';
 
-        // 3.8 Flash & Flash-Lite models receive pure verbatim text with vocal tags (Voice Design & Replication configured via voiceConfig)
+        // 3.8 Flash & Flash-Lite models receive pure verbatim text with vocal tags
         // 3.1 Preview models receive acting directive prompt steering
         const inputText = isCandidate38
           ? verbatimWithVocalTags
           : `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <chuckle>, <sigh>, <gasp>, <whispers>, <cough>, <short pause>: ${verbatimWithVocalTags}`;
 
+        const voiceConfigToUse = (isCustomVoiceId && isCandidate38)
+          ? { voice: selectedVoice }
+          : {
+              prebuiltVoiceConfig: {
+                voiceName: isCustomVoiceId ? (voiceDescriptor?.name || 'Zephyr') : selectedVoice,
+              }
+            };
+
         const generateConfig: any = {
           responseModalities: ["AUDIO"],
           speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: isCustomVoiceId ? 'Aoede' : selectedVoice,
-              }
-            }
+            voiceConfig: voiceConfigToUse
           }
         };
 
@@ -1265,14 +1290,43 @@ export const generateGeminiVoiceNote = async (
           }
         });
 
-        const response = await Promise.race([
-          ai.models.generateContent({
-            model: modelCandidate,
-            contents: [{ role: 'user', parts: [{ text: inputText }] }],
-            config: generateConfig as any
-          }),
-          candidateTimeout
-        ]);
+        let response: any;
+        try {
+          response = await Promise.race([
+            ai.models.generateContent({
+              model: modelCandidate,
+              contents: [{ role: 'user', parts: [{ text: inputText }] }],
+              config: generateConfig as any
+            }),
+            candidateTimeout
+          ]);
+        } catch (initialErr: any) {
+          // If custom voice was passed to 3.8 and failed, retry with prompt-steered base voice
+          if (isCustomVoiceId && isCandidate38) {
+            console.warn(`[Studio TTS] Custom voice ID ${selectedVoice} failed on ${modelCandidate}, falling back to prompt-steered studio voice:`, initialErr?.message || initialErr);
+            const fallbackVoiceName = voiceDescriptor?.name || 'Zephyr';
+            const fallbackPromptText = `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} delivery: ${verbatimWithVocalTags}`;
+            response = await Promise.race([
+              ai.models.generateContent({
+                model: modelCandidate,
+                contents: [{ role: 'user', parts: [{ text: customVoiceItem?.promptDescription ? fallbackPromptText : inputText }] }],
+                config: {
+                  responseModalities: ["AUDIO"],
+                  speechConfig: {
+                    voiceConfig: {
+                      prebuiltVoiceConfig: {
+                        voiceName: fallbackVoiceName
+                      }
+                    }
+                  }
+                } as any
+              }),
+              candidateTimeout
+            ]);
+          } else {
+            throw initialErr;
+          }
+        }
 
         const candidate = response.candidates?.[0];
         const part = candidate?.content?.parts?.find((p: any) => p.inlineData);

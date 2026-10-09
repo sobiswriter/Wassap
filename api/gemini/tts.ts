@@ -64,6 +64,7 @@ interface TTSPayload {
   pitchTone?: string;
   personaName?: string;
   speechStyle?: string;
+  customVoicePrompt?: string;
 }
 
 function convertToVocalTags(text: string): string {
@@ -330,7 +331,7 @@ export default async function handler(
       return;
     }
 
-    const { text, voiceName, voiceModel, stylePrompt, paceSpeed, pitchTone, personaName, speechStyle } = payload;
+    const { text, voiceName, voiceModel, stylePrompt, paceSpeed, pitchTone, personaName, speechStyle, customVoicePrompt } = payload;
     if (!text || !text.trim()) {
       sendJson(res, 400, { error: 'Text is required for TTS generation' });
       return;
@@ -344,6 +345,9 @@ export default async function handler(
 
     // Build consolidated style directives
     const styleParts: string[] = [];
+    if (customVoicePrompt) {
+      styleParts.push(`custom vocal design: ${customVoicePrompt}`);
+    }
     if (stylePrompt) {
       styleParts.push(stylePrompt);
     } else if (!isCustomVoice && (voiceDescriptor?.stylePrompt || voiceDescriptor?.trait)) {
@@ -389,34 +393,69 @@ export default async function handler(
       const personaDirective = personaName ? `as ${personaName} ` : '';
 
       try {
-        // 3.8 Flash & Flash-Lite models receive pure verbatim text with vocal tags (Voice Design & Replication configured via voiceConfig)
+        // 3.8 Flash & Flash-Lite models receive pure verbatim text with vocal tags
         // 3.1 Preview models receive acting directive prompt steering
         const inputText = isCandidate38
           ? verbatimWithVocalTags
           : `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, <cough>: ${verbatimWithVocalTags}`;
 
+        // Attempt 1: If custom voice on 3.8, use native voiceConfig.voice
+        const voiceConfigToUse = (isCustomVoice && isCandidate38)
+          ? { voice: selectedVoice }
+          : {
+              prebuiltVoiceConfig: {
+                voiceName: isCustomVoice ? (voiceDescriptor?.name || 'Zephyr') : selectedVoice,
+              }
+            };
+
         const generateConfig: any = {
           responseModalities: ["AUDIO"],
           speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: isCustomVoice ? 'Aoede' : selectedVoice,
-              }
-            }
+            voiceConfig: voiceConfigToUse
           }
         };
 
         const candidateTimeout = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error(`TTS candidate ${modelCandidate} timed out after 18s`)), 18000)
         );
-        const response = await Promise.race([
-          aiClient.models.generateContent({
-            model: modelCandidate,
-            contents: [{ role: 'user', parts: [{ text: inputText }] }],
-            config: generateConfig as any
-          }),
-          candidateTimeout
-        ]);
+
+        let response: any;
+        try {
+          response = await Promise.race([
+            aiClient.models.generateContent({
+              model: modelCandidate,
+              contents: [{ role: 'user', parts: [{ text: inputText }] }],
+              config: generateConfig as any
+            }),
+            candidateTimeout
+          ]);
+        } catch (initialErr: any) {
+          // If custom voice was passed to 3.8 and failed (e.g. unrecognized voice id on cloud), retry with prompt-steered base voice
+          if (isCustomVoice && isCandidate38) {
+            console.warn(`[Vertex TTS] Custom voice ID ${selectedVoice} failed on ${modelCandidate}, falling back to prompt-steered studio voice:`, initialErr?.message || initialErr);
+            const fallbackVoiceName = voiceDescriptor?.name || 'Zephyr';
+            const fallbackPromptText = `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} delivery: ${verbatimWithVocalTags}`;
+            response = await Promise.race([
+              aiClient.models.generateContent({
+                model: modelCandidate,
+                contents: [{ role: 'user', parts: [{ text: customVoicePrompt ? fallbackPromptText : inputText }] }],
+                config: {
+                  responseModalities: ["AUDIO"],
+                  speechConfig: {
+                    voiceConfig: {
+                      prebuiltVoiceConfig: {
+                        voiceName: fallbackVoiceName
+                      }
+                    }
+                  }
+                } as any
+              }),
+              candidateTimeout
+            ]);
+          } else {
+            throw initialErr;
+          }
+        }
 
         const candidate = response.candidates?.[0];
         const part = candidate?.content?.parts?.find((p: any) => p.inlineData);

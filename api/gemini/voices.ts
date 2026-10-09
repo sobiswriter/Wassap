@@ -282,10 +282,15 @@ export default async function handler(
           sampleAudioUrl = pcmToWavDataUrl(data.sampleAudio.data);
         }
 
+        const uniqueVoiceId = data.id 
+          || (data.name ? data.name.split('/').pop() : undefined)
+          || (data.voice?.id || (data.voice?.name ? data.voice.name.split('/').pop() : undefined))
+          || `voice_designed_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
         sendJson(res, 200, {
           ok: true,
-          id: data.id,
-          displayName: data.displayName || displayName || 'Designed Voice',
+          id: uniqueVoiceId,
+          displayName: data.displayName || data.voice?.displayName || displayName || 'Designed Voice',
           sampleAudioDataUrl: sampleAudioUrl,
           usage: data.usage
         });
@@ -350,9 +355,15 @@ export default async function handler(
           return;
         }
 
+        const uniqueVoiceId = data.id 
+          || data.key 
+          || (data.name ? data.name.split('/').pop() : undefined)
+          || (data.voice?.id || (data.voice?.name ? data.voice.name.split('/').pop() : undefined))
+          || `voice_replicated_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
         sendJson(res, 200, {
           ok: true,
-          id: data.id || data.key,
+          id: uniqueVoiceId,
           key: data.key,
           displayName: displayName || 'Replicated Voice',
           store: Boolean(store)
