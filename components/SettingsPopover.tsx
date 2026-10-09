@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw, Camera, Mic, Zap, Film } from 'lucide-react';
+import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw, Camera, Mic, Zap, Film, Download } from 'lucide-react';
 import { AppSettings, AiProvider } from '../types';
 import { AVAILABLE_MODELS, AVAILABLE_IMAGE_MODELS, AVAILABLE_VOICE_MODELS, GCP_CONFIG, DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE, VERTEX_PASSCODE_HINT } from '../constants';
 import { compressWallpaperImage } from '../utils/imageCompressor';
@@ -11,9 +11,10 @@ interface SettingsPopoverProps {
   onUpdate: (settings: AppSettings) => void;
   onClose: () => void;
   onTestNotification?: () => void;
+  onImportPersona?: (personaData: any) => void;
 }
 
-export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUpdate, onClose, onTestNotification }) => {
+export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUpdate, onClose, onTestNotification, onImportPersona }) => {
   const [showKey, setShowKey] = useState(false);
   const [showGiphyKey, setShowGiphyKey] = useState(false);
   const [passcodeDraft, setPasscodeDraft] = useState('');
@@ -199,6 +200,39 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
     const updated = { ...draftSettings, chatWallpaperOpacity: opacity };
     setDraftSettings(updated);
     onUpdate(updated);
+  };
+
+  const personaImportInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportPersonaFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const raw = JSON.parse(event.target?.result as string);
+        const data = raw.persona || raw;
+
+        if (!data || !data.name) {
+          alert("Invalid persona backup file: Missing persona name.");
+          return;
+        }
+
+        if (onImportPersona) {
+          onImportPersona(data);
+          alert(`Successfully imported "${data.name}"! Creating persona and opening chat now...`);
+          onClose();
+        } else {
+          alert(`Imported "${data.name}" successfully.`);
+        }
+      } catch (err) {
+        console.error("Failed to parse persona backup file", err);
+        alert("Failed to parse the persona backup file. Ensure it is a valid JSON file.");
+      }
+      if (personaImportInputRef.current) personaImportInputRef.current.value = '';
+    };
+    reader.readAsText(file);
   };
 
   const handleSave = () => {
@@ -1047,6 +1081,39 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
               Send Test Notification
             </button>
           )}
+        </div>
+
+        <div className="h-[1px] bg-gray-200 dark:bg-gray-800" />
+
+        {/* Persona Migration Section */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <Download size={20} className="text-[#00a884]" />
+            <div>
+              <p className="text-[length:var(--msg-font-size)] font-medium">Persona Migration</p>
+              <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Import characters exported from another device or backup</p>
+            </div>
+          </div>
+          <div className="ml-[32px] space-y-2">
+            <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary leading-relaxed">
+              Import a <code className="text-[#00a884] font-mono">.json</code> backup file exported from any persona's profile. Wassap will automatically create the persona with their complete backstories, schedule, voice settings, and memories.
+            </p>
+            <button
+              type="button"
+              onClick={() => personaImportInputRef.current?.click()}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-[#00a884]/10 hover:bg-[#00a884]/20 text-[#00a884] border border-[#00a884]/30 rounded-lg text-[calc(var(--msg-font-size)-1.5px)] font-semibold transition-all active:scale-[0.98]"
+              title="Select a persona backup JSON file to import"
+            >
+              <Upload size={16} /> Import Persona from Backup
+            </button>
+            <input
+              type="file"
+              ref={personaImportInputRef}
+              onChange={handleImportPersonaFile}
+              accept=".json"
+              className="hidden"
+            />
+          </div>
         </div>
       </div>
 

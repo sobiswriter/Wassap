@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.9.5)
+# Wassap Persona Simulation (v1.9.6)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.9.5-brightgreen)
+![Version](https://img.shields.io/badge/version-1.9.6-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -62,6 +62,23 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 *   **Master of Time (The Schedule)**:
     *   In the **Persona Schedule** section, you can set their 24/7 routine. 
     *   Are they at work? At the gym? Sleeping? You can even set custom **Weekend Days**. They won't blabber about it, but their mood and availability will change subtly. If it’s 3 AM and they’re "Sleeping", they might act a bit groggy if you wake them up. 😴👔
+
+### 🌟 What's New in v1.9.6 (The "Multi-Day Recollections & Local Persona Migration" Update)
+
+*   **Multi-Day Journal Recollection (Chronicle of Events)**:
+    *   Completely resolved recency bias during multi-day and weekly memory captures where models previously skipped earlier days.
+    *   Conversations are cleanly partitioned by calendar date with balanced proportional sampling across each day in the date range.
+    *   Models are explicitly guided to reflect on the full narrative arc, evolving closeness, inside jokes, and standout moments across the entire timeframe without skipping earlier days or producing dry logs.
+*   **Adaptive Memory Titles & Up to 31-Day Date Spans**:
+    *   Memory capture and AI Diary generation now dynamically title journals based on duration:
+        *   Single day: `[Persona]'s Diary`
+        *   Weekly span (6–8 days): `[Persona]'s Weekly Chronicle`
+        *   Multi-day range (up to 31 days): `[Persona]'s Recollection of Events`
+*   **Local Persona Backup & Migration Engine (100% Client-Side Privacy)**:
+    *   **Export Persona Backup**: Save any individual persona's complete identity (backstory, system prompt, avatar, voice settings, schedules, automations, and memories) to a portable JSON backup file directly from their Profile Panel.
+    *   **Seamless Migration Flow (Profile Export & App Settings Import)**:
+        *   **Export from Profile Panel**: Save any character's complete profile and settings to a local JSON file directly from their Profile drawer.
+        *   **Import from App Settings**: On a new device or blank browser instance, click **"Import Persona from Backup"** inside default **App Settings**. Wassap immediately instantiates the persona, configures their backstories, schedule, voice settings, and memories, and opens their chat automatically.
 
 ### 🌟 What's New in v1.9.5 (The "AI Diary Engine Modernization & Resilience Shield" Update)
 

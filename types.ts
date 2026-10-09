@@ -208,3 +208,25 @@ export interface AppSettings {
 }
 
 export type FilterType = 'All' | 'Unread' | 'Favourites' | 'Groups';
+
+export interface PersonaBackupData {
+  version: 1;
+  type: 'wassap-persona-backup';
+  exportedAt: string;
+  persona: {
+    name: string;
+    avatar: string;
+    about?: string;
+    role?: string;
+    speechStyle?: string;
+    systemInstruction?: string;
+    voiceSettings?: PersonaVoiceSettings;
+    schedule?: PersonaSchedule;
+    automation?: PersonaAutomation;
+    humaneSettings?: HumaneSettings;
+    memoryEnabled?: boolean;
+    memoryBubbles?: MemoryBubble[];
+    imageModel?: string;
+    voiceModel?: string;
+  };
+}

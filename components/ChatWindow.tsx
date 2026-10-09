@@ -78,33 +78,48 @@ const DateMemoryModal: React.FC<{
   const lastDate = isCustomSelection ? getMessageDateKey(selectedMessages![selectedMessages!.length - 1]) : dateKey;
 
   const [endDate, setEndDate] = useState(lastDate || dateKey);
-  const [title, setTitle] = useState(
-    isCustomSelection ? `${chat.name} - Cherished Moment` : `${chat.name}'s Diary - ${formatDateRangeLabel(normalizeDateKey(firstDate), normalizeDateKey(endDate || firstDate))}`
-  );
-  const [note, setNote] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const normalizedStart = normalizeDateKey(firstDate);
   const normalizedEnd = normalizeDateKey(endDate, normalizedStart);
+  const isMultiDay = normalizedStart !== normalizedEnd;
+  const daysDiff = Math.abs(getDaysBetween(normalizedStart, normalizedEnd)) + 1;
+
+  const getDefaultTitle = (start: string, end: string) => {
+    if (isCustomSelection) return `${chat.name} - Cherished Moment`;
+    if (start === end) return `${chat.name}'s Diary - ${formatDateRangeLabel(start, end)}`;
+    const span = Math.abs(getDaysBetween(start, end)) + 1;
+    if (span >= 6 && span <= 8) return `${chat.name}'s Weekly Chronicle - ${formatDateRangeLabel(start, end)}`;
+    return `${chat.name}'s Recollection of Events - ${formatDateRangeLabel(start, end)}`;
+  };
+
+  const [title, setTitle] = useState(getDefaultTitle(normalizedStart, normalizedEnd));
+  const [note, setNote] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
   const capturedMessages = isCustomSelection
     ? selectedMessages!
     : chat.messages.filter(message =>
         isDateInRange(getMessageDateKey(message), normalizedStart, normalizedEnd)
       );
 
+  const handleEndDateChange = (newDate: string) => {
+    setEndDate(newDate);
+    const newEnd = normalizeDateKey(newDate, normalizedStart);
+    setTitle(getDefaultTitle(normalizedStart, newEnd));
+  };
+
   const handleSave = () => {
     if (!isCustomSelection && normalizedEnd < normalizedStart) {
-      alert('End date cannot be before the selected day.');
+      alert('End date cannot be before the selected start day.');
       return;
     }
-    if (!isCustomSelection && getDaysBetween(normalizedStart, normalizedEnd) > 1) {
-      alert('Memory capture can include this day and one extra day at most.');
+    if (!isCustomSelection && getDaysBetween(normalizedStart, normalizedEnd) > 31) {
+      alert('A diary recollection can span up to 31 days at a time.');
       return;
     }
 
     onSave({
       id: `memory-${Date.now()}`,
       chatId: chat.id,
-      title: title.trim() || `${chat.name} - ${formatDateRangeLabel(normalizedStart, normalizedEnd)}`,
+      title: title.trim() || getDefaultTitle(normalizedStart, normalizedEnd),
       startDate: normalizedStart,
       endDate: normalizedEnd,
       summary: buildCapturedMemorySummary(chat, capturedMessages, normalizedStart, normalizedEnd, note),
@@ -128,7 +143,13 @@ const DateMemoryModal: React.FC<{
           speechStyle: chat.speechStyle, 
           systemInstruction: chat.systemInstruction 
         },
-        capturedMessages.map(m => ({ text: m.text, sender: m.sender, senderName: m.senderName })),
+        capturedMessages.map(m => ({
+          text: m.text,
+          sender: m.sender,
+          senderName: m.senderName,
+          date: m.date || getMessageDateKey(m),
+          timestamp: m.timestamp
+        })),
         normalizedStart,
         normalizedEnd,
         settings
@@ -141,6 +162,14 @@ const DateMemoryModal: React.FC<{
     }
   };
 
+  const headerTitle = isCustomSelection
+    ? 'Save to Diary'
+    : !isMultiDay
+      ? `${chat.name}'s Diary`
+      : daysDiff >= 6 && daysDiff <= 8
+        ? `${chat.name}'s Weekly Chronicle`
+        : `${chat.name}'s Recollection of Events`;
+
   return (
     <div className="absolute inset-0 z-[80] bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4">
       <div className="app-panel border app-border shadow-2xl rounded-xl w-full max-w-[440px] overflow-hidden text-primary animate-in fade-in zoom-in-95 duration-150">
@@ -151,7 +180,7 @@ const DateMemoryModal: React.FC<{
             </div>
             <div className="min-w-0">
               <h3 className="text-[calc(var(--msg-font-size)+1px)] font-semibold truncate">
-                {isCustomSelection ? 'Save to Diary' : `${chat.name}'s Diary`}
+                {headerTitle}
               </h3>
               <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary truncate">
                 {formatDateRangeLabel(normalizedStart, normalizedEnd)} · {capturedMessages.length} message{capturedMessages.length === 1 ? '' : 's'}
@@ -165,7 +194,9 @@ const DateMemoryModal: React.FC<{
 
         <div className="p-4 space-y-3.5 max-h-[80vh] overflow-y-auto">
           <div>
-            <label className="text-[calc(var(--msg-font-size)-3px)] text-secondary uppercase font-bold tracking-wider mb-1 block">Diary Entry Title</label>
+            <label className="text-[calc(var(--msg-font-size)-3px)] text-secondary uppercase font-bold tracking-wider mb-1 block">
+              {isMultiDay ? 'Recollection Title' : 'Diary Entry Title'}
+            </label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -176,11 +207,13 @@ const DateMemoryModal: React.FC<{
 
           {!isCustomSelection && (
             <div>
-              <label className="text-[calc(var(--msg-font-size)-3px)] text-secondary uppercase font-bold tracking-wider mb-1 block">Span Date (Up to 1 extra day)</label>
+              <label className="text-[calc(var(--msg-font-size)-3px)] text-secondary uppercase font-bold tracking-wider mb-1 block">
+                Span End Date (Single day, weekly, or multi-day range)
+              </label>
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => handleEndDateChange(e.target.value)}
                 className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1px)] outline-none focus:border-[#21c063] transition-colors"
               />
             </div>
@@ -188,20 +221,26 @@ const DateMemoryModal: React.FC<{
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[calc(var(--msg-font-size)-3px)] text-secondary uppercase font-bold tracking-wider">Secret Journal Entry</label>
+              <label className="text-[calc(var(--msg-font-size)-3px)] text-secondary uppercase font-bold tracking-wider">
+                {isMultiDay ? 'Journal Recollection' : 'Secret Journal Entry'}
+              </label>
               <button
                 onClick={handleGenerateDiary}
                 disabled={isGenerating || capturedMessages.length === 0}
                 className="flex items-center gap-1.5 text-[calc(var(--msg-font-size)-2.5px)] text-[#21c063] font-semibold bg-[#21c063]/10 hover:bg-[#21c063]/20 border border-[#21c063]/30 px-2.5 py-1 rounded-full transition-all disabled:opacity-50 disabled:pointer-events-none active:scale-95"
               >
                 {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                {note ? 'Regenerate AI Diary' : 'Generate AI Diary'}
+                {note ? (isMultiDay ? 'Regenerate Recollection' : 'Regenerate AI Diary') : (isMultiDay ? 'Generate Recollection' : 'Generate AI Diary')}
               </button>
             </div>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder={`Dear Diary...\n\nClick "Generate AI Diary" above to have ${chat.name} write an intimate, first-person journal entry reflecting on today's conversation and private feelings.`}
+              placeholder={
+                isMultiDay
+                  ? `Looking back over these past days...\n\nClick "Generate Recollection" above to have ${chat.name} write a thoughtful, intimate recollection across our shared days, weaving key highlights, shared laughs, and unspoken thoughts into a cohesive journal.`
+                  : `Dear Diary...\n\nClick "Generate AI Diary" above to have ${chat.name} write an intimate, first-person journal entry reflecting on today's conversation and private feelings.`
+              }
               rows={6}
               className="w-full bg-[#fffdfa] dark:bg-[#111b21] border border-[#e2d9cb] dark:border-[#222e35] rounded-lg p-3 text-[calc(var(--msg-font-size)-1px)] italic leading-relaxed text-primary shadow-inner outline-none focus:border-[#21c063] resize-none transition-colors"
             />
@@ -211,7 +250,7 @@ const DateMemoryModal: React.FC<{
             onClick={handleSave}
             className="w-full bg-[#21c063] hover:bg-[#008f6f] text-white font-medium py-2.5 rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm active:scale-[0.98]"
           >
-            <Save size={16} /> Save to Persona's Diary
+            <Save size={16} /> {isMultiDay ? "Save Recollection to Persona's Journal" : "Save to Persona's Diary"}
           </button>
         </div>
       </div>

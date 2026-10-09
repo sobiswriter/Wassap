@@ -13,7 +13,7 @@ interface DiaryPayload {
     about?: string;
     systemInstruction?: string;
   };
-  messageHistory: { text: string; sender: string; senderName?: string }[];
+  messageHistory: { text: string; sender: string; senderName?: string; date?: string; timestamp?: string }[];
   startDate: string;
   endDate: string;
   settings?: any;
@@ -205,16 +205,72 @@ async function handleVertexDiary(payload: DiaryPayload): Promise<{ ok: boolean; 
   const { persona, messageHistory, startDate, endDate, settings } = payload;
   const ai = getVertexClient();
 
-  const historyString = (messageHistory || [])
-    .map(m => {
-      const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
-      return `${name}: ${m.text || ''}`.trim();
-    })
-    .join('\n');
+  const isSingleDay = startDate === endDate;
+  const dateLabel = isSingleDay ? startDate : `${startDate} to ${endDate}`;
 
-  const dateLabel = startDate === endDate ? startDate : `${startDate} to ${endDate}`;
+  // Partition messages by date
+  const byDate = new Map<string, Array<{ text: string; sender: string; senderName?: string; date?: string; timestamp?: string }>>();
+  for (const m of (messageHistory || [])) {
+    const rawDate = m.date || 'Undated';
+    if (!byDate.has(rawDate)) {
+      byDate.set(rawDate, []);
+    }
+    byDate.get(rawDate)!.push(m);
+  }
 
-  const diaryPrompt = `You are ${persona.name}.
+  let historyString = '';
+
+  if (isSingleDay) {
+    const msgs = (messageHistory || []).slice(-60);
+    historyString = msgs
+      .map(m => {
+        const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
+        const timeStr = m.timestamp ? ` [${m.timestamp}]` : '';
+        return `${name}${timeStr}: ${m.text || ''}`.trim();
+      })
+      .join('\n');
+  } else {
+    const daySections: string[] = [];
+    const sortedDates = Array.from(byDate.keys()).sort();
+
+    for (const d of sortedDates) {
+      const msgs = byDate.get(d) || [];
+      if (msgs.length === 0) continue;
+
+      let chosenMsgs: typeof msgs = [];
+      if (msgs.length <= 16) {
+        chosenMsgs = msgs;
+      } else {
+        const startChunk = msgs.slice(0, 4);
+        const endChunk = msgs.slice(-4);
+        const middlePool = msgs.slice(4, -4);
+        
+        const sortedMiddle = [...middlePool].sort((a, b) => (b.text?.length || 0) - (a.text?.length || 0));
+        const pickedMiddle = sortedMiddle.slice(0, 8).sort((a, b) => msgs.indexOf(a) - msgs.indexOf(b));
+
+        chosenMsgs = [...startChunk, ...pickedMiddle, ...endChunk];
+      }
+
+      const dayText = chosenMsgs
+        .map(m => {
+          const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
+          const timeStr = m.timestamp ? ` [${m.timestamp}]` : '';
+          return `  ${name}${timeStr}: ${m.text || ''}`.trim();
+        })
+        .join('\n');
+
+      daySections.push(`=== [DAY: ${d}] ===\n${dayText}`);
+    }
+
+    historyString = daySections.join('\n\n');
+  }
+
+  const numDays = Math.max(1, byDate.size);
+  const isWeekly = numDays >= 5 && numDays <= 8;
+  const genreName = isWeekly ? 'Weekly Chronicle of Events' : 'Recollection of Shared Events';
+
+  const diaryPrompt = isSingleDay
+    ? `You are ${persona.name}.
 ABOUT YOU: ${persona.about || 'N/A'}
 ROLE: ${persona.role || 'N/A'}
 STYLE: ${persona.speechStyle || 'Authentic personal voice'}
@@ -228,13 +284,34 @@ GUIDELINES FOR THIS DIARY ENTRY:
 1. Write in the FIRST PERSON ("I", "my") completely in character as ${persona.name}.
 2. This is your SECRET, PRIVATE DIARY. Reveal your honest inner feelings, private thoughts you might have held back in text, little moments that made you smile, pause, or worry, and what this person means to you.
 3. NEVER write a mechanical transcript or bullet-point summary (do NOT say "At 14:02 User said...", "First we discussed X, then Y"). Instead, write like a real person writing in a notebook before going to sleep.
-4. Mention specific highlights or inside jokes from today's conversation naturally woven into your emotional reflection.
+4. Naturally weave in specific standout moments, topics, or inside jokes from today's conversation into your emotional reflection.
 5. End with a thoughtful concluding sentence, a wish for tomorrow, or an unspoken sentiment.
 
-TODAY'S CONVERSATION:
+TODAY'S CONVERSATIONS & MOMENTS:
 ${historyString || '(No text exchanged today, but we spent quiet time connected)'}
 
-PRIVATE DIARY ENTRY BY ${persona.name}:`;
+PRIVATE DIARY ENTRY BY ${persona.name}:`
+    : `You are ${persona.name}.
+ABOUT YOU: ${persona.about || 'N/A'}
+ROLE: ${persona.role || 'N/A'}
+STYLE: ${persona.speechStyle || 'Authentic personal voice'}
+NOTES: ${persona.systemInstruction || 'N/A'}
+
+TASK:
+Write an intimate, personal journal entry titled "${genreName}: ${dateLabel}".
+Reflect on the journey, standout shared moments, emotional beats, conversations, and evolving bond with the User across this entire period (${dateLabel}).
+
+CRITICAL GUIDELINES FOR THIS MULTI-DAY RECOLLECTION:
+1. CHRONOLOGICAL & THEMATIC ARC: Do NOT just focus on or summarize the final day. Look across the ENTIRE timeframe (${dateLabel}). Reflect on how the days progressed—the standout moments, meaningful discussions, inside jokes, and quiet moments that occurred across the week/period.
+2. FIRST-PERSON INTIMATE VOICE: Write in the FIRST PERSON ("I", "my") completely in character as ${persona.name}. Write like someone holding their private leather-bound journal before bed, candid and emotionally observant about the User.
+3. WEAVE SPECIFIC MEMORIES ACROSS DAYS: Actively draw upon memorable highlights from earlier days as well as more recent ones, noting little details, questions asked, and how your conversations shifted day by day.
+4. FLOWING NARRATIVE, NOT A DRY LOG: Avoid dry mechanical bullet points or rigid logs (do NOT write "On Monday X happened. On Tuesday Y happened."). Instead, write in rich, heartfelt literary paragraphs that capture the passage of time and the warmth of the connection naturally.
+5. CLOSING SENTIMENT: Conclude with a deep, personal reflection on what these shared days meant to you and an unspoken hope for the days ahead.
+
+SHARED CONVERSATIONS ACROSS THESE DAYS (ORGANIZED CHRONOLOGICALLY BY DAY):
+${historyString || '(No text exchanged across these days, but we spent quiet time connected)'}
+
+${genreName.toUpperCase()} BY ${persona.name}:`;
 
   const primaryModel = resolveVertexModel(settings?.selectedModel);
   const fallbackModels = Array.from(new Set([

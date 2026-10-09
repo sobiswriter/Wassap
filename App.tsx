@@ -3334,6 +3334,36 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     setShowNewChatPanel(false);
   };
 
+  const handleImportPersona = (personaData: any) => {
+    const newPersona: Chat = {
+      name: personaData.name,
+      avatar: personaData.avatar || `https://picsum.photos/seed/${Math.random()}/200`,
+      about: personaData.about || 'Hey there! I am using WhatsApp.',
+      role: personaData.role || '',
+      speechStyle: personaData.speechStyle || '',
+      systemInstruction: personaData.systemInstruction || '',
+      voiceSettings: personaData.voiceSettings,
+      schedule: personaData.schedule,
+      automation: personaData.automation,
+      humaneSettings: personaData.humaneSettings,
+      memoryBubbles: Array.isArray(personaData.memoryBubbles) ? personaData.memoryBubbles : [],
+      memoryEnabled: personaData.memoryEnabled ?? true,
+      imageModel: personaData.imageModel,
+      voiceModel: personaData.voiceModel,
+      id: Date.now().toString(),
+      lastMessage: '',
+      lastMessageTime: '',
+      messages: [],
+      status: 'offline',
+    };
+    setChats(prev => [newPersona, ...prev]);
+    setActiveChatId(newPersona.id);
+    if (isMobile) {
+      setActiveView('chat');
+    }
+    setShowSettingsPopover(false);
+  };
+
   const updateActiveChat = (updates: Partial<Chat>) => {
     if (!activeChatId) return;
     setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, ...updates } : c));
@@ -3512,6 +3542,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               settings={settings}
               onUpdate={setSettings}
               onClose={() => setShowSettingsPopover(false)}
+              onImportPersona={handleImportPersona}
               onTestNotification={async () => {
                 playIncomingMessageSound();
                 const testChat = chats[0];

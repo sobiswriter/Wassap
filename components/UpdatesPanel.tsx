@@ -81,10 +81,22 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.9.6"
+              title="Multi-Day Journal Recollections (Chronicle of Events) & Local Persona Migration Engine"
+              date="October 2026"
+              isLatest={true}
+              changes={[
+                "Multi-Day Journal Recollection (Chronicle of Events): Overhauled diary generation for multi-day date spans. Fully resolved recency bias by grouping conversations chronologically by calendar date with balanced sampling for each day, ensuring the persona reflects on the full narrative arc and emotional milestones across the entire timeframe without skipping earlier days.",
+                "Adaptive Journal Titles & Range Presets: Intelligently titles memories based on duration—'Persona's Diary' for single days, 'Persona's Weekly Chronicle' for 6–8 day spans, and 'Persona's Recollection of Events' for extended date ranges up to 31 days.",
+                "Local Persona Backup & Migration Engine (100% Client-Side Privacy): Export any persona's complete profile (backstory, system prompt, avatar, voice settings, schedules, automations, and memories) to a portable JSON backup file directly from their Profile Panel. No online server storage required, guaranteeing total user data privacy.",
+                "Seamless Migration Flow (Profile Export & App Settings Import): On a new device or fresh browser, import any persona backup directly from default App Settings. Wassap automatically instantiates the persona with their complete backstories, schedule, voice settings, and memories, and immediately opens the chat."
+              ]}
+            />
+            <UpdateItem 
               version="v1.9.5"
               title="AI Diary Engine Modernization (Gemini 3.8 Flash) & Resilience Shield"
               date="October 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "AI Diary Engine Modernization (Gemini 3.8 Flash): Upgraded diary generation to Google's flagship gemini-3.8-flash model. Personas now craft deeper, more introspective, and authentically touching private journal entries reflecting on your interactions.",
                 "AI Diary Client Timeout & Exponential Retry Shield: Resolved the premature 'Unable to connect to built-in Vertex AI server' failure by expanding client generation headroom from 16s to a generous 30s on Attempt 1 (15s on Attempt 2) with automatic exponential retry handling.",

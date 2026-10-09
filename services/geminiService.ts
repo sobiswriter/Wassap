@@ -923,25 +923,155 @@ export const getGeminiResponse = async (
   }
 };
 
+export function buildDiaryHistoryAndPrompt(
+  persona: { name: string; about?: string; role?: string; speechStyle?: string; systemInstruction?: string },
+  messageHistory: Array<{ text: string; sender: 'me' | 'other'; senderName?: string; date?: string; timestamp?: string }>,
+  startDate: string,
+  endDate: string
+): { prompt: string; isMultiDay: boolean; dateLabel: string; recollectionTitle: string } {
+  const isSingleDay = startDate === endDate;
+  const dateLabel = isSingleDay ? startDate : `${startDate} to ${endDate}`;
+
+  // Partition messages by date
+  const byDate = new Map<string, Array<{ text: string; sender: 'me' | 'other'; senderName?: string; date?: string; timestamp?: string }>>();
+  for (const m of (messageHistory || [])) {
+    const rawDate = m.date || 'Undated';
+    if (!byDate.has(rawDate)) {
+      byDate.set(rawDate, []);
+    }
+    byDate.get(rawDate)!.push(m);
+  }
+
+  let historyString = '';
+
+  if (isSingleDay) {
+    const msgs = (messageHistory || []).slice(-60);
+    historyString = msgs
+      .map(m => {
+        const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
+        const timeStr = m.timestamp ? ` [${m.timestamp}]` : '';
+        return `${name}${timeStr}: ${m.text || ''}`.trim();
+      })
+      .join('\n');
+  } else {
+    const daySections: string[] = [];
+    const sortedDates = Array.from(byDate.keys()).sort();
+
+    for (const d of sortedDates) {
+      const msgs = byDate.get(d) || [];
+      if (msgs.length === 0) continue;
+
+      let chosenMsgs: typeof msgs = [];
+      if (msgs.length <= 16) {
+        chosenMsgs = msgs;
+      } else {
+        // Balanced representation: opening 4, top 8 substantive middle messages, closing 4
+        const startChunk = msgs.slice(0, 4);
+        const endChunk = msgs.slice(-4);
+        const middlePool = msgs.slice(4, -4);
+        
+        const sortedMiddle = [...middlePool].sort((a, b) => (b.text?.length || 0) - (a.text?.length || 0));
+        const pickedMiddle = sortedMiddle.slice(0, 8).sort((a, b) => msgs.indexOf(a) - msgs.indexOf(b));
+
+        chosenMsgs = [...startChunk, ...pickedMiddle, ...endChunk];
+      }
+
+      const dayText = chosenMsgs
+        .map(m => {
+          const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
+          const timeStr = m.timestamp ? ` [${m.timestamp}]` : '';
+          return `  ${name}${timeStr}: ${m.text || ''}`.trim();
+        })
+        .join('\n');
+
+      daySections.push(`=== [DAY: ${d}] ===\n${dayText}`);
+    }
+
+    historyString = daySections.join('\n\n');
+  }
+
+  const numDays = Math.max(1, byDate.size);
+  const isWeekly = numDays >= 5 && numDays <= 8;
+  const recollectionTitle = isSingleDay
+    ? `${persona.name}'s Diary - ${dateLabel}`
+    : isWeekly
+      ? `${persona.name}'s Weekly Chronicle - ${dateLabel}`
+      : `${persona.name}'s Recollection of Events - ${dateLabel}`;
+
+  if (isSingleDay) {
+    const prompt = `You are ${persona.name}.
+ABOUT YOU: ${persona.about || 'N/A'}
+ROLE: ${persona.role || 'N/A'}
+STYLE: ${persona.speechStyle || 'Authentic personal voice'}
+NOTES: ${persona.systemInstruction || 'N/A'}
+
+TASK:
+Write an intimate, personal diary entry in your private journal for ${dateLabel}.
+Reflect on your time, conversations, and interactions with the User today.
+
+GUIDELINES FOR THIS DIARY ENTRY:
+1. Write in the FIRST PERSON ("I", "my") completely in character as ${persona.name}.
+2. This is your SECRET, PRIVATE DIARY. Reveal your honest inner feelings, private thoughts you might have held back in text, little moments that made you smile, pause, or worry, and what this person means to you.
+3. NEVER write a mechanical transcript or bullet-point summary (do NOT say "At 14:02 User said...", "First we discussed X, then Y"). Instead, write like a real person writing in a notebook before going to sleep.
+4. Naturally weave in specific standout moments, topics, or inside jokes from today's conversation into your emotional reflection.
+5. End with a thoughtful concluding sentence, a wish for tomorrow, or an unspoken sentiment.
+
+TODAY'S CONVERSATIONS & MOMENTS:
+${historyString || '(No text exchanged today, but we spent quiet time connected)'}
+
+PRIVATE DIARY ENTRY BY ${persona.name}:`;
+
+    return { prompt, isMultiDay: false, dateLabel, recollectionTitle };
+  }
+
+  const genreName = isWeekly ? 'Weekly Chronicle of Events' : 'Recollection of Shared Events';
+  const prompt = `You are ${persona.name}.
+ABOUT YOU: ${persona.about || 'N/A'}
+ROLE: ${persona.role || 'N/A'}
+STYLE: ${persona.speechStyle || 'Authentic personal voice'}
+NOTES: ${persona.systemInstruction || 'N/A'}
+
+TASK:
+Write an intimate, personal journal entry titled "${genreName}: ${dateLabel}".
+Reflect on the journey, standout shared moments, emotional beats, conversations, and evolving bond with the User across this entire period (${dateLabel}).
+
+CRITICAL GUIDELINES FOR THIS MULTI-DAY RECOLLECTION:
+1. CHRONOLOGICAL & THEMATIC ARC: Do NOT just focus on or summarize the final day. Look across the ENTIRE timeframe (${dateLabel}). Reflect on how the days progressed—the standout moments, meaningful discussions, inside jokes, and quiet moments that occurred across the week/period.
+2. FIRST-PERSON INTIMATE VOICE: Write in the FIRST PERSON ("I", "my") completely in character as ${persona.name}. Write like someone holding their private leather-bound journal before bed, candid and emotionally observant about the User.
+3. WEAVE SPECIFIC MEMORIES ACROSS DAYS: Actively draw upon memorable highlights from earlier days as well as more recent ones, noting little details, questions asked, and how your conversations shifted day by day.
+4. FLOWING NARRATIVE, NOT A DRY LOG: Avoid dry mechanical bullet points or rigid logs (do NOT write "On Monday X happened. On Tuesday Y happened."). Instead, write in rich, heartfelt literary paragraphs that capture the passage of time and the warmth of the connection naturally.
+5. CLOSING SENTIMENT: Conclude with a deep, personal reflection on what these shared days meant to you and an unspoken hope for the days ahead.
+
+SHARED CONVERSATIONS ACROSS THESE DAYS (ORGANIZED CHRONOLOGICALLY BY DAY):
+${historyString || '(No text exchanged across these days, but we spent quiet time connected)'}
+
+${genreName.toUpperCase()} BY ${persona.name}:`;
+
+  return { prompt, isMultiDay: true, dateLabel, recollectionTitle };
+}
+
 export const getGeminiDiaryEntry = async (
-  persona: { name: string; role?: string; speechStyle?: string; about?: string; systemInstruction?: string },
-  messageHistory: { text: string; sender: string; senderName?: string }[],
+  persona: { name: string; about?: string; role?: string; speechStyle?: string; systemInstruction?: string },
+  messageHistory: Array<{ text: string; sender: 'me' | 'other'; senderName?: string; date?: string; timestamp?: string }>,
   startDate: string,
   endDate: string,
   settings?: AppSettings
-) => {
+): Promise<string> => {
   const provider = settings?.aiProvider || 'vertex';
 
   if (provider === 'vertex') {
     if (!settings?.isVertexUnlocked) {
       return "Built-in Cloud (Vertex AI) is locked. Please enter the passcode in Settings to unlock server credits.";
     }
+    // Pass day-aware history with dates and timestamps
     return await fetchVertexDiary({
       persona,
-      messageHistory: (messageHistory || []).slice(-40).map(m => ({
+      messageHistory: (messageHistory || []).map(m => ({
         text: m.text,
         sender: m.sender,
         senderName: m.senderName,
+        date: m.date,
+        timestamp: m.timestamp,
       })),
       startDate,
       endDate,
@@ -956,37 +1086,7 @@ export const getGeminiDiaryEntry = async (
   }
 
   const ai = new GoogleGenAI({ apiKey: finalKey });
-
-  const historyString = (messageHistory || [])
-    .map(m => {
-      const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
-      return `${name}: ${m.text || ''}`.trim();
-    })
-    .join('\n');
-
-  const dateLabel = startDate === endDate ? startDate : `${startDate} to ${endDate}`;
-
-  const diaryPrompt = `You are ${persona.name}.
-ABOUT YOU: ${persona.about || 'N/A'}
-ROLE: ${persona.role || 'N/A'}
-STYLE: ${persona.speechStyle || 'Authentic personal voice'}
-NOTES: ${persona.systemInstruction || 'N/A'}
-
-TASK:
-Write an intimate, personal diary entry in your private journal for ${dateLabel}.
-Reflect on your time, conversations, and interactions with the User today.
-
-GUIDELINES FOR THIS DIARY ENTRY:
-1. Write in the FIRST PERSON ("I", "my") completely in character as ${persona.name}.
-2. This is your SECRET, PRIVATE DIARY. Reveal your honest inner feelings, private thoughts you might have held back in text, little moments that made you smile, pause, or worry, and what this person means to you.
-3. NEVER write a mechanical transcript or bullet-point summary (do NOT say "At 14:02 User said...", "First we discussed X, then Y"). Instead, write like a real person writing in a notebook before going to sleep.
-4. Mention specific highlights or inside jokes from today's conversation naturally woven into your emotional reflection.
-5. End with a thoughtful concluding sentence, a wish for tomorrow, or an unspoken sentiment.
-
-TODAY'S CONVERSATION:
-${historyString || '(No text exchanged today, but we spent quiet time connected)'}
-
-PRIVATE DIARY ENTRY BY ${persona.name}:`;
+  const { prompt } = buildDiaryHistoryAndPrompt(persona, messageHistory, startDate, endDate);
 
   const primaryModel = settings?.selectedModel || DEFAULT_MODEL;
   const fallbackModels = Array.from(new Set([
@@ -1001,7 +1101,7 @@ PRIVATE DIARY ENTRY BY ${persona.name}:`;
     try {
       const response = await ai.models.generateContent({
         model: modelToUse,
-        contents: [{ role: 'user', parts: [{ text: diaryPrompt }] }],
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
       });
 
       if (response && response.text) {
@@ -1015,7 +1115,7 @@ PRIVATE DIARY ENTRY BY ${persona.name}:`;
     }
   }
 
-  return "I couldn't find the words for today's diary entry right now...";
+  return "I couldn't find the words for this journal reflection right now...";
 };
 
 export const generateGeminiVoiceNote = async (

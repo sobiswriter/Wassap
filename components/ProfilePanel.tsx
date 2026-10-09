@@ -5,7 +5,7 @@ import {
   Plus, Clock, RefreshCw, UserX, Brain, Edit3, CalendarDays, Smile, Download, Upload,
   Mic, Volume2, Loader2, Play, Sparkles, Wand2, Square, HelpCircle, AlertCircle, Copy
 } from 'lucide-react';
-import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate, AppSettings, PersonaVoiceSettings, VoiceNoteFrequency, CustomVoiceItem } from '../types';
+import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTemplate, AppSettings, PersonaVoiceSettings, VoiceNoteFrequency, CustomVoiceItem, PersonaBackupData } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey, getAppNow, getAppDateKey } from '../utils/dates';
 import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TTS_VOICE_DETAILS, AVAILABLE_IMAGE_MODELS, DEFAULT_IMAGE_MODEL, AVAILABLE_VOICE_MODELS, DEFAULT_VOICE_MODEL, VOICE_STYLE_PRESETS, DEFAULT_VARY_MESSAGE_LENGTH_PROMPT, VARY_MESSAGE_LENGTH_PRESETS } from '../constants';
@@ -525,6 +525,41 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     onUpdate(formData);
   };
 
+  const handleExportPersonaBackup = () => {
+    const backupData: PersonaBackupData = {
+      version: 1,
+      type: 'wassap-persona-backup',
+      exportedAt: new Date().toISOString(),
+      persona: {
+        name: formData.name,
+        avatar: formData.avatar,
+        about: formData.about,
+        role: formData.role,
+        speechStyle: formData.speechStyle,
+        systemInstruction: formData.systemInstruction,
+        voiceSettings: formData.voiceSettings,
+        schedule: formData.schedule,
+        automation: formData.automation,
+        humaneSettings: formData.humaneSettings,
+        memoryEnabled: formData.memoryEnabled,
+        memoryBubbles: formData.memoryBubbles,
+        imageModel: formData.imageModel,
+        voiceModel: formData.voiceModel,
+      }
+    };
+
+    const dataStr = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${(formData.name || 'Persona').replace(/\s+/g, '_')}_Profile_Settings.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const memoryFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExportMemories = () => {
@@ -537,7 +572,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${chat.name.replace(/\\s+/g, '_')}_Memories.json`;
+    link.download = `${chat.name.replace(/\s+/g, '_')}_Memories.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -588,8 +623,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       alert('End date cannot be before start date.');
       return;
     }
-    if (getDaysBetween(normalizedStart, normalizedEnd) > 1) {
-      alert('A memory bubble can capture one day or two consecutive days at most.');
+    if (getDaysBetween(normalizedStart, normalizedEnd) > 31) {
+      alert('A memory recollection can span up to 31 days at a time.');
       return;
     }
     if (!memorySummary.trim()) {
@@ -2839,6 +2874,27 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Persona Backup Section */}
+        {!chat.isGroup && (
+          <div className="mx-6 mb-2 p-4 rounded-xl bg-white/70 dark:bg-white/5 border app-border space-y-2.5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Download size={18} className="text-[#00a884]" />
+              <h4 className="text-[calc(var(--msg-font-size))] font-semibold text-primary">Persona Backup & Export</h4>
+            </div>
+            <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary leading-relaxed">
+              Export {chat.name}'s profile, backstories, schedule, automations, and voice settings to a local JSON file. 100% private (chats are not included). You can import this file into any Wassap instance from App Settings.
+            </p>
+            <button
+              type="button"
+              onClick={handleExportPersonaBackup}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-[#00a884]/10 hover:bg-[#00a884]/20 text-[#00a884] border border-[#00a884]/30 text-[calc(var(--msg-font-size)-1.5px)] font-semibold transition-all active:scale-95"
+              title="Save this persona's profile & settings to a local file"
+            >
+              <Download size={15} /> Export Persona Backup
+            </button>
           </div>
         )}
 

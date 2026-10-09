@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.9.5`
+- **Current Version**: `v1.9.6`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/` and `api/giphy/`, plus a local Express development server in `server/`.
@@ -14,7 +14,24 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. AI Diary Engine Modernization (Gemini 3.8 Flash) & Resilience Shield (`v1.9.5`)
+### 1. Multi-Day Journal Recollections (Chronicle of Events) & Local Persona Migration Engine (`v1.9.6`)
+- **Root Cause Analysis of Multi-Day Diary Skipping**:
+  - `messageHistory.slice(-40)` was discarding earlier days completely if the most recent 1–2 days contained 30–40 messages.
+  - Messages passed to the diary endpoint previously lacked `date` and `timestamp`, giving the model a flat stream of text with zero day boundaries.
+  - The single-day prompt instructed the model to reflect on interactions "today", naturally biasing language models toward the end of the text.
+- **The Resolution**:
+  - **Day-by-Day Chronological Grouping**: `buildDiaryHistoryAndPrompt()` partitions history by calendar date and attaches timestamps (`=== [DAY: YYYY-MM-DD] ===\n  User [14:30]: ...`).
+  - **Proportional Historical Sampling**: Instead of discarding older days, the engine samples balanced subsets (opening exchanges, top substantive discussions, and closing turns) for each day, ensuring the full narrative arc across up to 31 days is preserved.
+  - **Thematic Multi-Day Prompting**: When spanning multiple days, the prompt dynamically pivots to an intimate, retrospective genre (`Recollection of Shared Events` or `Weekly Chronicle of Events`), instructing the persona to reflect on evolving closeness, inside jokes, and standout moments across the entire period rather than writing a dry log or summarizing only the final evening.
+  - **Adaptive Title & Span Flexibility**: Memory captures now adaptively title journals based on duration (`Diary` for 1 day, `Weekly Chronicle` for 6–8 days, and `Recollection of Events` for extended periods) and allow spanning up to 31 days.
+- **Local Persona Backup & Migration Engine (100% Client-Side Privacy)**:
+  - **Zero Chat Storage**: To guarantee complete privacy and zero server-side exposure, persona backups strictly exclude raw chat messages (`chat.messages`).
+  - **Full Persona Identity Portability**: Exports name, avatar, backstory (`about`), role, speechStyle, systemInstruction, schedule, automations, humaneSettings, voiceSettings, and memoryBubbles to `<Persona>_Profile_Settings.json`.
+  - **1-Click Restore & Recreate**:
+    - **In `ProfilePanel.tsx`**: A dedicated *Persona Backup & Migration* card lets users export a backup or restore/overwrite settings on an existing persona with a single click.
+    - **In `NewChatPanel.tsx`**: An *Import* button in the top header allows users to select a `.json` backup file, automatically pre-filling all rich character attributes for instant contact creation.
+
+### 2. AI Diary Engine Modernization (Gemini 3.8 Flash) & Resilience Shield (`v1.9.5`)
 - **Root Cause Analysis of AI Diary Failure**:
   - `fetchVertexDiary` in `services/geminiService.ts` used a hardcoded `timeoutMs: 16000` (16 seconds) and zero retry attempts.
   - Generating intimate, multi-paragraph private diary entries spanning up to 40 conversation messages on `gemini-3.8-flash` regularly requires 14–20 seconds of generation time.
@@ -701,6 +718,16 @@ Wassap/
       - Enhanced history formatting so GIFs and stickers receive distinct prompt tags (`[GIF ANIMATION ATTACHED]`, `[STICKER ATTACHED]`) in addition to standard `[IMAGE ATTACHED]`.
       - Added directive instructing personas to react humorously, warmly, or playfully in-character to GIFs and stickers sent by the user.
       - Fixed `messageHistory` mapping in `server/vertexHandler.ts` to include voice note tags (`[VOICE NOTE ATTACHED]`) and reaction tags (`[REACTIONS ON THIS MESSAGE: ...]`).
+
+- [x] **v1.9.6**:
+  - **Multi-Day Journal Recollections (Chronicle of Events)**:
+    - Overhauled diary generation for multi-day date spans to eliminate recency bias.
+    - Chat history is grouped chronologically by calendar date with balanced sampling per day across the date span.
+    - Dynamic journal titling: Single day $\to$ `[Persona]'s Diary`, 6–8 day spans $\to$ `[Persona]'s Weekly Chronicle`, extended ranges up to 31 days $\to$ `[Persona]'s Recollection of Events`.
+  - **Local Persona Backup & Migration Engine (100% Client-Side Privacy)**:
+    - *Profile-Level Export*: Dedicated "Persona Backup & Export" card in `ProfilePanel.tsx` downloads `<Persona>_Profile_Settings.json` containing the full persona specification (name, avatar, about, role, speech style, system prompt, voice settings, schedules, automations, and memories). Zero chat messages are stored, guaranteeing 100% user privacy.
+    - *App Settings Migration Import*: Placed "Persona Migration" section directly in default App Settings (`SettingsPopover.tsx`). Allows seamless migration onto fresh devices or blank browsers where the persona does not yet exist. Instantly creates the persona in `chats`, configures all properties, selects the chat, navigates to chat view on mobile, and dismisses Settings.
+    - Cleaned `ProfilePanel.tsx` to remain export-only and kept `NewChatPanel.tsx` clutter-free.
 
 ---
 
