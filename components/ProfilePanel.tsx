@@ -1869,10 +1869,12 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                         return (
                           <div className="space-y-3 pt-2.5 border-t app-border animate-in fade-in duration-200">
                             {/* Header: Library count + Reset option */}
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center justify-between gap-2 pb-0.5">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-[11px] font-semibold text-secondary uppercase tracking-wider">Saved Voice Library</span>
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#21c063]/15 text-[#00a884] shrink-0">
+                                <span className="text-[11px] font-medium text-secondary whitespace-nowrap">
+                                  Saved Voices
+                                </span>
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-[#21c063]/15 text-[#00a884] whitespace-nowrap">
                                   {designedVoices.length} saved
                                 </span>
                               </div>
@@ -1888,10 +1890,10 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                                     setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
                                     onUpdate({ voiceSettings: updatedVoiceSettings });
                                   }}
-                                  className="text-[11px] text-secondary hover:text-red-500 transition-colors shrink-0 font-medium"
-                                  title="Unassign custom voice"
+                                  className="text-[11px] text-secondary hover:text-red-500 transition-colors whitespace-nowrap font-medium shrink-0"
+                                  title="Reset to default voice"
                                 >
-                                  Use default voice ({formData.voiceSettings?.voiceName || 'Aoede'})
+                                  Reset to default
                                 </button>
                               )}
                             </div>
