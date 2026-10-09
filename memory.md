@@ -25,6 +25,10 @@
   - **Voice Crafted Confirmation Modal (`components/ProfilePanel.tsx`)**: Displays an interactive modal immediately upon successful crafting with the voice name, gender, prompt directive, sample audio preview, and a direct "Test Voice Note as [Persona]" button.
   - **Direct Test Voice Note Action**: Added "Test Voice Note as [Persona]" buttons directly within both the Voice Design and Voice Replication cards in `ProfilePanel.tsx`.
   - **Dynamic Contact Info Subtitle**: Contact Info header now dynamically displays the active voice name with `(Prompted)` or `(Cloned)` tags (e.g. `Lil Sis (female) (Prompted) · frequent · App Default`).
+  - **Custom Voice Library Redesign & Persistence Normalization**:
+    - Replaced the plain select dropdown with a rich WhatsApp-themed Custom Voice Cards Library displaying voice badges, names, gender pills (`Female` / `Male`), prompt excerpts, sample preview players, active checkmark badges, and deletion controls.
+    - Added auto-repair in `getSavedCustomVoices()` that normalizes `type: 'designed'` and extracts `displayName` so any previously crafted voices immediately appear in the library without manual intervention.
+    - Added `wassap_custom_voices_updated` event broadcasting so voice creations and deletions instantly synchronize across all open profile panels.
 
 ### 2. Multi-Day Journal Recollections (Chronicle of Events) & Local Persona Migration Engine (`v1.9.6`)
 - **Root Cause Analysis of Multi-Day Diary Skipping**:

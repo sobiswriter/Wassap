@@ -90,7 +90,8 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
                 "Multi-Voice Crafting & Persistence Fix: Corrected unique ID generation and storage parsing across Vertex AI custom voices. Newly crafted and cloned voices now reliably persist in local storage with guaranteed unique non-colliding IDs and immediately show up in the saved voice selector without overwriting earlier voices.",
                 "Voice Crafted Confirmation Modal: Added a dedicated confirmation dialog immediately after synthesis that celebrates newly crafted voices, shows their prompt directives, provides a quick sample player, and features an instant 'Test Voice Note as [Persona]' button.",
                 "Direct Voice Note Auditioning: Added an instant 'Test Voice Note as [Persona]' button directly inside both Voice Design and Voice Replication cards in the Profile Panel, letting users audition their crafted personas with vocal bursts before sending chats.",
-                "Dynamic Contact Info Header: Voice Settings header subtitle now clearly reflects the active custom voice label (e.g. 'Lil Sis (female) (Prompted) · frequent · App Default') rather than displaying the studio voice name."
+                "Dynamic Contact Info Header: Voice Settings header subtitle now clearly reflects the active custom voice label (e.g. 'Lil Sis (female) (Prompted) · frequent · App Default') rather than displaying the studio voice name.",
+                "WhatsApp-Themed Custom Voice Cards Library: Replaced the plain select dropdown with an interactive WhatsApp-style card library featuring vocal badges, gender pills (Female/Male), prompt excerpts, single-tap sample players, active checkmark indicators, and quick deselect/delete controls for seamless cross-persona voice reusability."
               ]}
             />
             <UpdateItem 
