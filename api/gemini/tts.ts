@@ -338,7 +338,12 @@ export default async function handler(
     }
 
     const selectedVoice = voiceName || 'Aoede';
-    const isCustomVoice = selectedVoice.startsWith('voice_') || selectedVoice.startsWith('voicekey_');
+    const isCustomVoice = Boolean(
+      customVoicePrompt ||
+      selectedVoice.startsWith('voice_') ||
+      selectedVoice.startsWith('voicekey_') ||
+      !GEMINI_TTS_VOICE_DETAILS[selectedVoice]
+    );
     const voiceDescriptor = getVoiceDescriptor(selectedVoice);
     const selectedModel = voiceModel || 'gemini-3.8-flash-tts';
     const is38 = selectedModel.includes('3.8');

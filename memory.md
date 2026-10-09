@@ -16,19 +16,19 @@
 ## ⚡ Current State & What Was Just Worked On
 ### 1. Voice Design Synthesis & Multi-Voice Persistence Hotfix (`v1.9.6-hotfix1`)
 - **Root Cause Analysis of Voice Design & Multi-Voice Issues**:
-  1. *Studio voice override*: `api/gemini/tts.ts`, `server/vertexHandler.ts`, and `services/geminiService.ts` hardcoded `voiceName: isCustomVoice ? 'Aoede' : selectedVoice` in `prebuiltVoiceConfig`. Gemini 3.8 Flash TTS expects custom voice resource names in `voiceConfig: { voice: selectedVoice }`, not `prebuiltVoiceConfig`.
-  2. *Custom voices not saving / disappearing*: The Vertex Voices API returns resource `name: "projects/.../locations/global/voices/voice_xxx"`, not a root `id` property. Thus `data.id` was `undefined`. In `utils/customVoices.ts`, `saveCustomVoice` called `findIndex(v => v.id === undefined)`, which continuously matched index 0 and overwrote the first saved voice on every craft/clone operation.
-  3. *No confirmation dialog or immediate feedback*: When a custom voice was crafted, there was no feedback modal showing its details or allowing an immediate test note, leaving users uncertain if it worked.
+  1. *Storage Quota Rejection*: Vertex AI Voice Design returned a heavy base64 WAV sample audio preview (~1 MB) in `sampleAudioDataUrl`. Because browser `localStorage` has a strict 5 MB total quota across the entire app (shared with chat history and backstories), saving a second voice caused `localStorage.setItem` to throw `QuotaExceededError`. It was caught silently, preventing newly crafted voices from ever saving or showing up in the library.
+  2. *Duplicate Congested Mobile Layout*: The Voice Design settings stacked a dropdown selector AND duplicate voice cards directly underneath it, crowding buttons and badges onto small phone screens.
+  3. *Cloud ID Collision*: When `data.name` ended in `/voices`, naive splitting resulted in `id: 'voices'`, causing ID collision across custom voices.
 - **The Resolution**:
+  - **Lean Quota-Safe Storage (`utils/customVoices.ts`)**: Stripped heavy base64 audio strings from `localStorage` payloads before writing, shrinking custom voice records from ~1,000,000 bytes down to ~200 bytes (a 4,000x reduction). In-memory `audioPreviewCache` preserves immediate sample playback for active sessions with zero disk bloat.
+  - **Automatic Storage Self-Repair & Quota Retry**: On load and save, `getSavedCustomVoices()` automatically cleanses legacy base64 audio payloads from stored items and retries saving with lean records if quota is ever exceeded.
+  - **Guaranteed Unique Cloud IDs**: Fixed voice ID normalization in `api/gemini/voices.ts` and `utils/customVoices.ts` to ensure `candidateId !== 'voices'`, preventing collision with collection paths.
+  - **Spacious, Native WhatsApp UI (`components/ProfilePanel.tsx`)**:
+    - Replaced the congested dropdown-plus-card stack with a clean native WhatsApp `<select>` dropdown and a single dedicated Active Voice Card.
+    - Active Voice Card displays the voice avatar, gender pill, active indicator, audition button, trash button, prompt description quote box, and a prominent WhatsApp green "Test Voice Note as [Persona]" button.
+    - Clean collapsible "Craft New Voice" accordion with inspiraton chips, custom name, prompt, and gender selector.
+    - Interactive success modal with audition sample player and inline confirmation banners.
   - **Direct Voice Config Routing (`speechConfig.voiceConfig: { voice: selectedVoice }`)**: For custom voices on Gemini 3.8 models, synthesis payloads pass `{ voice: selectedVoice }` directly to Vertex AI, with automatic in-candidate fallback to a gender-matched studio voice + injected prompt directives if the custom voice is unresolved or falls back to Gemini 3.1.
-  - **Guaranteed Unique ID Generation & Auto-Repair (`utils/customVoices.ts`, `api/gemini/voices.ts`)**: Assigned guaranteed unique IDs (`res.voice?.id || res.voice?.name || ...`) and added auto-repair in `getSavedCustomVoices()` to repair legacy items with undefined IDs, ensuring all crafted voices display and persist.
-  - **Voice Crafted Confirmation Modal (`components/ProfilePanel.tsx`)**: Displays an interactive modal immediately upon successful crafting with the voice name, gender, prompt directive, sample audio preview, and a direct "Test Voice Note as [Persona]" button.
-  - **Direct Test Voice Note Action**: Added "Test Voice Note as [Persona]" buttons directly within both the Voice Design and Voice Replication cards in `ProfilePanel.tsx`.
-  - **Dynamic Contact Info Subtitle**: Contact Info header now dynamically displays the active voice name with `(Prompted)` or `(Cloned)` tags (e.g. `Lil Sis (female) (Prompted) · frequent · App Default`).
-  - **Custom Voice Library Redesign & Persistence Normalization**:
-    - Replaced the plain select dropdown with a rich WhatsApp-themed Custom Voice Cards Library displaying voice badges, names, gender pills (`Female` / `Male`), prompt excerpts, sample preview players, active checkmark badges, and deletion controls.
-    - Added auto-repair in `getSavedCustomVoices()` that normalizes `type: 'designed'` and extracts `displayName` so any previously crafted voices immediately appear in the library without manual intervention.
-    - Added `wassap_custom_voices_updated` event broadcasting so voice creations and deletions instantly synchronize across all open profile panels.
 
 ### 2. Multi-Day Journal Recollections (Chronicle of Events) & Local Persona Migration Engine (`v1.9.6`)
 - **Root Cause Analysis of Multi-Day Diary Skipping**:

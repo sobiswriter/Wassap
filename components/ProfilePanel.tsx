@@ -10,7 +10,7 @@ import { ConfirmationModal } from './ConfirmationModal';
 import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey, getAppNow, getAppDateKey } from '../utils/dates';
 import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TTS_VOICE_DETAILS, AVAILABLE_IMAGE_MODELS, DEFAULT_IMAGE_MODEL, AVAILABLE_VOICE_MODELS, DEFAULT_VOICE_MODEL, VOICE_STYLE_PRESETS, DEFAULT_VARY_MESSAGE_LENGTH_PROMPT, VARY_MESSAGE_LENGTH_PRESETS } from '../constants';
 import { generateGeminiVoiceNote } from '../services/geminiService';
-import { getSavedCustomVoices, saveCustomVoice, deleteCustomVoiceComplete, craftCustomVoice, replicateCustomVoice, VOICE_DESIGN_INSPIRATIONS, isDesignedVoice, isReplicatedVoice } from '../utils/customVoices';
+import { getSavedCustomVoices, saveCustomVoice, deleteCustomVoiceComplete, craftCustomVoice, replicateCustomVoice, VOICE_DESIGN_INSPIRATIONS, isDesignedVoice, isReplicatedVoice, getVoiceAudioPreview } from '../utils/customVoices';
 import { convertAudioTo24kMonoWav } from '../utils/audioResampler';
 
 interface ProfilePanelProps {
@@ -454,12 +454,16 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
 
       if (res.ok && res.voice) {
         const freshVoices = getSavedCustomVoices();
-        setCustomVoices(freshVoices);
+        const voiceExists = freshVoices.some(v => v.id === res.voice!.id);
+        const allVoices = voiceExists ? freshVoices : [res.voice, ...freshVoices];
+        setCustomVoices(allVoices);
         const updatedVoiceSettings: PersonaVoiceSettings = {
           ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
           enableVoiceDesign: true,
+          enableVoiceReplication: false,
           designedVoiceId: res.voice.id,
-          designedVoiceName: res.voice.name
+          designedVoiceName: res.voice.name,
+          stylePrompt: res.voice.promptDescription || formData.voiceSettings?.stylePrompt
         };
         setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
         onUpdate({ voiceSettings: updatedVoiceSettings });
@@ -537,13 +541,11 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       if (updatedVoiceSettings.designedVoiceId === id) {
         updatedVoiceSettings.designedVoiceId = undefined;
         updatedVoiceSettings.designedVoiceName = undefined;
-        updatedVoiceSettings.enableVoiceDesign = false;
         needUpdate = true;
       }
       if (updatedVoiceSettings.replicatedVoiceId === id) {
         updatedVoiceSettings.replicatedVoiceId = undefined;
         updatedVoiceSettings.replicatedVoiceName = undefined;
-        updatedVoiceSettings.enableVoiceReplication = false;
         needUpdate = true;
       }
       if (needUpdate) {
@@ -1041,19 +1043,22 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                 This custom voice has been saved to your browser and automatically activated for <strong className="text-primary">{formData.name}</strong>. Gemini 3.8 TTS will synthesize audio using this tailored vocal profile.
               </p>
 
-              {craftedSuccessVoice.sampleAudioDataUrl && (
-                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-black/5 dark:bg-white/5">
-                  <button
-                    type="button"
-                    onClick={() => playAudioPreview(craftedSuccessVoice.sampleAudioDataUrl!, craftedSuccessVoice.id)}
-                    className="p-2 bg-[#21c063] text-white rounded-lg hover:bg-[#008069] transition-colors flex items-center gap-1.5 text-xs font-medium"
-                  >
-                    {playingPreviewVoiceId === craftedSuccessVoice.id ? <Square size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-                    <span>{playingPreviewVoiceId === craftedSuccessVoice.id ? "Stop Sample" : "Play Quick Sample"}</span>
-                  </button>
-                  <span className="text-[11px] text-secondary">Pre-rendered voice preview</span>
-                </div>
-              )}
+              {(() => {
+                const previewUrl = craftedSuccessVoice.sampleAudioDataUrl || getVoiceAudioPreview(craftedSuccessVoice.id);
+                return previewUrl ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-black/5 dark:bg-white/5">
+                    <button
+                      type="button"
+                      onClick={() => playAudioPreview(previewUrl, craftedSuccessVoice.id)}
+                      className="p-2 bg-[#21c063] text-white rounded-lg hover:bg-[#008069] transition-colors flex items-center gap-1.5 text-xs font-medium"
+                    >
+                      {playingPreviewVoiceId === craftedSuccessVoice.id ? <Square size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                      <span>{playingPreviewVoiceId === craftedSuccessVoice.id ? "Stop Sample" : "Play Quick Sample"}</span>
+                    </button>
+                    <span className="text-[11px] text-secondary">Pre-rendered voice preview</span>
+                  </div>
+                ) : null;
+              })()}
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t app-border">
@@ -1856,13 +1861,18 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                       {formData.voiceSettings?.enableVoiceDesign && (() => {
                         const designedVoices = customVoices.filter(v => isDesignedVoice(v));
                         const currentSelectedVoice = customVoices.find(v => v.id === formData.voiceSettings?.designedVoiceId);
+                        const isPlayingSelected = currentSelectedVoice && (playingPreviewVoiceId === currentSelectedVoice.id);
+                        const selectedAudioPreview = currentSelectedVoice 
+                          ? (currentSelectedVoice.sampleAudioDataUrl || getVoiceAudioPreview(currentSelectedVoice.id)) 
+                          : undefined;
+
                         return (
-                          <div className="space-y-3 pt-2 border-t app-border animate-in fade-in duration-200">
-                            {/* Header and counter */}
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[11px] font-semibold text-secondary uppercase tracking-wider">Custom Voice Library</span>
-                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-[#21c063]/15 text-[#00a884]">
+                          <div className="space-y-3 pt-2.5 border-t app-border animate-in fade-in duration-200">
+                            {/* Header: Library count + Reset option */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-[11px] font-semibold text-secondary uppercase tracking-wider">Saved Voice Library</span>
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#21c063]/15 text-[#00a884] shrink-0">
                                   {designedVoices.length} saved
                                 </span>
                               </div>
@@ -1878,191 +1888,178 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                                     setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
                                     onUpdate({ voiceSettings: updatedVoiceSettings });
                                   }}
-                                  className="text-[10.5px] text-secondary hover:text-red-500 transition-colors"
+                                  className="text-[11px] text-secondary hover:text-red-500 transition-colors shrink-0 font-medium"
                                   title="Unassign custom voice"
                                 >
-                                  Deselect (Use {formData.voiceSettings?.voiceName || 'Aoede'})
+                                  Use default voice ({formData.voiceSettings?.voiceName || 'Aoede'})
                                 </button>
                               )}
                             </div>
 
-                            {/* Quick Switcher Dropdown */}
-                            <select
-                              value={formData.voiceSettings?.designedVoiceId || ''}
-                              onChange={(e) => {
-                                const selectedId = e.target.value;
-                                if (!selectedId) {
-                                  const updatedVoiceSettings: PersonaVoiceSettings = {
-                                    ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
-                                    designedVoiceId: undefined,
-                                    designedVoiceName: undefined
-                                  };
-                                  setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
-                                  onUpdate({ voiceSettings: updatedVoiceSettings });
-                                  return;
-                                }
-                                const selected = customVoices.find(v => v.id === selectedId);
-                                if (selected) {
-                                  const updatedVoiceSettings: PersonaVoiceSettings = {
-                                    ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
-                                    enableVoiceDesign: true,
-                                    enableVoiceReplication: false,
-                                    designedVoiceId: selected.id,
-                                    designedVoiceName: selected.name || (selected as any).displayName || 'Designed Voice',
-                                    stylePrompt: selected.promptDescription || formData.voiceSettings?.stylePrompt
-                                  };
-                                  setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
-                                  onUpdate({ voiceSettings: updatedVoiceSettings });
-                                }
-                              }}
-                              className="w-full bg-white dark:bg-[#111b21] border app-border focus:border-[#00a884] rounded-lg px-3 py-2 text-xs outline-none text-primary cursor-pointer shadow-sm transition-colors"
-                            >
-                              <option value="">-- Choose a designed voice ({designedVoices.length} available) --</option>
-                              {designedVoices.map(v => (
-                                <option key={v.id} value={v.id}>
-                                  {v.name || (v as any).displayName || 'Custom Voice'} ({v.gender ? (v.gender.charAt(0).toUpperCase() + v.gender.slice(1)) : 'Designed'})
+                            {/* Dropdown Selector */}
+                            <div className="space-y-1">
+                              <select
+                                value={formData.voiceSettings?.designedVoiceId || ''}
+                                onChange={(e) => {
+                                  const selectedId = e.target.value;
+                                  if (!selectedId) {
+                                    const updatedVoiceSettings: PersonaVoiceSettings = {
+                                      ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                      designedVoiceId: undefined,
+                                      designedVoiceName: undefined
+                                    };
+                                    setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                                    onUpdate({ voiceSettings: updatedVoiceSettings });
+                                    return;
+                                  }
+                                  const selected = customVoices.find(v => v.id === selectedId);
+                                  if (selected) {
+                                    const updatedVoiceSettings: PersonaVoiceSettings = {
+                                      ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
+                                      enableVoiceDesign: true,
+                                      enableVoiceReplication: false,
+                                      designedVoiceId: selected.id,
+                                      designedVoiceName: selected.name || (selected as any).displayName || 'Designed Voice',
+                                      stylePrompt: selected.promptDescription || formData.voiceSettings?.stylePrompt
+                                    };
+                                    setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
+                                    onUpdate({ voiceSettings: updatedVoiceSettings });
+                                  }
+                                }}
+                                className="w-full bg-white dark:bg-[#111b21] border app-border focus:border-[#00a884] rounded-lg px-3 py-2 text-xs outline-none text-primary cursor-pointer shadow-sm transition-colors"
+                              >
+                                <option value="">
+                                  {designedVoices.length === 0 ? "-- No designed voices in library --" : "-- Choose a designed voice --"}
                                 </option>
-                              ))}
-                            </select>
+                                {designedVoices.map(v => (
+                                  <option key={v.id} value={v.id}>
+                                    {v.name || (v as any).displayName || 'Custom Voice'} ({v.gender ? (v.gender.charAt(0).toUpperCase() + v.gender.slice(1)) : 'Designed'})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
 
-                            {/* WhatsApp Themed Voice Cards */}
-                            {designedVoices.length === 0 ? (
-                              <div className="p-4 rounded-xl border border-dashed border-gray-300 dark:border-gray-700/80 text-center space-y-1.5 bg-black/[0.01] dark:bg-white/[0.01]">
-                                <div className="w-8 h-8 rounded-full bg-[#00a884]/10 text-[#00a884] flex items-center justify-center mx-auto">
-                                  <Wand2 size={16} />
+                            {/* Active Selected Voice Card */}
+                            {currentSelectedVoice ? (
+                              <div className="p-3 rounded-xl border border-[#00a884]/40 bg-[#00a884]/5 dark:bg-[#00a884]/10 space-y-2.5 animate-in fade-in duration-150">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-8 h-8 rounded-full bg-[#00a884] text-white flex items-center justify-center shrink-0 shadow-sm">
+                                      <Wand2 size={15} />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-xs font-semibold text-primary truncate max-w-[150px]">
+                                          {currentSelectedVoice.name || (currentSelectedVoice as any).displayName || 'Designed Voice'}
+                                        </span>
+                                        {currentSelectedVoice.gender && (
+                                          <span className={`text-[9.5px] font-semibold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
+                                            currentSelectedVoice.gender.toLowerCase() === 'female'
+                                              ? 'bg-pink-500/10 text-pink-600 dark:text-pink-400'
+                                              : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                                          }`}>
+                                            {currentSelectedVoice.gender}
+                                          </span>
+                                        )}
+                                        <span className="text-[9.5px] font-bold text-[#00a884] bg-[#00a884]/20 px-1.5 py-0.2 rounded-full">
+                                          Active
+                                        </span>
+                                      </div>
+                                      <p className="text-[10.5px] text-secondary">
+                                        Assigned to {formData.name || 'this contact'}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Quick Action Icons */}
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {selectedAudioPreview && (
+                                      <button
+                                        type="button"
+                                        onClick={() => playAudioPreview(selectedAudioPreview, currentSelectedVoice.id)}
+                                        className={`p-1.5 rounded-full transition-colors ${
+                                          isPlayingSelected
+                                            ? 'bg-[#00a884] text-white'
+                                            : 'text-[#00a884] hover:bg-[#00a884]/10'
+                                        }`}
+                                        title={isPlayingSelected ? "Stop sample preview" : "Audition voice sample"}
+                                      >
+                                        {isPlayingSelected ? <Square size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleDeleteCustomVoice(currentSelectedVoice.id, e)}
+                                      className="p-1.5 text-secondary hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
+                                      title="Delete voice from library"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
                                 </div>
-                                <p className="text-xs font-semibold text-primary">No Designed Voices Saved Yet</p>
-                                <p className="text-[11px] text-secondary max-w-xs mx-auto">
-                                  Craft your first custom voice below. Any voice you create is saved to your library and can be freely reused on {formData.name} or any contact.
-                                </p>
+
+                                {currentSelectedVoice.promptDescription && (
+                                  <div className="p-2 rounded-lg bg-black/[0.03] dark:bg-white/[0.03] border-l-2 border-[#00a884]">
+                                    <p className="text-[11px] text-secondary italic leading-relaxed">
+                                      "{currentSelectedVoice.promptDescription}"
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* WhatsApp Green Test Button */}
+                                <button
+                                  type="button"
+                                  disabled={isTestingVoiceNote}
+                                  onClick={() => handleTestDesignedVoiceNote(currentSelectedVoice)}
+                                  className="w-full flex items-center justify-center gap-2 text-xs text-white bg-[#00a884] hover:bg-[#008f6f] py-2 px-3 rounded-lg font-medium shadow-sm transition-all disabled:opacity-50"
+                                >
+                                  {isTestingVoiceNote ? (
+                                    <>
+                                      <Loader2 size={14} className="animate-spin" />
+                                      <span>Generating Test Note...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Play size={14} fill="currentColor" />
+                                      <span>Test Voice Note as {formData.name || 'Persona'}</span>
+                                    </>
+                                  )}
+                                </button>
                               </div>
                             ) : (
-                              <div className="space-y-2 max-h-[260px] overflow-y-auto pr-0.5">
-                                {designedVoices.map(v => {
-                                  const isSelected = formData.voiceSettings?.designedVoiceId === v.id;
-                                  const voiceName = v.name || (v as any).displayName || 'Custom Voice';
-                                  const isPlaying = playingPreviewVoiceId === v.id;
-                                  return (
-                                    <div
-                                      key={v.id}
-                                      onClick={() => {
-                                        const updatedVoiceSettings: PersonaVoiceSettings = {
-                                          ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
-                                          enableVoiceDesign: true,
-                                          enableVoiceReplication: false,
-                                          designedVoiceId: v.id,
-                                          designedVoiceName: voiceName,
-                                          stylePrompt: v.promptDescription || formData.voiceSettings?.stylePrompt
-                                        };
-                                        setFormData(p => ({ ...p, voiceSettings: updatedVoiceSettings }));
-                                        onUpdate({ voiceSettings: updatedVoiceSettings });
-                                      }}
-                                      className={`p-2.5 rounded-xl border transition-all cursor-pointer relative group ${
-                                        isSelected
-                                          ? 'bg-[#00a884]/10 dark:bg-[#00a884]/15 border-[#00a884] shadow-sm'
-                                          : 'bg-white dark:bg-[#111b21] border-gray-200/90 dark:border-[#222d34] hover:border-[#00a884]/50 hover:bg-black/[0.01] dark:hover:bg-white/[0.02]'
-                                      }`}
-                                    >
-                                      <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                          <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                                            isSelected ? 'bg-[#00a884] text-white shadow-sm' : 'bg-[#00a884]/15 text-[#00a884]'
-                                          }`}>
-                                            {isSelected ? <Check size={14} /> : <Mic size={14} />}
-                                          </div>
-                                          <div className="min-w-0">
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                              <span className="text-xs font-semibold text-primary truncate max-w-[130px]">{voiceName}</span>
-                                              {v.gender && (
-                                                <span className={`text-[9.5px] font-semibold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
-                                                  v.gender.toLowerCase() === 'female' 
-                                                    ? 'bg-pink-500/10 text-pink-600 dark:text-pink-400' 
-                                                    : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                                                }`}>
-                                                  {v.gender}
-                                                </span>
-                                              )}
-                                              {isSelected && (
-                                                <span className="text-[10px] font-bold text-[#00a884] bg-[#00a884]/20 px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
-                                                  Active
-                                                </span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        {/* Right side actions */}
-                                        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                                          {v.sampleAudioDataUrl && (
-                                            <button
-                                              type="button"
-                                              onClick={() => playAudioPreview(v.sampleAudioDataUrl!, v.id)}
-                                              className={`p-1.5 rounded-full transition-colors ${
-                                                isPlaying 
-                                                  ? 'bg-[#00a884] text-white' 
-                                                  : 'text-[#00a884] hover:bg-[#00a884]/10'
-                                              }`}
-                                              title={isPlaying ? "Stop sample preview" : "Audition voice sample"}
-                                            >
-                                              {isPlaying ? <Square size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
-                                            </button>
-                                          )}
-                                          <button
-                                            type="button"
-                                            onClick={(e) => handleDeleteCustomVoice(v.id, e)}
-                                            className="p-1.5 text-secondary hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
-                                            title="Delete this voice from library"
-                                          >
-                                            <Trash2 size={13} />
-                                          </button>
-                                        </div>
-                                      </div>
-
-                                      {v.promptDescription && (
-                                        <p className="text-[11px] text-secondary italic line-clamp-2 pl-9 mt-1 border-l-2 border-[#00a884]/30">
-                                          "{v.promptDescription}"
-                                        </p>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                              <div className="p-3 rounded-xl border border-dashed border-gray-300 dark:border-gray-700/80 text-center space-y-1 bg-black/[0.01] dark:bg-white/[0.01]">
+                                <p className="text-xs font-medium text-primary">
+                                  {designedVoices.length > 0 ? "No Voice Selected" : "No Designed Voices Saved"}
+                                </p>
+                                <p className="text-[11px] text-secondary">
+                                  {designedVoices.length > 0
+                                    ? "Select a voice from the dropdown above to activate it for " + (formData.name || 'this persona') + "."
+                                    : "Craft your first custom voice below. Once created, it can be freely reused on any persona."}
+                                </p>
                               </div>
-                            )}
-
-                            {/* Active Voice Test Button */}
-                            {formData.voiceSettings?.designedVoiceId && (
-                              <button
-                                type="button"
-                                disabled={isTestingVoiceNote}
-                                onClick={() => handleTestDesignedVoiceNote()}
-                                className="w-full flex items-center justify-center gap-1.5 text-xs text-white bg-[#00a884] hover:bg-[#008f6f] py-2 px-3 rounded-lg font-medium shadow-sm transition-all disabled:opacity-50"
-                              >
-                                {isTestingVoiceNote ? (
-                                  <>
-                                    <Loader2 size={14} className="animate-spin" />
-                                    <span>Generating Test Note...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Play size={14} fill="currentColor" />
-                                    <span>Test Voice Note as {formData.name || 'Persona'}</span>
-                                  </>
-                                )}
-                              </button>
                             )}
 
                             {/* Toggle Craft Panel Button */}
                             <button
-                            type="button"
-                            onClick={() => setShowCraftVoicePanel(!showCraftVoicePanel)}
-                            className="w-full flex items-center justify-center gap-1.5 text-xs text-[#21c063] font-medium py-1.5 hover:bg-[#21c063]/10 rounded-lg border border-[#21c063]/20 transition-colors"
-                          >
-                            <Plus size={14} />
-                            {showCraftVoicePanel ? "Close Craft Panel" : "Craft New Voice"}
-                          </button>
+                              type="button"
+                              onClick={() => setShowCraftVoicePanel(!showCraftVoicePanel)}
+                              className="w-full flex items-center justify-center gap-1.5 text-xs text-[#21c063] font-medium py-2 hover:bg-[#21c063]/10 rounded-lg border border-[#21c063]/30 transition-colors"
+                            >
+                              {showCraftVoicePanel ? (
+                                <>
+                                  <X size={14} />
+                                  <span>Close Craft Panel</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus size={14} />
+                                  <span>Craft New Voice</span>
+                                </>
+                              )}
+                            </button>
 
-                          {/* Collapsible Crafting Form */}
-                          {showCraftVoicePanel && (
+                            {/* Collapsible Crafting Form */}
+                            {showCraftVoicePanel && (
                             <div className="p-3 bg-white dark:bg-[#202c33] border app-border rounded-lg space-y-3 animate-in zoom-in-95 duration-150">
                               <h6 className="text-xs font-semibold text-primary">Craft New Custom Voice</h6>
 

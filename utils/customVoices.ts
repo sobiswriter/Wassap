@@ -2,6 +2,20 @@ import { CustomVoiceItem } from '../types';
 
 const CUSTOM_VOICES_STORAGE_KEY = 'wassap_custom_voices';
 
+// Ephemeral in-memory audio preview cache so audio preview works in the active session
+// without bloating localStorage with 1MB+ base64 audio per voice.
+const audioPreviewCache = new Map<string, string>();
+
+export const getVoiceAudioPreview = (id: string): string | undefined => {
+  return audioPreviewCache.get(id);
+};
+
+export const setVoiceAudioPreview = (id: string, dataUrl: string): void => {
+  if (id && dataUrl) {
+    audioPreviewCache.set(id, dataUrl);
+  }
+};
+
 export const getSavedCustomVoices = (): CustomVoiceItem[] => {
   if (typeof window === 'undefined' || !window.localStorage) return [];
   try {
@@ -17,7 +31,7 @@ export const getSavedCustomVoices = (): CustomVoiceItem[] => {
       let item = { ...v };
       
       // 1. ID Repair
-      if (!item.id || typeof item.id !== 'string' || item.id.trim() === '' || item.id === 'undefined') {
+      if (!item.id || typeof item.id !== 'string' || item.id.trim() === '' || item.id === 'undefined' || item.id === 'voices') {
         needsSave = true;
         item.id = `voice_saved_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`;
       }
@@ -42,11 +56,26 @@ export const getSavedCustomVoices = (): CustomVoiceItem[] => {
         needsSave = true;
       }
 
+      // 4. Strip heavy audio base64 from localStorage to stay well below 5MB browser quota
+      if (item.sampleAudioDataUrl) {
+        audioPreviewCache.set(item.id, item.sampleAudioDataUrl);
+        delete item.sampleAudioDataUrl;
+        needsSave = true;
+      }
+      if (item.sourceAudioBase64) {
+        delete item.sourceAudioBase64;
+        needsSave = true;
+      }
+
       return item;
     }).filter(Boolean) as CustomVoiceItem[];
 
     if (needsSave) {
-      localStorage.setItem(CUSTOM_VOICES_STORAGE_KEY, JSON.stringify(repaired));
+      try {
+        localStorage.setItem(CUSTOM_VOICES_STORAGE_KEY, JSON.stringify(repaired));
+      } catch (quotaErr) {
+        console.warn('Quota warning while saving cleansed voices:', quotaErr);
+      }
     }
     return repaired;
   } catch (err) {
@@ -59,24 +88,59 @@ export const saveCustomVoice = (voice: CustomVoiceItem): void => {
   if (typeof window === 'undefined' || !window.localStorage) return;
   try {
     const voices = getSavedCustomVoices();
+    
     // Safety check: ensure valid unique ID and type
-    if (!voice.id || typeof voice.id !== 'string' || voice.id.trim() === '' || voice.id === 'undefined') {
-      voice.id = `voice_${voice.type || 'designed'}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    let voiceId = voice.id;
+    if (!voiceId || typeof voiceId !== 'string' || voiceId.trim() === '' || voiceId === 'undefined' || voiceId === 'voices') {
+      voiceId = `voice_${voice.type || 'designed'}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     }
-    if (!voice.type || (voice.type as any) === 'prompted') {
-      voice.type = (voice as any).sourceAudioBase64 ? 'replicated' : 'designed';
-    }
-    if (!voice.name && (voice as any).displayName) {
-      voice.name = (voice as any).displayName;
+    
+    const voiceType = (!voice.type || (voice.type as any) === 'prompted')
+      ? ((voice as any).sourceAudioBase64 ? 'replicated' : 'designed')
+      : voice.type;
+
+    const voiceName = voice.name || (voice as any).displayName || 'Designed Voice';
+
+    // Cache audio preview in memory so it's auditionable in the current session
+    if (voice.sampleAudioDataUrl) {
+      audioPreviewCache.set(voiceId, voice.sampleAudioDataUrl);
     }
 
-    const existingIdx = voices.findIndex(v => v.id === voice.id);
+    // Build lean voice item for localStorage (guaranteed minimal footprint ~200 bytes)
+    const leanVoice: CustomVoiceItem = {
+      id: voiceId,
+      name: voiceName,
+      type: voiceType,
+      createdAt: voice.createdAt || Date.now(),
+      model: voice.model || 'gemini-3.8-flash-tts',
+      gender: voice.gender,
+      languageCode: voice.languageCode || 'en-US',
+      promptDescription: voice.promptDescription,
+      storageMode: voice.storageMode || 'stored'
+    };
+
+    const existingIdx = voices.findIndex(v => v.id === leanVoice.id);
     if (existingIdx !== -1) {
-      voices[existingIdx] = { ...voices[existingIdx], ...voice };
+      voices[existingIdx] = { ...voices[existingIdx], ...leanVoice };
     } else {
-      voices.unshift(voice);
+      voices.unshift(leanVoice);
     }
-    localStorage.setItem(CUSTOM_VOICES_STORAGE_KEY, JSON.stringify(voices));
+
+    try {
+      localStorage.setItem(CUSTOM_VOICES_STORAGE_KEY, JSON.stringify(voices));
+    } catch (quotaErr) {
+      console.warn('Quota exceeded in saveCustomVoice. Deep-stripping legacy payloads and retrying...', quotaErr);
+      try {
+        const leanList = voices.map(v => {
+          const { sampleAudioDataUrl: _, ...clean } = v as any;
+          return clean;
+        });
+        localStorage.setItem(CUSTOM_VOICES_STORAGE_KEY, JSON.stringify(leanList));
+      } catch (retryErr) {
+        console.error('Failed to save custom voice even after stripping:', retryErr);
+      }
+    }
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('wassap_custom_voices_updated'));
     }
@@ -90,6 +154,7 @@ export const deleteCustomVoice = (id: string): void => {
   try {
     const voices = getSavedCustomVoices().filter(v => v.id !== id);
     localStorage.setItem(CUSTOM_VOICES_STORAGE_KEY, JSON.stringify(voices));
+    audioPreviewCache.delete(id);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('wassap_custom_voices_updated'));
     }
@@ -145,9 +210,18 @@ export async function craftCustomVoice(params: {
       return { ok: true, voice: fallbackVoice };
     }
 
-    const uniqueId = data.id || localFallbackId;
+    const candidateId = (data.voice?.id && data.voice.id !== 'voices' ? data.voice.id : undefined)
+      || (data.voice?.name && data.voice.name.split('/').pop() !== 'voices' ? data.voice.name.split('/').pop() : undefined)
+      || (data.id && data.id !== 'voices' ? data.id : undefined)
+      || (data.name && data.name.split('/').pop() !== 'voices' ? data.name.split('/').pop() : undefined)
+      || localFallbackId;
+
+    if (data.sampleAudioDataUrl) {
+      setVoiceAudioPreview(candidateId, data.sampleAudioDataUrl);
+    }
+
     const voiceItem: CustomVoiceItem = {
-      id: uniqueId,
+      id: candidateId,
       name: data.displayName || params.displayName,
       type: 'designed',
       createdAt: Date.now(),
@@ -207,6 +281,9 @@ export async function replicateCustomVoice(params: {
       return { ok: false, error: data.error || 'Failed to replicate voice with Vertex AI Voices API' };
     }
     const voiceId = data.id || data.key || `voice_replicated_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    if (params.previewAudioUrl) {
+      setVoiceAudioPreview(voiceId, params.previewAudioUrl);
+    }
     const voiceItem: CustomVoiceItem = {
       id: voiceId,
       name: data.displayName || params.displayName,

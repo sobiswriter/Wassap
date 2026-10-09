@@ -282,10 +282,14 @@ export default async function handler(
           sampleAudioUrl = pcmToWavDataUrl(data.sampleAudio.data);
         }
 
-        const uniqueVoiceId = data.id 
-          || (data.name ? data.name.split('/').pop() : undefined)
-          || (data.voice?.id || (data.voice?.name ? data.voice.name.split('/').pop() : undefined))
-          || `voice_designed_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const candidateId = (data.voice?.id && data.voice.id !== 'voices' ? data.voice.id : undefined)
+          || (data.voice?.name && data.voice.name.split('/').pop() !== 'voices' ? data.voice.name.split('/').pop() : undefined)
+          || (data.id && data.id !== 'voices' ? data.id : undefined)
+          || (data.name && data.name.split('/').pop() !== 'voices' ? data.name.split('/').pop() : undefined);
+
+        const uniqueVoiceId = (candidateId && candidateId.trim() !== '')
+          ? candidateId
+          : `voice_designed_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
         sendJson(res, 200, {
           ok: true,
