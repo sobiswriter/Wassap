@@ -348,35 +348,62 @@ async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSigna
   return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
 }
 
-async function fetchVertexDiary(payload: any, signal?: AbortSignal): Promise<string> {
-  try {
-    const res = await fetchWithTimeout('/api/gemini/diary', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-vertex-passcode': VERTEX_PASSCODE,
-      },
-      body: JSON.stringify(payload),
-      timeoutMs: 16000,
-      signal,
-    });
+async function fetchVertexDiary(payload: any, maxRetries = 1, signal?: AbortSignal): Promise<string> {
+  const requestPayload = {
+    ...payload,
+    passcode: VERTEX_PASSCODE,
+  };
 
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await res.text();
-      console.error("Non-JSON response from Vertex backend for diary:", res.status, text.slice(0, 300));
-      return `Vertex AI diary server returned non-JSON (${res.status}). Please try again later or switch to 'Custom API Key' in Settings.`;
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    if (signal?.aborted) {
+      return "Diary generation was cancelled.";
     }
 
-    const data = await res.json();
-    if (!res.ok || !data.text) {
-      return data.error || "Vertex AI server encountered an error while writing diary.";
+    try {
+      // 30s timeout on attempt 1, 15s on attempt 2 to give model plenty of thinking and prose generation headroom
+      const perAttemptTimeout = attempt === 1 ? 30000 : 15000;
+      const res = await fetchWithTimeout('/api/gemini/diary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-vertex-passcode': VERTEX_PASSCODE,
+        },
+        body: JSON.stringify(requestPayload),
+        timeoutMs: perAttemptTimeout,
+        signal,
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error("Non-JSON response from Vertex backend for diary:", res.status, text.slice(0, 300));
+        if (attempt <= maxRetries) {
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
+        return `Vertex AI diary server returned non-JSON (${res.status}). Please try again later or switch to 'Custom API Key' in Settings.`;
+      }
+
+      const data = await res.json();
+      if (!res.ok || !data.text) {
+        if (attempt <= maxRetries && (res.status === 429 || res.status === 503 || res.status === 504)) {
+          await new Promise(r => setTimeout(r, 1500));
+          continue;
+        }
+        return data.error || "Vertex AI server encountered an error while writing diary.";
+      }
+      return data.text;
+    } catch (e: any) {
+      console.warn(`[fetchVertexDiary Attempt ${attempt}/${maxRetries + 1} Error]:`, e?.message || e);
+      if (attempt <= maxRetries && !signal?.aborted) {
+        await new Promise(r => setTimeout(r, 1200));
+        continue;
+      }
+      return `Unable to connect to the built-in Vertex AI server (${e?.message || 'timeout'}). Try again later or switch to 'Custom API Key' in Settings.`;
     }
-    return data.text;
-  } catch (e: any) {
-    console.error("Failed to contact Vertex AI backend for diary:", e);
-    return "Unable to connect to the built-in Vertex AI server. Try again later or switch to 'Custom API Key' in Settings.";
   }
+
+  return "Unable to generate diary entry at this time. Please try again later.";
 }
 
 async function fetchVertexTTS(payload: {
@@ -918,7 +945,7 @@ export const getGeminiDiaryEntry = async (
       })),
       startDate,
       endDate,
-      settings: { selectedModel: settings?.selectedModel },
+      settings: { selectedModel: settings?.selectedModel || DEFAULT_MODEL },
     });
   }
 
@@ -962,11 +989,12 @@ ${historyString || '(No text exchanged today, but we spent quiet time connected)
 PRIVATE DIARY ENTRY BY ${persona.name}:`;
 
   const primaryModel = settings?.selectedModel || DEFAULT_MODEL;
-  const fallbackModels = [
+  const fallbackModels = Array.from(new Set([
     primaryModel,
-    primaryModel !== 'gemini-2.5-flash' ? 'gemini-2.5-flash' : 'gemini-2.5-flash-lite',
+    'gemini-3.8-flash',
+    'gemini-2.5-flash',
     'gemini-2.5-flash-lite'
-  ];
+  ]));
 
   for (let i = 0; i < fallbackModels.length; i++) {
     const modelToUse = fallbackModels[i];

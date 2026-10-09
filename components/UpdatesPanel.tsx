@@ -81,10 +81,24 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem 
+              version="v1.9.5"
+              title="AI Diary Engine Modernization (Gemini 3.8 Flash) & Resilience Shield"
+              date="October 2026"
+              isLatest={true}
+              changes={[
+                "AI Diary Engine Modernization (Gemini 3.8 Flash): Upgraded diary generation to Google's flagship gemini-3.8-flash model. Personas now craft deeper, more introspective, and authentically touching private journal entries reflecting on your interactions.",
+                "AI Diary Client Timeout & Exponential Retry Shield: Resolved the premature 'Unable to connect to built-in Vertex AI server' failure by expanding client generation headroom from 16s to a generous 30s on Attempt 1 (15s on Attempt 2) with automatic exponential retry handling.",
+                "Dual-Channel Passcode Authentication: Added client request body passcode passing alongside HTTP headers, guaranteeing that proxies or CORS filters never strip authentication during diary generation.",
+                "Deduplicated Multi-Tier Model Fallbacks: Primary user selected model is strictly prioritized on Attempt 1, backed by clean deduplicated fallbacks (gemini-3.8-flash -> gemini-2.5-flash -> gemini-2.5-flash-lite) protected by 24-second candidate Promise.race safety timeouts.",
+                "Universal Credential Resolution: Server-side diary handlers seamlessly inspect VERTEX_API_KEY, GEMINI_API_KEY, and API_KEY environment variables prior to Application Default Credentials.",
+                "Pure Verbatim Audio & Voice Design Architecture: Voice synthesis cleanly routes native Voice Design & Voice Replication for Gemini 3.8 Flash and Flash-Lite using official vocal burst tags, keeping acting directive prompt steering dedicated to Gemini 3.1 TTS Preview."
+              ]}
+            />
+            <UpdateItem 
               version="v1.9.4"
               title="Network Resilience Engine & Anti-Stall Auto-Healing Watchdog"
               date="October 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "Anti-Stall Auto-Healing Watchdog (30s Ceiling): Guaranteed recovery from indefinite 'typing...' or 'recording audio...' hangs. A comfortable 30-second ceiling gives models plenty of thinking and TTS voice synthesis headroom on mobile connections before safely recovering status and delivering an in-character glitch excuse.",
                 "Atomic Turn Tokens & Anti-Double Reply Shield: Eliminated duplicate responses (excuse + late message). Each interaction is tagged with an atomic turn token; if the watchdog trips, the turn is permanently closed and any late background response is strictly dropped. Watchdogs disarm the instant generation completes.",

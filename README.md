@@ -1,8 +1,8 @@
-# Wassap Persona Simulation (v1.9.4)
+# Wassap Persona Simulation (v1.9.5)
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 
-![Version](https://img.shields.io/badge/version-1.9.4-brightgreen)
+![Version](https://img.shields.io/badge/version-1.9.5-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -62,6 +62,25 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 *   **Master of Time (The Schedule)**:
     *   In the **Persona Schedule** section, you can set their 24/7 routine. 
     *   Are they at work? At the gym? Sleeping? You can even set custom **Weekend Days**. They won't blabber about it, but their mood and availability will change subtly. If it’s 3 AM and they’re "Sleeping", they might act a bit groggy if you wake them up. 😴👔
+
+### 🌟 What's New in v1.9.5 (The "AI Diary Engine Modernization & Resilience Shield" Update)
+
+*   **AI Diary Engine Modernization (`gemini-3.8-flash`)**:
+    *   Upgraded AI Diary journal writing to Google's flagship reasoning model (`gemini-3.8-flash`).
+    *   Personas generate richer, more intimate, and emotionally nuanced private diary reflections based on shared conversations and memories without repetitive summaries or robotic formatting.
+*   **AI Diary Client Timeout & Exponential Retry Shield**:
+    *   Completely resolved the `"Unable to connect to the built-in Vertex AI server"` error previously triggered during diary generation.
+    *   Expanded client timeout headroom from a strict 16s to a generous 30s on Attempt 1 (15s on Attempt 2) with automatic exponential retry handling, giving deep thinking and multi-paragraph generation ample time to finish cleanly.
+*   **Dual-Channel Passcode Authentication**:
+    *   Passcode authentication is passed both via the `x-vertex-passcode` HTTP header and directly inside the request JSON payload, ensuring reverse proxies, CDNs, and CORS preflight filters never strip authentication credentials.
+*   **Deduplicated Multi-Tier Model Fallbacks**:
+    *   Strictly honors the user's selected model on Attempt 1, backed by a clean deduplicated fallback chain (`selectedModel` -> `gemini-3.8-flash` -> `gemini-2.5-flash` -> `gemini-2.5-flash-lite`).
+    *   Each candidate model is wrapped in an individual 24-second `Promise.race` safety timeout, ensuring that slow or stalled endpoints fail over swiftly without hanging serverless functions.
+*   **Universal Server-Side Credential Resolution**:
+    *   Server handlers inspect `VERTEX_API_KEY`, `GEMINI_API_KEY`, and `API_KEY` environment variables seamlessly before falling back to Google Application Default Credentials (ADC).
+*   **Native Voice Design & Audio Modality Architecture**:
+    *   Preserved native Voice Design and Voice Replication for Gemini 3.8 Flash & Flash-Lite with official vocal tags (`<laugh>`, `<sigh>`, `<gasp>`, `<cough>`).
+    *   Maintains acting directive prompt steering exclusively for `gemini-3.1-flash-tts-preview`, guaranteeing zero 400 schema conflicts across audio modalities.
 
 ### 🌟 What's New in v1.9.4 (The "Network Resilience Engine & Anti-Stall Auto-Healing Watchdog" Update)
 

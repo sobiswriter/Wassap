@@ -158,6 +158,13 @@ function getVertexClient() {
     });
   }
 
+  const serverApiKey = process.env.VERTEX_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY;
+  if (serverApiKey) {
+    return new GoogleGenAI({
+      apiKey: serverApiKey,
+    });
+  }
+
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.NODE_ENV !== 'production' || (!process.env.VERCEL && !process.env.AWS_REGION)) {
     return new GoogleGenAI({
       vertexai: true,
@@ -171,13 +178,6 @@ function getVertexClient() {
           'X-Goog-User-Project': project,
         },
       },
-    });
-  }
-
-  const serverApiKey = process.env.VERTEX_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY;
-  if (serverApiKey) {
-    return new GoogleGenAI({
-      apiKey: serverApiKey,
     });
   }
 
@@ -237,21 +237,28 @@ ${historyString || '(No text exchanged today, but we spent quiet time connected)
 PRIVATE DIARY ENTRY BY ${persona.name}:`;
 
   const primaryModel = resolveVertexModel(settings?.selectedModel);
-  const fallbackModels = [
+  const fallbackModels = Array.from(new Set([
     primaryModel,
-    primaryModel !== 'gemini-2.5-flash' ? 'gemini-2.5-flash' : 'gemini-3.8-flash',
+    'gemini-3.8-flash',
+    'gemini-2.5-flash',
     'gemini-2.5-flash-lite'
-  ];
+  ]));
 
   let lastError: any = null;
 
   for (let i = 0; i < fallbackModels.length; i++) {
     const modelToUse = fallbackModels[i];
     try {
-      const response = await ai.models.generateContent({
-        model: modelToUse,
-        contents: [{ role: 'user', parts: [{ text: diaryPrompt }] }],
-      });
+      const candidateTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Model ${modelToUse} timed out after 24s`)), 24000)
+      );
+      const response = await Promise.race([
+        ai.models.generateContent({
+          model: modelToUse,
+          contents: [{ role: 'user', parts: [{ text: diaryPrompt }] }],
+        }),
+        candidateTimeout
+      ]);
 
       if (response && response.text) {
         return {
@@ -263,7 +270,7 @@ PRIVATE DIARY ENTRY BY ${persona.name}:`;
       lastError = err;
       console.warn(`[Vertex Diary] Attempt ${i + 1} with model ${modelToUse} failed:`, err?.message || err);
       if (i < fallbackModels.length - 1) {
-        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+        await new Promise(r => setTimeout(r, 600));
       }
     }
   }

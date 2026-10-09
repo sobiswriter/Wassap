@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.9.4`
+- **Current Version**: `v1.9.5`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/` and `api/giphy/`, plus a local Express development server in `server/`.
@@ -14,7 +14,21 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Network Resilience Engine & Anti-Stall Auto-Healing Watchdog (`v1.9.4`)
+### 1. AI Diary Engine Modernization (Gemini 3.8 Flash) & Resilience Shield (`v1.9.5`)
+- **Root Cause Analysis of AI Diary Failure**:
+  - `fetchVertexDiary` in `services/geminiService.ts` used a hardcoded `timeoutMs: 16000` (16 seconds) and zero retry attempts.
+  - Generating intimate, multi-paragraph private diary entries spanning up to 40 conversation messages on `gemini-3.8-flash` regularly requires 14–20 seconds of generation time.
+  - At the 16.0s mark, the client's `AbortController` aborted the request with a `TimeoutError`, returning the generic error: `"Unable to connect to the built-in Vertex AI server. Try again later or switch to 'Custom API Key' in Settings."`
+  - In addition, the authentication passcode was previously passed only in HTTP request headers (`x-vertex-passcode`), which can be stripped by aggressive CORS filters or reverse proxies, and `server/vertexHandler.ts` did not check `GEMINI_API_KEY`.
+- **The Resolution**:
+  - **Extended Client Timeout & Retry Shield (`services/geminiService.ts`)**: Upgraded `fetchVertexDiary` to a 30-second timeout on Attempt 1 and 15 seconds on Attempt 2, with automatic exponential retry handling.
+  - **Dual-Channel Passcode Authentication**: Embedded `passcode: VERTEX_PASSCODE` directly in the JSON request body alongside request headers for fail-safe serverless authentication.
+  - **Primary Model Upgrade (`DEFAULT_MODEL` / `gemini-3.8-flash`)**: AI Diary generation now defaults to `gemini-3.8-flash` across client and server handlers (`api/gemini/diary.ts`, `server/vertexHandler.ts`, `services/geminiService.ts`).
+  - **Deduplicated Fallback Chain with Safety Timeouts**: Configured clean deduplicated fallback lists `Array.from(new Set([primaryModel, 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite']))` on both server and client. Each candidate model is wrapped in a 24-second `Promise.race` safety timeout to prevent serverless function hangs.
+  - **Multi-Source Credential Resolution**: Updated `server/vertexHandler.ts` to check `VERTEX_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY`.
+  - **Voice Note Architecture Alignment**: Verified that `selectedModel` is strictly prioritized on Attempt 1. 3.8 Flash and Flash-Lite use pure verbatim text with official vocal tags (`<laugh>`, `<sigh>`, `<gasp>`) and native Voice Design & Replication in `voiceConfig`, while acting directive prompt steering is reserved exclusively for `gemini-3.1-flash-tts-preview`.
+
+### 2. Network Resilience Engine & Anti-Stall Auto-Healing Watchdog (`v1.9.4`)
 - **Root Cause Analysis of Persona Hangs**:
   - Unbounded `fetch()` socket hangs on mobile data / flaky Wi-Fi when switching networks or experiencing dropped packets.
   - Previous `finally` logic used `status === 'typing...'` which failed to reset status when the persona was in `'recording audio...'`.
