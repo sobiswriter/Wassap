@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { Search, MoreVertical, CheckCheck, Check, Clock, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar, Star, Share2 } from 'lucide-react';
-import { Chat, MemoryBubble, Message, AppSettings } from '../types';
+import { Chat, MemoryBubble, Message, AppSettings, UserProfile } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, getMessageTimestampEpoch, isDateInRange, normalizeDateKey, resolveChatMessagesDates, getAppDateKey } from '../utils/dates';
 import { getGeminiDiaryEntry } from '../services/geminiService';
@@ -30,6 +30,7 @@ interface ChatWindowProps {
   onToggleReaction?: (chatId: string, messageId: string, emoji: string) => void;
   onToggleStar?: (chatId: string, messageId: string) => void;
   settings?: AppSettings;
+  userProfile?: UserProfile;
 }
 
 const MEMBER_COLORS = ['#35a62e', '#e542a3', '#9141ac', '#dfa633', '#1d88e5'];
@@ -72,7 +73,8 @@ const DateMemoryModal: React.FC<{
   onSave: (memory: MemoryBubble) => void;
   settings?: AppSettings;
   selectedMessages?: Message[];
-}> = ({ chat, dateKey, onCancel, onSave, settings, selectedMessages }) => {
+  userProfile?: UserProfile;
+}> = ({ chat, dateKey, onCancel, onSave, settings, selectedMessages, userProfile }) => {
   const isCustomSelection = Boolean(selectedMessages && selectedMessages.length > 0);
   const firstDate = isCustomSelection ? getMessageDateKey(selectedMessages![0]) : dateKey;
   const lastDate = isCustomSelection ? getMessageDateKey(selectedMessages![selectedMessages!.length - 1]) : dateKey;
@@ -141,18 +143,22 @@ const DateMemoryModal: React.FC<{
           about: chat.about, 
           role: chat.role, 
           speechStyle: chat.speechStyle, 
-          systemInstruction: chat.systemInstruction 
+          systemInstruction: chat.systemInstruction,
+          humaneSettings: chat.humaneSettings,
         },
         capturedMessages.map(m => ({
           text: m.text,
           sender: m.sender,
           senderName: m.senderName,
           date: m.date || getMessageDateKey(m),
-          timestamp: m.timestamp
+          timestamp: m.timestamp,
+          isEvent: m.isEvent,
+          eventTitle: m.eventTitle,
         })),
         normalizedStart,
         normalizedEnd,
-        settings
+        settings,
+        userProfile
       );
       setNote(diaryEntry);
     } catch (error) {
@@ -1126,7 +1132,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onMarkAsRead, 
   onToggleReaction,
   onToggleStar,
-  settings 
+  settings,
+  userProfile 
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1390,6 +1397,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             setMemoryCaptureDate(null);
           }}
           settings={settings}
+          userProfile={userProfile}
         />
       )}
 
@@ -1408,6 +1416,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             setSelectedMessageIds([]);
           }}
           settings={settings}
+          userProfile={userProfile}
         />
       )}
 

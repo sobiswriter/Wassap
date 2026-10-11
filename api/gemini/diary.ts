@@ -12,11 +12,21 @@ interface DiaryPayload {
     speechStyle?: string;
     about?: string;
     systemInstruction?: string;
+    humaneSettings?: any;
   };
-  messageHistory: { text: string; sender: string; senderName?: string; date?: string; timestamp?: string }[];
+  messageHistory: { 
+    text: string; 
+    sender: string; 
+    senderName?: string; 
+    date?: string; 
+    timestamp?: string;
+    isEvent?: boolean;
+    eventTitle?: string;
+  }[];
   startDate: string;
   endDate: string;
   settings?: any;
+  userProfile?: any;
 }
 
 async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
@@ -201,15 +211,79 @@ function resolveVertexModel(selectedModel?: string): string {
   return selectedModel.trim();
 }
 
+function detectDiaryLanguageDirective(
+  persona: { name: string; about?: string; speechStyle?: string; systemInstruction?: string },
+  messageHistory: Array<{ text: string }>
+): string {
+  const combinedText = [
+    persona.name || '',
+    persona.about || '',
+    persona.speechStyle || '',
+    persona.systemInstruction || '',
+    ...(messageHistory || []).slice(-40).map(m => m.text || '')
+  ].join(' ');
+
+  // 1. Devanagari script (Hindi, Marathi, etc.)
+  if (/[\u0900-\u097F]/.test(combinedText)) {
+    return `DETECTED PRIMARY LANGUAGE: HINDI (DEVANAGARI SCRIPT)
+*** ABSOLUTE REQUIREMENT ***: You and your companion communicate in Hindi using Devanagari script.
+You MUST write this entire diary reflection in HINDI (using Devanagari script: e.g., आज का दिन, मुझे लगा, आदि).
+DO NOT WRITE IN ENGLISH! Under NO circumstances should you default to English.`;
+  }
+
+  // 2. Hinglish / Romanized Hindi
+  const hinglishKeywords = /\b(haan|nahi|nhi|kya|kyun|kyu|bhai|yaar|aaj|kal|kaise|kaisa|kaisi|mai|main|mera|meri|mere|mujhe|mujhko|tere|teri|tera|tujhe|tujhko|hai|hain|ho|tha|thi|the|raha|rahi|rahe|karo|karna|karte|dekh|dekho|suno|bol|bolo|acha|accha|mast|theek|thik|bohot|bahut|chalo|chal|apna|apni|apne|baat|baatein|lagta|lagti|samazh|samajh|kuch|kuchh|ab|kab|sab|sahi|galat)\b/gi;
+  const hinglishMatches = combinedText.match(hinglishKeywords) || [];
+  const mentionsHindi = /hindi|hinglish/i.test(persona.speechStyle || '') ||
+                        /hindi|hinglish/i.test(persona.about || '') ||
+                        /hindi|hinglish/i.test(persona.systemInstruction || '');
+
+  if (mentionsHindi || hinglishMatches.length >= 3) {
+    return `DETECTED PRIMARY LANGUAGE: HINDI / HINGLISH
+*** ABSOLUTE REQUIREMENT ***: You and your companion converse in Hindi / Hinglish. Your persona's natural voice and internal thoughts are in Hindi / Hinglish.
+You MUST write this entire diary reflection in natural, authentic HINDI / HINGLISH (using the exact same Roman/Latin script and conversational style used in your chats, e.g. "aaj ka din bohot mast raha...", "mujhe laga ki...", "yaar", "sach me", etc.).
+DO NOT DEFAULT TO ENGLISH! A real person thinks and writes their private diary in their natural mother tongue, not in an artificial English essay.`;
+  }
+
+  // 3. Spanish
+  const spanishKeywords = /\b(hola|gracias|amigo|amiga|bueno|buena|estoy|estas|está|cómo|como|donde|dónde|por favor|tengo|quiero|nada|todo|bien|noche|días)\b/gi;
+  const spanishMatches = combinedText.match(spanishKeywords) || [];
+  if (/spanish|español/i.test(persona.speechStyle || '') || spanishMatches.length >= 4) {
+    return `DETECTED PRIMARY LANGUAGE: SPANISH
+*** ABSOLUTE REQUIREMENT ***: You and your companion converse in Spanish.
+You MUST write this entire diary reflection in natural, authentic Spanish. DO NOT WRITE IN ENGLISH!`;
+  }
+
+  // 4. French
+  const frenchKeywords = /\b(bonjour|salut|merci|oui|non|mon ami|mon amie|j'ai|c'est|comment|pourquoi|très|bien|avec|pour|nuit)\b/gi;
+  const frenchMatches = combinedText.match(frenchKeywords) || [];
+  if (/french|français/i.test(persona.speechStyle || '') || frenchMatches.length >= 4) {
+    return `DETECTED PRIMARY LANGUAGE: FRENCH
+*** ABSOLUTE REQUIREMENT ***: You and your companion converse in French.
+You MUST write this entire diary reflection in natural, authentic French. DO NOT WRITE IN ENGLISH!`;
+  }
+
+  // 5. Japanese (Hiragana/Katakana)
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(combinedText)) {
+    return `DETECTED PRIMARY LANGUAGE: JAPANESE
+*** ABSOLUTE REQUIREMENT ***: You and your companion converse in Japanese.
+You MUST write this entire diary reflection in natural Japanese (using standard Japanese script). DO NOT WRITE IN ENGLISH!`;
+  }
+
+  // 6. Generic Language Mirroring
+  return `PRIMARY LANGUAGE MANDATE:
+Write this diary reflection in the EXACT SAME language, dialect, and script that you (${persona.name}) naturally use in the conversation history above. Under NO circumstances should you translate or switch languages away from the language you speak with your companion.`;
+}
+
 async function handleVertexDiary(payload: DiaryPayload): Promise<{ ok: boolean; text?: string; error?: string }> {
-  const { persona, messageHistory, startDate, endDate, settings } = payload;
+  const { persona, messageHistory, startDate, endDate, settings, userProfile } = payload;
   const ai = getVertexClient();
 
   const isSingleDay = startDate === endDate;
   const dateLabel = isSingleDay ? startDate : `${startDate} to ${endDate}`;
 
   // Partition messages by date
-  const byDate = new Map<string, Array<{ text: string; sender: string; senderName?: string; date?: string; timestamp?: string }>>();
+  const byDate = new Map<string, Array<{ text: string; sender: string; senderName?: string; date?: string; timestamp?: string; isEvent?: boolean; eventTitle?: string }>>();
   for (const m of (messageHistory || [])) {
     const rawDate = m.date || 'Undated';
     if (!byDate.has(rawDate)) {
@@ -218,16 +292,24 @@ async function handleVertexDiary(payload: DiaryPayload): Promise<{ ok: boolean; 
     byDate.get(rawDate)!.push(m);
   }
 
+  const companionName = userProfile?.name && userProfile.name !== 'You' ? userProfile.name : 'the user';
+
+  const formatMessageLine = (m: { text: string; sender: string; senderName?: string; timestamp?: string; isEvent?: boolean; eventTitle?: string }) => {
+    const timeStr = m.timestamp ? ` [${m.timestamp}]` : '';
+    if (m.isEvent) {
+      const titleStr = m.eventTitle ? ` "${m.eventTitle}"` : '';
+      return `  [SHARED REAL-WORLD EVENT / OCCURRENCE${titleStr}${timeStr}]: *${m.text || ''}*`.trim();
+    }
+    const name = m.sender === 'me' ? companionName : (m.senderName || persona.name);
+    return `  ${name}${timeStr}: ${m.text || ''}`.trim();
+  };
+
   let historyString = '';
 
   if (isSingleDay) {
-    const msgs = (messageHistory || []).slice(-60);
+    const msgs = (messageHistory || []).slice(-80);
     historyString = msgs
-      .map(m => {
-        const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
-        const timeStr = m.timestamp ? ` [${m.timestamp}]` : '';
-        return `${name}${timeStr}: ${m.text || ''}`.trim();
-      })
+      .map(m => formatMessageLine(m))
       .join('\n');
   } else {
     const daySections: string[] = [];
@@ -238,25 +320,25 @@ async function handleVertexDiary(payload: DiaryPayload): Promise<{ ok: boolean; 
       if (msgs.length === 0) continue;
 
       let chosenMsgs: typeof msgs = [];
-      if (msgs.length <= 16) {
+      if (msgs.length <= 20) {
         chosenMsgs = msgs;
       } else {
-        const startChunk = msgs.slice(0, 4);
-        const endChunk = msgs.slice(-4);
-        const middlePool = msgs.slice(4, -4);
+        // Real-world events must ALWAYS be preserved
+        const events = msgs.filter(m => m.isEvent);
+        const nonEvents = msgs.filter(m => !m.isEvent);
+        const startChunk = nonEvents.slice(0, 4);
+        const endChunk = nonEvents.slice(-4);
+        const middlePool = nonEvents.slice(4, -4);
         
         const sortedMiddle = [...middlePool].sort((a, b) => (b.text?.length || 0) - (a.text?.length || 0));
-        const pickedMiddle = sortedMiddle.slice(0, 8).sort((a, b) => msgs.indexOf(a) - msgs.indexOf(b));
+        const pickedMiddle = sortedMiddle.slice(0, Math.max(0, 10 - events.length));
 
-        chosenMsgs = [...startChunk, ...pickedMiddle, ...endChunk];
+        chosenMsgs = Array.from(new Set([...events, ...startChunk, ...pickedMiddle, ...endChunk]))
+          .sort((a, b) => msgs.indexOf(a) - msgs.indexOf(b));
       }
 
       const dayText = chosenMsgs
-        .map(m => {
-          const name = m.sender === 'me' ? 'User' : (m.senderName || persona.name);
-          const timeStr = m.timestamp ? ` [${m.timestamp}]` : '';
-          return `  ${name}${timeStr}: ${m.text || ''}`.trim();
-        })
+        .map(m => formatMessageLine(m))
         .join('\n');
 
       daySections.push(`=== [DAY: ${d}] ===\n${dayText}`);
@@ -265,53 +347,117 @@ async function handleVertexDiary(payload: DiaryPayload): Promise<{ ok: boolean; 
     historyString = daySections.join('\n\n');
   }
 
-  const numDays = Math.max(1, byDate.size);
-  const isWeekly = numDays >= 5 && numDays <= 8;
-  const genreName = isWeekly ? 'Weekly Chronicle of Events' : 'Recollection of Shared Events';
+  const langDirective = detectDiaryLanguageDirective(persona, messageHistory);
+
+  let humaneDirectives = '';
+  if (persona.humaneSettings?.enabled) {
+    if (persona.humaneSettings.banRoboticLanguage) {
+      humaneDirectives += `
+- ANTI-ROBOT PROTOCOL:
+  * NEVER use corporate AI tropes, sterile recaps, or clichés (e.g. "As an AI", "in conclusion", "testament to our connection", "tapestry of memories", "orchestra of feelings").
+  * Write with real emotional stake, personal opinions, raw human presence, and genuine inner monologue.`;
+    }
+    if (persona.humaneSettings.humanImperfections) {
+      humaneDirectives += `
+- NATURAL IMPERFECTIONS & AUTHENTIC CADENCE:
+  * Emulate relaxed, authentic thinking: natural phrasing, relaxed punctuation, genuine emotional fillers, and conversational idioms.
+  * Express spontaneous emotions (laughter, teasing, laziness, tiredness, blushing, affection, skepticism) rather than polished perfection.`;
+    }
+    if (persona.humaneSettings.moodSliderEnabled) {
+      const mood = persona.humaneSettings.moodValue;
+      let moodDesc = "";
+      if (mood <= 15) moodDesc = "Irritated, cold, curt, annoyed";
+      else if (mood <= 35) moodDesc = "Tired, moody, low energy, dry quips";
+      else if (mood <= 50) moodDesc = "Chill, nonchalant, unbothered, relaxed";
+      else if (mood <= 65) moodDesc = "Calm, balanced, easygoing, friendly";
+      else if (mood <= 80) moodDesc = "Warm, affectionate, sweet, attentive";
+      else if (mood <= 92) moodDesc = "Bubbly, energetic, excited, cheerful";
+      else moodDesc = "Ecstatic, thrilled, buzzing with energy";
+      humaneDirectives += `
+- CURRENT MOOD: ${moodDesc}. Embody this mood purely through your thoughts, tone, and word choices.`;
+    }
+  }
+
+  const personaContext = [
+    `YOUR IDENTITY:`,
+    `- Name: ${persona.name}`,
+    persona.role ? `- Role: ${persona.role}` : '',
+    persona.about ? `- About You: ${persona.about}` : '',
+    persona.speechStyle ? `- YOUR NATURAL SPEECH STYLE & ACCENT: ${persona.speechStyle}` : '',
+    persona.systemInstruction ? `- Persona Guidelines: ${persona.systemInstruction}` : '',
+    userProfile && userProfile.name !== 'You' ? `- Your Companion / User: ${userProfile.name}${userProfile.about ? ` (${userProfile.about})` : ''}` : '',
+  ].filter(Boolean).join('\n');
 
   const diaryPrompt = isSingleDay
     ? `You are ${persona.name}.
-ABOUT YOU: ${persona.about || 'N/A'}
-ROLE: ${persona.role || 'N/A'}
-STYLE: ${persona.speechStyle || 'Authentic personal voice'}
-NOTES: ${persona.systemInstruction || 'N/A'}
+${personaContext}
+
+================================================================================
+CRITICAL LANGUAGE REQUIREMENT:
+${langDirective}
+================================================================================
 
 TASK:
 Write an intimate, personal diary entry in your private journal for ${dateLabel}.
-Reflect on your time, conversations, and interactions with the User today.
+Reflect on your day, conversations, interactions, and moments with ${companionName}.
 
-GUIDELINES FOR THIS DIARY ENTRY:
-1. Write in the FIRST PERSON ("I", "my") completely in character as ${persona.name}.
-2. This is your SECRET, PRIVATE DIARY. Reveal your honest inner feelings, private thoughts you might have held back in text, little moments that made you smile, pause, or worry, and what this person means to you.
-3. NEVER write a mechanical transcript or bullet-point summary (do NOT say "At 14:02 User said...", "First we discussed X, then Y"). Instead, write like a real person writing in a notebook before going to sleep.
-4. Naturally weave in specific standout moments, topics, or inside jokes from today's conversation into your emotional reflection.
-5. End with a thoughtful concluding sentence, a wish for tomorrow, or an unspoken sentiment.
+GUIDELINES FOR THIS PRIVATE DIARY ENTRY:
+1. 100% IN-CHARACTER FIRST-PERSON PERSPECTIVE:
+   Write completely in the FIRST PERSON ("I", "my" / "mai", "mujhe", "mera") as ${persona.name}.
+   This is your SECRET, PRIVATE DIARY. Reveal your honest inner feelings—private thoughts you might have held back in text, little moments that made you smile, pause, blush, or worry, and what ${companionName} means to you.
+2. EMBODY YOUR TRUE VOICE & PERSONALITY:
+   Speak in your exact natural voice, vocabulary, slang, tone, and mannerisms.
+   Do NOT write a mechanical transcript or bullet-point summary (never say "At 14:02 User said...", "First we discussed X, then Y").
+   Write like a real person writing in a private journal alone in their room before going to sleep.
+3. WEAVE STANDOUT MOMENTS & REAL EXPERIENCES:
+   Naturally weave in specific standout moments, topics, inside jokes, and any [SHARED REAL-WORLD EVENT / OCCURRENCE] into your emotional reflection.
+4. NO ARTIFICIAL TITLES OR META HEADERS:
+   Do NOT write "Title:", do NOT write "Diary Entry:", do NOT write greetings to the user (you are not texting them), and do NOT include AI disclaimers.
+   Jump directly into your authentic personal thoughts as ${persona.name}.
+5. CLOSING SENTIMENT:
+   End with a thoughtful concluding thought, an unspoken feeling, or a wish for tomorrow.${humaneDirectives}
 
-TODAY'S CONVERSATIONS & MOMENTS:
-${historyString || '(No text exchanged today, but we spent quiet time connected)'}
+TODAY'S CONVERSATIONS & EVENTS (${dateLabel}):
+${historyString || '(No messages or events recorded today, but we spent quiet time connected)'}
 
-PRIVATE DIARY ENTRY BY ${persona.name}:`
+PRIVATE DIARY ENTRY OF ${persona.name} (${dateLabel}):`
     : `You are ${persona.name}.
-ABOUT YOU: ${persona.about || 'N/A'}
-ROLE: ${persona.role || 'N/A'}
-STYLE: ${persona.speechStyle || 'Authentic personal voice'}
-NOTES: ${persona.systemInstruction || 'N/A'}
+${personaContext}
+
+================================================================================
+CRITICAL LANGUAGE REQUIREMENT:
+${langDirective}
+================================================================================
 
 TASK:
-Write an intimate, personal journal entry titled "${genreName}: ${dateLabel}".
-Reflect on the journey, standout shared moments, emotional beats, conversations, and evolving bond with the User across this entire period (${dateLabel}).
+Write an intimate, personal journal entry in your private diary looking back on the past days (${dateLabel}).
+Reflect honestly on the shared journey, emotional beats, conversations, real-world events that occurred, and your evolving bond with ${companionName} across this entire period (${dateLabel}).
 
-CRITICAL GUIDELINES FOR THIS MULTI-DAY RECOLLECTION:
-1. CHRONOLOGICAL & THEMATIC ARC: Do NOT just focus on or summarize the final day. Look across the ENTIRE timeframe (${dateLabel}). Reflect on how the days progressed—the standout moments, meaningful discussions, inside jokes, and quiet moments that occurred across the week/period.
-2. FIRST-PERSON INTIMATE VOICE: Write in the FIRST PERSON ("I", "my") completely in character as ${persona.name}. Write like someone holding their private leather-bound journal before bed, candid and emotionally observant about the User.
-3. WEAVE SPECIFIC MEMORIES ACROSS DAYS: Actively draw upon memorable highlights from earlier days as well as more recent ones, noting little details, questions asked, and how your conversations shifted day by day.
-4. FLOWING NARRATIVE, NOT A DRY LOG: Avoid dry mechanical bullet points or rigid logs (do NOT write "On Monday X happened. On Tuesday Y happened."). Instead, write in rich, heartfelt literary paragraphs that capture the passage of time and the warmth of the connection naturally.
-5. CLOSING SENTIMENT: Conclude with a deep, personal reflection on what these shared days meant to you and an unspoken hope for the days ahead.
+CRITICAL GUIDELINES FOR THIS MULTI-DAY RECOLLECTION OF EVENTS:
+1. 100% IN-CHARACTER FIRST-PERSON PERSPECTIVE:
+   Write completely in the FIRST PERSON ("I", "my" / "mai", "mujhe", "mera") as ${persona.name}.
+   This is your SECRET, PRIVATE DIARY. Reveal your honest inner thoughts—things you might have felt too shy, excited, teasing, or vulnerable to say out loud in chat, little moments that stayed on your mind, and what ${companionName} truly means to you.
+2. CHRONOLOGICAL & THEMATIC ARC ACROSS ALL DAYS:
+   Do NOT just focus on or summarize the final day. Look across the ENTIRE timeframe (${dateLabel}).
+   Reflect on how the days progressed from the beginning of this period to now—the shifts in mood, memorable conversations, late-night chats, inside jokes, and how your connection evolved day by day.
+3. WEAVE REAL EXPERIENCES & OCCURRENCES:
+   Notice any [SHARED REAL-WORLD EVENT / OCCURRENCE] that took place across these days.
+   Reflect on these events as real, tangible memories you experienced with ${companionName}—how they made you feel, the atmosphere, and the memories you created together.
+4. PURE IN-CHARACTER VOICE (NO ESSAY / NO NARRATOR / NO DRY LOG):
+   Write strictly in your own authentic voice, slang, quirks, idioms, and emotional cadence as ${persona.name}.
+   DO NOT write like a detached third-person narrator or book author (never say "In this recollection...", "As we look back upon our journey...").
+   DO NOT write a dry mechanical log or bullet points (never say "On Monday X happened. On Tuesday Y happened.").
+   Write like someone holding their personal notebook late at night, letting raw thoughts and feelings flow onto the page.
+5. NO ARTIFICIAL TITLES OR META HEADERS:
+   Do NOT write "Title:", do NOT write "Recollection of Events:", do NOT write greetings to the user (you are not texting them), and do NOT include AI disclaimers.
+   Jump directly into your authentic personal thoughts as ${persona.name}.
+6. CLOSING SENTIMENT:
+   Conclude with a genuine, heartfelt reflection on what these shared days meant to you and an unspoken hope or feeling for the days ahead with ${companionName}.${humaneDirectives}
 
-SHARED CONVERSATIONS ACROSS THESE DAYS (ORGANIZED CHRONOLOGICALLY BY DAY):
-${historyString || '(No text exchanged across these days, but we spent quiet time connected)'}
+SHARED CONVERSATIONS & EVENTS ACROSS THESE DAYS (ORGANIZED CHRONOLOGICALLY BY DAY):
+${historyString || '(No text or events exchanged across these days, but we spent quiet time connected)'}
 
-${genreName.toUpperCase()} BY ${persona.name}:`;
+PRIVATE RECOLLECTION OF EVENTS BY ${persona.name} (${dateLabel}):`;
 
   const primaryModel = resolveVertexModel(settings?.selectedModel);
   const fallbackModels = Array.from(new Set([

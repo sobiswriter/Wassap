@@ -14,7 +14,20 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
-### 1. Voice Design Synthesis & Multi-Voice Persistence Hotfix (`v1.9.6-hotfix1`)
+### 1. Authentic Persona Diary Voice & Multilingual (Hindi/Hinglish) Mirroring Hotfix (`v1.9.6-hotfix2`)
+- **Root Cause Analysis of Diary Impersonation & Language Switching Bugs**:
+  1. *Lack of Language / Dialect Directives*: The diary prompt was composed entirely of formal English guidelines, instructions, and titles (`TASK: Write an intimate, personal journal entry titled "Recollection of Shared Events: ..."`). With zero language constraints, models defaulted to English prose even when the persona spoke Hindi, Hinglish, Spanish, or other languages.
+  2. *Artificial Literary Pretentiousness*: The prompt commanded personas to write in "rich, heartfelt literary paragraphs that capture the passage of time" like "someone holding their private leather-bound journal before bed". This suppressed the persona's natural texting voice, slang, humor, personality, and informal thoughts, turning the output into a generic English essay.
+  3. *Dropped Environmental / Real-World Events*: In `ChatWindow.tsx`, `capturedMessages.map()` omitted `isEvent` and `eventTitle`. Environmental events added by the user were treated as generic messages from "User", and sampling in multi-day recollections could discard them if chat volume was high.
+  4. *Missing Companion Identity*: The persona prompt lacked knowledge of `userProfile` (the user's actual name and identity), referring to them generically as "User".
+- **The Resolution**:
+  - **Dynamic Multi-Language Detection & Script Mandate (`detectDiaryLanguageDirective`)**: Detects Devanagari script, Hinglish vocabulary (`yaar`, `bhai`, `mast`, `aaj`, `mujhe`, etc.), or persona language definitions and injects an unmissable mandate requiring the diary to be written in the exact matching language, dialect, and script without defaulting to English.
+  - **Authentic Private Inner Monologue**: Replaced artificial essay instructions and meta titles with pure first-person thoughts (`"I"`, `"my"` / `"mai"`, `"mujhe"`, `"mera"`), revealing honest unspoken feelings, quirks, humor, and secrets without artificial headers (`Title:`) or narrator detachments. Incorporates `humaneSettings` (anti-robotics, mood slider, cadence).
+  - **Guaranteed Event Reflection (`isEvent`, `eventTitle`)**: Preserved and highlighted real-world events across single-day and multi-day history (`[SHARED REAL-WORLD EVENT / OCCURRENCE]`). In multi-day message sampling, real-world events are prioritized and never pruned.
+  - **Companion Profile Awareness**: Passed `userProfile` from `App.tsx` through `ChatWindow.tsx` to `getGeminiDiaryEntry`, allowing personas to naturally think of their companion by name.
+  - **Synchronized Tri-Platform Implementation**: Applied consistently across `services/geminiService.ts`, `server/vertexHandler.ts`, and `api/gemini/diary.ts`.
+
+### 2. Voice Design Synthesis & Multi-Voice Persistence Hotfix (`v1.9.6-hotfix1`)
 - **Root Cause Analysis of Voice Design & Multi-Voice Issues**:
   1. *Storage Quota Rejection*: Vertex AI Voice Design returned a heavy base64 WAV sample audio preview (~1 MB) in `sampleAudioDataUrl`. Because browser `localStorage` has a strict 5 MB total quota across the entire app (shared with chat history and backstories), saving a second voice caused `localStorage.setItem` to throw `QuotaExceededError`. It was caught silently, preventing newly crafted voices from ever saving or showing up in the library.
   2. *Duplicate Congested Mobile Layout*: The Voice Design settings stacked a dropdown selector AND duplicate voice cards directly underneath it, crowding buttons and badges onto small phone screens.

@@ -3590,6 +3590,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           <ChatWindow
             chat={activeChat}
             allChats={chats}
+            userProfile={user}
             onHeaderClick={() => setShowProfilePanel(true)}
             onDeleteChat={handleDeleteChat}
             onClearChat={handleClearChat}
