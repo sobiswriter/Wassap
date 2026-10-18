@@ -426,7 +426,7 @@ export const EmojiPickerTray: React.FC<EmojiPickerTrayProps> = ({
 
   return (
     <div
-      className="w-full bg-white dark:bg-[#202c33] rounded-2xl shadow-2xl border app-border overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col select-none"
+      className="w-full bg-white dark:bg-[#202c33] rounded-2xl shadow-lg border app-border overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200 flex flex-col select-none"
       style={{ maxHeight: '440px', height: '410px' }}
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}

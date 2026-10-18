@@ -2,6 +2,34 @@
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 
+### Android-first mobile polish (18 October 2026)
+
+**Chat selection and pinning:** touch and hold (or hold the left mouse button) on a chat to select it. Click additional rows for multiple selection, then use the top **Pin/Unpin** or **Archive/Unarchive** icons. Pinned chats stay at the top after reload. Desktop also supports right-click or Space/Shift+F10 to select; Escape cancels. Mobile Back exits selection. These actions preserve chat history and work in both the inbox and Archived list.
+
+Follow-up: chat options now offer **Archive chat / Unarchive chat**, and the inbox has an **Archived** section. Archiving preserves history and incoming replies, hides chats from the main list, and survives reload. It is not a password lock or a notification-mute feature. The outlined handset beside chat search provides an honest unavailable notice. Mobile chat navigation now slides in both directions; contact info has matching soft entry/reverse exit motion based on the supplied recording.
+
+- Consistent rounded-outline icons, inset inbox dividers, reachable filters, quieter attachment tiles, larger composer targets, and working panel/menu transitions in light and dark themes.
+- The green **New chat** button opens persona creation directly. **More options** retains New group, Your profile, Calendar notes and Settings; bottom navigation provides Chats, app Updates, Guide and Settings. Unsupported Calls/Favourites affordances are omitted. Search filters chat names; the AI ring opens Meta AI.
+- Trays stay above the composer, scroll on short screens, and dismiss with outside taps, Escape or Back. Opening a chat on a phone no longer automatically summons the keyboard. Mobile panels isolate background interaction and manage keyboard focus.
+- Existing data formats, saved keys, shared cloud passkey, provider/model choices, voice controls and notification/background routes are preserved. A retired forest wallpaper resolves to a bundled replacement at render time without rewriting saved selections.
+- Location shares one GPS fix; denial shows an error instead of sending a placeholder. Contact/Poll text actions are labelled as text. The privacy notice explains that sent content is processed by the selected AI provider.
+- Android uses a dynamic viewport with a `100vh` fallback and keyboard resize opt-in. Development remains **port 3000**. Physical Android keyboard, PWA, haptic and frame-pacing validation is still required.
+
+Browser regression, in a separate terminal after building:
+
+```powershell
+.\node_modules\.bin\vite.cmd preview --host 127.0.0.1 --port 3013 --strictPort
+```
+
+```powershell
+New-Item -ItemType Directory -Force output/playwright | Out-Null
+npx --yes --package @playwright/cli playwright-cli -s=wassap-check open http://127.0.0.1:3013 --browser chrome
+npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/mobile-ui.browser.js
+npx --yes --package @playwright/cli playwright-cli -s=wassap-check close
+```
+
+The regression creates its own fresh browser context with synthetic storage fixtures, checks 320–1440 px layouts and persistence, and saves ignored screenshots under `output/playwright/`. It does not use real credentials or make paid-generation checks. Run `npm test`, `npx tsc --noEmit`, and `npm run build` for the remaining automated gates.
+
 ![Version](https://img.shields.io/badge/version-1.9.6--hotfix1-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
@@ -37,7 +65,7 @@ Welcome to the ultimate guide on how to get an almost real, dream-like WhatsApp 
 
 Before you can have a "sentient" companion, you need to actually make them. Here’s how to start your journey from scratch:
 
-*   **Birth of a Persona**: Click that **"New Chat"** icon (the little message bubble) and select **"New Persona"**. This is where the magic starts. Give them a name, a fancy avatar (upload your own or grab a link!), and most importantly, a **Role** and **Speech Style**. Want a sarcastic butler? A hyperactive gamer sister? This is where you set the vibe. 🎭
+*   **Birth of a Persona**: On mobile, tap the green **New chat** button to open **New Persona** directly. On desktop, use the new-contact action. Give them a name, avatar, **Role**, and **Speech Style**.
 *   **Deep Personality Tuning**: Don't just stop at a name. Use the **Personality Details** box to give them a backstory. The more you tell them, the more real they feel. 🧠
 *   **Dual AI Provider & Settings**: Hit those three dots and jump into **Settings**. 
     *   **Built-in Cloud (Vertex AI) [Default]**: Runs straight on Google Cloud credits with the flagship `gemini-3.8-flash` engine using the global endpoint. Protected behind passcode authentication with an interactive hint option.

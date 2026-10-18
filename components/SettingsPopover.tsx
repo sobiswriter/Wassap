@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { resolveWallpaperUrl } from '../utils/wallpaper';
 import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw, Camera, Mic, Zap, Film, Download } from 'lucide-react';
 import { AppSettings, AiProvider } from '../types';
 import { AVAILABLE_MODELS, AVAILABLE_IMAGE_MODELS, AVAILABLE_VOICE_MODELS, GCP_CONFIG, DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE_HINT } from '../constants';
@@ -254,17 +255,17 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
   };
 
   const currentProvider: AiProvider = draftSettings.aiProvider || 'vertex';
-  const currentWallpaper = draftSettings.chatWallpaper || 'default';
+  const currentWallpaper = resolveWallpaperUrl(draftSettings.chatWallpaper || 'default');
   const isPreset = WALLPAPER_PRESETS.some(p => p.url === currentWallpaper);
   const isUploadedCustom = currentWallpaper !== 'default' && !isPreset;
 
   return (
-    <div className="fixed inset-0 z-[4000] md:absolute md:inset-auto md:left-[80px] md:bottom-20 md:w-[380px] md:max-h-[calc(100vh-140px)] app-panel md:rounded-lg shadow-2xl border app-border md:z-[1000] animate-in slide-in-from-bottom-3 duration-250 flex flex-col text-primary overflow-hidden">
+    <div data-app-panel="Settings" className="fixed inset-0 z-[4000] md:absolute md:inset-auto md:left-[80px] md:bottom-20 md:w-[380px] md:max-h-[calc(100vh-140px)] app-panel md:rounded-lg shadow-2xl border app-border md:z-[1000] animate-in slide-in-from-bottom-3 duration-250 flex flex-col text-primary overflow-hidden">
       <div className="p-4 pt-[max(env(safe-area-inset-top),16px)] md:pt-4 border-b app-border flex justify-between items-center app-header shrink-0">
         <h3 className="font-semibold md:font-medium text-[calc(var(--msg-font-size)+2px)] md:text-[calc(var(--msg-font-size)+1.5px)]">Settings</h3>
         <button
-          onClick={onClose}
-          className="p-1.5 -mr-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 active:scale-90 transition-all text-secondary"
+          data-panel-close onClick={onClose}
+          className="icon-button -mr-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 active:scale-90 transition-all text-secondary"
           title="Close Settings"
         >
           <X size={20} />
@@ -590,9 +591,9 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
               </p>
             </div>
           </div>
-          <div
+          <button type="button" role="switch" aria-label="Dark theme" aria-checked={draftSettings.theme === 'dark'}
             onClick={handleToggleTheme}
-            className={`w-11 h-6 rounded-full relative cursor-pointer transition-colors p-0.5 flex items-center ${
+            className={`settings-switch w-11 h-6 rounded-full relative cursor-pointer transition-colors p-0.5 flex items-center ${
               draftSettings.theme === 'dark' ? 'bg-[#00a884]' : 'bg-gray-300 dark:bg-gray-600'
             }`}
             title="Toggle Light/Dark Theme"
@@ -608,7 +609,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
                 <Sun size={11} className="text-amber-500" />
               )}
             </div>
-          </div>
+          </button>
         </div>
 
         <div className="h-[1px] bg-gray-200 dark:bg-gray-800" />
@@ -825,12 +826,12 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
               <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Let personas see your bio</p>
             </div>
           </div>
-          <div
+          <button type="button" role="switch" aria-label="Share AI Context" aria-checked={!!draftSettings.shareUserInfo}
             onClick={() => setDraftSettings({ ...draftSettings, shareUserInfo: !draftSettings.shareUserInfo })}
-            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.shareUserInfo ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+            className={`settings-switch w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.shareUserInfo ? 'bg-[#00a884]' : 'bg-gray-400'}`}
           >
             <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${draftSettings.shareUserInfo ? 'left-[22px]' : 'left-[2px]'}`} />
-          </div>
+          </button>
         </div>
 
         <div className="flex items-center justify-between">
@@ -841,12 +842,12 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
               <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">AI knows current system time</p>
             </div>
           </div>
-          <div
+          <button type="button" role="switch" aria-label="Share Time Context" aria-checked={draftSettings.shareTimeContext !== false}
             onClick={() => setDraftSettings({ ...draftSettings, shareTimeContext: draftSettings.shareTimeContext === false ? true : false })}
-            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.shareTimeContext !== false ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+            className={`settings-switch w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.shareTimeContext !== false ? 'bg-[#00a884]' : 'bg-gray-400'}`}
           >
             <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${draftSettings.shareTimeContext !== false ? 'left-[22px]' : 'left-[2px]'}`} />
-          </div>
+          </button>
         </div>
 
         {/* In-App Clock & Time Configuration */}
@@ -953,12 +954,12 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
               <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">AI accesses your custom notes</p>
             </div>
           </div>
-          <div
+          <button type="button" role="switch" aria-label="Share Calendar Notes" aria-checked={!!draftSettings.shareCalendarNotes}
             onClick={() => setDraftSettings({ ...draftSettings, shareCalendarNotes: !draftSettings.shareCalendarNotes })}
-            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.shareCalendarNotes ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+            className={`settings-switch w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.shareCalendarNotes ? 'bg-[#00a884]' : 'bg-gray-400'}`}
           >
             <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${draftSettings.shareCalendarNotes ? 'left-[22px]' : 'left-[2px]'}`} />
-          </div>
+          </button>
         </div>
 
         <div className="flex items-center justify-between">
@@ -969,12 +970,12 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
               <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">AI grounds itself with live web access</p>
             </div>
           </div>
-          <div
+          <button type="button" role="switch" aria-label="Google Search" aria-checked={!!draftSettings.useSearchGrounding}
             onClick={() => setDraftSettings({ ...draftSettings, useSearchGrounding: !draftSettings.useSearchGrounding })}
-            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.useSearchGrounding ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+            className={`settings-switch w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.useSearchGrounding ? 'bg-[#00a884]' : 'bg-gray-400'}`}
           >
             <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${draftSettings.useSearchGrounding ? 'left-[22px]' : 'left-[2px]'}`} />
-          </div>
+          </button>
         </div>
 
         <div className="h-[1px] bg-gray-200 dark:bg-gray-800" />
@@ -987,12 +988,12 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
               <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Wait for follow-ups before replying</p>
             </div>
           </div>
-          <div
+          <button type="button" role="switch" aria-label="Message Stacking" aria-checked={draftSettings.enableTextStacking !== false}
             onClick={() => setDraftSettings({ ...draftSettings, enableTextStacking: draftSettings.enableTextStacking === false ? true : false })}
-            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.enableTextStacking !== false ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+            className={`settings-switch w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.enableTextStacking !== false ? 'bg-[#00a884]' : 'bg-gray-400'}`}
           >
             <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${draftSettings.enableTextStacking !== false ? 'left-[22px]' : 'left-[2px]'}`} />
-          </div>
+          </button>
         </div>
 
         {draftSettings.enableTextStacking !== false && (
@@ -1028,12 +1029,12 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
                   </p>
                 </div>
               </div>
-              <div
+              <button type="button" role="switch" aria-label="Dynamic Online and Fast Chat" aria-checked={!!draftSettings.enableDynamicOnlinePresence}
                 onClick={() => setDraftSettings({ ...draftSettings, enableDynamicOnlinePresence: !draftSettings.enableDynamicOnlinePresence })}
-                className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.enableDynamicOnlinePresence ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+                className={`settings-switch w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.enableDynamicOnlinePresence ? 'bg-[#00a884]' : 'bg-gray-400'}`}
               >
                 <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${draftSettings.enableDynamicOnlinePresence ? 'left-[22px]' : 'left-[2px]'}`} />
-              </div>
+              </button>
             </div>
           </div>
         )}
@@ -1049,7 +1050,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
                 <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Get notified of background messages</p>
               </div>
             </div>
-            <div
+            <button type="button" role="switch" aria-label="Desktop Notifications" aria-checked={!!draftSettings.enableNotifications}
               onClick={async () => {
                 if (!draftSettings.enableNotifications) {
                   if (Notification.permission === 'default') {
@@ -1064,10 +1065,10 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
                   setDraftSettings({ ...draftSettings, enableNotifications: false });
                 }
               }}
-              className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.enableNotifications ? 'bg-[#00a884]' : 'bg-gray-400'}`}
+              className={`settings-switch w-10 h-5 rounded-full relative cursor-pointer transition-colors ${draftSettings.enableNotifications ? 'bg-[#00a884]' : 'bg-gray-400'}`}
             >
               <div className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${draftSettings.enableNotifications ? 'left-[22px]' : 'left-[2px]'}`} />
-            </div>
+            </button>
           </div>
           {draftSettings.enableNotifications && (
             <button
@@ -1139,7 +1140,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
           Save Settings
         </button>
         <div className="text-[calc(var(--msg-font-size)-3.5px)] text-secondary text-center italic">
-          Changes will apply instantly after saving.
+          Some controls apply immediately. Save to confirm all settings.
         </div>
       </div>
     </div>

@@ -129,8 +129,9 @@ body, input, button, textarea {
 - **Action**: "Generate AI Diary" button with animated sparkle spinner and multi-model fallback.
 - **Journal Canvas**: Parchment-toned textarea with relaxed leading (`leading-relaxed`), capturing intimate first-person persona reflections.
 
-### G. Mobile Responsive Breakpoint (`max-width: 768px`)
-- Main container expands to `100vw` and `100vh` without outer margins or rounded desktop frames.
+### G. Mobile Responsive Breakpoint (`max-width: 767px`)
+- Main container uses `100dvh` with a `100vh` fallback; desktop starts at 768px consistently with JavaScript and Tailwind. Android keyboard resize opts into layout-viewport resizing.
+- Mobile uses Roboto/Helvetica Neue/Arial/system fallback, preserving the existing message-size control and its composer scale. Focused fields stay at least 16px; buttons keep component-specific typography.
 - Left sidebar and active chat window toggle as full-screen views.
 - Mobile bottom navigation rail replaces the desktop left navigation rail.
 - Floating Action Button (FAB) appears in the bottom right for fast persona creation.
@@ -138,26 +139,37 @@ body, input, button, textarea {
 
 ### H. Motion Excellence, Tactile Physics & Haptics Tokens
 - **Message Bubble Motion**:
-  - **Entrance Transition**: Fast, subtle CSS animation (`bubble-enter`: 150ms `cubic-bezier(0.16, 1, 0.3, 1)`, scale `0.96` to `1.0`, opacity `0` to `1`) that settles without rubbery bounce.
+  - **Entrance Transition**: Fast, subtle CSS animation (`bubble-enter`: 180ms `cubic-bezier(0.16, 1, 0.3, 1)`, scale `0.96` to `1.0`, opacity `0` to `1`). Newly appended incoming/outgoing messages animate; loaded history does not replay. Recent IDs expire after 240ms.
   - **Press Compression Feedback**: `active:scale-[0.995] active:brightness-95` on bubble touch for immediate physical response within the first few frames.
   - **Consistent Touch Targets**: Added `touch-btn` and `touch-icon` micro-scale transitions across composer icons, send button, and action controls.
 - **Haptic Vibration Signatures (`utils/haptics.ts`)**:
   - `tap`: 10ms micro-vibration for emoji/button presses.
-  - `select`: 20ms tactile confirmation for message selection.
-  - `send`: 15ms + 25ms rhythmic double pulse on message transmission.
-  - `reaction`: 12ms soft pop when reacting.
-  - `delete`: 35ms heavy warning vibration on destructive action.
+  - `selection`: 35ms tactile confirmation for message selection.
+  - `send`: 15ms pulse on message transmission.
+  - `reaction`: 20ms pop when reacting.
+  - `threshold`: 25ms confirmation when crossing the reply threshold; release does not vibrate a second time.
+  - `delete`: `[25, 45, 25]` warning pattern on destructive action.
 - **Anchored Quick Reaction Tray (`ReactionTray.tsx`)**:
   - Restrained spring animation emerging from the bubble interaction point (`cubic-bezier(0.34, 1.56, 0.64, 1)`).
   - WhatsApp-native floating capsule (`bg-white dark:bg-[#202c33] rounded-full shadow-2xl px-2 py-1.5 border app-border`).
   - Reaction badges scale smoothly on attach with a micro-pop animation.
 - **In-App WhatsApp Emoji Tray (`EmojiPickerTray.tsx`)**:
-  - Anchored at `bottom-[60px] left-[8px] sm:left-[12px] z-[100]` above the composer without being clipped by parent overflow boundaries.
-  - Responsive layout: `w-[calc(100vw-16px)] sm:w-[380px] max-w-[420px] max-h-[360px]`.
+  - Anchored at `bottom: calc(100% + 4px)` above the composer; full available width minus 16px, 390px on desktop, capped at 420px.
+  - Height capped by `calc(100dvh - 150px)`; the attachment tray has its own scrollable height cap. Generic panel colors never change a tray's positioning or radius.
   - Thumb-friendly 8-column emoji grid, category pills, real-time search, and `localStorage` recent emojis.
 - **Constrained Swipe-to-Reply Gesture**:
-  - Constrained horizontal translation tracking finger movement up to 60px with elastic damping.
-  - Activation threshold at 45px triggering visual reply indicator reveal and haptic confirmation.
+  - Constrained horizontal translation up to 55px with elastic damping and directional locking.
+  - Activation threshold at 36px damped displacement; cancel/scroll gestures preserve reader position. A completed swipe suppresses its synthetic click.
+
+### Android polish contract (18 October 2026)
+- Chat rows support a 450ms touch/mouse hold, cancelling after 10px movement or pointer cancellation. Selection replaces the list header with count, Back, Pin/Unpin and Archive/Unarchive icons, with green avatar checks and row highlights. Desktop right-click/Space/Shift+F10 select; Escape cancels. Stable sorting places pinned chats first, and a compact pin glyph appears in the preview row. No unrelated delete/mute actions were added.
+- Recording follow-up: mobile inbox/chat use a 260ms push with subtle inbox parallax; contact info enters over 240ms and reverses over 220ms before unmounting. Reduced-motion users receive immediate profile dismissal. Chat header includes a 23px outlined handset (1.8px stroke) beside search. Archived uses an archive-box row/count and a dedicated list with Back navigation.
+- Reference: [Meta's published Android design and screenshots](https://www.meta.com/design-at-meta/blog/whatsapp-user-interface-update/). Use consistent rounded-outline icons around 1.8–1.9px stroke, 24px glyphs and 48px mobile composer/header targets. Larger tap areas do not require larger icons.
+- Inbox uses inset dividers, three supported filters, direct persona-creation FAB and semantic bottom navigation. Guide/app Updates retain their real meaning; no simulated Calls backend is implied.
+- Local `animate-in`/fade/zoom/slide utilities provide 150–260ms panel/menu entry. They reset animation variables to avoid inherited movement; completed animations release transforms for gestures. Existing reduced-motion CSS and programmatic chat scrolling respect the system preference.
+- Mobile panels receive dialog semantics, focus isolation/return and keyboard dismissal; underlying inbox/chat are inert while a panel is open. Pinch zoom is enabled.
+- Media remain fit-content, at most 330px and additionally constrained by available width. Custom wallpapers have a bundled doodle fallback; the retired forest preset renders the bundled forest without storage migration.
+- Physical Android IME, haptics, TalkBack and 60/120Hz calibration remain device validation, not claims established by desktop Chrome screenshots.
 
 
 

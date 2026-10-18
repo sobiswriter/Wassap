@@ -50,6 +50,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   const [showNativeHint, setShowNativeHint] = useState(false);
   const nativeHintTimerRef = useRef<number | null>(null);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [attachmentError, setAttachmentError] = useState('');
   const [stagedAttachment, setStagedAttachment] = useState<FileAttachment | null>(null);
   const [stagedVoiceNote, setStagedVoiceNote] = useState<FileAttachment | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -82,12 +83,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   // Auto-focus and clear state when chat changes
   useEffect(() => {
     const focusTimer = setTimeout(() => {
-      inputRef.current?.focus();
+      if (window.matchMedia('(min-width: 768px)').matches) inputRef.current?.focus();
     }, 100);
 
     setShowEmojiPicker(false);
     setShowNativeHint(false);
     setShowAttachmentMenu(false);
+    setAttachmentError('');
     setStagedAttachment(null);
     setStagedVoiceNote(null);
     setShowEventModal(false);
@@ -112,6 +114,24 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
     return () => clearTimeout(focusTimer);
   }, [activeChatId]);
+
+  useEffect(() => {
+    if (!showEmojiPicker && !showAttachmentMenu) return;
+    const dismiss = (event: Event) => {
+      if (event.defaultPrevented) return;
+      if (event instanceof KeyboardEvent && event.key !== 'Escape') return;
+      event.preventDefault();
+      setShowEmojiPicker(false);
+      setShowAttachmentMenu(false);
+      if (event instanceof KeyboardEvent) inputRef.current?.focus();
+    };
+    window.addEventListener('keydown', dismiss);
+    window.addEventListener('wassap:back', dismiss);
+    return () => {
+      window.removeEventListener('keydown', dismiss);
+      window.removeEventListener('wassap:back', dismiss);
+    };
+  }, [showEmojiPicker, showAttachmentMenu]);
 
   // Global Escape key listener to close media confirmation modal
   useEffect(() => {
@@ -178,6 +198,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     e.stopPropagation();
     triggerHaptic('tap');
     setShowAttachmentMenu(false);
+    inputRef.current?.blur();
     setShowEmojiPicker(prev => !prev);
   };
 
@@ -521,7 +542,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   };
 
   return (
-    <div className="flex flex-col shrink-0 z-30 transition-all duration-300">
+    <div className="message-composer flex flex-col shrink-0 z-30">
+      {attachmentError && (
+        <div role="status" className="app-panel text-primary text-sm px-4 py-2 flex items-center justify-between gap-2">
+          <span>{attachmentError}</span>
+          <button type="button" className="icon-button" aria-label="Dismiss attachment error" onClick={() => setAttachmentError('')}><X size={20} /></button>
+        </div>
+      )}
       {/* Event Modal */}
       {showEventModal && (
         <div 
@@ -890,7 +917,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
       )}
 
       {/* Main Input Bar */}
-      <div className="bg-transparent px-2 py-2 pb-3 flex items-end gap-[10px] relative transition-colors duration-300 w-full z-40">
+      <div className="composer-bar bg-transparent px-2 py-2 flex items-end gap-2 relative w-full z-40">
         <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleFileSelection(e, 'image')} />
         <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileSelection(e, 'image')} />
         <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.doc,.docx,.txt,.md,.xlsx,.pptx" onChange={(e) => handleFileSelection(e, 'document')} />
@@ -931,15 +958,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
             </div>
           ) : (
             <>
-              <div className="relative p-[12px] pl-[14px] shrink-0" ref={emojiRef}>
+              <div className="relative shrink-0" ref={emojiRef}>
                 <button
                   type="button"
                   onClick={handleEmojiClick}
-                  className={`transition-colors flex items-center justify-center ${showEmojiPicker ? 'text-[#21c063]' : 'text-[#8696a0] hover:text-[#21c063]'} active:scale-90 touch-icon cursor-pointer`}
+                  aria-expanded={showEmojiPicker}
+                  aria-controls="emoji-tray"
+                  className={`icon-button transition-colors ${showEmojiPicker ? 'text-[#21c063]' : 'text-[#667781] dark:text-[#8696a0]'} touch-icon cursor-pointer`}
                   title="Open emojis"
                   aria-label="Open emojis"
                 >
-                  <Smile size={26} strokeWidth={2} />
+                  <Smile size={24} strokeWidth={1.8} />
                 </button>
               </div>
 
@@ -954,7 +983,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                         ? "Add a caption for this voice note..."
                         : "Message"
                 }
-                className="flex-1 bg-transparent outline-none text-[length:var(--input-font-size)] py-[12px] min-w-0 resize-none max-h-[140px] leading-relaxed custom-scrollbar disabled:opacity-70"
+                aria-label="Message"
+                className="flex-1 bg-transparent outline-none text-[length:var(--input-font-size)] py-3 min-w-0 resize-none max-h-[140px] leading-6 custom-scrollbar disabled:opacity-70"
                 value={text}
                 rows={1}
                 onChange={(e) => {
@@ -973,26 +1003,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                 onDrop={handleDrop}
               />
 
-              <div className="relative p-[12px] pr-4 shrink-0 flex items-center gap-[16px] text-[#8696a0]" ref={attachRef}>
+              <div className="relative shrink-0 flex items-center text-[#667781] dark:text-[#8696a0]" ref={attachRef}>
                 <button
                   type="button"
                   onClick={() => {
                     setShowEmojiPicker(false);
+                    inputRef.current?.blur();
+                    setAttachmentError('');
                     setShowAttachmentMenu(!showAttachmentMenu);
                   }}
-                  className={`transition-transform duration-200 hover:text-black/60 dark:hover:text-white/80 ${showAttachmentMenu ? 'text-[#21c063] -rotate-45' : ''}`}
+                  aria-expanded={showAttachmentMenu}
+                  aria-controls="attachment-tray"
+                  className={`icon-button transition-transform duration-200 ${showAttachmentMenu ? 'text-[#21c063]' : ''}`}
                   title="Attach"
                 >
-                  <Paperclip size={24} strokeWidth={2} className="rotate-[135deg]" />
+                  <Paperclip size={23} strokeWidth={1.8} className="-rotate-45" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => cameraInputRef.current?.click()}
-                  className="transition-colors hover:text-black/60 dark:hover:text-white/80 active:scale-95"
+                  className="icon-button composer-camera transition-colors active:scale-95"
                   title="Camera"
                 >
-                  <Camera size={24} strokeWidth={2} />
+                  <Camera size={23} strokeWidth={1.8} />
                 </button>
 
                 {/* Quick Mic action inside composer when an image is staged and voice note not yet recorded */}
@@ -1000,7 +1034,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                   <button
                     type="button"
                     onClick={startRecording}
-                    className="transition-colors text-[#21c063] hover:opacity-80 active:scale-95"
+                    className="icon-button text-[#21c063] hover:opacity-80 active:scale-95"
                     title="Attach voice note to photo"
                   >
                     <Mic size={24} strokeWidth={2.2} />
@@ -1037,114 +1071,118 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
         {/* Authentic WhatsApp Attachment Menu Sheet */}
         {showAttachmentMenu && (
-          <div ref={attachMenuRef} className="absolute bottom-[60px] left-[10px] md:left-auto md:right-14 w-[calc(100vw-20px)] md:w-[360px] app-panel shadow-2xl rounded-[30px] p-6 px-4 animate-in zoom-in-95 duration-200 border app-border z-[100] origin-bottom sm:origin-bottom-right">
-            <div className="grid grid-cols-4 gap-y-6 gap-x-2">
+          <div ref={attachMenuRef} id="attachment-tray" role="region" aria-label="Attachments" className="attachment-tray absolute bottom-[calc(100%+4px)] left-2 md:left-auto md:right-14 w-[calc(100%-16px)] md:w-[360px] app-panel shadow-lg rounded-2xl p-4 animate-in fade-in slide-in-from-bottom-3 border app-border z-[100] origin-bottom">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-secondary">Share in this chat</span>
+              <button type="button" className="icon-button" aria-label="Close attachments" onClick={() => setShowAttachmentMenu(false)}><X size={20} /></button>
+            </div>
+            <div className="grid grid-cols-4 gap-y-4 gap-x-2">
               {/* Gallery */}
-              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); imageInputRef.current?.click(); }}>
-                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#ac44cf] to-[#bf59cf] shadow-[0_4px_12px_rgba(172,68,207,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+              <button type="button" className="flex flex-col items-center gap-1.5 cursor-pointer group rounded-xl py-1 touch-card" onClick={() => { setShowAttachmentMenu(false); imageInputRef.current?.click(); }}>
+                <div className="attachment-icon flex items-center justify-center">
                   <ImageIcon size={26} strokeWidth={2} />
                 </div>
                 <span className="text-[12px] font-normal text-primary text-center">Gallery</span>
-              </div>
+              </button>
 
               {/* Camera */}
-              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); cameraInputRef.current?.click(); }}>
-                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#d3396d] to-[#ec407a] shadow-[0_4px_12px_rgba(211,57,109,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+              <button type="button" className="flex flex-col items-center gap-1.5 cursor-pointer group rounded-xl py-1 touch-card" onClick={() => { setShowAttachmentMenu(false); cameraInputRef.current?.click(); }}>
+                <div className="attachment-icon flex items-center justify-center">
                   <Camera size={26} strokeWidth={2} />
                 </div>
                 <span className="text-[12px] font-normal text-primary text-center">Camera</span>
-              </div>
+              </button>
 
               {/* Location */}
-              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => {
+              <button type="button" className="flex flex-col items-center gap-1.5 cursor-pointer group rounded-xl py-1 touch-card" onClick={() => {
                 setShowAttachmentMenu(false);
                 if (navigator.geolocation) {
                   navigator.geolocation.getCurrentPosition(
                     (pos) => {
                       const lat = pos.coords.latitude.toFixed(5);
                       const lng = pos.coords.longitude.toFixed(5);
-                      onSendMessage(`📍 Live Location: https://maps.google.com/?q=${lat},${lng}`);
+                      onSendMessage(`📍 Location: https://maps.google.com/?q=${lat},${lng}`);
                     },
                     () => {
-                      onSendMessage('📍 Shared Location (Current GPS pin)');
-                    }
+                      setAttachmentError('Location unavailable. Allow location access and try again.');
+                    }, { timeout: 10000, maximumAge: 0 }
                   );
                 } else {
-                  onSendMessage('📍 Shared Location (Current GPS pin)');
+                  setAttachmentError('Location sharing is not supported by this browser.');
                 }
               }}>
-                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#1ea952] to-[#25d366] shadow-[0_4px_12px_rgba(30,169,82,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                <div className="attachment-icon flex items-center justify-center">
                   <MapPin size={26} strokeWidth={2} />
                 </div>
                 <span className="text-[12px] font-normal text-primary text-center">Location</span>
-              </div>
+              </button>
 
               {/* Contact */}
-              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => {
+              <button type="button" className="flex flex-col items-center gap-1.5 cursor-pointer group rounded-xl py-1 touch-card" onClick={() => {
                 setShowAttachmentMenu(false);
                 onSendMessage('👤 Shared Contact Card');
               }}>
-                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#009de2] to-[#00b0ff] shadow-[0_4px_12px_rgba(0,157,226,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                <div className="attachment-icon flex items-center justify-center">
                   <User size={26} strokeWidth={2} />
                 </div>
-                <span className="text-[12px] font-normal text-primary text-center">Contact</span>
-              </div>
+                <span className="text-[12px] font-normal text-primary text-center">Contact text</span>
+              </button>
 
               {/* Document */}
-              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); docInputRef.current?.click(); }}>
-                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#7f66ff] to-[#9985ff] shadow-[0_4px_12px_rgba(127,102,255,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+              <button type="button" className="flex flex-col items-center gap-1.5 cursor-pointer group rounded-xl py-1 touch-card" onClick={() => { setShowAttachmentMenu(false); docInputRef.current?.click(); }}>
+                <div className="attachment-icon flex items-center justify-center">
                   <FileText size={26} strokeWidth={2} />
                 </div>
                 <span className="text-[12px] font-normal text-primary text-center">Document</span>
-              </div>
+              </button>
 
               {/* Audio */}
-              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); audioInputRef.current?.click(); }}>
-                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#fe7a15] to-[#ff9800] shadow-[0_4px_12px_rgba(254,122,21,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+              <button type="button" className="flex flex-col items-center gap-1.5 cursor-pointer group rounded-xl py-1 touch-card" onClick={() => { setShowAttachmentMenu(false); audioInputRef.current?.click(); }}>
+                <div className="attachment-icon flex items-center justify-center">
                   <Headphones size={26} strokeWidth={2} />
                 </div>
                 <span className="text-[12px] font-normal text-primary text-center">Audio</span>
-              </div>
+              </button>
 
               {/* Poll */}
-              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => {
+              <button type="button" className="flex flex-col items-center gap-1.5 cursor-pointer group rounded-xl py-1 touch-card" onClick={() => {
                 setShowAttachmentMenu(false);
                 setText('📊 Poll: ');
                 inputRef.current?.focus();
               }}>
-                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#ffb300] to-[#ffc107] shadow-[0_4px_12px_rgba(255,179,0,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                <div className="attachment-icon flex items-center justify-center">
                   <BarChart size={26} strokeWidth={2.4} />
                 </div>
-                <span className="text-[12px] font-normal text-primary text-center">Poll</span>
-              </div>
+                <span className="text-[12px] font-normal text-primary text-center">Poll text</span>
+              </button>
 
               {/* Event */}
-              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); setShowEventModal(true); }}>
-                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#e0537e] to-[#f06292] shadow-[0_4px_12px_rgba(224,83,126,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+              <button type="button" className="flex flex-col items-center gap-1.5 cursor-pointer group rounded-xl py-1 touch-card" onClick={() => { setShowAttachmentMenu(false); setShowEventModal(true); }}>
+                <div className="attachment-icon flex items-center justify-center">
                   <Calendar size={26} strokeWidth={2} />
                 </div>
                 <span className="text-[12px] font-normal text-primary text-center">Event</span>
-              </div>
+              </button>
 
               {/* Sticker */}
-              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => { setShowAttachmentMenu(false); stickerInputRef.current?.click(); }}>
-                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#00bfa5] to-[#1de9b6] shadow-[0_4px_12px_rgba(0,191,165,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+              <button type="button" className="flex flex-col items-center gap-1.5 cursor-pointer group rounded-xl py-1 touch-card" onClick={() => { setShowAttachmentMenu(false); stickerInputRef.current?.click(); }}>
+                <div className="attachment-icon flex items-center justify-center">
                   <Sticker size={26} strokeWidth={2} />
                 </div>
                 <span className="text-[12px] font-normal text-primary text-center">Sticker</span>
-              </div>
+              </button>
 
               {/* AI Images */}
-              <div className="flex flex-col items-center gap-1.5 cursor-pointer group" onClick={() => {
+              <button type="button" className="flex flex-col items-center gap-1.5 cursor-pointer group rounded-xl py-1 touch-card" onClick={() => {
                 setShowAttachmentMenu(false);
                 setText('@image Send me a photo of ');
                 inputRef.current?.focus();
               }}>
-                <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-tr from-[#0066ff] to-[#00d2ff] shadow-[0_4px_12px_rgba(0,102,255,0.35)] flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all text-white">
+                <div className="attachment-icon flex items-center justify-center">
                   <Sparkles size={26} strokeWidth={2} />
                 </div>
                 <span className="text-[12px] font-normal text-primary text-center">AI Images</span>
-              </div>
+              </button>
             </div>
           </div>
         )}
@@ -1153,7 +1191,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         {showEmojiPicker && (
           <div
             ref={emojiMenuRef}
-            className="absolute bottom-[60px] left-[8px] sm:left-[12px] z-[100] w-[calc(100vw-16px)] sm:w-[390px] max-w-[420px]"
+            id="emoji-tray"
+            role="region"
+            aria-label="Emoji, GIF and sticker picker"
+            className="emoji-tray absolute bottom-[calc(100%+4px)] left-2 md:left-3 z-[100] w-[calc(100%-16px)] md:w-[390px] max-w-[420px]"
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
           >
