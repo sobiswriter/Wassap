@@ -15,6 +15,12 @@
 
 ## ⚡ Current State & What Was Just Worked On
 
+### Direct-main workflow correction (18 October 2026)
+- Owner wants normal direct pushes from Source Control, without feature branches/PRs. Recorded this in Rule 1.2; future work stays on `main` unless explicitly requested otherwise.
+- Fetched remote refs: `origin/main` already contained v1.9.7 through PR #5 (`f0c0ce7`); only heading-reload commit `9140bc1` was absent. Fast-forwarded local main to origin/main and cherry-picked that missing commit as `961282e`. Original branch remains available; resulting app tree matches it exactly. Main now tracks origin/main and is one commit ahead; no remote push or PR creation performed.
+- Documentation-only workflow notes remain for the owner to commit, then push normally to main. Version remains 1.9.7; data/provider code unchanged.
+
+
 ### v1.9.7 mobile heading reload follow-up (18 October 2026)
 - The mobile inbox WhatsApp title is now a keyboard-accessible button labelled Reload app, preserving its appearance with a 44px minimum touch height. It calls normal location reload in browsers and installed PWAs; desktop/Archived titles remain unchanged.
 - Reuses existing network-first shell loading (cached offline fallback) and startup worker-update checks. No storage/session/cache clearing, migrations, provider changes or version bump. Documentation synchronized. TypeScript, production build and all 19 tests passed. `tests/mobile-reload.browser.js` passed with an active service worker: online reload, offline cached reload, saved chats/settings retained, 44px touch target, unchanged desktop heading and v1.9.7 title. Existing unload/pagehide handlers flush pending chat saves. Physical installed Android validation remains manual.

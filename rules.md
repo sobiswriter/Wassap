@@ -16,6 +16,13 @@ These rules govern all automated modifications, code contributions, and AI assis
 
 ---
 
+### Rule 1.2: Direct Main Workflow
+- The owner prefers working and pushing directly on `main` from their usual Source Control UI.
+- Keep this checkout on `main`, tracking `origin/main`. Do not create feature branches or pull requests unless the owner explicitly requests them.
+- Provide `git push origin main` for the owner to run. Never force-push, and preserve all existing commits when synchronizing branches.
+
+---
+
 ## 🛡️ 2. Quality & Verification Standards
 
 ### **Rule 2.1: Mandatory Verification Pipeline**
