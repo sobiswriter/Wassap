@@ -4,6 +4,8 @@ This guide documents the design tokens, color palette, typography, layout dimens
 
 ## v1.9.7 mobile refinement
 
+- The mobile inbox WhatsApp heading is an accessible reload button with its existing appearance and a 44px minimum touch height; desktop headings remain unchanged.
+
 - Diary date chips use 12px text and retain their save-to-diary action.
 - Wallpaper sits behind the complete conversation, including the composer. Keep the crop stable during mobile height changes; reset on width/orientation changes.
 - Do not draw a textarea focus outline inside the clipped composer pill. Keep visible keyboard focus on actionable controls.

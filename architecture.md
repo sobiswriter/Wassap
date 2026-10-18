@@ -2,6 +2,8 @@
 
 ## v1.9.7 conversation layout
 
+The mobile inbox heading invokes a normal location reload. Existing service-worker network-first navigation requests the current shell online, with cached fallback offline; startup checks for service-worker updates. No cache deletion, worker unregistration or storage reset is performed. Release version stays 1.9.7.
+
 `ChatWallpaper` renders once behind both the message viewport and composer. A ResizeObserver tracks the conversation pane; on mobile it retains the largest height for the current width, so keyboard/composer height changes reveal or hide the photo instead of changing its crop. Width/orientation changes reset the size, and desktop follows pane resizing. No storage migration is involved; the observer disconnects on unmount. `utils/wallpaper.ts` owns sizing and retired-preset resolution.
 
 The composer textarea suppresses its clipped outline; keyboard focus indicators remain on buttons and other inputs. Dedicated low-alpha divider tokens soften decorative chat-list/navigation lines without weakening form borders. Shell cache v18 refreshes release assets; existing localStorage/IndexedDB keys and PWA identity are unchanged.

@@ -239,7 +239,7 @@ export const ChatList: React.FC<ChatListProps> = ({
         </div>
       ) : isMobile ? (
         <div className="pt-[max(env(safe-area-inset-top),10px)] pb-3 px-4 flex justify-between items-center shrink-0 bg-white dark:bg-[#0b1014] transition-colors">
-          {showArchived ? <div className="flex items-center min-w-0"><button type="button" aria-label="Back from archived" className="icon-button text-primary" onClick={closeArchived}><ArrowLeft size={24} /></button><h1 className="text-xl font-medium text-primary">Archived</h1></div> : <h1 className="text-[22px] font-semibold text-[#21c063] dark:text-white tracking-tight">WhatsApp</h1>}
+          {showArchived ? <div className="flex items-center min-w-0"><button type="button" aria-label="Back from archived" className="icon-button text-primary" onClick={closeArchived}><ArrowLeft size={24} /></button><h1 className="text-xl font-medium text-primary">Archived</h1></div> : <h1 className="text-[22px] font-semibold text-[#21c063] dark:text-white tracking-tight"><button type="button" aria-label="Reload app" title="Reload app" className="min-h-[44px] text-left" onClick={() => window.location.reload()}>WhatsApp</button></h1>}
           <div className={`${showArchived ? 'hidden' : 'flex'} items-center relative -mr-2`} ref={mobileMenuRef}>
              <button
                onClick={() => setShowScannerModal(true)}
