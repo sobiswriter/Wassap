@@ -8,6 +8,7 @@
     --chat-wallpaper: url('/images/light.png');
     --chat-wallpaper-opacity: 0.4;
     --border-color: #e9edef;
+    --divider-color: rgba(17, 27, 33, .045);
     --panel-bg: #ffffff;
     --header-bg: #f0f2f5;
     --text-primary: #111b21;
@@ -69,7 +70,7 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
     padding: 0;
-    background-color: #eae6df;
+    background-color: var(--chat-bg);
     transition: background-color 0.3s ease;
     color: var(--text-primary);
 }
@@ -82,6 +83,9 @@ body { overflow: hidden; overscroll-behavior: none; }
 
 /* The icon stays compact; its button provides the full touch target. */
 .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; }
+.subtle-divider { border-color: var(--divider-color); }
+/* The rounded composer already identifies the editing field; do not clip a focus ring into bars. */
+.message-composer textarea:focus-visible { outline: none; }
 .composer-bar { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 .attachment-tray { max-height: min(440px, calc(100dvh - 160px)); overflow-y: auto; overscroll-behavior: contain; }
 .attachment-icon { width: 48px; height: 48px; border-radius: 14px; background: #f7f8fa; color: #007bfc; }
@@ -98,7 +102,7 @@ body { overflow: hidden; overscroll-behavior: none; }
 .meta-ai-ring { width: 24px; height: 24px; border-radius: 50%; background: conic-gradient(#3d62ff, #9c3cff, #3d62ff, #00c7e4, #3d62ff); position: relative; }
 .meta-ai-ring::after { content: ''; position: absolute; inset: 3px; border-radius: inherit; background: var(--panel-bg); }
 .chat-list-row { position: relative; }
-.chat-list-row::after { content: ''; position: absolute; left: 80px; right: 0; bottom: 0; border-bottom: 1px solid var(--border-color); opacity: .6; }
+.chat-list-row::after { content: ''; position: absolute; left: 80px; right: 0; bottom: 0; border-bottom: 1px solid var(--divider-color); }
 .settings-switch { flex-shrink: 0; }
 .settings-switch::before { content: ''; position: absolute; inset: -12px -4px; border-radius: 18px; }
 @media (max-width: 359px) { .composer-camera { display: none; } }
@@ -108,6 +112,7 @@ body { overflow: hidden; overscroll-behavior: none; }
     --chat-wallpaper: url('/images/dark.png');
     --chat-wallpaper-opacity: 0.05;
     --border-color: #1f2c34;
+    --divider-color: rgba(233, 237, 239, .035);
     --panel-bg: #0b1014;
     --header-bg: #182229;
     --text-primary: #e9edef;

@@ -1,12 +1,18 @@
 # Wassap System Architecture (`architecture.md`)
 
-This document provides a comprehensive technical overview of the architecture, data flow, tech stack, and directory structure of the **Wassap Persona Simulation** platform (v1.9.6 maintenance).
+## v1.9.7 conversation layout
+
+`ChatWallpaper` renders once behind both the message viewport and composer. A ResizeObserver tracks the conversation pane; on mobile it retains the largest height for the current width, so keyboard/composer height changes reveal or hide the photo instead of changing its crop. Width/orientation changes reset the size, and desktop follows pane resizing. No storage migration is involved; the observer disconnects on unmount. `utils/wallpaper.ts` owns sizing and retired-preset resolution.
+
+The composer textarea suppresses its clipped outline; keyboard focus indicators remain on buttons and other inputs. Dedicated low-alpha divider tokens soften decorative chat-list/navigation lines without weakening form borders. Shell cache v18 refreshes release assets; existing localStorage/IndexedDB keys and PWA identity are unchanged.
+
+This document provides a comprehensive technical overview of the architecture, data flow, tech stack, and directory structure of the **Wassap Persona Simulation** platform (v1.9.7).
 
 ## Android mobile polish (18 October 2026)
 
-Chat-list selection is local UI state in `ChatList.tsx`; row pointer timers cancel on movement/unmount. Batched `onSetChatFlags` updates from `App.tsx` merge only `archived`/`pinned` metadata into selected records. Optional `Chat.pinned` uses the existing localStorage format and defaults false; stable sorting changes presentation without rearranging or replacing persisted chat arrays. Selection uses a temporary mobile history entry, removed when selection ends. Desktop selection remains active alongside an open conversation. Shell cache v17 delivers the updated controls; no provider/backend changes.
+Chat-list selection is local UI state in `ChatList.tsx`; row pointer timers cancel on movement/unmount. Batched `onSetChatFlags` updates from `App.tsx` merge only `archived`/`pinned` metadata into selected records. Optional `Chat.pinned` uses the existing localStorage format and defaults false; stable sorting changes presentation without rearranging or replacing persisted chat arrays. Selection uses a temporary mobile history entry, removed when selection ends. Desktop selection remains active alongside an open conversation. This follow-up originally shipped with shell cache v17; no provider/backend changes.
 
-Archive follow-up adds only optional `Chat.archived` metadata to existing records; no schema/store rename or destructive migration. Filters hide archived records from the main inbox while generation and background replies still use the full chat collection. Mobile navigation transitions keep inbox/chat mounted; profile exit waits 220ms before normal close/history cleanup. Shell cache is now v16. The focused archive/navigation browser check is `tests/archive-ui.browser.js`.
+Archive follow-up adds only optional `Chat.archived` metadata to existing records; no schema/store rename or destructive migration. Filters hide archived records from the main inbox while generation and background replies still use the full chat collection. Mobile navigation transitions keep inbox/chat mounted; profile exit waits 220ms before normal close/history cleanup. This archive follow-up originally shipped with shell cache v16. The focused archive/navigation browser check is `tests/archive-ui.browser.js`.
 
 Presentation changes reuse the existing React components and Lucide icon dependency. No new runtime packages, API endpoints, authentication paths, model choices or storage schemas were introduced. Desktop and mobile now share a consistent 768px breakpoint; `.app-shell` uses a dynamic viewport with a legacy fallback.
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatList } from './components/ChatList';
+import { ChatWallpaper } from './components/ChatWallpaper';
 import { ChatWindow } from './components/ChatWindow';
 import { MessageInput } from './components/MessageInput';
 import { MobileNavigation } from './components/MobileNavigation';
@@ -1034,7 +1035,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        document.title = 'Wassap';
+        document.title = 'Wassap v1.9.7';
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -3693,7 +3694,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           {isMobile && <MobileNavigation unreadCount={unreadTotal} onGuideClick={() => setShowGuide(true)} onUpdatesClick={() => setShowUpdates(true)} onSettingsClick={() => setShowSettingsPopover(true)} />}
         </div>
 
-        <div inert={mobilePanelOpen || (isMobile && activeView !== 'chat')} className={`mobile-screen mobile-conversation ${activeView === 'chat' ? 'screen-active' : ''} flex flex-1 min-h-0 flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b1014]`}>
+        <div inert={mobilePanelOpen || (isMobile && activeView !== 'chat')} className={`mobile-screen mobile-conversation ${activeView === 'chat' ? 'screen-active' : ''} flex flex-1 min-h-0 flex-col min-w-0 relative overflow-hidden app-chat-bg`}>
+          <ChatWallpaper settings={settings} />
           <ChatWindow
             chat={activeChat}
             allChats={chats}

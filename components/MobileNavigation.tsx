@@ -9,7 +9,7 @@ interface MobileNavigationProps {
 }
 
 export const MobileNavigation: React.FC<MobileNavigationProps> = ({ unreadCount = 0, onGuideClick, onUpdatesClick, onSettingsClick }) => (
-  <nav aria-label="Main navigation" className="mobile-navigation md:hidden flex app-panel border-t app-border w-full justify-around shrink-0 select-none">
+  <nav aria-label="Main navigation" className="mobile-navigation md:hidden flex app-panel border-t subtle-divider w-full justify-around shrink-0 select-none">
     <button type="button" aria-current="page" aria-label={unreadCount ? `Chats, ${unreadCount} unread` : 'Chats'} className="mobile-nav-item text-[#105e4b] dark:text-[#21c063]">
       <span className="mobile-nav-icon bg-[#d8fdd2] dark:bg-[#103629] relative">
         <MessageSquareText size={24} strokeWidth={1.8} />

@@ -1,5 +1,5 @@
 // Wassap Service Worker v14: Cookie-authenticated cloud replies and current text models
-const CACHE_NAME = 'wassap-shell-v17';
+const CACHE_NAME = 'wassap-shell-v18';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',

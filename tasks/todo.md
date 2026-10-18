@@ -60,3 +60,11 @@ User approved implementation on 18 October 2026. Local work is on `codex/android
 - [x] Outlined handset beside chat search with accurate unavailable feedback.
 - [x] Mobile chat push/parallax and profile forward/reverse transitions from the supplied recording.
 - [x] Focused archive browser check, TypeScript, build and whitespace checks pass. No broad test rerun; physical Android calibration remains open.
+
+## v1.9.7 phone screenshot fixes (18 October 2026)
+- [x] Reproduce clipped composer outline; remove bars while preserving keyboard indicators on buttons.
+- [x] Stable wallpaper behind messages/composer through simulated keyboard height and multiline growth; reset on orientation/width change and follow desktop resizes.
+- [x] 12px diary chip with working modal; softer list/nav dividers, no phone right frame, matching body theme.
+- [x] Synchronize package/lock, browser/social/Apple/PWA labels, foreground title restore, in-app Updates and documentation to 1.9.7; refresh shell cache v18 without changing installed-app identity or stored data.
+- [x] 19 tests, TypeScript, production build, all four browser scripts and screenshot inspection pass. Existing data/provider checks pass; no real paid requests made.
+- [ ] Confirm keyboard animation/crop on physical Android and installed PWA; desktop Chrome viewport simulation cannot exercise an actual IME.

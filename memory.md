@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.9.6-hotfix1`
+- **Current Version**: `v1.9.7`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/` and `api/giphy/`, plus a local Express development server in `server/`.
@@ -14,6 +14,14 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
+
+### v1.9.7 phone UI fixes and release consolidation (18 October 2026)
+- Reproduced the clipped green textarea focus outline and keyboard-dependent custom-wallpaper crop in an isolated mobile Chrome context. Scoped outline suppression to the composer textarea; all other keyboard focus indicators remain.
+- Moved wallpaper behind messages AND composer in `ChatWallpaper.tsx`. ResizeObserver retains the maximum mobile pane height per width, resets on rotation/width change, follows desktop resizing, and disconnects on unmount. `utils/wallpaper.ts` has regression coverage for sizing and saved presets. No data rewrite.
+- Increased diary date text to 12px; preserved the diary action. Softer semantic row/navigation dividers, desktop-only inbox right border, theme-matched body background remove prominent phone seams without changing form borders.
+- Consolidated Android polish, archive/pin selection, call coming-soon shortcut, navigation motion and these fixes under v1.9.7 in package/lock, HTML/social/Apple/PWA metadata, foreground title restore, README and Updates. Shell cache v18 refreshes assets only; PWA ID/start URL and all localStorage/IndexedDB identities remain unchanged.
+- No provider, credential, shared-passkey, media, voice, outbox, or saved data paths changed. Verification: 19 unit/regression tests, TypeScript and production build passed. Four production-browser scripts passed: mobile UI at 320/360/390/412/768/1024/1440px (including stored chats/memories/voices/key/media/outbox fixtures), archive/navigation, mobile/desktop hold-pin selection, and v1.9.7 keyboard-height/crop/draft/focus/date/divider/title checks in both themes. Screenshots inspected. Physical Android IME/PWA and paid-provider calls were not exercised.
+
 
 ### Chat-list hold selection and pinning (18 October 2026)
 - Touch or left-mouse hold for 450ms selects a chat without opening it; movement beyond 10px, leaving the row, cancellation or unmount clears the hold timer. Completed holds suppress their click. Right-click / Shift+F10 / Space also select on desktop; Escape, the toolbar Back button and mobile Back dismiss selection. Selected rows show a green check and selection background; clicking additional rows toggles multi-selection.
@@ -621,6 +629,9 @@ Wassap/
 ---
 
 ## 📜 Feature Milestones Completed
+
+- [x] **v1.9.7**: Android-first polish, archive/unarchive and pin selection across touch/mouse/keyboard, call coming-soon shortcut, reversible transitions, larger diary dates, stable mobile wallpaper, clean composer focus and subtle dividers; synchronized release labels.
+
 
 - [x] 18 October 2026: Backward-compatible cloud hardening, data-preservation fixes, two text models, dependency lock/audit, and regression/browser checks.
 - [x] **v1.0.0 - v1.2.0**: WhatsApp Web UI layout, message send/receive, persona switching, basic Gemini integration.
