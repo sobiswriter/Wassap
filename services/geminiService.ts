@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { UserProfile, AppSettings, HumaneSettings, MemoryBubble, PersonaVoiceSettings } from "../types";
-import { DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, VERTEX_PASSCODE, getVoiceDescriptor, DEFAULT_VARY_MESSAGE_LENGTH_PROMPT } from "../constants";
+import { normalizeTextModel, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, getVoiceDescriptor, DEFAULT_VARY_MESSAGE_LENGTH_PROMPT } from "../constants";
 import { getAppTimeContext } from "../utils/dates";
 import { pcmBase64ToWavDataUrl, convertToGeminiVocalTags } from "../utils/audio";
 import { getSavedCustomVoices } from "../utils/customVoices";
@@ -26,7 +26,7 @@ export async function checkVertexConnectionStatus(): Promise<{
       };
     }
     const data = await res.json();
-    return { ok: true, ...data };
+    return { ...data, ok: res.ok };
   } catch (e: any) {
     return { ok: false, error: e.message || 'Unable to connect to server.' };
   }
@@ -279,7 +279,6 @@ async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSigna
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-vertex-passcode': VERTEX_PASSCODE,
         },
         body: JSON.stringify(payload),
         timeoutMs: perAttemptTimeout,
@@ -350,10 +349,7 @@ async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSigna
 }
 
 async function fetchVertexDiary(payload: any, maxRetries = 1, signal?: AbortSignal): Promise<string> {
-  const requestPayload = {
-    ...payload,
-    passcode: VERTEX_PASSCODE,
-  };
+  const requestPayload = payload;
 
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
     if (signal?.aborted) {
@@ -367,7 +363,6 @@ async function fetchVertexDiary(payload: any, maxRetries = 1, signal?: AbortSign
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-vertex-passcode': VERTEX_PASSCODE,
         },
         body: JSON.stringify(requestPayload),
         timeoutMs: perAttemptTimeout,
@@ -423,7 +418,6 @@ async function fetchVertexTTS(payload: {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-vertex-passcode': VERTEX_PASSCODE,
       },
       body: JSON.stringify(payload),
       timeoutMs: 22000,
@@ -812,7 +806,7 @@ export const getGeminiResponse = async (
   }
 
   // Option B: Custom API Key (Gemini AI Studio)
-  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY;
 
   if (!finalKey) {
     return "API Key not configured. Please enter your Gemini AI Studio API key in Settings, or switch to 'Built-in (Vertex AI)' mode.";
@@ -866,9 +860,9 @@ export const getGeminiResponse = async (
 
       try {
         // On retries after a rate limit or server issue, fallback to a lighter model
-        let modelToUse = settings?.selectedModel || DEFAULT_MODEL;
+        let modelToUse = normalizeTextModel(settings?.selectedModel);
         if (attempt > 1) {
-          modelToUse = 'gemini-2.5-flash';
+          modelToUse = 'gemini-3.5-flash-lite';
         }
 
         const candidateTimeout = new Promise<never>((_, reject) => {
@@ -1250,12 +1244,12 @@ export const getGeminiDiaryEntry = async (
       })),
       startDate,
       endDate,
-      settings: { selectedModel: settings?.selectedModel || DEFAULT_MODEL },
+      settings: { selectedModel: normalizeTextModel(settings?.selectedModel) },
       userProfile,
     });
   }
 
-  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY;
 
   if (!finalKey) {
     return "API Key not configured. Please enter your Gemini AI Studio API key in Settings, or switch to 'Built-in (Vertex AI)' mode.";
@@ -1264,12 +1258,11 @@ export const getGeminiDiaryEntry = async (
   const ai = new GoogleGenAI({ apiKey: finalKey });
   const { prompt } = buildDiaryHistoryAndPrompt(persona, messageHistory, startDate, endDate, userProfile);
 
-  const primaryModel = settings?.selectedModel || DEFAULT_MODEL;
+  const primaryModel = normalizeTextModel(settings?.selectedModel);
   const fallbackModels = Array.from(new Set([
     primaryModel,
     'gemini-3.8-flash',
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite'
+    'gemini-3.5-flash-lite'
   ]));
 
   for (let i = 0; i < fallbackModels.length; i++) {
@@ -1401,7 +1394,7 @@ export const generateGeminiVoiceNote = async (
   }
 
   // Option B: Custom API Key (Gemini AI Studio)
-  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY;
 
   if (!finalKey) {
     return { ok: false, error: "API Key not configured. Enter your Gemini AI Studio API key in Settings." };
@@ -1655,7 +1648,6 @@ export async function synthesizeImageContextAndCaption(
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-vertex-passcode': VERTEX_PASSCODE,
           },
           body: JSON.stringify({
             persona,
@@ -1694,7 +1686,7 @@ export async function synthesizeImageContextAndCaption(
   }
 
   // Option B: Custom Studio API Key
-  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY;
   if (!finalKey) {
     return { ok: false, error: "API Key not configured." };
   }
@@ -1769,9 +1761,9 @@ Return ONLY a valid JSON object with keys "mode", "user_wants_posed", "caption",
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       try {
-        let modelToUse = settings?.selectedModel || DEFAULT_MODEL;
+        let modelToUse = normalizeTextModel(settings?.selectedModel);
         if (attempt > 1) {
-          modelToUse = 'gemini-2.5-flash';
+          modelToUse = 'gemini-3.5-flash-lite';
         }
 
         const response = await ai.models.generateContent({
@@ -1865,7 +1857,6 @@ export async function generatePersonaImage(options: {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-vertex-passcode': VERTEX_PASSCODE,
           },
           body: JSON.stringify({
             model: modelToUse,
@@ -1920,7 +1911,7 @@ export async function generatePersonaImage(options: {
   }
 
   // Option B: Custom Studio API Key
-  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+  const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY;
   if (!finalKey) {
     return { ok: false, error: "API Key not configured." };
   }
@@ -2102,7 +2093,6 @@ export async function generatePersonaImageExcuse(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-vertex-passcode': VERTEX_PASSCODE,
         },
         body: JSON.stringify({
           persona,
@@ -2118,13 +2108,13 @@ export async function generatePersonaImageExcuse(
       console.warn("Fallback to local excuse:", e);
     }
   } else {
-    const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+    const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY;
     if (finalKey) {
       try {
         const ai = new GoogleGenAI({ apiKey: finalKey });
         const excusePrompt = `You are ${persona.name}. The user asked you to send a photo ('${userPrompt}'), but right now your camera is unavailable (e.g. app crashed, camera glitch, bad lighting). In your exact natural speech style (${persona.speechStyle || 'casual'}), reply with 1 short, in-character sentence explaining why you can't send one right now. Never say you are an AI.`;
         const res = await ai.models.generateContent({
-          model: settings?.selectedModel || DEFAULT_MODEL,
+          model: normalizeTextModel(settings?.selectedModel),
           contents: [{ role: 'user', parts: [{ text: excusePrompt }] }],
         });
         if (res.text) return res.text.trim();

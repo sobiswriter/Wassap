@@ -36,7 +36,7 @@ const PanelLoadingFallback: React.FC = () => (
     <div className="h-full bg-[#21c063] w-1/2 rounded-full animate-pulse" />
   </div>
 );
-import { INITIAL_CHATS, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, GEMINI_TTS_VOICE_DETAILS } from './constants';
+import { INITIAL_CHATS, normalizeTextModel, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, GEMINI_TTS_VOICE_DETAILS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus, PersonaVoiceSettings } from './types';
 import { 
   getGeminiResponse, 
@@ -139,7 +139,7 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
     about: chat.about,
     humaneSettings: chat.humaneSettings,
     voiceSettings: chat.voiceSettings,
-    model: currentSettings?.selectedModel || 'gemini-3.8-flash',
+    model: normalizeTextModel(currentSettings?.selectedModel),
     provider: currentSettings?.aiProvider || 'vertex',
     customApiKey: currentSettings?.apiKey,
     enableTextStacking: currentSettings?.enableTextStacking !== false,
@@ -161,7 +161,7 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
       status: currentUser?.status || 'Online'
     },
     settings: {
-      selectedModel: currentSettings?.selectedModel || 'gemini-3.8-flash',
+      selectedModel: normalizeTextModel(currentSettings?.selectedModel),
       useSearchGrounding: currentSettings?.useSearchGrounding,
       shareTimeContext: currentSettings?.shareTimeContext !== false,
       shareCalendarNotes: currentSettings?.shareCalendarNotes,
@@ -653,8 +653,8 @@ const App: React.FC = () => {
               if (isRawErrorMessage(cleanMsg.text)) {
                 cleanMsg.text = getInCharacterNetworkGlitchExcuse(chat);
               }
-              // Strip heavy legacy Base64 image data from localStorage to keep state light and prevent startup freezes
-              if (cleanMsg.image && cleanMsg.image.length > 500) {
+              // Only strip an inline copy when the message already has IndexedDB media storage.
+              if (cleanMsg.mediaId && cleanMsg.image && cleanMsg.image.length > 500) {
                 delete (cleanMsg as any).image;
               }
               return cleanMsg;
@@ -1000,10 +1000,11 @@ const App: React.FC = () => {
             aiProvider: 'vertex',
             chatWallpaper: 'default',
             chatWallpaperOpacity: 0.85,
-            isVertexUnlocked: false,
             selectedVoiceModel: DEFAULT_VOICE_MODEL,
             enableDynamicOnlinePresence: false,
             ...parsed,
+            selectedModel: normalizeTextModel(parsed.selectedModel),
+            isVertexUnlocked: false,
             ...(activeVoiceModel ? { selectedVoiceModel: activeVoiceModel } : {})
           };
         }
@@ -1023,6 +1024,20 @@ const App: React.FC = () => {
       enableDynamicOnlinePresence: false
     };
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkUnlock = () => {
+      fetch('/api/gemini/auth').then(res => {
+        if (!cancelled && (res.ok || res.status === 401)) {
+          setSettings(previous => previous.isVertexUnlocked === res.ok ? previous : { ...previous, isVertexUnlocked: res.ok });
+        }
+      }).catch(error => console.warn('Cloud unlock check unavailable:', error));
+    };
+    checkUnlock();
+    window.addEventListener('online', checkUnlock);
+    return () => { cancelled = true; window.removeEventListener('online', checkUnlock); };
+  }, []);
 
   const settingsRef = React.useRef<AppSettings>(settings);
   useEffect(() => {
@@ -1050,7 +1065,7 @@ const App: React.FC = () => {
       const sanitizedChats = currentChats.map(c => ({
         ...c,
         messages: (c.messages || []).map(m => {
-          if (m.image && m.image.length > 500) {
+          if (m.mediaId && m.image && m.image.length > 500) {
             const { image, ...rest } = m;
             return rest as Message;
           }
@@ -1447,6 +1462,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
     type?: 'normal' | 'catchup' | 'inactivity',
     forceNotification = false
   ) => {
+    const settings = settingsRef.current;
+    if ((settings.aiProvider || 'vertex') === 'vertex' && !settings.isVertexUnlocked) return;
     const targetChat = chatsRef.current.find(c => c.id === chatId);
     if (!targetChat) return;
 
@@ -1694,6 +1711,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
   };
 
   const runAutomationChecks = (isInitialMount: boolean = false) => {
+    const currentSettings = settingsRef.current;
+    if ((currentSettings.aiProvider || 'vertex') === 'vertex' && !currentSettings.isVertexUnlocked) return;
     const now = getAppNow(settingsRef.current);
     const todayDateStr = getDateKey(); 
     const currentTimeStr = getFormattedTime();
@@ -2333,6 +2352,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     imagePromptText = '',
     isBackgroundReply = false
   ) => {
+    const settings = settingsRef.current;
     const chatId = chat.id;
     const isAlreadyOnline = chatsRef.current.find(c => c.id === chatId)?.status === 'online';
     const isFastOnlineChat = !!(settingsRef.current.enableDynamicOnlinePresence && isAlreadyOnline);
@@ -2833,6 +2853,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     memoryContext?: string,
     isBackgroundReply = false
   ) => {
+    const settings = settingsRef.current;
     const memberIds = [...(group.memberIds || [])];
     if (memberIds.length === 0) return;
 
@@ -3217,7 +3238,12 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   }, []);
 
   // Flush queued messages when coming back online
+  const offlineQueueFlushingRef = React.useRef(false);
   const flushOfflineQueue = React.useCallback(async () => {
+    const currentSettings = settingsRef.current;
+    if ((currentSettings.aiProvider || 'vertex') === 'vertex' && !currentSettings.isVertexUnlocked) return;
+    if (offlineQueueFlushingRef.current) return;
+    offlineQueueFlushingRef.current = true;
     try {
       const pendingItems = await getPendingMessages();
       if (!pendingItems || pendingItems.length === 0) return;
@@ -3253,8 +3279,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       }
     } catch (e) {
       console.warn('Flush offline queue failed:', e);
+    } finally {
+      offlineQueueFlushingRef.current = false;
     }
-  }, []);
+  }, [settings]);
+
+  useEffect(() => {
+    if (navigator.onLine) flushOfflineQueue();
+  }, [settings.isVertexUnlocked, settings.aiProvider, flushOfflineQueue]);
 
   // Online / Offline & Background Reconciliation Lifecycle
   useEffect(() => {

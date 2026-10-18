@@ -22,33 +22,21 @@ function vertexAiApiPlugin(): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
 
-  // Populate server-side Google Cloud environment variables from .env if defined
-  if (env.GOOGLE_CLOUD_PROJECT && !process.env.GOOGLE_CLOUD_PROJECT) {
-    process.env.GOOGLE_CLOUD_PROJECT = env.GOOGLE_CLOUD_PROJECT;
-  }
-  if (env.GOOGLE_CLOUD_LOCATION && !process.env.GOOGLE_CLOUD_LOCATION) {
-    process.env.GOOGLE_CLOUD_LOCATION = env.GOOGLE_CLOUD_LOCATION;
-  }
-  if (env.GOOGLE_APPLICATION_CREDENTIALS && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = env.GOOGLE_APPLICATION_CREDENTIALS;
+  // Only the VITE_ prefix is public; credentials stay in the Node process.
+  for (const [key, value] of Object.entries(env)) {
+    if (!key.startsWith('VITE_') && process.env[key] === undefined) process.env[key] = value;
   }
 
   return {
     server: {
       port: 3000,
       host: '0.0.0.0',
-      allowedHosts: true,
     },
     preview: {
       port: 3000,
       host: '0.0.0.0',
-      allowedHosts: true,
     },
     plugins: [react(), vertexAiApiPlugin()],
-    define: {
-      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

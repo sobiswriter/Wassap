@@ -1,7 +1,92 @@
+import dns from 'node:dns/promises';
+import http from 'node:http';
+import https from 'node:https';
+import { BlockList, isIP } from 'node:net';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { GoogleGenAI } from '@google/genai';
 
-const VERTEX_PASSCODE = 'Ness2020';
+
+// Kept self-contained for Vercel; mirrored from server/remoteMedia.ts and checked by tests.
+const privateMediaAddresses = new BlockList();
+for (const [address, prefix] of [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
+  ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24],
+  ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24],
+  ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
+] as const) privateMediaAddresses.addSubnet(address, prefix, 'ipv4');
+const globalMediaIPv6 = new BlockList();
+globalMediaIPv6.addSubnet('2000::', 3, 'ipv6');
+for (const [address, prefix] of [['2001::', 23], ['2001:db8::', 32], ['2002::', 16], ['3fff::', 20]] as const) {
+  privateMediaAddresses.addSubnet(address, prefix, 'ipv6');
+}
+
+function isPublicMediaAddress(address: string): boolean {
+  const family = isIP(address);
+  return family === 4 ? !privateMediaAddresses.check(address, 'ipv4')
+    : family === 6 && globalMediaIPv6.check(address, 'ipv6') && !privateMediaAddresses.check(address, 'ipv6');
+}
+
+async function fetchRemoteMedia(url: string, maxBytes = 8 * 1024 * 1024, timeoutMs = 6000): Promise<{ data: Buffer; mimeType: string }> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error('Remote media timed out'));
+    }, timeoutMs);
+  });
+  const download = async (target: string, redirects = 0): Promise<{ data: Buffer; mimeType: string }> => {
+    const parsed = new URL(target);
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error('Invalid media URL');
+    const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+    const addresses = isIP(hostname) ? [{ address: hostname, family: isIP(hostname) }] : await dns.lookup(hostname, { all: true, verbatim: true });
+    controller.signal.throwIfAborted();
+    if (!addresses.length || addresses.some(item => !isPublicMediaAddress(item.address))) throw new Error('Private or reserved media address blocked');
+    const address = addresses[0];
+    return new Promise((resolve, reject) => {
+      const request = (parsed.protocol === 'https:' ? https : http).request(parsed, {
+        signal: controller.signal,
+        headers: { Accept: 'image/*,audio/*,*/*', 'User-Agent': 'Mozilla/5.0 (compatible; WassapBot/1.0)' },
+        // Pin the checked address so a second DNS lookup cannot reach a private host.
+        lookup: ((_host: string, options: any, callback: any) => options?.all
+          ? callback(null, [address]) : callback(null, address.address, address.family)) as any,
+      }, response => {
+        const status = response.statusCode || 0;
+        if ([301, 302, 303, 307, 308].includes(status)) {
+          response.destroy();
+          if (!response.headers.location || redirects >= 3) { reject(new Error('Too many media redirects')); return; }
+          try { resolve(download(new URL(response.headers.location, parsed).href, redirects + 1)); }
+          catch (error) { reject(error); }
+          return;
+        }
+        const mimeType = (response.headers['content-type'] || 'application/octet-stream').split(';')[0].trim().toLowerCase();
+        if (status < 200 || status >= 300 || mimeType.includes('svg') || (!mimeType.startsWith('image/') && !mimeType.startsWith('audio/') && mimeType !== 'application/octet-stream')) {
+          response.destroy(); reject(new Error('Unsupported remote media response')); return;
+        }
+        if (Number(response.headers['content-length']) > maxBytes) {
+          response.destroy(); reject(new Error('Remote media exceeds size limit')); return;
+        }
+        const chunks: Buffer[] = [];
+        let size = 0;
+        response.on('data', (chunk: Buffer) => {
+          size += chunk.length;
+          if (size > maxBytes) { response.destroy(); reject(new Error('Remote media exceeds size limit')); }
+          else chunks.push(chunk);
+        });
+        response.on('error', reject);
+        response.on('aborted', () => reject(new Error('Remote media download interrupted')));
+        response.on('end', () => resolve({ data: Buffer.concat(chunks), mimeType }));
+      });
+      request.on('error', reject);
+      request.end();
+    });
+  };
+  try { return await Promise.race([download(url), timeout]); }
+  finally { clearTimeout(timer!); }
+}
+
+
 const DEFAULT_GCP_PROJECT = 'gen-lang-client-0100408368';
 const DEFAULT_GCP_REGION = 'global';
 
@@ -114,9 +199,17 @@ function sendJson(res: ServerResponse & { status?: (code: number) => any; json?:
 }
 
 function isPasscodeValid(req: IncomingMessage & { body?: any }, payload?: any): boolean {
-  const headerCode = req.headers['x-vertex-passcode'] || req.headers['x-passcode'];
-  const bodyCode = payload?.passcode;
-  return headerCode === VERTEX_PASSCODE || bodyCode === VERTEX_PASSCODE;
+  let cookieCode: string | undefined;
+  try {
+    const cookie = req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith('wassap_vertex='));
+    if (cookie) cookieCode = decodeURIComponent(cookie.slice('wassap_vertex='.length));
+  } catch { return false; }
+  const expected = process.env.VERTEX_PASSCODE
+    ? createHash('sha256').update(process.env.VERTEX_PASSCODE).digest()
+    : Buffer.from('065aa98a12229c668d822a2ef7e4cdc84fa1c0ec55671eae4560d50be441cdf5', 'hex');
+  return [cookieCode, req.headers['x-vertex-passcode'], req.headers['x-passcode'], payload?.passcode]
+    .some(code => typeof code === 'string' && code.length > 0 && code.length <= 1024
+      && timingSafeEqual(createHash('sha256').update(code).digest(), expected));
 }
 
 function normalizePrivateKey(key?: string): string {
@@ -325,8 +418,7 @@ function getInCharacterGlitchMessage(
 }
 
 function resolveVertexModel(selectedModel?: string): string {
-  if (!selectedModel) return 'gemini-3.8-flash';
-  return selectedModel.trim();
+  return selectedModel === 'gemini-3.5-flash-lite' ? selectedModel : 'gemini-3.8-flash';
 }
 
 /**
@@ -376,39 +468,10 @@ async function resolveMediaToInlineData(
     }
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
-
-      const response = await fetch(trimmed, {
-        signal: controller.signal,
-        headers: {
-          'Accept': 'image/*,audio/*,*/*',
-          'User-Agent': 'Mozilla/5.0 (compatible; WassapBot/1.0)',
-        },
-      });
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        console.warn(`[resolveMediaToInlineData] HTTP ${response.status} fetching remote media: ${trimmed}`);
-        return null;
-      }
-
-      const contentTypeHeader = (response.headers.get('content-type') || '').toLowerCase().split(';')[0].trim();
-      if (contentTypeHeader.includes('svg') || contentTypeHeader.includes('html')) {
-        return null;
-      }
-
-      const mimeType = contentTypeHeader && (contentTypeHeader.startsWith('image/') || contentTypeHeader.startsWith('audio/'))
-        ? contentTypeHeader
-        : (trimmed.toLowerCase().endsWith('.gif') ? 'image/gif' : defaultMime);
-
-      const arrayBuffer = await response.arrayBuffer();
-      // Cap at 8MB to stay within Vercel and Vertex inlineData payload thresholds
-      if (arrayBuffer.byteLength > 8 * 1024 * 1024) {
-        console.warn(`[resolveMediaToInlineData] Media too large (${arrayBuffer.byteLength} bytes) for: ${trimmed}`);
-        return null;
-      }
-
+      const remote = await fetchRemoteMedia(trimmed);
+      const mimeType = remote.mimeType === 'application/octet-stream'
+        ? (trimmed.toLowerCase().endsWith('.gif') ? 'image/gif' : defaultMime) : remote.mimeType;
+      const arrayBuffer = remote.data;
       const base64Data = Buffer.from(arrayBuffer).toString('base64');
       if (!base64Data) return null;
 
@@ -691,7 +754,7 @@ Response as ${responder.name}:`;
         let modelToUse = resolveVertexModel(settings?.selectedModel);
         // Fallback model on retry to recover from rate-limits (429) or transient overloads
         if (attempt > 1) {
-          modelToUse = 'gemini-2.5-flash';
+          modelToUse = 'gemini-3.5-flash-lite';
         }
 
         const response = await ai.models.generateContent({

@@ -1,3 +1,5 @@
+import authHandler, { isPasscodeValid } from '../api/gemini/auth';
+export { isPasscodeValid };
 import type { IncomingMessage, ServerResponse } from 'http';
 import { 
   handleVertexChat, 
@@ -7,7 +9,7 @@ import {
   handleVertexImageGeneration, 
   handleVertexImageExcuse 
 } from './vertexHandler';
-import { VERTEX_PASSCODE, GCP_CONFIG } from '../constants';
+import { GCP_CONFIG } from '../constants';
 import voicesHandler from '../api/gemini/voices';
 
 export async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
@@ -53,18 +55,14 @@ export function sendJson(res: ServerResponse & { status?: (code: number) => any;
   res.end(JSON.stringify(data));
 }
 
-export function isPasscodeValid(req: IncomingMessage & { body?: any }, payload?: any): boolean {
-  const headerCode = req.headers['x-vertex-passcode'] || req.headers['x-passcode'];
-  const bodyCode = payload?.passcode;
-  return headerCode === VERTEX_PASSCODE || bodyCode === VERTEX_PASSCODE;
-}
-
 export async function handleGeminiApiMiddleware(
   req: IncomingMessage,
   res: ServerResponse,
   next: () => void
 ) {
   const url = req.url?.split('?')[0] || '';
+
+  if (url === '/api/gemini/auth') { await authHandler(req, res); return; }
 
   if (req.method === 'POST' && (url === '/api/gemini/generate' || url === '/api/gemini/chat')) {
     try {

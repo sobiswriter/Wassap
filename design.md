@@ -159,3 +159,9 @@ body, input, button, textarea {
   - Constrained horizontal translation tracking finger movement up to 60px with elastic damping.
   - Activation threshold at 45px triggering visual reply indicator reveal and haptic confirmation.
 
+
+
+## Cloud access and import feedback (18 October 2026)
+- Keep the existing Settings passkey form, hint, lock control, and provider choices. Unlock validation runs on the server; disable submission while it is in progress and display a useful error on failure.
+- Keep text model choices to Gemini 3.8 Flash and Gemini 3.5 Flash-Lite. Voice/image selectors retain their existing choices.
+- Reject invalid persona backup files before changing app state; preserve the existing import flow for valid backups.

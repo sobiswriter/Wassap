@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw, Camera, Mic, Zap, Film, Download } from 'lucide-react';
 import { AppSettings, AiProvider } from '../types';
-import { AVAILABLE_MODELS, AVAILABLE_IMAGE_MODELS, AVAILABLE_VOICE_MODELS, GCP_CONFIG, DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE, VERTEX_PASSCODE_HINT } from '../constants';
+import { AVAILABLE_MODELS, AVAILABLE_IMAGE_MODELS, AVAILABLE_VOICE_MODELS, GCP_CONFIG, DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE_HINT } from '../constants';
 import { compressWallpaperImage } from '../utils/imageCompressor';
 import { checkVertexConnectionStatus } from '../services/geminiService';
+import { parsePersonaBackup } from '../utils/personaBackup';
 import { getLocalDateKey } from '../utils/dates';
 
 interface SettingsPopoverProps {
@@ -20,6 +21,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
   const [passcodeDraft, setPasscodeDraft] = useState('');
   const [showPasscode, setShowPasscode] = useState(false);
   const [showPasscodeHint, setShowPasscodeHint] = useState(false);
+  const [unlockingVertex, setUnlockingVertex] = useState(false);
   const [passcodeError, setPasscodeError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [draftSettings, setDraftSettings] = useState<AppSettings>({
@@ -116,33 +118,43 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
     }
   };
 
-  const handleUnlockVertex = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (passcodeDraft.trim() === VERTEX_PASSCODE) {
-      const updated: AppSettings = {
-        ...draftSettings,
-        isVertexUnlocked: true,
-        aiProvider: 'vertex',
-      };
+  const handleUnlockVertex = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (unlockingVertex) return;
+    setUnlockingVertex(true);
+    setPasscodeError(null);
+    try {
+      const res = await fetch('/api/gemini/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passcode: passcodeDraft.trim() }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Unable to unlock Built-in Cloud.');
+      const updated: AppSettings = { ...draftSettings, isVertexUnlocked: true, aiProvider: 'vertex' };
       setDraftSettings(updated);
-      setPasscodeError(null);
       setPasscodeDraft('');
       setShowPasscodeHint(false);
       onUpdate(updated);
-    } else {
-      setPasscodeError("Incorrect password. Please try again.");
+    } catch (error: any) {
+      setPasscodeError(error.message || 'Unable to contact Built-in Cloud. Please try again.');
+    } finally {
+      setUnlockingVertex(false);
     }
   };
 
-  const handleLockVertex = (e: React.MouseEvent) => {
+  const handleLockVertex = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated: AppSettings = {
-      ...draftSettings,
-      isVertexUnlocked: false,
-    };
-    setDraftSettings(updated);
-    setPasscodeError(null);
-    onUpdate(updated);
+    try {
+      const res = await fetch('/api/gemini/auth', { method: 'DELETE' });
+      if (!res.ok) throw new Error('Unable to lock Built-in Cloud. Please try again.');
+      const updated: AppSettings = { ...draftSettings, isVertexUnlocked: false };
+      setDraftSettings(updated);
+      setPasscodeError(null);
+      onUpdate(updated);
+    } catch (error: any) {
+      setVertexTestResult({ ok: false, message: error.message });
+    }
   };
 
   const handleToggleTheme = () => {
@@ -208,16 +220,17 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 16 * 1024 * 1024) {
+      alert('Persona backup is too large (maximum 16 MB).');
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
+    reader.onerror = () => alert('Unable to read the persona backup file.');
     reader.onload = (event) => {
       try {
         const raw = JSON.parse(event.target?.result as string);
-        const data = raw.persona || raw;
-
-        if (!data || !data.name) {
-          alert("Invalid persona backup file: Missing persona name.");
-          return;
-        }
+        const data = parsePersonaBackup(raw);
 
         if (onImportPersona) {
           onImportPersona(data);
@@ -228,7 +241,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
         }
       } catch (err) {
         console.error("Failed to parse persona backup file", err);
-        alert("Failed to parse the persona backup file. Ensure it is a valid JSON file.");
+        alert(err instanceof Error ? err.message : "Invalid persona backup file.");
       }
       if (personaImportInputRef.current) personaImportInputRef.current.value = '';
     };
@@ -385,9 +398,10 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
                       </div>
                       <button
                         type="submit"
+                        disabled={unlockingVertex}
                         className="px-3 py-1 bg-[#00a884] hover:bg-[#02906f] text-white rounded font-medium text-[11px] flex items-center gap-1 shrink-0 transition-colors shadow-sm"
                       >
-                        <Unlock size={11} /> Unlock
+                        <Unlock size={11} /> {unlockingVertex ? 'Unlocking...' : 'Unlock'}
                       </button>
                     </div>
 
@@ -476,7 +490,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
                 </div>
               ) : (
                 <p className="text-[calc(var(--msg-font-size)-3.5px)] text-secondary leading-tight">
-                  Independent mode: Keys are stored securely in your browser localStorage.
+                  Independent mode: Keys are saved locally in this browser. Only use your own key on a trusted device.
                 </p>
               )}
             </div>

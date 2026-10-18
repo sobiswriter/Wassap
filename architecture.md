@@ -1,6 +1,6 @@
 # Wassap System Architecture (`architecture.md`)
 
-This document provides a comprehensive technical overview of the architecture, data flow, tech stack, and directory structure of the **Wassap Persona Simulation** platform (`v1.9.2`).
+This document provides a comprehensive technical overview of the architecture, data flow, tech stack, and directory structure of the **Wassap Persona Simulation** platform (v1.9.6 maintenance).
 
 ---
 
@@ -16,12 +16,12 @@ graph TD
         ReactApp -->|Settings, Personas, Chats| LocalStorage[(localStorage)]
         ReactApp -->|Voice Notes, Images, Blobs| IndexedDB[(IndexedDB utils/storage.ts)]
         ReactApp -->|Dual Web Audio| AudioEngine[Web Audio API Engine: msgsentpop.mp3 & whatapp.wav]
-        ReactApp -->|Background / Offline| SW[Service Worker sw.js: Shell v4 Cache]
+        ReactApp -->|Background / Offline| SW[Service Worker sw.js: Shell v14 Cache]
     end
 
     subgraph AI Gateway Routing geminiService.ts
         ReactApp -->|Direct SDK calls with Custom Key| GeminiStudio[Google AI Studio API]
-        ReactApp -->|Proxy calls with Passcode| Serverless[Vercel Serverless / Local Express]
+        ReactApp -->|Proxy calls with Passcode| Serverless[Vercel Serverless / Local Vite Middleware]
     end
 
     subgraph Backend Services
@@ -132,7 +132,7 @@ sequenceDiagram
 
     User->>Modal: Clicks "Generate AI Diary"
     Modal->>DiaryAPI: POST { persona, chatSummary, clientTimeContext }
-    Note over DiaryAPI: Multi-model fallback retry loop<br/>(3.8-flash -> 2.5-flash -> 2.5-flash-lite)<br/>Generates first-person private journal reflection
+    Note over DiaryAPI: Multi-model fallback retry loop<br/>(3.8-flash -> 3.5-flash-lite)<br/>Generates first-person private journal reflection
     DiaryAPI-->>Modal: Pure diary entry text
     Modal->>Modal: User saves -> stored in chat.memories
 
@@ -181,7 +181,7 @@ Wassap/
 │   ├── UserProfilePanel.tsx      # Personal user profile info
 │   └── VoiceNotePlayer.tsx       # WhatsApp audio note card with waveform scrubber & speed pill
 ├── server/                       # Local Development Backend
-│   ├── api.ts                    # Express router forwarding /api/gemini/*
+│   ├── api.ts                    # Vite Connect middleware forwarding /api/gemini/*
 │   └── vertexHandler.ts          # Server-side Vertex AI implementation mirror
 ├── services/
 │   └── geminiService.ts          # Client-side gateway orchestrator (routes Vertex vs AI Studio)
@@ -194,7 +194,7 @@ Wassap/
 ├── public/                       # Static public assets
 │   ├── msgsentpop.mp3            # Authentic low-pop sent message sound
 │   ├── whatapp.wav               # Incoming message chime
-│   ├── sw.js                     # Service Worker (PWA offline shell v4 & background push)
+│   ├── sw.js                     # Service Worker (PWA offline shell v14 & background push)
 │   ├── manifest.json             # Web App Manifest
 │   └── images/                   # Wallpapers and default avatars
 ├── App.tsx                       # Root application component, Web Audio engine, & global state orchestrator
@@ -216,14 +216,14 @@ Wassap/
 | Layer | Technology | Purpose & Details |
 | :--- | :--- | :--- |
 | **Frontend Framework** | **React 19** (`react`, `react-dom`) | Modern component architecture, state management with hooks |
-| **Language** | **TypeScript 5.8** | Strict static typing across frontend, models, and serverless handlers |
+| **Language** | **TypeScript 5.8** | Static typing across frontend, models, and serverless handlers; strict mode is not enabled |
 | **Build Tooling** | **Vite 6** (`@vitejs/plugin-react`) | High-speed HMR development and production asset bundling |
 | **Styling** | **Tailwind CSS v3.4** + Custom CSS | WhatsApp theme tokens, CSS variables, dark mode class strategy |
 | **Icons** | **Lucide React** (`lucide-react`) | Pixel-accurate WhatsApp UI icon representations |
 | **Client AI SDK** | **`@google/genai` v1.38+** | Official Google GenAI SDK for AI Studio and Vertex AI |
 | **Audio Processing** | **Web Audio API** | Microphone PCM capture, sample-rate resampling, buffer preloading (`msgsentpop.mp3`, `whatapp.wav`), and parallel non-blocking playback |
-| **PWA & Offline** | **Service Worker** (`sw.js`) | Offline app shell caching (`wassap-shell-v4`), background push handling, and action dispatch |
-| **Local Backend** | **Express 4** | Local development proxy for Vertex AI endpoints |
+| **PWA & Offline** | **Service Worker** (`sw.js`) | Offline app shell caching (`wassap-shell-v14`), background push handling, and action dispatch |
+| **Local Backend** | **Vite Connect middleware** | Local development proxy for Vertex AI endpoints |
 | **Serverless Engine** | **Vercel Functions** (`@vercel/node`) | Zero-config serverless API deployment in `/api/gemini/*` |
 | **Client Storage** | **`localStorage` & IndexedDB** | Lightweight text state + robust binary blob persistence |
 
@@ -241,4 +241,18 @@ Wassap employs a dual-credential resolution architecture:
 3. **API Key Fallback**:
    - `VERTEX_API_KEY`, `GEMINI_API_KEY`, or `API_KEY`.
 4. **Passcode Protection**:
-   - Built-in cloud endpoints require the `x-vertex-passcode` header matching `VERTEX_PASSCODE` (`Ness2020`).
+   - `/api/gemini/auth` verifies the member passkey on the server and sets an HTTP-only, SameSite=Strict cookie (Secure over HTTPS). All paid endpoints validate it, including voice management and service-worker replies. Explicit legacy passcode headers remain accepted for older clients. `VERTEX_PASSCODE` overrides the compatible legacy validator.
+
+
+## Maintenance safeguards (18 October 2026)
+
+- The browser contains no shared cloud credential. Custom Gemini keys remain local user settings and are sent only to the Google API in custom-key mode.
+- Settings verify the HTTP-only cloud cookie after startup. Existing unlocked installations require one re-entry of their unchanged passkey; data stores and record formats are unchanged.
+- Text generation (chat, diary, image caption/excuse, and notification reply) is restricted to `gemini-3.8-flash` and `gemini-3.5-flash-lite`. Separate image and TTS model IDs are unchanged.
+- `server/remoteMedia.ts` resolves all DNS answers, blocks non-public IPs, pins the checked IP for the HTTP request, rechecks redirects, and bounds the entire download by time and byte count. The same guard is embedded in standalone image/chat endpoints to preserve Vercel self-containment. Tests enforce parity.
+- `utils/personaBackup.ts` validates flat legacy exports and wrapped exports before adding a persona; it leaves valid profile data intact.
+- `api/gemini/auth.ts` is self-contained. The local Vite middleware reuses it; production API handlers do not import other local files.
+- `.github/workflows/verify.yml` uses a frozen install, tests, TypeScript, production build, and a production dependency audit. Tailwind 3 build-only advisories are recorded in README with a review date.
+
+- Legacy inline images without media IDs are preserved during load/save. Media writes/deletes report completion only after IndexedDB commit and close their connections. Pending sends are held while cloud access is locked, then resumed after successful unlock.
+- The invalid Google Fonts request for the system Segoe UI font was removed; existing system-font styling is unchanged.

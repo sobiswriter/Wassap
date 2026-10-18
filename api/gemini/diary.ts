@@ -1,7 +1,7 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { GoogleGenAI } from '@google/genai';
 
-const VERTEX_PASSCODE = 'Ness2020';
 const DEFAULT_GCP_PROJECT = 'gen-lang-client-0100408368';
 const DEFAULT_GCP_REGION = 'global';
 
@@ -71,9 +71,17 @@ function sendJson(res: ServerResponse & { status?: (code: number) => any; json?:
 }
 
 function isPasscodeValid(req: IncomingMessage & { body?: any }, payload?: any): boolean {
-  const headerCode = req.headers['x-vertex-passcode'] || req.headers['x-passcode'];
-  const bodyCode = payload?.passcode;
-  return headerCode === VERTEX_PASSCODE || bodyCode === VERTEX_PASSCODE;
+  let cookieCode: string | undefined;
+  try {
+    const cookie = req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith('wassap_vertex='));
+    if (cookie) cookieCode = decodeURIComponent(cookie.slice('wassap_vertex='.length));
+  } catch { return false; }
+  const expected = process.env.VERTEX_PASSCODE
+    ? createHash('sha256').update(process.env.VERTEX_PASSCODE).digest()
+    : Buffer.from('065aa98a12229c668d822a2ef7e4cdc84fa1c0ec55671eae4560d50be441cdf5', 'hex');
+  return [cookieCode, req.headers['x-vertex-passcode'], req.headers['x-passcode'], payload?.passcode]
+    .some(code => typeof code === 'string' && code.length > 0 && code.length <= 1024
+      && timingSafeEqual(createHash('sha256').update(code).digest(), expected));
 }
 
 function normalizePrivateKey(key?: string): string {
@@ -207,8 +215,7 @@ function getVertexClient() {
 }
 
 function resolveVertexModel(selectedModel?: string): string {
-  if (!selectedModel) return 'gemini-3.8-flash';
-  return selectedModel.trim();
+  return selectedModel === 'gemini-3.5-flash-lite' ? selectedModel : 'gemini-3.8-flash';
 }
 
 function detectDiaryLanguageDirective(
@@ -463,8 +470,7 @@ PRIVATE RECOLLECTION OF EVENTS BY ${persona.name} (${dateLabel}):`;
   const fallbackModels = Array.from(new Set([
     primaryModel,
     'gemini-3.8-flash',
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite'
+    'gemini-3.5-flash-lite'
   ]));
 
   let lastError: any = null;

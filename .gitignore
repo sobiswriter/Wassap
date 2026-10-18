@@ -26,3 +26,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Credentials and local browser verification artifacts
+.env.*
+!.env.example
+*.pem
+.playwright-cli/
+output/playwright/

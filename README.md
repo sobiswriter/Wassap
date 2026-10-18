@@ -11,6 +11,18 @@ A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Ta
 
 ---
 
+## Current maintenance notes (18 October 2026)
+
+- Text models: **Gemini 3.8 Flash** and **Gemini 3.5 Flash-Lite** only. Old text-model selections fall back to 3.8 Flash; image/voice choices are preserved.
+- Local development runs at **http://localhost:3000**. Use `npm ci --ignore-scripts`, then `npm run dev`.
+- Built-in Cloud still accepts the existing member passkey. After upgrading, enter it once in Settings: the server remembers the unlock in an HTTP-only, same-site cookie for up to one year. Locking clears that cookie. Old local unlock booleans no longer authorize paid requests.
+- Chats, personas, memories, custom voices, media, API keys, and offline queues retain their existing browser storage. Legacy inline images are retained when there is no IndexedDB media reference; media writes wait for transaction commit. Queued sends wait for cloud unlock.
+- Put shared Google credentials (`GEMINI_API_KEY`, `VERTEX_API_KEY`, or service-account variables) in server environment settings. Custom Gemini keys entered in Settings continue to work directly from that browser. Never put a shared secret in a `VITE_` variable: those variables are public.
+- Public image/audio URLs remain supported. Private/reserved addresses and unsafe redirects are blocked; downloads have a six-second deadline and an 8 MB byte limit.
+- Verification: `npm test`, `npm run typecheck`, `npm run build`, and `npm audit`. The lockfile pins the reviewed dependency tree.
+- Seven remaining audit entries come from the Tailwind 3 build-time dependency chain. A forced Tailwind 4 upgrade is deferred to preserve the current UI; use only trusted source/config input for builds and review this deferral by **18 November 2026**. `npm audit --omit=dev` checks the deployed dependency tree separately.
+
+
 ## 🚀 Overview
 
 This project is a pixel-perfect reconstruction of the WhatsApp interface, repurposed as a playground for AI-driven character simulations. It features single and group chat dynamics where every "Contact" is an autonomous AI persona powered by Google's Gemini models via **Vertex AI** and **Google AI Studio**. Can't believe we finally got gemini 3.8 flash tts >_< 
@@ -30,7 +42,7 @@ Before you can have a "sentient" companion, you need to actually make them. Here
 *   **Dual AI Provider & Settings**: Hit those three dots and jump into **Settings**. 
     *   **Built-in Cloud (Vertex AI) [Default]**: Runs straight on Google Cloud credits with the flagship `gemini-3.8-flash` engine using the global endpoint. Protected behind passcode authentication with an interactive hint option.
     *   **Custom API Key (Gemini AI Studio)**: Prefer using your own quota? Toggle to Custom Key and paste your personal AI Studio key anytime—completely open with no passcode required.
-    *   **Engine Selector**: Choose between `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.5-flash-lite`, and voice preview model `gemini-3.1-flash-tts-preview`. 🌙
+    *   **Engine Selector**: Choose between `gemini-3.8-flash` and `gemini-3.5-flash-lite` for text; image and voice models have their own selectors. 🌙
     *   **Custom Chat Wallpapers**: Upload your own background photo or choose from curated aesthetic presets, with responsive cover-cropping for mobile and desktop plus adjustable opacity.
 
 ### ⚡ Phase 2: The Level Up (Automation & Smooth Vibes)
@@ -397,7 +409,7 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 
 ### 1. Requirements Check
 > [!IMPORTANT]
-> Ensure you have **Node.js v18.0.0+** and **npm v9.0.0+** installed on your machine before proceeding.
+> Ensure you have **Node.js v22.12.0+** and **npm v9.0.0+** installed on your machine before proceeding.
 
 ### 2. Installation Pipeline
 ```bash
@@ -408,14 +420,14 @@ git clone https://github.com/sobiswriter/Wassap.git
 cd Wassap
 
 # Install all dependencies
-npm install
+npm ci --ignore-scripts
 ```
 
 ### 3. Launching the Simulator
 ```bash
 npm run dev
 ```
-The app will be live at `http://localhost:5173`.
+The app will be live at `http://localhost:3000`.
 
 ### 4. Deploying to Vercel (Production Ready)
 
@@ -432,13 +444,13 @@ Wassap is fully configured for seamless deployment on **Vercel**:
 3. **Build & Output Settings**:
    - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
-   - **Install Command**: `npm install`
+   - **Install Command**: `npm ci --ignore-scripts`
 4. **Environment Variables (Vercel Project Settings)**:
    Add either your Google Cloud service account credentials or an API key:
    - `GCP_SERVICE_ACCOUNT_KEY`: *(Recommended)* Full JSON content of your GCP Service Account Key.
    - *OR* `GCP_CLIENT_EMAIL` + `GCP_PRIVATE_KEY`: Your service account client email and private key (newlines are handled automatically).
    - *OR* `VERTEX_API_KEY` / `GEMINI_API_KEY`: Direct API key fallback.
-   - `VERTEX_PASSCODE`: *(Optional)* Passcode for Built-in Cloud mode (defaults to `Ness2020`).
+   - `VERTEX_PASSCODE`: *(Optional)* Server-side shared member passkey. Leaving it unset preserves the existing member passkey. Set a non-empty value to change it intentionally.
    - `VERTEX_PROJECT_ID`: *(Optional)* GCP project ID (defaults to `gen-lang-client-0100408368`).
    - `VERTEX_LOCATION`: *(Optional)* Vertex region (defaults to `global`).
 5. **Serverless Endpoints**:

@@ -48,8 +48,8 @@ export const saveMedia = async (id: string, data: string): Promise<void> => {
 
         return new Promise((resolve, reject) => {
             const request = store.put(entry);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
+            transaction.oncomplete = () => { db.close(); resolve(); };
+            transaction.onabort = transaction.onerror = () => { db.close(); reject(transaction.error || request.error || new Error('Media transaction aborted')); };
         });
     } catch (error) {
         console.error('Error saving to IndexedDB:', error);
@@ -62,6 +62,7 @@ export const getMedia = async (id: string): Promise<string | null> => {
         const db = await openDB();
         const transaction = db.transaction(STORE_NAME, 'readonly');
         const store = transaction.objectStore(STORE_NAME);
+        transaction.oncomplete = transaction.onabort = () => db.close();
 
         return new Promise((resolve, reject) => {
             const request = store.get(id);
@@ -85,8 +86,8 @@ export const deleteMedia = async (id: string): Promise<void> => {
 
         return new Promise((resolve, reject) => {
             const request = store.delete(id);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
+            transaction.oncomplete = () => { db.close(); resolve(); };
+            transaction.onabort = transaction.onerror = () => { db.close(); reject(transaction.error || request.error || new Error('Media transaction aborted')); };
         });
     } catch (error) {
         console.error('Error deleting from IndexedDB:', error);

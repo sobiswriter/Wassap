@@ -255,9 +255,11 @@ export const COLORS = {
 
 export const AVAILABLE_MODELS = [
   { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
-  { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
   { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite' },
 ];
+
+export const normalizeTextModel = (model?: string): string =>
+  AVAILABLE_MODELS.some(item => item.id === model) ? model! : 'gemini-3.8-flash';
 
 export const DEFAULT_MODEL = 'gemini-3.8-flash';
 
@@ -347,7 +349,6 @@ export const WALLPAPER_PRESETS: WallpaperPreset[] = [
   { id: 'deep-cyber', name: 'Deep Cyber', url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1200&q=80' },
 ];
 
-export const VERTEX_PASSCODE = 'Ness2020';
 export const VERTEX_PASSCODE_HINT = "It's your sister's name & date?";
 
 export const DEFAULT_VARY_MESSAGE_LENGTH_PROMPT = `- DYNAMIC MESSAGE PACING (NO ESSAYS / MONOLOGUES):

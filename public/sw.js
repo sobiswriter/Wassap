@@ -1,5 +1,5 @@
-// Wassap Service Worker v13: Unified 1.8-2.5s Conversational Phases & Rapid Stacking Resumption
-const CACHE_NAME = 'wassap-shell-v13';
+// Wassap Service Worker v14: Cookie-authenticated cloud replies and current text models
+const CACHE_NAME = 'wassap-shell-v14';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -374,8 +374,8 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
   const customApiKey = notifData.customApiKey;
   const chatName = notifData.chatName || 'Contact';
 
-  if (provider === 'custom' && customApiKey) {
-    const model = notifData.model || 'gemini-2.5-flash';
+  if ((provider === 'studio' || provider === 'custom') && customApiKey) {
+    const model = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'].includes(notifData.model) ? notifData.model : 'gemini-3.8-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${customApiKey}`;
     
     let promptToSend = '';
@@ -419,7 +419,7 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
       },
       groupContext: notifData.groupContext,
       settings: notifData.settings || {
-        selectedModel: notifData.model,
+        selectedModel: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'].includes(notifData.model) ? notifData.model : 'gemini-3.8-flash',
         useSearchGrounding: notifData.useSearchGrounding,
         shareTimeContext: notifData.shareTimeContext !== false,
         shareCalendarNotes: notifData.shareCalendarNotes,
@@ -428,7 +428,6 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
       },
       clientTimeContext: notifData.clientTimeContext,
       initiationContext: promptOverride || notifData.timeGapContext,
-      passcode: 'Ness2020'
     };
 
     try {
@@ -436,7 +435,6 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-vertex-passcode': 'Ness2020'
         },
         body: JSON.stringify(payload)
       });

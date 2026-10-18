@@ -14,6 +14,21 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
+
+### Security, compatibility, and text-model maintenance (18 October 2026)
+- Preserved the existing member passkey through a server-only compatible validator; `VERTEX_PASSCODE` now works as an override. `/api/gemini/auth` sets/clears an HTTP-only, SameSite=Strict cookie (Secure on HTTPS). Members enter the same key once after upgrading; saved unlock booleans alone are no longer trusted. All paid standalone endpoints and local middleware validate the cookie, while older explicit passcode requests remain compatible.
+- Removed the passkey from constants, service-worker code, and voice helpers. Removed Vite's server-key substitution; server credentials from `.env` now reach only the Node backend. Direct Gemini keys entered in Settings are preserved.
+- Kept text generation on only `gemini-3.8-flash` and `gemini-3.5-flash-lite`, including diary, photo-caption/excuse, retries, and background replies. Old selections fall back to 3.8; voice/image model choices remain unchanged.
+- Fixed service-worker custom-key routing (`studio`, with `custom` retained for old notification data); bumped shell cache to v14. Pending outbox sends and scheduled triggers wait for cloud unlock; response handlers read current settings for delayed/native callbacks; the reconnect callback refreshes its settings closure and prevents concurrent drains. A production-browser regression confirms exactly one resumed request and retention of the pending message.
+- Added DNS-checked, IP-pinned public media downloads with redirect revalidation, a total 6-second deadline, and an 8 MB stream limit. Shared local guard is mirrored inside standalone Vercel handlers; regression tests enforce parity without introducing cross-endpoint runtime imports.
+- Added persona-backup boundary validation, preserving both valid flat legacy exports and wrapped exports; invalid fields are rejected before state changes.
+- Preservation checks exposed legacy inline-image deletion without an IndexedDB copy: fixed load/save predicates. Media writes/deletes now wait for transaction commit and close DB connections. Database names/versions, localStorage keys, and existing record formats are unchanged; no user's storage was cleared.
+- Added `package-lock.json`, pinned npm 11.7.0, declared the already-used Google auth library, updated compatible vulnerable dependencies, added Node regression tests and a verification workflow. Production audit: **0 vulnerabilities**; full audit: **7 Tailwind 3 build-time dependency advisories** (5 high, 2 moderate). Deferred forced Tailwind 4 migration to avoid UI regressions; only trusted source/config should enter builds, review by **18 November 2026**.
+- Updated rules with preservation, member access, dual-provider, no-public-credentials, model, and port requirements. README now says port 3000 and explains the cookie upgrade; architecture/design docs match current behavior. Removed a failing external Google Fonts request for the already-local Segoe UI system font.
+- Verified: 16 Node regression tests; TypeScript; production build; secret-canary browser-bundle check; independent bundling of all 10 Gemini endpoints; real public Unsplash avatar download; isolated production-browser cloud unlock/lock/wrong-key/reload, both model choices, provider switching with key preservation, mocked cloud reply persistence, valid/invalid imports, desktop/mobile visual checks, offline shell, IndexedDB media, and pending-queue preservation.
+- Live Google quota/model permissions, real generated image/audio quality, deployed Vercel execution, and native Android notification actions still require real credentials/device verification. Browser cloud reply tests use a mocked response and do not spend Google credits.
+- Follow-up suggestions from the wider review: replace the misleading end-to-end-encryption wording (AI providers receive prompts); expose storage quota/save failures to users and add full chat/media backup (current persona exports omit chat messages); plan Tailwind 4 migration; coordinate any future shared-passkey rotation because older published builds/history contained it.
+
 ### 1. Authentic Persona Diary Voice & Multilingual (Hindi/Hinglish) Mirroring Hotfix (`v1.9.6-hotfix2`)
 - **Root Cause Analysis of Diary Impersonation & Language Switching Bugs**:
   1. *Lack of Language / Dialect Directives*: The diary prompt was composed entirely of formal English guidelines, instructions, and titles (`TASK: Write an intimate, personal journal entry titled "Recollection of Shared Events: ..."`). With zero language constraints, models defaulted to English prose even when the persona spoke Hindi, Hinglish, Spanish, or other languages.
@@ -570,6 +585,8 @@ Wassap/
 ---
 
 ## 📜 Feature Milestones Completed
+
+- [x] 18 October 2026: Backward-compatible cloud hardening, data-preservation fixes, two text models, dependency lock/audit, and regression/browser checks.
 - [x] **v1.0.0 - v1.2.0**: WhatsApp Web UI layout, message send/receive, persona switching, basic Gemini integration.
 - [x] **v1.2.5**: Exact inactivity check-in timer (seconds precision), context-balanced silence breakers.
 - [x] **v1.3.0 - v1.3.1**: Memory Bubbles & Persona Diary, dynamic roleplay events, 24/7 weekday/weekend schedule, 24h time format, mobile view improvements.

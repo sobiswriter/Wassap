@@ -1,3 +1,4 @@
+import { fetchRemoteMedia } from './remoteMedia';
 import { GoogleGenAI } from '@google/genai';
 import { HumaneSettings, UserProfile, AppSettings, PersonaVoiceSettings } from '../types';
 import { GCP_CONFIG, getVoiceDescriptor } from '../constants';
@@ -275,8 +276,7 @@ export function getInCharacterGlitchMessage(
 }
 
 export const resolveVertexModel = (selectedModel?: string): string => {
-  if (!selectedModel) return 'gemini-3.8-flash';
-  return selectedModel.trim();
+  return selectedModel === 'gemini-3.5-flash-lite' ? selectedModel : 'gemini-3.8-flash';
 };
 
 /**
@@ -326,39 +326,10 @@ export async function resolveMediaToInlineData(
     }
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
-
-      const response = await fetch(trimmed, {
-        signal: controller.signal,
-        headers: {
-          'Accept': 'image/*,audio/*,*/*',
-          'User-Agent': 'Mozilla/5.0 (compatible; WassapBot/1.0)',
-        },
-      });
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        console.warn(`[resolveMediaToInlineData] HTTP ${response.status} fetching remote media: ${trimmed}`);
-        return null;
-      }
-
-      const contentTypeHeader = (response.headers.get('content-type') || '').toLowerCase().split(';')[0].trim();
-      if (contentTypeHeader.includes('svg') || contentTypeHeader.includes('html')) {
-        return null;
-      }
-
-      const mimeType = contentTypeHeader && (contentTypeHeader.startsWith('image/') || contentTypeHeader.startsWith('audio/'))
-        ? contentTypeHeader
-        : (trimmed.toLowerCase().endsWith('.gif') ? 'image/gif' : defaultMime);
-
-      const arrayBuffer = await response.arrayBuffer();
-      // Cap at 8MB to stay within Vercel and Vertex inlineData payload thresholds
-      if (arrayBuffer.byteLength > 8 * 1024 * 1024) {
-        console.warn(`[resolveMediaToInlineData] Media too large (${arrayBuffer.byteLength} bytes) for: ${trimmed}`);
-        return null;
-      }
-
+      const remote = await fetchRemoteMedia(trimmed);
+      const mimeType = remote.mimeType === 'application/octet-stream'
+        ? (trimmed.toLowerCase().endsWith('.gif') ? 'image/gif' : defaultMime) : remote.mimeType;
+      const arrayBuffer = remote.data;
       const base64Data = Buffer.from(arrayBuffer).toString('base64');
       if (!base64Data) return null;
 
@@ -647,7 +618,7 @@ Response as ${responder.name}:`;
       try {
         let modelToUse = resolveVertexModel(settings?.selectedModel);
         if (attempt > 1) {
-          modelToUse = 'gemini-2.5-flash';
+          modelToUse = 'gemini-3.5-flash-lite';
         }
 
         const response = await ai.models.generateContent({
@@ -969,8 +940,7 @@ PRIVATE RECOLLECTION OF EVENTS BY ${persona.name} (${dateLabel}):`;
   const fallbackModels = Array.from(new Set([
     primaryModel,
     'gemini-3.8-flash',
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite'
+    'gemini-3.5-flash-lite'
   ]));
 
   let lastError: any = null;
@@ -1318,7 +1288,7 @@ Return ONLY a valid JSON object with keys "mode", "user_wants_posed", "caption",
       try {
         let modelToUse = resolveVertexModel(settings?.selectedModel);
         if (attempt > 1) {
-          modelToUse = 'gemini-2.5-flash';
+          modelToUse = 'gemini-3.5-flash-lite';
         }
 
         const response = await ai.models.generateContent({
@@ -1425,13 +1395,9 @@ export async function handleVertexImageGeneration(
         avatarBase64 = parts[1];
       } else if (payload.avatarUrl.startsWith('http')) {
         try {
-          const imgRes = await fetch(payload.avatarUrl);
-          if (imgRes.ok) {
-            const buffer = await imgRes.arrayBuffer();
-            const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
-            avatarMimeType = contentType;
-            avatarBase64 = Buffer.from(buffer).toString('base64');
-          }
+          const remote = await fetchRemoteMedia(payload.avatarUrl);
+          avatarMimeType = remote.mimeType === 'application/octet-stream' ? 'image/jpeg' : remote.mimeType;
+          avatarBase64 = remote.data.toString('base64');
         } catch (e) {
           console.warn("[Vertex Image Gen] Could not fetch avatarUrl:", e);
         }

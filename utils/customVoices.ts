@@ -182,7 +182,6 @@ export async function craftCustomVoice(params: {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-vertex-passcode': 'Ness2020',
       },
       body: JSON.stringify({
         action: 'design',
@@ -265,7 +264,6 @@ export async function replicateCustomVoice(params: {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-vertex-passcode': 'Ness2020',
       },
       body: JSON.stringify({
         action: 'replicate',
@@ -307,7 +305,6 @@ export async function deleteCustomVoiceComplete(id: string): Promise<void> {
       await fetch(`/api/gemini/voices?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
         headers: {
-          'x-vertex-passcode': 'Ness2020',
         }
       });
     } catch (e) {

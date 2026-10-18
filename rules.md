@@ -74,3 +74,12 @@ Never refactor code in a way that breaks or removes either of these two paths. B
 >   2. The **Feature Milestones Completed** checklist or changelog if a new milestone/version was reached.
 >   3. Any new architecture patterns, components, endpoints, or environment variables introduced.
 > - This guarantees that any new AI assistant session can immediately pick up where the last one left off without having to search or re-scan the codebase.
+
+
+### Rule 5.3: Preserve Existing User Data and Member Access
+- Never clear, reset, delete, or replace existing users' chats, personas, memories, custom voices, media, API keys, settings, or pending/background messages as part of maintenance.
+- Keep existing localStorage keys, IndexedDB database/store names, and stored data formats compatible. Any necessary migration must preserve all existing records and be tested against representative existing data.
+- Existing members must keep using their current shared cloud passkey. Security changes may require entering that same passkey once, but must preserve both built-in cloud and custom Gemini API-key modes, including notification replies, photos, journals, and voice features.
+- Keep cloud credentials server-side. Do not embed a shared passkey or server API key in browser JavaScript, service workers, or Vite client substitutions.
+- Text providers must offer and use only Gemini 3.8 Flash and Gemini 3.5 Flash-Lite; preserve separate image and voice model choices.
+- Keep local development instructions synchronized with the actual port (3000). Only the project owner pushes code.
