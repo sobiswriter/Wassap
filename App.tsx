@@ -718,6 +718,18 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isOnline, setIsOnline] = useState<boolean>(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
+  const [profileClosing, setProfileClosing] = useState(false);
+  const profileCloseTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const closeProfilePanel = React.useCallback(() => {
+    if (!isMobile || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setShowProfilePanel(false); return; }
+    setProfileClosing(true);
+    clearTimeout(profileCloseTimer.current);
+    profileCloseTimer.current = setTimeout(() => { setShowProfilePanel(false); setProfileClosing(false); }, 220);
+  }, [isMobile]);
+  useEffect(() => {
+    if (!showProfilePanel) setProfileClosing(false);
+    return () => clearTimeout(profileCloseTimer.current);
+  }, [showProfilePanel]);
   const [showNewChatPanel, setShowNewChatPanel] = useState(false);
   const [showNewGroupPanel, setShowNewGroupPanel] = useState(false);
   const [showUserProfilePanel, setShowUserProfilePanel] = useState(false);
@@ -725,6 +737,52 @@ const App: React.FC = () => {
   const [showCalendarWidget, setShowCalendarWidget] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showUpdates, setShowUpdates] = useState(false);
+  const closingPanelHistoryRef = React.useRef(false);
+  const mobilePanelOpen = isMobile && (showSettingsPopover || showNewChatPanel || showNewGroupPanel || showUserProfilePanel || showCalendarWidget || showProfilePanel || showGuide || showUpdates);
+
+  useEffect(() => {
+    if (!mobilePanelOpen) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    let panel: HTMLElement | undefined;
+    const focusPanel = () => {
+      const next = Array.from(document.querySelectorAll<HTMLElement>('[data-app-panel]'))
+        .filter(element => element.getClientRects().length)
+        .sort((a, b) => (Number(getComputedStyle(b).zIndex) || 0) - (Number(getComputedStyle(a).zIndex) || 0))[0];
+      if (!next || next === panel) return;
+      panel = next;
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-modal', 'true');
+      panel.setAttribute('aria-label', panel.dataset.appPanel || 'Panel');
+      panel.tabIndex = -1;
+      (panel.querySelector<HTMLElement>('[data-panel-close]') || panel).focus({ preventScroll: true });
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (!panel || event.defaultPrevented) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        panel.querySelector<HTMLButtonElement>('[data-panel-close]')?.click();
+      } else if (event.key === 'Tab') {
+        const targets = Array.from(panel.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]')).filter(element => element.getClientRects().length);
+        const first = targets[0], last = targets[targets.length - 1];
+        if (!first) { event.preventDefault(); panel.focus(); }
+        else if (event.shiftKey && (document.activeElement === first || document.activeElement === panel)) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    // Lazy panels may mount after the effect; focus only when the top panel changes.
+    const observer = new MutationObserver(focusPanel);
+    observer.observe(document.getElementById('root')!, { childList: true, subtree: true });
+    focusPanel();
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('keydown', handleKey);
+      if (panel?.isConnected) {
+        panel.removeAttribute('role'); panel.removeAttribute('aria-modal'); panel.removeAttribute('aria-label'); panel.removeAttribute('tabindex');
+      }
+      if (previousFocus?.isConnected && !previousFocus.closest('[inert]')) previousFocus.focus({ preventScroll: true });
+    };
+  }, [mobilePanelOpen, showSettingsPopover, showNewChatPanel, showNewGroupPanel, showUserProfilePanel, showCalendarWidget, showProfilePanel, showGuide, showUpdates]);
   const [chatSearchTerm, setChatSearchTerm] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const chatsRef = React.useRef<Chat[]>(chats);
@@ -1113,7 +1171,7 @@ const App: React.FC = () => {
   }, [user, settings]);
 
   const activeChat = chats.find(c => c.id === activeChatId) || null;
-  const unreadTotal = chats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  const unreadTotal = chats.reduce((sum, c) => sum + (c.archived ? 0 : c.unreadCount || 0), 0);
 
   useEffect(() => {
     const metaThemeColor = document.querySelector('meta[name="theme-color"]') || document.getElementById('theme-color-meta');
@@ -1916,13 +1974,23 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   useEffect(() => {
     const isPanelOpen = showSettingsPopover || showNewChatPanel || showNewGroupPanel || showUserProfilePanel || showCalendarWidget || showProfilePanel || showGuide || showUpdates;
 
-    if (isMobile && isPanelOpen) {
+    if (isMobile && isPanelOpen && !window.history.state?.panelOpen) {
       window.history.pushState({ panelOpen: true }, '');
+    } else if (isMobile && !isPanelOpen && window.history.state?.panelOpen) {
+      // Closing a panel with its own button must also consume its history entry.
+      closingPanelHistoryRef.current = true;
+      window.history.back();
     }
 
     const handlePopState = () => {
+      if (closingPanelHistoryRef.current) { closingPanelHistoryRef.current = false; return; }
+      // Let chat trays consume Back before leaving the conversation.
+      if (!isPanelOpen && !window.dispatchEvent(new Event('wassap:back', { cancelable: true }))) {
+        window.history.pushState({ view: activeView }, '');
+        return;
+      }
       if (isPanelOpen) {
-        setShowProfilePanel(false);
+        if (showProfilePanel) closeProfilePanel();
         setShowNewChatPanel(false);
         setShowNewGroupPanel(false);
         setShowUserProfilePanel(false);
@@ -1936,7 +2004,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeView, isMobile, showSettingsPopover, showNewChatPanel, showNewGroupPanel, showUserProfilePanel, showCalendarWidget, showProfilePanel, showGuide, showUpdates]);
+  }, [activeView, isMobile, showSettingsPopover, showNewChatPanel, showNewGroupPanel, showUserProfilePanel, showCalendarWidget, showProfilePanel, showGuide, showUpdates, closeProfilePanel]);
 
 
 
@@ -3545,7 +3613,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-[#f0f2f5] dark:bg-[#0b1014] overflow-hidden p-0">
+    <div className="app-shell w-full flex flex-col bg-[#f0f2f5] dark:bg-[#0b1014] overflow-hidden p-0">
       {/* Top Title Bar */}
       <div className="hidden md:flex h-[30px] app-panel items-center px-3 gap-2 shrink-0 border-b app-border select-none">
         <div className="bg-[#21c063] p-[2px] rounded flex items-center justify-center">
@@ -3603,22 +3671,29 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           )}
         </React.Suspense>
 
-        <div className={`${isMobile && activeView === 'chat' ? 'hidden' : 'flex'} w-full md:w-[410px] md:flex shrink-0 flex-col h-full`}>
+        <div inert={mobilePanelOpen || (isMobile && activeView !== 'list')} className={`mobile-screen mobile-inbox ${activeView === 'list' ? 'screen-active' : ''} flex w-full md:w-[410px] shrink-0 flex-col h-full`}>
           <ChatList
             chats={chats}
             activeChatId={activeChatId}
             onChatSelect={handleChatSelect}
+            onSetChatFlags={(ids, flags) => {
+              const selected = new Set(ids);
+              setChats(previous => previous.map(chat => selected.has(chat.id) ? { ...chat, ...flags } : chat));
+            }}
             onAddPersona={() => setShowNewChatPanel(true)}
             onAddGroup={() => setShowNewGroupPanel(true)}
             onOpenSettings={() => setShowSettingsPopover(true)}
+            onProfileClick={() => setShowUserProfilePanel(true)}
+            onCalendarClick={() => setShowCalendarWidget(true)}
             onSendPhotoToChat={handleSendPhotoToChat}
             onMetaAIClick={() => handleChatSelect('6')}
             isMobile={isMobile}
+            isActive={!isMobile || activeView === 'list'}
           />
-          {isMobile && <MobileNavigation unreadCount={unreadTotal} onGuideClick={() => setShowGuide(true)} onUpdatesClick={() => setShowUpdates(true)} />}
+          {isMobile && <MobileNavigation unreadCount={unreadTotal} onGuideClick={() => setShowGuide(true)} onUpdatesClick={() => setShowUpdates(true)} onSettingsClick={() => setShowSettingsPopover(true)} />}
         </div>
 
-        <div className={`${isMobile && activeView === 'list' ? 'hidden' : 'flex'} flex-1 flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b1014]`}>
+        <div inert={mobilePanelOpen || (isMobile && activeView !== 'chat')} className={`mobile-screen mobile-conversation ${activeView === 'chat' ? 'screen-active' : ''} flex flex-1 min-h-0 flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b1014]`}>
           <ChatWindow
             chat={activeChat}
             allChats={chats}
@@ -3626,6 +3701,12 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onHeaderClick={() => setShowProfilePanel(true)}
             onDeleteChat={handleDeleteChat}
             onClearChat={handleClearChat}
+            onToggleArchive={() => {
+              if (!activeChat) return;
+              const archiving = !activeChat.archived;
+              setChats(previous => previous.map(chat => chat.id === activeChat.id ? { ...chat, archived: archiving } : chat));
+              if (isMobile && archiving) handleBack();
+            }}
             searchTerm={chatSearchTerm}
             setSearchTerm={setChatSearchTerm}
             onBack={isMobile ? handleBack : undefined}
@@ -3656,10 +3737,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         <React.Suspense fallback={<PanelLoadingFallback />}>
           {showProfilePanel && activeChat && (
             <ProfilePanel
+              closing={profileClosing}
               chat={chats.find(c => c.id === activeChatId)!}
               allChats={chats}
               settings={settings}
-              onClose={() => setShowProfilePanel(false)}
+              onClose={closeProfilePanel}
               onUpdate={updateActiveChat}
               onDeleteChat={handleDeleteChat}
               onClearChat={handleClearChat}
@@ -3705,10 +3787,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         {isMobile && activeView === 'list' && !showSettingsPopover && !showNewChatPanel && !showNewGroupPanel && !showUserProfilePanel && !showCalendarWidget && !showProfilePanel && !showGuide && !showUpdates && (
           <MobileActionFAB
             onAddPersona={() => setShowNewChatPanel(true)}
-            onAddGroup={() => setShowNewGroupPanel(true)}
-            onProfileClick={() => setShowUserProfilePanel(true)}
-            onSettingsClick={() => setShowSettingsPopover(true)}
-            onCalendarClick={() => setShowCalendarWidget(true)}
             onMetaAIClick={() => handleChatSelect('6')}
           />
         )}

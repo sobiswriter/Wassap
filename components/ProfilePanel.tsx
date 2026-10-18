@@ -14,6 +14,7 @@ import { getSavedCustomVoices, saveCustomVoice, deleteCustomVoiceComplete, craft
 import { convertAudioTo24kMonoWav } from '../utils/audioResampler';
 
 interface ProfilePanelProps {
+  closing?: boolean;
   chat: Chat;
   allChats: Chat[];
   onClose: () => void;
@@ -41,7 +42,7 @@ const createDefaultSchedule = (): PersonaSchedule => ({
 });
 
 export const ProfilePanel: React.FC<ProfilePanelProps> = ({ 
-  chat, allChats, onClose, onUpdate, onDeleteChat, onClearChat, onRefreshPersona, onTestAutomation, settings 
+  chat, allChats, onClose, onUpdate, onDeleteChat, onClearChat, onRefreshPersona, onTestAutomation, settings, closing
 }) => {
   const [formData, setFormData] = useState({
     name: chat.name,
@@ -813,7 +814,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     : [];
 
   return (
-    <div className="fixed inset-0 z-[3500] md:static md:w-[400px] md:h-full md:z-auto app-header border-l app-border flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden">
+    <div data-app-panel="Contact info" className={`fixed inset-0 z-[3500] md:static md:w-[400px] md:h-full md:z-auto app-header border-l app-border flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden ${closing ? 'mobile-panel-closing' : ''}`}>
       {showDeleteModal && (
         <ConfirmationModal
           title={chat.isGroup ? "Exit group?" : "Delete this persona?"}
@@ -1099,8 +1100,8 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       <div className="h-[60px] app-panel flex items-center px-4 md:px-5 shrink-0 border-b app-border pt-[max(env(safe-area-inset-top),10px)] md:pt-0">
         <div className="flex items-center gap-3 md:gap-6">
           <button
-            onClick={onClose}
-            className="p-1.5 -ml-1 text-secondary hover:text-primary rounded-full hover:bg-black/5 dark:hover:bg-white/5 active:scale-90 transition-transform cursor-pointer"
+            data-panel-close onClick={onClose}
+            className="icon-button -ml-1 text-secondary hover:text-primary rounded-full hover:bg-black/5 dark:hover:bg-white/5 active:scale-90 transition-transform cursor-pointer"
             title="Close"
           >
             <ArrowLeft size={20} className="md:hidden" />

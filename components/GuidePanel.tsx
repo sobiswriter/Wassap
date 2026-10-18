@@ -59,11 +59,11 @@ export const GuidePanel: React.FC<GuidePanelProps> = ({ onClose }) => {
   );
 
   return (
-    <div className="fixed inset-0 bg-[#f0f2f5] dark:bg-[#0b141a] z-[3500] flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+    <div data-app-panel="Guide" className="fixed inset-0 bg-[#f0f2f5] dark:bg-[#0b141a] z-[3500] flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
       {/* Header */}
       <div className="min-h-[64px] pt-[max(env(safe-area-inset-top),10px)] pb-2 bg-white dark:bg-[#202c33] flex items-center px-6 border-b app-border shrink-0">
         <div className="flex items-center gap-4 w-full max-w-6xl mx-auto">
-          <button onClick={onClose} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors">
+          <button data-panel-close onClick={onClose} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors">
             <ArrowLeft className="text-secondary" />
           </button>
           <div className="flex items-center gap-2">

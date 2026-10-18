@@ -56,10 +56,10 @@ export const NewChatPanel: React.FC<NewChatPanelProps> = ({ onClose, onCreate })
   const inputClass = "w-full outline-none text-[calc(var(--msg-font-size)+1.5px)] border-b app-border focus:border-[#00a884] pb-1.5 transition-all bg-transparent text-primary py-1 font-normal";
 
   return (
-    <div className="fixed inset-0 z-[3500] md:absolute md:inset-auto md:w-[410px] md:h-full md:left-[64px] md:top-0 md:bottom-0 md:z-50 app-header border-r app-border flex flex-col animate-in slide-in-from-left duration-300 shadow-xl overflow-hidden">
+    <div data-app-panel="New persona" className="fixed inset-0 z-[3500] md:absolute md:inset-auto md:w-[410px] md:h-full md:left-[64px] md:top-0 md:bottom-0 md:z-50 app-header border-r app-border flex flex-col animate-in slide-in-from-left duration-300 shadow-xl overflow-hidden">
       <div className="h-[108px] pt-[max(env(safe-area-inset-top),16px)] bg-[#008069] flex items-end p-5 text-white shrink-0">
         <div className="flex items-center gap-6">
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-[#005c4b] active:scale-90 transition-all text-white" title="Back">
+          <button data-panel-close onClick={onClose} className="p-1 rounded-full hover:bg-[#005c4b] active:scale-90 transition-all text-white" title="Back">
             <ArrowLeft size={22} />
           </button>
           <h2 className="text-[calc(var(--msg-font-size)+4.5px)] font-medium">New Persona</h2>

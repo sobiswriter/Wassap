@@ -140,6 +140,8 @@ export interface PersonaVoiceSettings {
 
 export interface Chat {
   id: string;
+  archived?: boolean;
+  pinned?: boolean;
   name: string;
   avatar: string;
   lastMessage: string;

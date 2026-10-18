@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Search, MoreVertical, CheckCheck, Check, Clock, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar, Star, Share2 } from 'lucide-react';
+import { Search, MoreVertical, CheckCheck, Check, Clock, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar, Star, Share2, Phone, Archive, ArchiveRestore } from 'lucide-react';
 import { Chat, MemoryBubble, Message, AppSettings, UserProfile } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, getMessageTimestampEpoch, isDateInRange, normalizeDateKey, resolveChatMessagesDates, getAppDateKey } from '../utils/dates';
@@ -10,6 +10,7 @@ import { VoiceNotePlayer } from './VoiceNotePlayer';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { ReactionTray } from './ReactionTray';
 import { triggerHaptic } from '../utils/haptics';
+import { resolveWallpaperUrl } from '../utils/wallpaper';
 
 interface ChatWindowProps {
   chat: Chat | null;
@@ -17,6 +18,7 @@ interface ChatWindowProps {
   onHeaderClick: () => void;
   onDeleteChat: () => void;
   onClearChat: (clearMemories?: boolean) => void;
+  onToggleArchive?: () => void;
   searchTerm: string;
   setSearchTerm: (val: string) => void;
   onBack?: () => void;
@@ -321,6 +323,7 @@ const MessageBubble = React.memo<{
   const [voiceData, setVoiceData] = useState<string | null>(null);
   const [isEventExpanded, setIsEventExpanded] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
+  const didSwipeRef = useRef(false);
   const dragStartX = useRef<number | null>(null);
   const dragStartY = useRef<number | null>(null);
   const hasTriggeredThreshold = useRef(false);
@@ -337,6 +340,7 @@ const MessageBubble = React.memo<{
   // --- Mobile Touch Handlers ---
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) return;
+    didSwipeRef.current = false;
     isTouchActiveRef.current = true;
     const touch = e.touches[0];
     touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
@@ -405,11 +409,11 @@ const MessageBubble = React.memo<{
     }
 
     if (dragOffset >= 36 && onReply && !selectionMode) {
+      didSwipeRef.current = true;
       onReply({
         ...message,
         senderName: message.senderName || (isMe ? 'You' : (!isGroup ? chatName : undefined))
       });
-      triggerHaptic('threshold');
     }
 
     setDragOffset(0);
@@ -443,6 +447,7 @@ const MessageBubble = React.memo<{
   // --- Desktop Mouse Handlers ---
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isTouchActiveRef.current || e.button !== 0) return;
+    didSwipeRef.current = false;
     dragStartX.current = e.clientX;
     dragStartY.current = e.clientY;
     hasTriggeredThreshold.current = false;
@@ -491,11 +496,11 @@ const MessageBubble = React.memo<{
       holdTimerRef.current = null;
     }
     if (dragOffset >= 36 && onReply && !selectionMode) {
+      didSwipeRef.current = true;
       onReply({
         ...message,
         senderName: message.senderName || (isMe ? 'You' : (!isGroup ? chatName : undefined))
       });
-      triggerHaptic('threshold');
     }
     setDragOffset(0);
     dragStartX.current = null;
@@ -511,6 +516,7 @@ const MessageBubble = React.memo<{
   };
 
   const handleBubbleClick = (e: React.MouseEvent) => {
+    if (didSwipeRef.current) { didSwipeRef.current = false; e.stopPropagation(); return; }
     if (isHoldTriggered.current) {
       isHoldTriggered.current = false;
       e.stopPropagation();
@@ -805,13 +811,13 @@ const MessageBubble = React.memo<{
             isMediaMessage
               ? 'media-message-bubble'
               : (message.attachment?.type === 'audio' ? 'w-auto max-w-[95%] sm:max-w-[88%] md:max-w-[540px]' : 'max-w-[85%] sm:max-w-[75%]')
-          } p-1 rounded-lg shadow-sm relative transition-all duration-200 select-none md:select-auto my-[2px] touch-bubble ${isRecent ? 'animate-bubble-enter' : ''} ${selected ? 'ring-2 ring-[#21c063] scale-[1.01] shadow-md z-30' : ''} ${highlight ? 'ring-2 ring-[#21c063]' : ''} ${!isConsecutive ? (isMe ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
+          } p-1 rounded-lg shadow-sm relative transition-colors duration-200 select-none md:select-auto my-[2px] touch-bubble ${isRecent ? 'animate-bubble-enter' : ''} ${selected ? 'ring-2 ring-[#21c063] scale-[1.01] shadow-md z-30' : ''} ${highlight ? 'ring-2 ring-[#21c063]' : ''} ${!isConsecutive ? (isMe ? 'rounded-tr-none' : 'rounded-tl-none') : ''}`}
           style={{ 
             backgroundColor: isMe ? 'var(--bubble-me)' : 'var(--bubble-other)',
             transform: dragOffset > 0 ? `translateX(${dragOffset}px)` : undefined,
             transition: dragOffset === 0 ? 'transform 200ms var(--ease-micro), scale 150ms ease' : 'none',
             touchAction: 'pan-y',
-            ...(isMediaMessage ? { width: 'fit-content', maxWidth: isGifMessage ? '230px' : '330px' } : {})
+            ...(isMediaMessage ? { width: 'fit-content', maxWidth: isGifMessage ? 'min(230px, 100%)' : 'min(330px, 100%)' } : {})
           }}
         >
           {selected && onToggleReaction && (
@@ -1120,6 +1126,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onHeaderClick, 
   onDeleteChat, 
   onClearChat, 
+  onToggleArchive,
   searchTerm, 
   setSearchTerm, 
   onBack, 
@@ -1140,11 +1147,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [hasNewUnreadWhileScrolled, setHasNewUnreadWhileScrolled] = useState(false);
   const lastMessageCountRef = useRef(chat?.messages?.length || 0);
-  const initialLoadedIds = useRef<Set<string>>(new Set());
-  const [newOutgoingIds, setNewOutgoingIds] = useState<Set<string>>(new Set());
+  const [recentMessageIds, setRecentMessageIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!recentMessageIds.size) return;
+    const timer = window.setTimeout(() => setRecentMessageIds(new Set()), 240);
+    return () => window.clearTimeout(timer);
+  }, [recentMessageIds]);
 
   const [showSearch, setShowSearch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showCallNotice, setShowCallNotice] = useState(false);
+  useEffect(() => {
+    if (!showCallNotice) return;
+    const timer = window.setTimeout(() => setShowCallNotice(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [showCallNotice]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [clearMemoriesAlso, setClearMemoriesAlso] = useState(false);
@@ -1161,9 +1178,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!showMenu && !showSearch && !selectedMessageIds.length && !lightboxImage) return;
+    const dismiss = (event: Event) => {
+      if (event.defaultPrevented || (event instanceof KeyboardEvent && event.key !== 'Escape')) return;
+      event.preventDefault();
+      if (lightboxImage) setLightboxImage(null);
+      else if (showMenu) setShowMenu(false);
+      else if (selectedMessageIds.length) setSelectedMessageIds([]);
+      else { setShowSearch(false); setSearchTerm(''); }
+    };
+    window.addEventListener('keydown', dismiss);
+    window.addEventListener('wassap:back', dismiss);
+    return () => {
+      window.removeEventListener('keydown', dismiss);
+      window.removeEventListener('wassap:back', dismiss);
+    };
+  }, [showMenu, showSearch, selectedMessageIds.length, lightboxImage, setSearchTerm]);
+
+  useEffect(() => {
     setSelectedMessageIds([]);
-    initialLoadedIds.current = new Set(chat?.messages?.map(m => m.id) || []);
-    setNewOutgoingIds(new Set());
+    setRecentMessageIds(new Set());
     lastMessageCountRef.current = chat?.messages?.length || 0;
     setShowScrollBottom(false);
     setHasNewUnreadWhileScrolled(false);
@@ -1173,15 +1207,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     if (!chat?.messages) return;
     const currentCount = chat.messages.length;
     if (currentCount > lastMessageCountRef.current) {
-      const newest = chat.messages[currentCount - 1];
-      if (newest.sender === 'me') {
-        setNewOutgoingIds(prev => new Set([...prev, newest.id]));
-      }
+      setRecentMessageIds(new Set(chat.messages.slice(lastMessageCountRef.current).map(message => message.id)));
 
       if (showScrollBottom) {
         setHasNewUnreadWhileScrolled(true);
       } else if (scrollRef.current) {
-        scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        scrollRef.current.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'end' });
       }
     } else {
       if (!showScrollBottom && scrollRef.current) {
@@ -1204,7 +1235,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const scrollToBottom = () => {
     triggerHaptic('tap');
     if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      scrollRef.current.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'end' });
     }
     setHasNewUnreadWhileScrolled(false);
     setShowScrollBottom(false);
@@ -1560,7 +1591,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             {onBack && (
               <button
                 onClick={(e) => { e.stopPropagation(); onBack(); }}
-                className="p-2 mr-1 hover:bg-black/5 rounded-full text-secondary md:hidden"
+                aria-label="Back to chats" className="icon-button hover:bg-black/5 text-secondary md:hidden"
               >
                 <ArrowLeft size={20} />
               </button>
@@ -1576,22 +1607,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-4 md:gap-6 text-secondary relative">
+          <div className="flex items-center gap-0 md:gap-2 text-secondary relative">
+            <button type="button" aria-label="Voice call" title="Coming soon, stay tuned…" className="icon-button text-primary hover:bg-black/5 dark:hover:bg-white/5" onClick={() => setShowCallNotice(true)}><Phone size={23} strokeWidth={1.8} /></button>
             <button
               onClick={() => setShowSearch(!showSearch)}
-              className={`p-2 rounded-full transition-colors ${showSearch ? 'bg-black/5 text-[#21c063]' : 'hover:bg-black/5 text-secondary hover:text-primary'}`}
+              aria-label="Search messages" aria-expanded={showSearch}
+              className={`icon-button rounded-full transition-colors ${showSearch ? 'bg-black/5 text-[#21c063]' : 'hover:bg-black/5 text-secondary hover:text-primary'}`}
             >
               <Search size={20} />
             </button>
             <div className="relative" ref={menuRef}>
               <button 
                 onClick={() => setShowMenu(!showMenu)}
-                className={`p-2 -mr-2 rounded-full transition-colors ${showMenu ? 'bg-black/5 text-[#21c063]' : 'hover:bg-black/5 text-secondary hover:text-primary'}`}
+                aria-label="Chat options" aria-expanded={showMenu}
+                className={`icon-button rounded-full transition-colors ${showMenu ? 'bg-black/5 text-[#21c063]' : 'hover:bg-black/5 text-secondary hover:text-primary'}`}
               >
                 <MoreVertical size={20} />
               </button>
               {showMenu && (
                 <div className="absolute right-2 top-10 w-[210px] bg-[#ffffff] dark:bg-[#233138] shadow-2xl rounded-lg py-2 z-[100] animate-in fade-in zoom-in duration-200 origin-top-right border app-border overflow-hidden">
+                  {onToggleArchive && <button type="button" onClick={() => { onToggleArchive(); setShowMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-primary hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-3">{chat.archived ? <ArchiveRestore size={18} /> : <Archive size={18} />}{chat.archived ? 'Unarchive chat' : 'Archive chat'}</button>}
                   <button
                     onClick={() => { onHeaderClick(); setShowMenu(false); }}
                     className="w-full text-left px-4 py-3 text-[calc(var(--msg-font-size))] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
@@ -1625,6 +1660,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
       )}
 
+      {showCallNotice && <div role="status" className="absolute top-16 right-3 z-50 app-panel text-primary text-sm px-4 py-3 rounded-xl shadow-lg border app-border max-w-[280px]">Coming soon, stay tuned…</div>}
       {showSearch && (
         <div className="app-header border-b app-border px-4 py-2 flex items-center gap-3 animate-in slide-in-from-top duration-200 shadow-sm z-20 shrink-0">
           <div className="flex-1 bg-[#f0f2f5] dark:bg-[#202c33] rounded-lg px-3 py-1.5 flex items-center gap-3 border app-border focus-within:ring-1 focus-within:ring-[#21c063]/20">
@@ -1649,12 +1685,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       <div 
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 flex flex-col p-4 sm:p-10 space-y-1 overflow-y-auto pointer-events-auto z-10 relative custom-scrollbar"
+        className="conversation-messages flex-1 min-h-0 flex flex-col px-3 py-2 md:p-10 space-y-1 overflow-y-auto pointer-events-auto z-10 relative custom-scrollbar"
       >
-        <div className="flex justify-center my-4">
+        <div className="flex justify-center my-2 md:my-4">
           <div className="encryption-box text-[calc(var(--msg-font-size)-2px)] px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 max-w-[500px] text-center border app-border">
             <Lock size={12} className="shrink-0 opacity-60" />
-            <span>Messages are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them.</span>
+            <span>Chats are saved on this device. Messages you send are processed by your selected AI provider.</span>
           </div>
         </div>
 
@@ -1695,7 +1731,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 onToggleReaction={(messageId, emoji) => onToggleReaction?.(chat.id, messageId, emoji)}
                 selectionMode={selectedMessageIds.length > 0}
                 isConsecutive={isConsecutive}
-                isRecent={newOutgoingIds.has(msg.id)}
+                isRecent={recentMessageIds.has(msg.id)}
                 onOpenImage={(src, caption, senderName, timestamp) => {
                   setLightboxImage({
                     src,
@@ -1744,7 +1780,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         style={
           settings?.chatWallpaper && settings.chatWallpaper !== 'default'
             ? {
-                backgroundImage: `url("${settings.chatWallpaper}")`,
+                backgroundImage: `url("${resolveWallpaperUrl(settings.chatWallpaper)}"), url('/images/${settings.theme === 'dark' ? 'dark' : 'light'}.png')`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center center',
                 backgroundRepeat: 'no-repeat',

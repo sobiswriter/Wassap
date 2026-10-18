@@ -2,6 +2,20 @@
 
 This document provides a comprehensive technical overview of the architecture, data flow, tech stack, and directory structure of the **Wassap Persona Simulation** platform (v1.9.6 maintenance).
 
+## Android mobile polish (18 October 2026)
+
+Chat-list selection is local UI state in `ChatList.tsx`; row pointer timers cancel on movement/unmount. Batched `onSetChatFlags` updates from `App.tsx` merge only `archived`/`pinned` metadata into selected records. Optional `Chat.pinned` uses the existing localStorage format and defaults false; stable sorting changes presentation without rearranging or replacing persisted chat arrays. Selection uses a temporary mobile history entry, removed when selection ends. Desktop selection remains active alongside an open conversation. Shell cache v17 delivers the updated controls; no provider/backend changes.
+
+Archive follow-up adds only optional `Chat.archived` metadata to existing records; no schema/store rename or destructive migration. Filters hide archived records from the main inbox while generation and background replies still use the full chat collection. Mobile navigation transitions keep inbox/chat mounted; profile exit waits 220ms before normal close/history cleanup. Shell cache is now v16. The focused archive/navigation browser check is `tests/archive-ui.browser.js`.
+
+Presentation changes reuse the existing React components and Lucide icon dependency. No new runtime packages, API endpoints, authentication paths, model choices or storage schemas were introduced. Desktop and mobile now share a consistent 768px breakpoint; `.app-shell` uses a dynamic viewport with a legacy fallback.
+
+`App.tsx` manages mobile panel focus/background isolation through `data-app-panel` and `data-panel-close`. Its observer handles lazily mounted panels. Existing history handling consumes entries on explicit panel close; cancelable `wassap:back` events let chat menus/selection/trays dismiss before leaving a conversation. Component effects remove listeners and timers on cleanup. These UI events do not send messages or modify provider settings.
+
+`utils/wallpaper.ts` resolves one known retired forest URL only at render time, leaving saved settings and custom URLs intact. The new forest SVG is bundled. Service-worker shell cache v15 refreshes presentation assets while leaving IndexedDB/localStorage and notification-generation logic unchanged.
+
+`tests/mobile-ui.browser.js` is a Playwright CLI function using a fresh context, blocked service workers, synthetic keys/voice/media/outbox fixtures and browser UI interaction. It complements `npm test`'s provider/security checks and the wallpaper resolver test; physical Android and live paid-provider verification remain separate.
+
 ---
 
 ## 🏗️ 1. High-Level System Architecture

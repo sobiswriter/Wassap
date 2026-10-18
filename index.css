@@ -74,6 +74,35 @@ body {
     color: var(--text-primary);
 }
 
+html, body, #root { height: 100%; }
+body { overflow: hidden; overscroll-behavior: none; }
+.app-shell { height: 100vh; height: 100dvh; }
+:focus-visible { outline: 2px solid #008069; outline-offset: 3px; }
+.dark :focus-visible { outline-color: #21c063; }
+
+/* The icon stays compact; its button provides the full touch target. */
+.icon-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; }
+.composer-bar { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+.attachment-tray { max-height: min(440px, calc(100dvh - 160px)); overflow-y: auto; overscroll-behavior: contain; }
+.attachment-icon { width: 48px; height: 48px; border-radius: 14px; background: #f7f8fa; color: #007bfc; }
+.dark .attachment-icon { background: #202c33; color: #53bdeb; }
+.attachment-tray .group:nth-child(3n+1) .attachment-icon { color: #a34cc4; }
+.attachment-tray .group:nth-child(3n+2) .attachment-icon { color: #e04478; }
+.attachment-tray .group:nth-child(3) .attachment-icon { color: #008069; }
+.emoji-tray > div { height: min(410px, calc(100dvh - 150px)) !important; max-height: calc(100dvh - 150px) !important; }
+.emoji-tray .min-h-\[180px\] { min-height: 0; }
+.mobile-navigation { padding: 6px 4px max(8px, env(safe-area-inset-bottom)); }
+.mobile-nav-item { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: center; gap: 3px; font-size: 12px; line-height: 16px; padding: 2px 0; }
+.mobile-nav-icon { display: flex; align-items: center; justify-content: center; width: 64px; height: 32px; border-radius: 18px; }
+.mobile-chat-fab { bottom: calc(88px + env(safe-area-inset-bottom)); }
+.meta-ai-ring { width: 24px; height: 24px; border-radius: 50%; background: conic-gradient(#3d62ff, #9c3cff, #3d62ff, #00c7e4, #3d62ff); position: relative; }
+.meta-ai-ring::after { content: ''; position: absolute; inset: 3px; border-radius: inherit; background: var(--panel-bg); }
+.chat-list-row { position: relative; }
+.chat-list-row::after { content: ''; position: absolute; left: 80px; right: 0; bottom: 0; border-bottom: 1px solid var(--border-color); opacity: .6; }
+.settings-switch { flex-shrink: 0; }
+.settings-switch::before { content: ''; position: absolute; inset: -12px -4px; border-radius: 18px; }
+@media (max-width: 359px) { .composer-camera { display: none; } }
+
 .dark {
     --chat-bg: #0b1014;
     --chat-wallpaper: url('/images/dark.png');
@@ -124,20 +153,14 @@ body {
 }
 
 /* Responsive Overrides */
-@media (max-width: 768px) {
-    .app-panel {
-        width: 100% !important;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        border-radius: 0 !important;
+@media (max-width: 767px) {
+    body { font-family: Roboto, 'Helvetica Neue', Arial, sans-serif; }
+    /* Prevent field-focus zoom without overriding chips, dates or emoji buttons. */
+    input:not([type='range']):not([type='checkbox']):not([type='radio']), textarea, select {
+        font-size: max(16px, 1em);
     }
-
-    input,
-    button {
-        font-size: 16px !important;
-        /* Prevents iOS zoom */
-    }
+    .message-composer textarea { font-size: max(16px, var(--input-font-size)); }
+    .icon-button { width: 48px; height: 48px; }
 
     .chat-wallpaper {
         background-size: 300px;
@@ -149,14 +172,7 @@ body {
         height: 0px;
     }
 
-    /* Make overlays full screen on mobile */
-    .absolute.left-\[80px\] {
-        left: 0 !important;
-        bottom: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-        z-index: 2000 !important;
-    }
+    /* Screen panels declare their own inset; popovers retain their own geometry. */
 }
 
 .selection-highlight {
@@ -227,6 +243,7 @@ body {
 .media-message-bubble {
   width: fit-content !important;
   max-width: 330px !important;
+  max-width: min(330px, 100%) !important;
   padding: 4px;
   border-radius: 12px;
   display: flex;
@@ -482,12 +499,42 @@ body {
   transform: scale(0.95);
 }
 
+/* Local entry utilities used by panels and menus; no animation dependency. */
+.animate-in { --enter-x: 0; --enter-y: 0; --enter-scale: 1; --enter-opacity: 1; animation: ui-enter var(--dur-standard) var(--ease-micro) backwards; }
+.fade-in { --enter-opacity: 0; }
+.zoom-in, .zoom-in-95 { --enter-scale: .96; }
+.slide-in-from-left { --enter-x: -20px; }
+.slide-in-from-right { --enter-x: 20px; }
+.slide-in-from-top { --enter-y: -8px; }
+.slide-in-from-bottom-3 { --enter-y: 12px; }
+.animate-in.duration-150 { animation-duration: 150ms; }
+.animate-in.duration-200 { animation-duration: 200ms; }
+.animate-in.duration-250 { animation-duration: 250ms; }
+.animate-in.duration-300 { animation-duration: 260ms; }
+@keyframes ui-enter {
+  from { opacity: var(--enter-opacity, 1); transform: translate3d(var(--enter-x, 0), var(--enter-y, 0), 0) scale(var(--enter-scale, 1)); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Mobile navigation keeps both screens mounted so Back reverses the push. */
+@media (max-width: 767px) {
+  .mobile-screen { position: absolute; inset: 0; width: 100%; transition: transform 260ms cubic-bezier(.2,0,0,1), opacity 260ms ease, visibility 0s 260ms; visibility: hidden; pointer-events: none; }
+  .mobile-inbox { z-index: 1; transform: translateX(-20%); opacity: .75; }
+  .mobile-conversation { z-index: 2; transform: translateX(100%); box-shadow: -8px 0 24px #00000012; }
+  .mobile-screen.screen-active { transform: translateX(0); opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+  [data-app-panel='Contact info'] { animation: mobile-panel-enter 240ms cubic-bezier(.2,0,0,1) both; }
+  [data-app-panel='Contact info'].mobile-panel-closing { animation: mobile-panel-leave 220ms cubic-bezier(.4,0,1,1) both; pointer-events: none; }
+}
+@keyframes mobile-panel-enter { from { transform: translateX(12%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes mobile-panel-leave { from { transform: translateX(0); opacity: 1; } to { transform: translateX(12%); opacity: 0; } }
+
 /* Reduced Motion preference support */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
 }

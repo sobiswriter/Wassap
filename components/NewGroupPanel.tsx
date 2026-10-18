@@ -36,10 +36,10 @@ export const NewGroupPanel: React.FC<NewGroupPanelProps> = ({ personas, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-[3500] md:absolute md:inset-auto md:w-[410px] md:h-full md:left-[64px] md:top-0 md:bottom-0 md:z-50 app-header border-r app-border flex flex-col animate-in slide-in-from-left duration-300 shadow-xl overflow-hidden">
+    <div data-app-panel="New group" className="fixed inset-0 z-[3500] md:absolute md:inset-auto md:w-[410px] md:h-full md:left-[64px] md:top-0 md:bottom-0 md:z-50 app-header border-r app-border flex flex-col animate-in slide-in-from-left duration-300 shadow-xl overflow-hidden">
       <div className="h-[108px] pt-[max(env(safe-area-inset-top),16px)] bg-[#008069] flex items-end p-5 text-white shrink-0">
         <div className="flex items-center gap-6">
-          <button onClick={() => step === 1 ? onClose() : setStep(1)} className="p-1 rounded-full hover:bg-[#005c4b] active:scale-90 transition-all text-white" title="Back">
+          <button data-panel-close onClick={() => step === 1 ? onClose() : setStep(1)} className="icon-button hover:bg-[#005c4b] active:scale-95 transition-transform text-white" title="Back">
             <ArrowLeft size={22} />
           </button>
           <h2 className="text-[calc(var(--msg-font-size)+4.5px)] font-medium">{step === 1 ? 'Add group members' : 'New Group'}</h2>

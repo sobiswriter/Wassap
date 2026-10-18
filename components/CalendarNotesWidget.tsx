@@ -24,14 +24,14 @@ export const CalendarNotesWidget: React.FC<CalendarNotesWidgetProps> = ({ notes,
     const dateStr = today.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     return (
-        <div className="fixed inset-0 z-[4000] md:absolute md:inset-auto md:left-[80px] md:bottom-20 md:w-[400px] md:h-auto md:z-[1000] app-panel md:rounded-lg shadow-2xl border app-border animate-in slide-in-from-bottom-3 duration-250 overflow-hidden flex flex-col md:max-h-[80vh]">
+        <div data-app-panel="Calendar notes" className="fixed inset-0 z-[4000] md:absolute md:inset-auto md:left-[80px] md:bottom-20 md:w-[400px] md:h-auto md:z-[1000] app-panel md:rounded-lg shadow-2xl border app-border animate-in slide-in-from-bottom-3 duration-250 overflow-hidden flex flex-col md:max-h-[80vh]">
             {/* Header */}
             <div className="p-4 pt-[max(env(safe-area-inset-top),16px)] md:pt-4 border-b app-border bg-[#00a884] text-white flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-2">
                     <CalendarIcon size={20} />
                     <h3 className="font-semibold text-[calc(var(--msg-font-size)+1.5px)]">Calendar & Notes</h3>
                 </div>
-                <button onClick={onClose} className="hover:bg-black/10 active:scale-90 p-1.5 rounded-full transition-all cursor-pointer" title="Close">
+                <button data-panel-close onClick={onClose} className="hover:bg-black/10 active:scale-90 p-1.5 rounded-full transition-all cursor-pointer" title="Close">
                     <X size={18} />
                 </button>
             </div>
