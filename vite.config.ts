@@ -2,16 +2,23 @@ import path from 'path';
 import { defineConfig, loadEnv, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { handleGeminiApiMiddleware } from './server/api';
+import { upgradeLive } from './api/gemini/live';
 
 function vertexAiApiPlugin(): Plugin {
   return {
     name: 'vertex-ai-api-plugin',
     configureServer(server) {
+      server.httpServer?.on('upgrade', (req, socket, head) => {
+        if (req.url?.split('?')[0] === '/api/gemini/live') upgradeLive(req, socket, head);
+      });
       server.middlewares.use((req, res, next) => {
         handleGeminiApiMiddleware(req, res, next);
       });
     },
     configurePreviewServer(server) {
+      server.httpServer?.on('upgrade', (req, socket, head) => {
+        if (req.url?.split('?')[0] === '/api/gemini/live') upgradeLive(req, socket, head);
+      });
       server.middlewares.use((req, res, next) => {
         handleGeminiApiMiddleware(req, res, next);
       });

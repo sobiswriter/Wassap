@@ -1,0 +1,59 @@
+/* Persona calls: reference-led Android layout, independent of the chat theme. */
+.call-backdrop { position: fixed; inset: 0; z-index: 9000; background: #0b141a; color: #f7f9fa; display: flex; justify-content: center; font-family: Roboto, Arial, sans-serif; }
+.call-screen { width: 100%; max-width: 600px; height: 100%; min-height: 0; position: relative; display: flex; flex-direction: column; background: #0b141a url('/call-doodles.svg') center/400px; padding: max(env(safe-area-inset-top),20px) 16px max(env(safe-area-inset-bottom),16px); }
+.call-header { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.call-heading { min-width: 0; flex: 1; text-align: center; }
+.call-heading h1 { font-size: clamp(20px,5.2vw,28px); line-height: 1.2; font-weight: 500; overflow-wrap: anywhere; }
+.call-heading p { font-size: 12px; color: #879197; margin-top: 7px; }
+.call-round { background: #202a2e; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; width: 60px; height: 60px; flex-shrink: 0; color: #fff; }
+.call-round:disabled { opacity: .35; }
+.call-header .call-round { width: 48px; height: 48px; }
+.call-status { text-align: center; font-size: 15px; color: #c0c8cc; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.call-person { min-height: 130px; flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 20px 0; gap: 18px; }
+.call-avatar { position: relative; border-radius: 50%; width: min(55vw,240px,30dvh); aspect-ratio: 1; background: #26373d; transition: box-shadow .2s; }
+.call-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; position: relative; z-index: 1; }
+.call-avatar > span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 65px; color: #aab8bf; }
+.call-speaking { box-shadow: 0 0 0 7px #21c0631f, 0 0 0 16px #21c0630c; }
+.call-presence { display: flex; align-items: center; height: 20px; gap: 4px; }
+.call-presence i { display: block; width: 3px; height: 5px; border-radius: 3px; background: #64757e; }
+.call-person:has(.call-speaking) .call-presence i { background: #71d882; animation: call-wave .7s ease-in-out infinite alternate; }
+.call-presence i:nth-child(2n) { animation-delay: .2s !important; }
+.call-presence i:nth-child(3n) { animation-delay: .4s !important; }
+@keyframes call-wave { to { height: 19px; } }
+.call-controls { background: #131a1e; border: 1px solid #263034; border-radius: 40px; padding: 24px 16px 16px; }
+.call-control-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px 12px; }
+.call-control-grid > button { display: flex; flex-direction: column; align-items: center; gap: 12px; font-size: 14px; min-height: 94px; }
+.call-control-grid > button:disabled { opacity: .32; cursor: default; }
+.call-control-grid .call-round { width: clamp(60px,19vw,82px); height: clamp(60px,19vw,82px); }
+.call-control-grid svg { width: 29px; height: 29px; stroke-width: 2.2; }
+.call-end { background: #eb003b !important; color: white !important; }
+.call-selected { background: #e9edef; color: #111b21; }
+.call-disclosure, .call-voice-note { text-align: center; color: #879197; font-size: 11px; line-height: 1.5; margin-top: 16px; }
+.call-voice-note { color: #bbc5ca; }
+.call-feedback { text-align: center; font-size: 13px; line-height: 1.5; max-width: 340px; color: #e8edef; }
+.call-return { display: block; margin: 18px auto 6px; padding: 12px 24px; background: #21c063; color: #081e14; border-radius: 24px; font-weight: 600; }
+.call-ended-note { text-align: center; font-size: 14px; line-height: 1.6; color: #c0c8cc; }
+.call-transcript { max-height: 22dvh; overflow-y: auto; background: #111b21ee; border-radius: 16px; padding: 14px; margin-bottom: 12px; font-size: 13px; line-height: 1.5; }
+.call-transcript p + p { margin-top: 10px; }
+.call-transcript strong { display: block; color: #7ed591; font-size: 11px; }
+.call-mini { position: fixed; z-index: 8000; top: env(safe-area-inset-top,0px); left: 50%; transform: translateX(-50%); width: min(100%,600px); display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #182125; color: #7ed591; box-shadow: 0 3px 12px #0005; }
+.call-mini-icon { width: 44px; height: 44px; background: #263237; border-radius: 50%; display: grid; place-items: center; color: white; flex-shrink: 0; }
+.call-mini-title { flex: 1; min-width: 0; text-align: left; }
+.call-mini-title span { display: flex; align-items: center; gap: 5px; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.call-mini-title small { display: block; font-size: 11px; color: #b2bebf; margin-top: 2px; }
+body:has(.call-mini) .app-shell { padding-top: 64px; }
+.call-history-card { max-width: 320px; width: 100%; background: var(--bubble-me); color: var(--text-primary); border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 12px; position: relative; }
+.call-history-icon { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; background: #111b210d; display: grid; place-items: center; color: #008069; }
+.dark .call-history-icon { background: #ffffff16; color: #21c063; }
+.call-history-card strong { font-size: 15px; font-weight: 500; }
+.call-history-card p { font-size: 12px; opacity: .7; margin-top: 3px; padding-bottom: 8px; }
+.call-history-card time { font-size: 10px; opacity: .65; position: absolute; bottom: 6px; right: 10px; }
+.call-history-body { min-width: 0; flex: 1; }
+.call-history-date { font-size: 11px; opacity: .8; margin: 0 0 8px; }
+.call-history-details { font-size: 12px; padding-bottom: 12px; }
+.call-history-details summary { cursor: pointer; }
+.call-history-details div { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow-y: auto; margin-top: 8px; }
+.call-screen button:focus-visible, .call-mini button:focus-visible { outline: 2px solid #7ed591; outline-offset: 4px; }
+@media (min-width: 768px) { .call-backdrop { background: #000b; align-items: center; padding: 24px; } .call-screen { max-height: 900px; border-radius: 24px; } }
+@media (max-height: 600px) { .call-screen { overflow-y: auto; } .call-person { padding: 12px 0; } .call-avatar { width: 110px; } .call-control-grid { gap: 12px; } .call-control-grid .call-round { width: 50px; height: 50px; } .call-control-grid > button { min-height: 70px; gap: 6px; } .call-controls { padding-top: 15px; } }
+@media (prefers-reduced-motion: reduce) { .call-presence i { animation: none !important; } .call-avatar { transition: none; } }

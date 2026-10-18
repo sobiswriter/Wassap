@@ -11,7 +11,7 @@ export function parsePersonaBackup(raw: unknown): PersonaBackupData['persona'] {
     if (keys.some(key => value[key] !== undefined && typeof value[key] !== type)) fail();
   };
   fields(data, ['avatar', 'about', 'role', 'speechStyle', 'systemInstruction', 'imageModel', 'voiceModel'], 'string');
-  fields(data, ['memoryEnabled'], 'boolean');
+  fields(data, ['memoryEnabled', 'timeAwarenessEnabled'], 'boolean');
   if (data.voiceSettings !== undefined) {
     const voice = data.voiceSettings;
     if (!object(voice)) return fail();

@@ -86,7 +86,9 @@ test('every standalone paid endpoint rejects missing authentication and mirrors 
     assert.ok(source.includes(canonical), `${file} authentication differs`);
     const { default: handler } = await import(`../api/gemini/${file}`);
     const res = responseRecorder();
-    await handler({ method: 'POST', url: `/api/gemini/${file.slice(0, -3)}`, headers: {}, body: {} }, res);
+    const req = { method: 'POST', url: `/api/gemini/${file.slice(0, -3)}`, headers: {}, body: {} };
+    if (typeof handler === 'function') await handler(req, res);
+    else handler.emit('request', req, res);
     assert.equal(res.statusCode, 401, file);
   }
 });

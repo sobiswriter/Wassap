@@ -10,8 +10,10 @@ import { VoiceNotePlayer } from './VoiceNotePlayer';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { ReactionTray } from './ReactionTray';
 import { triggerHaptic } from '../utils/haptics';
+import { formatCallDuration, callTranscript } from '../utils/calls';
 
 interface ChatWindowProps {
+  onCall?: () => void;
   chat: Chat | null;
   allChats: Chat[];
   onHeaderClick: () => void;
@@ -591,6 +593,15 @@ const MessageBubble = React.memo<{
   const hasVoice = Boolean(voiceSrc);
   const isMediaMessage = hasImage;
 
+  if (message.call) {
+    return <div className={`flex ${message.sender === 'me' ? 'justify-end' : 'justify-start'} my-2 px-3`}>
+      <div className="call-history-card"><span className="call-history-icon"><Phone size={22} /></span><div className="call-history-body"><strong>Voice call</strong><p>{message.call.outcome === 'failed' ? message.call.failureReason || 'Could not connect' : message.call.outcome === 'cancelled' ? 'Cancelled' : formatCallDuration(message.call.duration)}{message.call.diary === 'pending' ? ' · Diary pending' : message.call.diary === 'saved' ? ' · Saved to diary' : ''}</p>
+        {(message.call.startedAt || message.timestampEpoch) && <div className="call-history-date">{new Date(message.call.startedAt || message.timestampEpoch!).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</div>}
+        {message.call.transcript?.length ? <details className="call-history-details"><summary>View transcript</summary><div>{callTranscript(message.call.transcript, chatName || 'Persona')}</div></details> : null}
+        {message.call.summary && <details className="call-history-details"><summary>View summary</summary><div>{message.call.summary}</div></details>}
+      </div><time>{message.timestamp}</time></div>
+    </div>;
+  }
   if (message.isEvent) {
     const trimmedText = message.text ? message.text.trim() : '';
     const displayTitle = message.eventTitle || (
@@ -1120,6 +1131,7 @@ const RecordingAudioBubble: React.FC = () => (
 );
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ 
+  onCall,
   chat, 
   allChats, 
   onHeaderClick, 
@@ -1155,12 +1167,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const [showSearch, setShowSearch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [showCallNotice, setShowCallNotice] = useState(false);
-  useEffect(() => {
-    if (!showCallNotice) return;
-    const timer = window.setTimeout(() => setShowCallNotice(false), 3000);
-    return () => window.clearTimeout(timer);
-  }, [showCallNotice]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [clearMemoriesAlso, setClearMemoriesAlso] = useState(false);
@@ -1607,7 +1613,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
 
           <div className="flex items-center gap-0 md:gap-2 text-secondary relative">
-            <button type="button" aria-label="Voice call" title="Coming soon, stay tuned…" className="icon-button text-primary hover:bg-black/5 dark:hover:bg-white/5" onClick={() => setShowCallNotice(true)}><Phone size={23} strokeWidth={1.8} /></button>
+            <button type="button" aria-label="Voice call" title={chat.isGroup ? 'Group calls are not available' : 'Start voice call'} disabled={chat.isGroup} className="icon-button text-primary hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30" onClick={onCall}><Phone size={23} strokeWidth={1.8} /></button>
             <button
               onClick={() => setShowSearch(!showSearch)}
               aria-label="Search messages" aria-expanded={showSearch}
@@ -1659,7 +1665,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
       )}
 
-      {showCallNotice && <div role="status" className="absolute top-16 right-3 z-50 app-panel text-primary text-sm px-4 py-3 rounded-xl shadow-lg border app-border max-w-[280px]">Coming soon, stay tuned…</div>}
       {showSearch && (
         <div className="app-header border-b app-border px-4 py-2 flex items-center gap-3 animate-in slide-in-from-top duration-200 shadow-sm z-20 shrink-0">
           <div className="flex-1 bg-[#f0f2f5] dark:bg-[#202c33] rounded-lg px-3 py-1.5 flex items-center gap-3 border app-border focus-within:ring-1 focus-within:ring-[#21c063]/20">

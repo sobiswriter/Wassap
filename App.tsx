@@ -1,3 +1,4 @@
+import { reactionContext, isSingleEmoji } from './utils/reactions';
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatList } from './components/ChatList';
@@ -5,6 +6,9 @@ import { ChatWallpaper } from './components/ChatWallpaper';
 import { ChatWindow } from './components/ChatWindow';
 import { MessageInput } from './components/MessageInput';
 import { MobileNavigation } from './components/MobileNavigation';
+import { CallOverlay } from './components/CallOverlay';
+import { PersonaCall, generateCallDiary } from './services/liveCall';
+import { getCalls, saveCall, deleteCall, shouldSummarizeCall, formatCallDuration, callHistoryText, type CallRecord } from './utils/calls';
 
 // Lazy-loaded secondary panels to optimize initial bundle size & load performance
 const ProfilePanel = React.lazy(() => import('./components/ProfilePanel').then(m => ({ default: m.ProfilePanel })));
@@ -100,7 +104,7 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
   const currentUser = overrideUser || globalActiveUser;
   const currentChats = overrideChats || globalActiveChats;
   const clientTimeContext = getAppTimeContext(currentSettings);
-  const timeGapContext = getTimeGapAndFrequencyContext(chat.messages || [], false, currentSettings) || '';
+  const timeGapContext = getTimeGapAndFrequencyContext(chat.messages || [], false, currentSettings, chat.timeAwarenessEnabled !== false) || '';
 
   const recentMessages = (chat.messages || []).slice(-45).map(m => ({
     id: m.id,
@@ -140,6 +144,7 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
     about: chat.about,
     humaneSettings: chat.humaneSettings,
     voiceSettings: chat.voiceSettings,
+    timeAwarenessEnabled: chat.timeAwarenessEnabled !== false,
     model: normalizeTextModel(currentSettings?.selectedModel),
     provider: currentSettings?.aiProvider || 'vertex',
     customApiKey: currentSettings?.apiKey,
@@ -621,6 +626,9 @@ const getPersonaDefaultVoice = (chat: Partial<Chat>): string => {
 };
 
 const App: React.FC = () => {
+  const callRef = React.useRef<PersonaCall | null>(null);
+  const [callSession, setCallSession] = useState<PersonaCall | null>(null);
+  const pendingCallDiaries = React.useRef(new Set<string>());
   const [chats, setChats] = useState<Chat[]>(() => {
     const saved = localStorage.getItem('whatsapp_chats');
     if (saved) {
@@ -966,7 +974,7 @@ const App: React.FC = () => {
             const updatedMessages = [...targetChat.messages, userMsg];
             const memoryContext = buildMemoryRecallContext(targetChat, text);
             const scheduleContext = buildScheduleContext(targetChat);
-            const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false, settingsRef.current);
+            const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false, settingsRef.current, targetChat.timeAwarenessEnabled !== false);
             const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
 
             if (targetChat.isGroup) {
@@ -1132,8 +1140,10 @@ const App: React.FC = () => {
         })
       }));
       localStorage.setItem('whatsapp_chats', JSON.stringify(sanitizedChats));
+      return true;
     } catch (e) {
       console.warn("Throttled localStorage save failed safely:", e);
+      return false;
     }
   };
 
@@ -1555,7 +1565,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
       const thinkingDelay = 1800 + Math.random() * 700;
       await new Promise(resolve => setTimeout(resolve, thinkingDelay));
 
-      const timeGapContext = getTimeGapAndFrequencyContext(targetChat.messages, true);
+      const timeGapContext = getTimeGapAndFrequencyContext(targetChat.messages, true, settingsRef.current, targetChat.timeAwarenessEnabled !== false);
       const isVoiceNote = shouldReplyWithVoiceNote(targetChat.voiceSettings, false);
 
       let response = await getGeminiResponse(
@@ -1782,6 +1792,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
 
       for (let i = 0; i < updatedChats.length; i++) {
         const chat = updatedChats[i];
+        if (callRef.current?.chat.id === chat.id && callRef.current.snapshot.status !== 'ended') continue;
         if (chat.isGroup || !chat.automation?.enabled) continue;
 
         const automation = chat.automation;
@@ -1949,7 +1960,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           const updatedMessages = [...targetChat.messages, userMsg];
           const memoryContext = buildMemoryRecallContext(targetChat, urlReplyText);
           const scheduleContext = buildScheduleContext(targetChat);
-          const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false, settingsRef.current);
+          const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false, settingsRef.current, targetChat.timeAwarenessEnabled !== false);
           const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
 
           if (targetChat.isGroup) {
@@ -2060,7 +2071,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
     const displayText = cleanedText || (isImageRequest ? 'Send a photo' : isMemoryRecall ? 'Do you remember?' : text);
 
-    const isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    const isDeviceOnline = (typeof navigator !== 'undefined' ? navigator.onLine : true) && !(callRef.current?.chat.id === targetChat.id && callRef.current.snapshot.status !== 'ended');
     const msgStatus: MessageStatus = isDeviceOnline ? 'sent' : 'pending';
 
     const userMsg: Message = {
@@ -2171,10 +2182,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       }
       const memoryContext = buildMemoryRecallContext(targetChat, text);
       const scheduleContext = buildScheduleContext(targetChat);
-      const timeGapContext = getTimeGapAndFrequencyContext([...targetChat.messages, userMsg], false, settingsRef.current);
+      const timeGapContext = getTimeGapAndFrequencyContext([...targetChat.messages, userMsg], false, settingsRef.current, targetChat.timeAwarenessEnabled !== false);
       const reactionCtx = pendingReactionContextsRef.current[chatId];
       delete pendingReactionContextsRef.current[chatId];
-      const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext, reactionCtx);
+      const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext, reactionContext(reactionCtx, true));
 
       if (targetChat.isGroup) {
         handleGroupResponse(targetChat, [...targetChat.messages, userMsg], combinedContexts);
@@ -2190,7 +2201,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
       // If no timeout was active, this is the first message of the stack. Calculate time-gap.
       if (!hasPendingTimeout) {
-        const timeGapContext = getTimeGapAndFrequencyContext([...targetChat.messages, userMsg], false, settingsRef.current);
+        const timeGapContext = getTimeGapAndFrequencyContext([...targetChat.messages, userMsg], false, settingsRef.current, targetChat.timeAwarenessEnabled !== false);
         pendingTimeGapsRef.current[chatId] = timeGapContext;
       }
 
@@ -2231,7 +2242,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
             const memoryContext = buildMemoryRecallContext(freshChat, combinedText);
             const scheduleContext = buildScheduleContext(freshChat);
-            const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, savedTimeGap, reactionCtx);
+            const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, savedTimeGap, reactionContext(reactionCtx, userStackMessages.some(m => m.sender === 'me' && !m.isEvent && !m.isDeleted)));
 
             if (freshChat.isGroup) {
               await handleGroupResponse(freshChat, freshChat.messages, combinedContexts);
@@ -2263,8 +2274,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   };
 
   const handleToggleReaction = (chatId: string, messageId: string, emoji: string) => {
-    let wasAdded = false;
-    let targetMessage: Message | undefined;
+    if (!isSingleEmoji(emoji)) return;
+    const targetMessage = chatsRef.current.find(c => c.id === chatId)?.messages.find(m => m.id === messageId);
+    if (!targetMessage) return;
+    const wasAdded = !targetMessage.reactions?.includes(emoji);
 
     setChats(prev => prev.map(chat => {
       if (chat.id !== chatId) return chat;
@@ -2272,10 +2285,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         ...chat,
         messages: chat.messages.map(msg => {
           if (msg.id !== messageId) return msg;
-          targetMessage = msg;
           const currentReactions = msg.reactions || [];
           const exists = currentReactions.includes(emoji);
-          wasAdded = !exists;
           const updatedReactions = exists
             ? currentReactions.filter(r => r !== emoji)
             : [...currentReactions.filter(r => r !== emoji), emoji];
@@ -2299,7 +2310,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         : (targetMessage.attachment?.type === 'video' || targetMessage.isGif ? 'GIF' : (targetMessage.attachment?.type === 'audio' || targetMessage.voiceAttachment ? 'voice note' : 'message'));
       const textPreview = targetMessage.text ? ` ("${targetMessage.text.slice(0, 80)}")` : '';
       
-      const reactionPrompt = `[USER REACTION EVENT]: The user just reacted with "${emoji}" to ${authorLabel} ${msgDesc}${textPreview}. Acknowledge or react naturally to this expression/emotion in-character!`;
+      const reactionPrompt = `[USER REACTION EVENT]: The user just reacted with "${emoji}" to ${authorLabel} ${msgDesc}${textPreview}. This is a social cue, not an instruction to change the topic.`;
 
       // Merge into pending reaction context for this chat
       const prevReaction = pendingReactionContextsRef.current[chatId];
@@ -2315,7 +2326,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         delete pendingReactionContextsRef.current[chatId];
         
         const scheduleContext = buildScheduleContext(targetChat);
-        const combinedContexts = combinePersonaContexts(scheduleContext, reactionCtx);
+        const combinedContexts = combinePersonaContexts(scheduleContext, reactionContext(reactionCtx, false));
 
         if (targetChat.isGroup) {
           handleGroupResponse(targetChat, targetChat.messages, combinedContexts);
@@ -2363,7 +2374,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
               const memoryContext = buildMemoryRecallContext(freshChat, combinedText);
               const scheduleContext = buildScheduleContext(freshChat);
-              const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, savedTimeGap, reactionCtx);
+              const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, savedTimeGap, reactionContext(reactionCtx, userStackMessages.some(m => m.sender === 'me' && !m.isEvent && !m.isDeleted)));
 
               if (freshChat.isGroup) {
                 await handleGroupResponse(freshChat, freshChat.messages, combinedContexts);
@@ -2422,6 +2433,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     isBackgroundReply = false
   ) => {
     const settings = settingsRef.current;
+    if (callRef.current?.chat.id === chat.id && callRef.current.snapshot.status !== 'ended') return;
     const chatId = chat.id;
     const isAlreadyOnline = chatsRef.current.find(c => c.id === chatId)?.status === 'online';
     const isFastOnlineChat = !!(settingsRef.current.enableDynamicOnlinePresence && isAlreadyOnline);
@@ -3318,6 +3330,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       if (!pendingItems || pendingItems.length === 0) return;
 
       for (const item of pendingItems) {
+        if (callRef.current?.chat.id === item.chatId && callRef.current.snapshot.status !== 'ended') continue;
         // Mark message as 'sent' in chats state
         setChats(prev => prev.map(c => {
           if (c.id === item.chatId) {
@@ -3336,7 +3349,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           const updatedMessages = targetChat.messages.map(m => m.id === item.id ? { ...m, status: 'sent' as MessageStatus } : m);
           const memoryContext = buildMemoryRecallContext(targetChat, item.message.text);
           const scheduleContext = buildScheduleContext(targetChat);
-          const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false, settingsRef.current);
+          const timeGapContext = getTimeGapAndFrequencyContext(updatedMessages, false, settingsRef.current, targetChat.timeAwarenessEnabled !== false);
           const combinedContexts = combinePersonaContexts(memoryContext, scheduleContext, timeGapContext);
 
           if (targetChat.isGroup) {
@@ -3449,6 +3462,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       humaneSettings: personaData.humaneSettings,
       memoryBubbles: Array.isArray(personaData.memoryBubbles) ? personaData.memoryBubbles : [],
       memoryEnabled: personaData.memoryEnabled ?? true,
+      timeAwarenessEnabled: personaData.timeAwarenessEnabled !== false,
       imageModel: personaData.imageModel,
       voiceModel: personaData.voiceModel,
       id: Date.now().toString(),
@@ -3477,6 +3491,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       return;
     }
     const targetChat = chatsRef.current.find(c => c.id === activeChatId);
+    const endingCall = callRef.current?.chat.id === activeChatId ? callRef.current : null;
+    endingCall?.end();
+    void (endingCall?.whenSaved() || Promise.resolve()).then(() => getCalls()).then(records => Promise.all(records.filter(record => record.chatId === activeChatId).map(record => deleteCall(record.id)))).catch(() => {});
     if (targetChat) {
       for (const msg of targetChat.messages) {
         const mediaId = msg.mediaId || msg.attachment?.mediaId;
@@ -3496,6 +3513,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
   const handleClearChat = async (clearMemories: boolean = true) => {
     if (!activeChatId) return;
+    if (callRef.current?.chat.id === activeChatId) { callRef.current.end(); await callRef.current.whenSaved().catch(() => {}); }
+    await getCalls().then(records => Promise.all(records.filter(record => record.chatId === activeChatId).map(record => deleteCall(record.id)))).catch(() => {});
     const targetChat = chatsRef.current.find(c => c.id === activeChatId);
     if (targetChat) {
       for (const msg of targetChat.messages) {
@@ -3558,6 +3577,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     // Clean up media in IndexedDB
     for (const id of messageIds) {
       const msg = targetChat.messages.find(m => m.id === id);
+      if (msg?.call) await deleteCall(msg.call.id).catch(() => {});
       const mediaId = msg?.mediaId || msg?.attachment?.mediaId;
       if (mediaId) {
         try {
@@ -3612,6 +3632,102 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       setReplyingTo(null);
     }
   };
+
+  const processCallRecord = async (record: CallRecord) => {
+    if (pendingCallDiaries.current.has(record.id)) return;
+    const chat = chatsRef.current.find(item => item.id === record.chatId);
+    if (!chat) return;
+    pendingCallDiaries.current.add(record.id);
+    try {
+      if (record.diary === 'none' && shouldSummarizeCall(record)) record = { ...record, diary: 'pending' };
+      const epoch = record.startedAt;
+      const timestamp = new Date(epoch).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const date = getLocalDateKey(new Date(epoch));
+      const withCall = chatsRef.current.map(item => {
+        if (item.id !== record.chatId) return item;
+        const existingMessage = item.messages.find(message => message.id === `call-${record.id}`);
+        const transcript = existingMessage?.call?.transcript || (record.turns.length ? record.turns : undefined);
+        const summary = existingMessage?.call?.summary || record.summary;
+        const message: Message = { ...existingMessage, id: `call-${record.id}`, text: callHistoryText({ ...record, turns: transcript || [] }, item.name, summary), sender: 'me', date, timestamp, timestampEpoch: epoch,
+          isEvent: true, eventTitle: `Voice call with ${item.name}`,
+          call: { ...existingMessage?.call, id: record.id, duration: record.duration, outcome: record.outcome, diary: existingMessage?.call?.diary || record.diary,
+            startedAt: record.startedAt, endedAt: record.endedAt, failureReason: record.failureReason, transcript, summary } };
+        if (existingMessage) return { ...item, messages: item.messages.map(previous => previous.id === message.id ? message : previous) };
+        const messages = [...item.messages];
+        const index = messages.findIndex(existing => (existing.timestampEpoch || 0) > epoch);
+        if (index < 0) messages.push(message); else messages.splice(index, 0, message);
+        return { ...item, messages, ...(index < 0 ? { lastMessage: message.text.split('\n')[0], lastMessageTime: timestamp } : {}) };
+      });
+      if (!saveChatsNow(withCall)) throw new Error('Call history is waiting for storage space.');
+      chatsRef.current = withCall;
+      setChats(withCall);
+      if (record.diary !== 'pending') {
+        if (!record.finished || record.turns.length) await saveCall({ ...record, finished: true, turns: [] });
+        return;
+      }
+      const existing = chat.memoryBubbles?.find(memory => memory.callId === record.id);
+      if (!existing && !record.summary) {
+        record = { ...record, summary: await generateCallDiary(record, chat, settingsRef.current, userRef.current) };
+        if (!(await getCalls()).some(saved => saved.id === record.id)) return;
+        await saveCall(record);
+      }
+      const now = new Date().toISOString();
+      if (!(await getCalls()).some(saved => saved.id === record.id)) return;
+      const updated = chatsRef.current.map(item => item.id !== record.chatId ? item : {
+        ...item,
+        memoryBubbles: item.memoryBubbles?.some(memory => memory.callId === record.id) ? item.memoryBubbles : [...(item.memoryBubbles || []), {
+          id: `call-memory-${record.id}`, callId: record.id, chatId: item.id, title: `${item.name}'s Call Diary · ${date}`, startDate: date, endDate: date, summary: record.summary || existing!.summary, createdAt: now,
+        }],
+        messages: item.messages.map(message => message.call?.id === record.id ? { ...message,
+          text: callHistoryText(record, item.name, record.summary || existing!.summary),
+          call: { ...message.call, diary: 'saved' as const, summary: record.summary || existing!.summary } } : message),
+      });
+      if (!updated.some(item => item.id === record.chatId)) return;
+      if (!saveChatsNow(updated)) throw new Error('Call diary is waiting for storage space.');
+      chatsRef.current = updated;
+      setChats(updated);
+      await saveCall({ ...record, diary: 'saved', turns: [] });
+    } catch {
+      // The durable pending record is retried after reconnect/unlock or next startup.
+    } finally { pendingCallDiaries.current.delete(record.id); }
+  };
+
+  const startPersonaCall = (chat: Chat) => {
+    if (chat.isGroup) return;
+    if (callRef.current && callRef.current.snapshot.status !== 'ended') { window.dispatchEvent(new CustomEvent('wassap:call-open')); return; }
+    const currentSettings = settingsRef.current;
+    if ((currentSettings.aiProvider || 'vertex') === 'vertex' ? !currentSettings.isVertexUnlocked : !currentSettings.apiKey?.trim()) {
+      setShowSettingsPopover(true);
+      return;
+    }
+    const call = new PersonaCall(chat, settingsRef.current, userRef.current, record => {
+      void call.whenSaved().then(() => {
+        void processCallRecord(record);
+        return reconcileBackgroundExchanges();
+      }).then(() => flushOfflineQueue()).catch(() => {});
+    });
+    callRef.current = call;
+    setCallSession(call);
+    void call.start();
+  };
+
+  useEffect(() => {
+    const recover = () => { void getCalls().then(async records => {
+      let active: any;
+      try { const response = await (await caches.open('wassap-call-control')).match('/__call_active'); active = response && await response.json(); } catch {}
+      const lockHeld = navigator.locks ? (await navigator.locks.query()).held?.some(lock => lock.name === 'wassap-persona-call') : false;
+      for (const record of records) {
+        if (record.id === callRef.current?.id && callRef.current.snapshot.status !== 'ended') continue;
+        if (!record.finished && active?.callId === record.id && active.expiresAt > Date.now()) continue;
+        if (!record.finished && lockHeld) continue;
+        void processCallRecord(record);
+      }
+    }).catch(() => {}); };
+    recover();
+    window.addEventListener('online', recover);
+    const timer = window.setTimeout(recover, 50000);
+    return () => { window.removeEventListener('online', recover); window.clearTimeout(timer); };
+  }, [settings.isVertexUnlocked, settings.apiKey, settings.aiProvider]);
 
   return (
     <div className="app-shell w-full flex flex-col bg-[#f0f2f5] dark:bg-[#0b1014] overflow-hidden p-0">
@@ -3698,6 +3814,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           <ChatWallpaper settings={settings} />
           <ChatWindow
             chat={activeChat}
+            onCall={() => { if (activeChat) startPersonaCall(activeChat); }}
             allChats={chats}
             userProfile={user}
             onHeaderClick={() => setShowProfilePanel(true)}
@@ -3785,6 +3902,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           )}
         </React.Suspense>
 
+        {callSession && <CallOverlay key={callSession.id} call={callSession} onClose={() => { callSession.end(); setCallSession(null); void flushOfflineQueue(); }} />}
         {/* Mobile Floating Action Button Hub */}
         {isMobile && activeView === 'list' && !showSettingsPopover && !showNewChatPanel && !showNewGroupPanel && !showUserProfilePanel && !showCalendarWidget && !showProfilePanel && !showGuide && !showUpdates && (
           <MobileActionFAB

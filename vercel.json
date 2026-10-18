@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
+    "api/gemini/live.ts": {
+      "maxDuration": 300
+    },
     "api/gemini/*.ts": {
       "maxDuration": 60
     }

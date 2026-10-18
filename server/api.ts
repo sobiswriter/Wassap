@@ -11,6 +11,7 @@ import {
 } from './vertexHandler';
 import { GCP_CONFIG } from '../constants';
 import voicesHandler from '../api/gemini/voices';
+import { handleLiveRequest } from '../api/gemini/live';
 
 export async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
   if (req.body !== undefined && req.body !== null) {
@@ -63,6 +64,7 @@ export async function handleGeminiApiMiddleware(
   const url = req.url?.split('?')[0] || '';
 
   if (url === '/api/gemini/auth') { await authHandler(req, res); return; }
+  if (url === '/api/gemini/live') { await handleLiveRequest(req, res); return; }
 
   if (req.method === 'POST' && (url === '/api/gemini/generate' || url === '/api/gemini/chat')) {
     try {

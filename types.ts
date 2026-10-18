@@ -11,6 +11,7 @@ export interface FileAttachment {
 }
 
 export interface Message {
+  call?: { id: string; duration: number; outcome: 'ended' | 'failed' | 'cancelled'; diary: 'none' | 'pending' | 'saved'; startedAt?: number; endedAt?: number; failureReason?: string; transcript?: { speaker: 'me' | 'other'; text: string; interrupted?: boolean }[]; summary?: string };
   id: string;
   text: string;
   date?: string; // Local date key (YYYY-MM-DD) used for chat day dividers and memories
@@ -39,6 +40,7 @@ export interface Message {
 }
 
 export interface MemoryBubble {
+  callId?: string;
   id: string;
   chatId: string;
   title: string;
@@ -157,6 +159,7 @@ export interface Chat {
   isGroup?: boolean;
   memberIds?: string[]; // IDs of personas in the group
   memoryEnabled?: boolean;
+  timeAwarenessEnabled?: boolean;
   memoryBubbles?: MemoryBubble[];
   schedule?: PersonaSchedule;
   automation?: PersonaAutomation;
@@ -227,6 +230,7 @@ export interface PersonaBackupData {
     automation?: PersonaAutomation;
     humaneSettings?: HumaneSettings;
     memoryEnabled?: boolean;
+    timeAwarenessEnabled?: boolean;
     memoryBubbles?: MemoryBubble[];
     imageModel?: string;
     voiceModel?: string;

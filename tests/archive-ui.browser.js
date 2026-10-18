@@ -7,8 +7,7 @@ async (page) => {
  await page.waitForFunction(()=>localStorage.getItem('whatsapp_chats'));
  const before=await page.evaluate(()=>JSON.parse(localStorage.getItem('whatsapp_chats')).find(c=>c.name==='Big Bro').messages);
  await page.getByRole('button',{name:'Open chat with Big Bro',exact:true}).click();
- await page.getByRole('button',{name:'Voice call',exact:true}).click();
- check((await page.getByRole('status').innerText()) === 'Coming soon, stay tuned…','Call notice missing');
+ check(await page.getByRole('button',{name:'Voice call',exact:true}).getAttribute('title')==='Start voice call','Call action missing');
  const call=await page.getByRole('button',{name:'Voice call',exact:true}).boundingBox(),search=await page.getByRole('button',{name:'Search messages',exact:true}).boundingBox();check(call.x<search.x,'Call icon not beside search');
  await page.getByRole('button',{name:'Chat options',exact:true}).click();await page.getByRole('button',{name:'Archive chat',exact:true}).click();
  await page.getByRole('button',{name:'New chat',exact:true}).waitFor();
@@ -25,5 +24,5 @@ async (page) => {
  const after=await page.evaluate(()=>JSON.parse(localStorage.getItem('whatsapp_chats')).find(c=>c.name==='Big Bro').messages);check(JSON.stringify(before)===JSON.stringify(after),'Archive changed message history');
  await page.getByRole('button',{name:/^Archived/}).click();await page.goBack();await page.getByRole('button',{name:'Open chat with Big Bro',exact:true}).waitFor();
  await page.emulateMedia({reducedMotion:'reduce'});check(await page.locator('.mobile-conversation').evaluate(el=>parseFloat(getComputedStyle(el).transitionDuration)<.001),'Reduced motion not respected');
- await context.close();return 'Archive/unarchive, persistence and message preservation, call icon/notice, forward/reverse motion and reduced motion passed';
+ await context.close();return 'Archive/unarchive, persistence and message preservation, call icon/action, forward/reverse motion and reduced motion passed';
 }

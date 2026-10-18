@@ -2,6 +2,18 @@
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience. I hope this fixes vercel yk finally :)
 
+### Persona voice calls (local implementation, 18 October 2026)
+
+The handset in a one-to-one conversation opens an internet AI voice call using `gemini-3.8-live`: reference-led dark call screen, persona avatar, mute, audio playback toggle, transcript, compact in-app bar and call-history cards. Group/video calling is unavailable. A random 6–12 second ringback plays while the latest 20 text messages are summarized. Only that bounded summary, persona name/description and voice settings seed Live; raw chats, diary memories, schedules and the full persona prompt are omitted. Microphone audio and the greeting wait for pickup. Calls share voice-note voice selection, style, pitch and pacing settings. Built-in Cloud can submit a designed/replicated voice's available preview as a 10–20 second PCM reference; Google must enable custom Live voices for that project. Custom TTS IDs cannot be passed directly to Live. Missing/short previews and personal-key mode show the prebuilt fallback explicitly; provider rejection of a submitted custom sample ends the call with an explanation. Previews remain in the existing session cache, so a reload can require recreating the preview. Voice identity across TTS and Live still needs a listening check.
+
+Calls lasting at least 60 connected seconds with a usable transcript automatically produce a first-person call diary, available in existing persona memories when memory is enabled and as an expandable summary in chat. Ringing/reconnect gaps do not count. Shorter calls retain an expandable labeled transcript in their chat card, also included in AI message history. Pending diary work survives reload and retries after startup, network reconnection or provider unlock. No raw audio recording is stored. Temporary recovery transcripts are removed only after chat storage commits or successful summarization.
+
+All captured calls now retain their full transcript in the chat card, including long calls while a diary is pending. The AI receives an explicit dated call event (ISO start/end and connected duration), using the summary once available. The locally bundled ringback is a CC0 recording credited in `public/sounds/ATTRIBUTION.md`. In a persona's profile, **Time awareness** defaults on and can be turned off to suppress comments about absence or chat frequency; it persists in persona backups and leaves the global clock-sharing setting independent.
+
+Personal-key mode connects directly to Google. Built-in mode uses cookie-authenticated `/api/gemini/live`, with credentials kept server-side. Set `VERTEX_LIVE_LOCATION` (default `us-central1`) separately from the text model region. The existing SDK remains pinned; `ws` is now a declared server dependency. Vercel requires its documented WebSocket/Fluid Compute support; the call endpoint has a 300-second hosting limit and resumes Google sessions across connections. Calls have a 15-minute safety limit.
+
+Enable call notifications with **Notify** inside the call screen. Supported notifications offer **End call**; appearance/action availability and background microphone survival depend on browser/OS. A suspended page honors a persisted End request when it resumes. This is a browser/PWA feature, not native Android Telecom. Speech detection uses low start/end sensitivity and 900 ms silence, echo/noise cancellation and 40 ms microphone chunks. A controlled real Google test ignored synthetic noise and recognized synthesized speech; physical phone speaker/echo/Bluetooth/noisy-room/background calibration and deployment support remain unverified. See `tasks/voice-calling-research.md`.
+
 ### Android-first mobile polish (18 October 2026)
 
 **Mobile reload:** tap the **WhatsApp** heading at the top left of the inbox to reload, including in the installed PWA. Online reloads request the latest app shell; offline reloads retain the cached app. Saved data is preserved. This follow-up remains part of v1.9.7.
@@ -31,6 +43,8 @@ npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-cod
 npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/chat-selection.browser.js
 npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/mobile-polish-197.browser.js
 npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/mobile-reload.browser.js
+npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/calling.browser.js
+npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/reactions.browser.js
 npx --yes --package @playwright/cli playwright-cli -s=wassap-check close
 ```
 
@@ -113,7 +127,7 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 
 - Android-first layouts, accessible controls, compact attachment/emoji trays, and forward/back panel transitions with reduced-motion support.
 - Archive/unarchive chats and pin favourites using touch/mouse hold, desktop right-click, or keyboard selection. Chat histories remain intact.
-- A voice-call icon beside chat search displays “Coming soon, stay tuned…”; calling is not yet available.
+- The voice-call icon beside chat search opens persona voice calling in the current local implementation; see the calling notes above for deployment/device validation.
 - Slightly larger diary date chips, a stable custom-wallpaper crop during keyboard/composer resizing, and clean multiline input without clipped focus bars.
 - Softer chat-list/navigation dividers, no mobile right-edge frame, and consistent v1.9.7 browser/PWA/update labels.
 - Existing data, member cloud access, direct Gemini API keys, image and voice features remain compatible.

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="480" viewBox="0 0 400 480" fill="none" stroke="#34424a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" opacity=".62">
+  <defs>
+    <g id="star"><path d="m0-14 4 10 11 1-8 7 2 11-9-6-10 6 3-11-9-7 12-1Z"/></g>
+    <g id="heart"><path d="M0 13C-30-3-14-24 0-10 14-24 30-3 0 13Z"/></g>
+    <g id="bubble"><path d="M-22-16h43q8 0 8 8v19q0 8-8 8H-6l-14 11 3-11h-5q-8 0-8-8V-8q0-8 8-8Z"/><path d="M-15-5H15M-15 5H5"/></g>
+    <g id="leaf"><path d="M-20 24C-31-9-6-27 21-25c8 28-2 52-34 46M-24 29 13-18M-13 9l-5-15M-5 0 10 1"/></g>
+    <g id="cup"><path d="M-21-14h35l-4 37h-27ZM14-8q24-5 22 10-2 14-23 11M-25 29h46M-10-20q-8-10 0-17M3-20q-8-10 0-17"/></g>
+    <g id="flower"><circle r="6"/><path d="M-5-5C-26-20 1-35 0-11c4-25 27-11 10 3C35-20 39 8 15 5c26 9 7 32-4 11C20 43-9 40-5 17c-7 24-29 5-12-9-27 3-19-24 2-14Z"/></g>
+    <g id="plane"><path d="m-25-8 53-18-20 52-9-22-24-12ZM-1 4 28-26M-1 4l-1 16 10-6"/></g>
+    <g id="smile"><circle r="23"/><path d="M-11 6q11 15 23-1M-9-8v4M9-8v4"/></g>
+    <g id="note"><path d="M-4 15v-39l27-6v36M-4-16l27-6"/><ellipse cx="-12" cy="17" rx="9" ry="6" transform="rotate(-20 -12 17)"/><ellipse cx="15" cy="8" rx="9" ry="6" transform="rotate(-20 15 8)"/></g>
+  </defs>
+  <use href="#cup" transform="translate(44 48) rotate(-15)"/><use href="#heart" transform="translate(126 28) rotate(19)"/>
+  <use href="#plane" transform="translate(204 53) rotate(12)"/><use href="#flower" transform="translate(301 36) scale(.7)"/>
+  <use href="#smile" transform="translate(374 92) rotate(15)"/><use href="#bubble" transform="translate(111 119) rotate(-13)"/>
+  <use href="#leaf" transform="translate(279 132) rotate(26)"/><use href="#star" transform="translate(29 151) rotate(10)"/>
+  <use href="#note" transform="translate(191 163) rotate(-17) scale(.8)"/><use href="#heart" transform="translate(350 181) rotate(-19)"/>
+  <use href="#flower" transform="translate(66 233) rotate(15)"/><use href="#smile" transform="translate(159 254) rotate(-14)"/>
+  <use href="#cup" transform="translate(265 240) rotate(19) scale(.9)"/><use href="#plane" transform="translate(369 285) rotate(-8)"/>
+  <use href="#bubble" transform="translate(46 344) rotate(17)"/><use href="#note" transform="translate(225 340) rotate(20)"/>
+  <use href="#heart" transform="translate(124 344) rotate(-12) scale(.8)"/><use href="#star" transform="translate(300 327) rotate(22)"/>
+  <use href="#leaf" transform="translate(103 423) rotate(-13)"/><use href="#bubble" transform="translate(300 431) rotate(-12)"/>
+  <use href="#star" transform="translate(194 426) rotate(-8)"/><use href="#flower" transform="translate(380 413) scale(.6)"/>
+  <path d="m12 69 4 5m138-5 4 3m90 25 4-3m87-54 4 5M59 108l3 5m150 12 4-2M8 260l4-3m105-55 4 3m102 87 4 5m99-88 4-2M14 408l4 5m135-14 4-3m91-12 5 3M51 464l4-3m177 4 4 3m103-91 4 3"/>
+  <path d="M211 204q6-10 13-3m-103 88q-10 6-17-3m226 95q12 10 15-1M331 113q8-10 13-5M8 15q8 8 12-1"/>
+</svg>

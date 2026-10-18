@@ -310,8 +310,8 @@ export const getMessageTimestampEpoch = (message?: Message | null, settings?: Ap
   return Number.isNaN(epoch) ? Date.now() : epoch;
 };
 
-export const getTimeGapAndFrequencyContext = (messages: Message[], isInitiationTrigger: boolean, settings?: AppSettings): string | undefined => {
-  if (messages.length < 2) return undefined;
+export const getTimeGapAndFrequencyContext = (messages: Message[], isInitiationTrigger: boolean, settings?: AppSettings, enabled = true): string | undefined => {
+  if (!enabled || messages.length < 2) return undefined;
 
   const prevMessage = isInitiationTrigger 
     ? messages[messages.length - 1] 
@@ -319,7 +319,7 @@ export const getTimeGapAndFrequencyContext = (messages: Message[], isInitiationT
 
   if (!prevMessage) return undefined;
 
-  const prevMs = getMessageTimestampEpoch(prevMessage);
+  const prevMs = prevMessage.call?.endedAt || getMessageTimestampEpoch(prevMessage);
   const currentMs = getAppNow(settings).getTime();
   const diffMs = currentMs - prevMs;
 

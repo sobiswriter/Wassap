@@ -88,7 +88,7 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
               changes={[
                 "Android-first layouts, compact trays, accessible controls and smooth forward/back transitions with reduced-motion support.",
                 "Archive and pin chats with touch or mouse hold, desktop right-click, or keyboard selection, preserving chat history.",
-                "Voice-call shortcut beside search with a Coming soon, stay tuned… notice.",
+                "Persona voice calls: full/compact call UI, live audio, mute, supported notification controls, call history and automatic diaries after a minute. Live deployment/device validation remains required.",
                 "Larger diary date chips, stable wallpaper when typing, clean multiline input and softer interface dividers.",
                 "Tap the mobile WhatsApp heading to reload the app and request the latest shell online, including in the installed PWA.",
                 "Consistent v1.9.7 browser and installed-app labels; existing data and both AI providers remain compatible."

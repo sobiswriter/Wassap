@@ -1,5 +1,5 @@
-// Wassap Service Worker v14: Cookie-authenticated cloud replies and current text models
-const CACHE_NAME = 'wassap-shell-v18';
+// Wassap Service Worker: cookie-authenticated replies and persona call controls.
+const CACHE_NAME = 'wassap-shell-v21';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -7,7 +7,9 @@ const PRECACHE_ASSETS = [
   '/favicon.svg',
   '/badge.svg',
   '/whatapp.wav',
-  '/msgsentpop.mp3'
+  '/msgsentpop.mp3',
+  '/call-capture.js',
+  '/sounds/ringback.wav'
 ];
 
 // Offline DB details for background synchronization
@@ -102,7 +104,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key !== CACHE_NAME && key.startsWith('wassap-shell-')) {
             return caches.delete(key);
           }
         })
@@ -409,7 +411,8 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
         speechStyle: notifData.speechStyle,
         about: notifData.about,
         systemInstruction: notifData.instruction,
-        humaneSettings: notifData.humaneSettings
+        humaneSettings: notifData.humaneSettings,
+        timeAwarenessEnabled: notifData.timeAwarenessEnabled !== false
       },
       messageHistory: history,
       userProfile: notifData.userProfile || {
@@ -453,7 +456,54 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
 };
 
 // Native OS Notification Click & Continuous Inline Reply Handler
+// Call controls are separate from message notifications and survive a suspended page.
+const callControlCache = 'wassap-call-control';
+const activeCallFor = async (chatId) => {
+  try {
+    const response = await (await caches.open(callControlCache)).match('/__call_active');
+    const call = response && await response.json();
+    return call && call.chatId === chatId && call.expiresAt > Date.now() ? call : null;
+  } catch { return null; }
+};
+self.addEventListener('message', event => {
+  if (event.data?.type !== 'CALL_STATE') return;
+  const data = event.data;
+  if (typeof data.callId !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(data.callId) || typeof data.chatId !== 'string') return;
+  event.waitUntil((async () => {
+    const cache = await caches.open(callControlCache);
+    if (data.ended) {
+      const current = await cache.match('/__call_active');
+      if (current && (await current.json()).callId === data.callId) await cache.delete('/__call_active');
+      await cache.delete(`/__call_end/${data.callId}`);
+    } else {
+      await cache.put('/__call_active', new Response(JSON.stringify({ callId: data.callId, chatId: data.chatId, expiresAt: Math.min(Number(data.expiresAt) || 0, Date.now() + 45000) })));
+    }
+  })());
+});
+
 self.addEventListener('notificationclick', (event) => {
+  if (event.notification.data?.kind === 'persona-call') {
+    const { callId, chatId } = event.notification.data;
+    if (typeof callId !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(callId)) return;
+    event.waitUntil((async () => {
+      const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      if (event.action === 'end-call') {
+        const cache = await caches.open(callControlCache);
+        await cache.put(`/__call_end/${callId}`, new Response('end'));
+        await self.registration.showNotification(event.notification.title, { body: 'Ending call…', tag: `call-${callId}`, silent: true, data: { kind: 'persona-call', callId, chatId } });
+        windows.forEach(client => client.postMessage({ type: 'CALL_END', callId }));
+        if (!windows.length) { event.notification.close(); (await self.registration.getNotifications({ tag: `call-${callId}` })).forEach(notification => notification.close()); }
+      } else {
+        event.notification.close();
+        if (windows.length) {
+          windows.forEach(client => client.postMessage({ type: 'CALL_OPEN', callId }));
+          await windows[0].focus();
+        } else await clients.openWindow(`/?chatId=${encodeURIComponent(chatId)}`);
+      }
+    })());
+    return;
+  }
+
   const action = event.action;
   const replyText = event.reply; // Text typed into native notification shade input
   const notifData = event.notification.data || {};
@@ -498,7 +548,7 @@ self.addEventListener('notificationclick', (event) => {
 
         // If NO visible clients are open (app backgrounded or closed), SW autonomously handles Left on Read!
         const hasVisibleClient = clientList.some(c => c.visibilityState === 'visible');
-        if (!hasVisibleClient && notifData && !notifData.isGroup) {
+        if (!hasVisibleClient && notifData && !notifData.isGroup && !(await activeCallFor(targetChatId))) {
           const recent = (notifData.recentMessages || []).filter(m => !isRawErrorMessage(m?.text));
           const lastMsg = recent[recent.length - 1];
           if (lastMsg && lastMsg.sender === 'other') {
@@ -601,6 +651,19 @@ self.addEventListener('notificationclick', (event) => {
 
     event.waitUntil(
       (async () => {
+        if (await activeCallFor(targetChatId)) {
+          const now = new Date();
+          const userMessage = { id: `call-queued-${crypto.randomUUID()}`, sender: 'me', text: replyText, status: 'pending', timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), date: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`, timestampEpoch: now.getTime() };
+          const db = await openOfflineDB();
+          try {
+            const tx = db.transaction('pending_outbox', 'readwrite');
+            tx.objectStore('pending_outbox').put({ id: userMessage.id, chatId: targetChatId, message: userMessage, queuedAt: now.getTime() });
+            await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = tx.onabort = () => reject(tx.error); });
+          } finally { db.close(); }
+          await saveBackgroundExchangeToIDB(targetChatId, userMessage, []);
+          await self.registration.showNotification(chatName, { body: 'Message queued until your voice call ends.', tag: targetChatId, silent: true, data: notifData });
+          return;
+        }
         // Immediately show notification in shade silently to reflect user's input and keep card anchored
         await self.registration.showNotification(chatName, {
           body: updatedBodyWithUser,

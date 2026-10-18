@@ -1,5 +1,11 @@
 # Wassap Design System (`design.md`)
 
+## Persona call surfaces (18 October 2026)
+
+The supplied WhatsApp Android screenshots guide the dark full-screen call surface: centered name/status, large round persona avatar, bundled line-art doodles, circular controls in a rounded bottom sheet, and a red handset End action. The compact strip stays above in-app navigation and restores the same session. Desktop centers the same surface, and short screens scroll controls rather than crop them. Focus isolation/return, Tab/Escape, reduced motion and accurate connection/mute states are part of the interaction contract.
+
+Use accurate AI-provider disclosure instead of an end-to-end encryption claim. Audio toggles playback; it does not pretend to switch the Android earpiece route. Video/group controls remain visibly unavailable; Transcript and Notify provide supported voice-call actions. System notifications are not styled as part of this UI and vary by browser/OS. Call-history cards use existing theme tokens; automatic call diaries remain editable through existing memory controls.
+
 This guide documents the design tokens, color palette, typography, layout dimensions, and UI components used in **Wassap**, maintaining pixel-perfect fidelity to the native WhatsApp Web and mobile experiences.
 
 ## v1.9.7 mobile refinement
@@ -188,3 +194,7 @@ body, input, button, textarea {
 - Keep the existing Settings passkey form, hint, lock control, and provider choices. Unlock validation runs on the server; disable submission while it is in progress and display a useful error on failure.
 - Keep text model choices to Gemini 3.8 Flash and Gemini 3.5 Flash-Lite. Voice/image selectors retain their existing choices.
 - Reject invalid persona backup files before changing app state; preserve the existing import flow for valid backups.
+
+## Call pickup and history (18 October 2026)
+- Display Ringing during a random 6–12 second local ringback while recent context prepares; keep mute, playback, minimize and End available. Do not show connected time or send microphone audio before pickup. Slow provider setup may show Connecting afterward; show an actionable failure instead of a false pickup.
+- A cancelled ring is labeled Cancelled. Successful call cards show connected duration; under a minute, offer an expandable, selectable labeled transcript. At least a minute with usable speech produces an expandable summary and a diary. Keep previews compact and use theme bubble/text colors in both modes. Raw transcript/summary text is also available to the AI in message history.

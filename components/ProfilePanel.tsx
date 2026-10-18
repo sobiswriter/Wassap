@@ -52,6 +52,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     systemInstruction: chat.systemInstruction || '',
     avatar: chat.avatar,
     memoryEnabled: chat.memoryEnabled || false,
+    timeAwarenessEnabled: chat.timeAwarenessEnabled !== false,
     memoryBubbles: chat.memoryBubbles || [],
     schedule: chat.schedule || createDefaultSchedule(),
     automation: chat.automation || {
@@ -117,6 +118,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       systemInstruction: chat.systemInstruction || '',
       avatar: chat.avatar,
       memoryEnabled: chat.memoryEnabled || false,
+      timeAwarenessEnabled: chat.timeAwarenessEnabled !== false,
       memoryBubbles: chat.memoryBubbles || [],
       schedule: chat.schedule || createDefaultSchedule(),
       automation: chat.automation || {
@@ -598,6 +600,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
         automation: formData.automation,
         humaneSettings: formData.humaneSettings,
         memoryEnabled: formData.memoryEnabled,
+        timeAwarenessEnabled: formData.timeAwarenessEnabled,
         memoryBubbles: formData.memoryBubbles,
         imageModel: formData.imageModel,
         voiceModel: formData.voiceModel,
@@ -1516,6 +1519,14 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
         )}
 
         {/* Humane / Mood Section */}
+        {!chat.isGroup && <div className="mt-2 px-6 py-5 app-panel border-b app-border flex items-center justify-between gap-4">
+          <div><p className="text-primary font-medium">Time awareness</p><p className="text-secondary text-[calc(var(--msg-font-size)-2px)]">Notice time between conversations and react to your return</p></div>
+          <button type="button" role="switch" aria-label="Time awareness" aria-checked={formData.timeAwarenessEnabled}
+            onClick={() => setFormData(prev => ({ ...prev, timeAwarenessEnabled: !prev.timeAwarenessEnabled }))}
+            className={`shrink-0 w-10 h-6 rounded-full relative transition-colors ${formData.timeAwarenessEnabled ? 'bg-[#21c063]' : 'bg-gray-400'}`}>
+            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.timeAwarenessEnabled ? 'left-[22px]' : 'left-1'}`} />
+          </button>
+        </div>}
         {!chat.isGroup && (
           <div className="mt-2 app-panel shadow-sm border-b app-border">
             <div
