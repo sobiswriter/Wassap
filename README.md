@@ -4,6 +4,8 @@ A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Ta
 
 ### Android-first mobile polish (18 October 2026)
 
+**Mobile reload:** tap the **WhatsApp** heading at the top left of the inbox to reload, including in the installed PWA. Online reloads request the latest app shell; offline reloads retain the cached app. Saved data is preserved. This follow-up remains part of v1.9.7.
+
 **Chat selection and pinning:** touch and hold (or hold the left mouse button) on a chat to select it. Click additional rows for multiple selection, then use the top **Pin/Unpin** or **Archive/Unarchive** icons. Pinned chats stay at the top after reload. Desktop also supports right-click or Space/Shift+F10 to select; Escape cancels. Mobile Back exits selection. These actions preserve chat history and work in both the inbox and Archived list.
 
 Follow-up: chat options now offer **Archive chat / Unarchive chat**, and the inbox has an **Archived** section. Archiving preserves history and incoming replies, hides chats from the main list, and survives reload. It is not a password lock or a notification-mute feature. The outlined handset beside chat search provides an honest unavailable notice. Mobile chat navigation now slides in both directions; contact info has matching soft entry/reverse exit motion based on the supplied recording.
@@ -28,6 +30,7 @@ npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-cod
 npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/archive-ui.browser.js
 npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/chat-selection.browser.js
 npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/mobile-polish-197.browser.js
+npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/mobile-reload.browser.js
 npx --yes --package @playwright/cli playwright-cli -s=wassap-check close
 ```
 

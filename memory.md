@@ -15,6 +15,10 @@
 
 ## ⚡ Current State & What Was Just Worked On
 
+### v1.9.7 mobile heading reload follow-up (18 October 2026)
+- The mobile inbox WhatsApp title is now a keyboard-accessible button labelled Reload app, preserving its appearance with a 44px minimum touch height. It calls normal location reload in browsers and installed PWAs; desktop/Archived titles remain unchanged.
+- Reuses existing network-first shell loading (cached offline fallback) and startup worker-update checks. No storage/session/cache clearing, migrations, provider changes or version bump. Documentation synchronized. TypeScript, production build and all 19 tests passed. `tests/mobile-reload.browser.js` passed with an active service worker: online reload, offline cached reload, saved chats/settings retained, 44px touch target, unchanged desktop heading and v1.9.7 title. Existing unload/pagehide handlers flush pending chat saves. Physical installed Android validation remains manual.
+
 ### v1.9.7 phone UI fixes and release consolidation (18 October 2026)
 - Reproduced the clipped green textarea focus outline and keyboard-dependent custom-wallpaper crop in an isolated mobile Chrome context. Scoped outline suppression to the composer textarea; all other keyboard focus indicators remain.
 - Moved wallpaper behind messages AND composer in `ChatWallpaper.tsx`. ResizeObserver retains the maximum mobile pane height per width, resets on rotation/width change, follows desktop resizing, and disconnects on unmount. `utils/wallpaper.ts` has regression coverage for sizing and saved presets. No data rewrite.

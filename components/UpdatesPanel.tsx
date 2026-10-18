@@ -90,6 +90,7 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
                 "Archive and pin chats with touch or mouse hold, desktop right-click, or keyboard selection, preserving chat history.",
                 "Voice-call shortcut beside search with a Coming soon, stay tuned… notice.",
                 "Larger diary date chips, stable wallpaper when typing, clean multiline input and softer interface dividers.",
+                "Tap the mobile WhatsApp heading to reload the app and request the latest shell online, including in the installed PWA.",
                 "Consistent v1.9.7 browser and installed-app labels; existing data and both AI providers remain compatible."
               ]}
             />
