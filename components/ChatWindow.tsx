@@ -10,7 +10,6 @@ import { VoiceNotePlayer } from './VoiceNotePlayer';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { ReactionTray } from './ReactionTray';
 import { triggerHaptic } from '../utils/haptics';
-import { resolveWallpaperUrl } from '../utils/wallpaper';
 
 interface ChatWindowProps {
   chat: Chat | null;
@@ -61,7 +60,7 @@ const DateDivider: React.FC<{ dateKey: string; onClick?: () => void; settings?: 
       onClick={onClick}
       disabled={!onClick}
       title={onClick ? 'Save this day as a diary memory' : undefined}
-      className={`bg-white dark:bg-[#182229] text-[#54656f] dark:text-[#8696a0] text-[10px] sm:text-[11.5px] px-3 py-1 rounded-lg font-medium tracking-wide shadow-xs transition-all ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#21c063]' : 'pointer-events-none opacity-90'}`}
+      className={`bg-white dark:bg-[#182229] text-[#54656f] dark:text-[#8696a0] text-[12px] px-3 py-1 rounded-lg font-medium tracking-wide shadow-xs transition-all ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#21c063]' : 'pointer-events-none opacity-90'}`}
     >
       {formatChatDividerLabel(dateKey, settings)}
     </button>
@@ -195,7 +194,7 @@ const DateMemoryModal: React.FC<{
               </p>
             </div>
           </div>
-          <button onClick={onCancel} className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 text-secondary transition-colors">
+          <button aria-label="Close diary" onClick={onCancel} className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 text-secondary transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -1379,7 +1378,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 app-chat-bg relative overflow-hidden transition-colors duration-300">
+    <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden transition-colors duration-300">
       {showDeleteModal && (
         <ConfirmationModal
           title={chat.isGroup ? "Exit group?" : "Delete this persona?"}
@@ -1773,22 +1772,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           onClose={() => setLightboxImage(null)}
         />
       )}
-
-      {/* Background wallpaper layer with responsive scaling and cropping */}
-      <div
-        className="absolute inset-0 pointer-events-none chat-wallpaper transition-all duration-500"
-        style={
-          settings?.chatWallpaper && settings.chatWallpaper !== 'default'
-            ? {
-                backgroundImage: `url("${resolveWallpaperUrl(settings.chatWallpaper)}"), url('/images/${settings.theme === 'dark' ? 'dark' : 'light'}.png')`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center center',
-                backgroundRepeat: 'no-repeat',
-                opacity: settings.chatWallpaperOpacity !== undefined ? settings.chatWallpaperOpacity : 0.85,
-              }
-            : undefined
-        }
-      />
     </div>
   );
 };

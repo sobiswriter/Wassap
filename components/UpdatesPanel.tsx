@@ -80,11 +80,24 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
           </div>
 
           <div className="space-y-12 mb-20">
+            <UpdateItem
+              version="v1.9.7"
+              title="Android UI Polish & Chat Organization"
+              date="18 October 2026"
+              isLatest={true}
+              changes={[
+                "Android-first layouts, compact trays, accessible controls and smooth forward/back transitions with reduced-motion support.",
+                "Archive and pin chats with touch or mouse hold, desktop right-click, or keyboard selection, preserving chat history.",
+                "Voice-call shortcut beside search with a Coming soon, stay tuned… notice.",
+                "Larger diary date chips, stable wallpaper when typing, clean multiline input and softer interface dividers.",
+                "Consistent v1.9.7 browser and installed-app labels; existing data and both AI providers remain compatible."
+              ]}
+            />
             <UpdateItem 
               version="v1.9.6-hotfix1"
               title="Voice Design Synthesis & Multi-Voice Persistence Hotfix"
               date="October 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "Voice Design Direct Synthesis Routing: Fixed custom voice synthesis routing in Gemini 3.8 Flash TTS. Voice Design now properly injects custom voice configuration into speechConfig.voiceConfig: { voice: selectedVoice } on 3.8 models, with prompt-steered studio voice fallback on 3.1 fallback tiers, ensuring crafted voices (e.g. 'Lil Sis') are actually spoken instead of reverting to prebuilt studio voices.",
                 "Multi-Voice Crafting & Persistence Fix: Corrected unique ID generation and storage parsing across Vertex AI custom voices. Newly crafted and cloned voices now reliably persist in local storage with guaranteed unique non-colliding IDs and immediately show up in the saved voice selector without overwriting earlier voices.",

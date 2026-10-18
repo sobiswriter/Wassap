@@ -2,6 +2,15 @@
 
 This guide documents the design tokens, color palette, typography, layout dimensions, and UI components used in **Wassap**, maintaining pixel-perfect fidelity to the native WhatsApp Web and mobile experiences.
 
+## v1.9.7 mobile refinement
+
+- Diary date chips use 12px text and retain their save-to-diary action.
+- Wallpaper sits behind the complete conversation, including the composer. Keep the crop stable during mobile height changes; reset on width/orientation changes.
+- Do not draw a textarea focus outline inside the clipped composer pill. Keep visible keyboard focus on actionable controls.
+- Decorative row/navigation dividers use low-alpha tokens (dark 3.5%, light 4.5%). The inbox right border is desktop-only; form/control borders retain their contrast.
+- Match the body background to the chat theme to avoid exposed viewport seams.
+
+
 ---
 
 ## 🎨 1. Color Palette & Theming

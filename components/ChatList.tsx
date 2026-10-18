@@ -219,7 +219,7 @@ export const ChatList: React.FC<ChatListProps> = ({
   const filters: FilterType[] = ['All', 'Unread', 'Groups'];
 
   return (
-    <div className="flex-1 app-panel flex flex-col h-full border-r app-border relative z-20 transition-colors duration-300 overflow-hidden">
+    <div className="flex-1 app-panel flex flex-col h-full md:border-r app-border relative z-20 transition-colors duration-300 overflow-hidden">
       {/* Hidden camera file input for mobile header */}
       <input
         type="file"

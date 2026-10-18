@@ -1,6 +1,6 @@
-# Wassap Persona Simulation (v1.9.6-hotfix1)
+# Wassap Persona Simulation (v1.9.7)
 
-A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience. Uhhh man you really had to do it again huh vercel -_-
+A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience. I hope this fixes vercel yk finally :)
 
 ### Android-first mobile polish (18 October 2026)
 
@@ -25,12 +25,15 @@ Browser regression, in a separate terminal after building:
 New-Item -ItemType Directory -Force output/playwright | Out-Null
 npx --yes --package @playwright/cli playwright-cli -s=wassap-check open http://127.0.0.1:3013 --browser chrome
 npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/mobile-ui.browser.js
+npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/archive-ui.browser.js
+npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/chat-selection.browser.js
+npx --yes --package @playwright/cli playwright-cli -s=wassap-check --raw run-code --filename tests/mobile-polish-197.browser.js
 npx --yes --package @playwright/cli playwright-cli -s=wassap-check close
 ```
 
 The regression creates its own fresh browser context with synthetic storage fixtures, checks 320–1440 px layouts and persistence, and saves ignored screenshots under `output/playwright/`. It does not use real credentials or make paid-generation checks. Run `npm test`, `npx tsc --noEmit`, and `npm run build` for the remaining automated gates.
 
-![Version](https://img.shields.io/badge/version-1.9.6--hotfix1-brightgreen)
+![Version](https://img.shields.io/badge/version-1.9.7-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -102,6 +105,15 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 *   **Master of Time (The Schedule)**:
     *   In the **Persona Schedule** section, you can set their 24/7 routine. 
     *   Are they at work? At the gym? Sleeping? You can even set custom **Weekend Days**. They won't blabber about it, but their mood and availability will change subtly. If it’s 3 AM and they’re "Sleeping", they might act a bit groggy if you wake them up. 😴👔
+
+### What's New in v1.9.7 (Android UI Polish & Chat Organization)
+
+- Android-first layouts, accessible controls, compact attachment/emoji trays, and forward/back panel transitions with reduced-motion support.
+- Archive/unarchive chats and pin favourites using touch/mouse hold, desktop right-click, or keyboard selection. Chat histories remain intact.
+- A voice-call icon beside chat search displays “Coming soon, stay tuned…”; calling is not yet available.
+- Slightly larger diary date chips, a stable custom-wallpaper crop during keyboard/composer resizing, and clean multiline input without clipped focus bars.
+- Softer chat-list/navigation dividers, no mobile right-edge frame, and consistent v1.9.7 browser/PWA/update labels.
+- Existing data, member cloud access, direct Gemini API keys, image and voice features remain compatible.
 
 ### 🌟 What's New in v1.9.6 (The "Multi-Day Recollections & Local Persona Migration" Update)
 
