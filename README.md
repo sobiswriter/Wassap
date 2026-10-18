@@ -1,6 +1,6 @@
 # Wassap Persona Simulation (v1.9.6-hotfix1)
 
-A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience. Uhhh man you really had to do it again huh vercel -_-
+A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience. I hope this fixes vercel yk finally :)
 
 ### Android-first mobile polish (18 October 2026)
 
