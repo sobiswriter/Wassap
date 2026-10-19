@@ -284,7 +284,7 @@ sockets.on('connection', (socket: WebSocket) => {
         },
         callbacks: {
           onmessage: value => { if (value.setupComplete) { ready = true; clearTimeout(setupTimer); } send(value); },
-          onerror: () => { send({ error: message.voiceSample ? customVoiceError : 'The voice provider could not connect. Check Live model access and try again.' }); cleanup(); },
+          onerror: () => { if (!ready) send({ error: message.voiceSample ? customVoiceError : 'The voice provider could not connect. Check Live model access and try again.' }); cleanup(); },
           onclose: () => { if (message.voiceSample && !ready) send({ error: customVoiceError }); cleanup(); },
         },
       });

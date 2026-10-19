@@ -49,7 +49,7 @@ function workerFixture() {
 
 test('offline notification input is durable and retry saves the whole answer before showing the latest user/persona pair', async () => {
   const fixture = workerFixture(); let pending: Promise<any>;
-  fixture.events.notificationclick({ reply: 'Keep this reply', action: 'reply', notification: { close() {}, title: 'Maya', tag: 'chat', data: { chatId: 'chat', chatName: 'Maya', provider: 'vertex' } }, waitUntil(promise: Promise<any>) { pending = promise; } });
+  fixture.events.notificationclick({ reply: 'Keep this reply', action: 'reply', notification: { close() {}, title: 'Maya', tag: 'chat', data: { chatId: 'chat', chatName: 'Maya', chatAvatar: '/persona-test.png', provider: 'vertex' } }, waitUntil(promise: Promise<any>) { pending = promise; } });
   await pending!;
   const items = [...fixture.stores.get('pending_outbox')!.values()];
   assert.equal(items.length, 1); assert.equal(items[0].message.text, 'Keep this reply');
@@ -62,8 +62,9 @@ test('offline notification input is durable and retry saves the whole answer bef
   assert.equal(fixture.stores.get('pending_outbox')!.size, 0);
   const saved = [...fixture.stores.get('synced_background')!.values()].find(item => item.personaReplies.length);
   assert.equal(saved.personaReplies.map((m: any) => m.text).join(' '), 'An older fragment. Here is the newest reply.');
-  assert.equal(fixture.notifications.at(-1).body, 'You: Keep this reply\n\nHere is the newest reply.');
+  assert.equal(fixture.notifications.at(-1).body, 'Here is the newest reply.');
   assert.ok(!fixture.notifications.at(-1).body.includes('─'));
+  assert.equal(fixture.notifications.at(-1).icon, '/persona-test.png');
   const count = fixture.notifications.length;
   await fixture.context.deliver(items[0]);
   assert.equal(fixture.notifications.length, count, 'Completed outbox item must not deliver twice');
@@ -78,11 +79,11 @@ test('retries expire at one minute or three attempts without expiring an unattem
   assert.equal(retryExpired({ ...item, attempts: 3 }, 1000), true);
 });
 
-test('notification pairs preserve both complete texts with a plain gap and no drawn divider', () => {
+test('notifications contain only the latest persona reply and no user echo', () => {
   const user = 'A complete user message'; const persona = 'A complete persona reply';
-  assert.equal(notificationConversation(user, persona), `You: ${user}\n\n${persona}`);
+  assert.equal(notificationConversation(user, persona), persona);
   assert.equal(notificationConversation('', persona), persona);
-  assert.ok(readFileSync('public/sw.js', 'utf8').includes('`You: ${userText}\\n\\n${personaText}`'));
+  assert.ok(readFileSync('public/sw.js', 'utf8').includes('return personaText;'));
 });
 
 test('expired background reply falls back once without making another model request', async () => {
@@ -94,7 +95,17 @@ test('expired background reply falls back once without making another model requ
   assert.equal(fixture.stores.get('pending_outbox')!.size, 0);
   const saved = [...fixture.stores.get('synced_background')!.values()][0];
   assert.ok(saved.personaReplies.length > 0);
-  assert.ok(fixture.notifications.at(-1).body.startsWith('You: Are you there?\n\n'));
+  assert.ok(!fixture.notifications.at(-1).body.includes('You:'));
   await fixture.context.deliver(item);
   assert.equal(fixture.notifications.length, 1);
+});
+
+
+test('worker defers another persona while any call is active', async () => {
+  const fixture = workerFixture();
+  fixture.context.caches = { open: async () => ({ match: async () => ({ json: async () => ({ chatId: 'different-persona', expiresAt: Date.now() + 45000 }) }) }) };
+  const item = { id: 'deferred', chatId: 'chat', message: { id: 'deferred', text: 'Hello', sender: 'me' }, notificationData: { chatName: 'Maya', provider: 'vertex' } };
+  fixture.stores.get('pending_outbox')!.set(item.id, item);
+  await fixture.context.deliver(item);
+  assert.equal(fixture.requests, 0); assert.equal(fixture.stores.get('pending_outbox')!.size, 1);
 });

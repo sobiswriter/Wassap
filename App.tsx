@@ -250,14 +250,14 @@ const showNotification = async (title: string, options: NotificationOptions & { 
   if (Notification.permission !== 'granted') return;
 
   const isSilent = !!options.silentUpdate;
-  const squareIcon = options.icon ? await getSquareNotificationIcon(options.icon as string) : '/favicon.svg';
+  const avatar = options.icon || options.data?.chatAvatar;
+  const squareIcon = avatar ? await getSquareNotificationIcon(avatar as string) : '/favicon.svg';
 
-  const lastUser = options.data?.recentMessages?.filter((message: Message) => message.sender === 'me').at(-1);
-  const userText = lastUser?.text || (lastUser?.voiceMediaId || lastUser?.attachment?.type === 'audio' ? 'Voice message' : lastUser?.image || lastUser?.attachment?.type === 'image' ? 'Photo' : '');
   const notificationOptions: any = {
     ...options,
-    body: options.body?.startsWith('You: ') ? options.body : notificationConversation(userText, options.body || ''),
+    body: options.body,
     icon: squareIcon,
+    data: { ...options.data, chatAvatar: squareIcon },
     badge: options.badge || '/badge.svg',
     renotify: !isSilent,
     silent: isSilent,
@@ -621,6 +621,7 @@ const App: React.FC = () => {
   const callRef = React.useRef<PersonaCall | null>(null);
   const [callSession, setCallSession] = useState<PersonaCall | null>(null);
   const pendingCallDiaries = React.useRef(new Set<string>());
+  const diaryControllers = React.useRef(new Map<string, AbortController>());
   const [chats, setChats] = useState<Chat[]>(() => {
     const saved = localStorage.getItem('whatsapp_chats');
     if (saved) {
@@ -1298,6 +1299,7 @@ const App: React.FC = () => {
     personaOnlineTimersRef.current[chatId] = window.setTimeout(() => {
       delete personaOnlineTimersRef.current[chatId];
       const current = chatsRef.current.find(c => c.id === chatId);
+      if (callRef.current?.chat.id === chatId && callRef.current.snapshot.status !== 'ended') return;
       if (!isBusyChatStatus(current?.status) && !aiRespondingChatsRef.current.has(chatId)) {
         setChatStatus(chatId, 'offline', getFormattedTime());
       }
@@ -1519,6 +1521,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
     forceNotification = false
   ) => {
     const settings = settingsRef.current;
+    if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
     if ((settings.aiProvider || 'vertex') === 'vertex' && !settings.isVertexUnlocked) return;
     const targetChat = chatsRef.current.find(c => c.id === chatId);
     if (!targetChat) return;
@@ -1766,6 +1769,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
 
   const runAutomationChecks = (isInitialMount: boolean = false) => {
     const currentSettings = settingsRef.current;
+    if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
     if ((currentSettings.aiProvider || 'vertex') === 'vertex' && !currentSettings.isVertexUnlocked) return;
     const now = getAppNow(settingsRef.current);
     const todayDateStr = getDateKey(); 
@@ -2416,7 +2420,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     isBackgroundReply = false
   ) => {
     const settings = settingsRef.current;
-    if (callRef.current?.chat.id === chat.id && callRef.current.snapshot.status !== 'ended') return;
+    if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
     const chatId = chat.id;
     aiRespondingChatsRef.current.add(chatId);
     let replied = false;
@@ -2447,7 +2451,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       ownController = abortController;
       personaAbortControllersRef.current[chatId] = abortController;
       if (deadline !== undefined) deadlineTimer = setTimeout(() => {
-        if (replied || personaAbortControllersRef.current[chatId] !== abortController) return;
+        if (replied || (callRef.current && callRef.current.snapshot.status !== 'ended') || personaAbortControllersRef.current[chatId] !== abortController) return;
         timedOut = true; abortController.abort();
         void finishDeliveryFallback(chat, updatedHistory);
       }, Math.max(0, deadline - Date.now()));
@@ -2468,7 +2472,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               isVoiceNote,
               chat.voiceSettings,
               abortController.signal,
-              true
+              false
             );
 
             if (!resText || isRawErrorMessage(resText)) {
@@ -2910,10 +2914,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       console.error("Error getting AI response for single chat:", error);
     } finally {
       clearTimeout(deadlineTimer);
+      if (callRef.current && callRef.current.snapshot.status !== 'ended') { aiRespondingChatsRef.current.delete(chatId); return; }
       if (ownController && personaAbortControllersRef.current[chatId] && personaAbortControllersRef.current[chatId] !== ownController) return;
       if (timedOut) await finishDeliveryFallback(chat, updatedHistory);
       else if (replied) await completeQueuedTurn(chatId, updatedHistory);
-      else commitChatUpdate(previous => previous.map(c => c.id === chatId ? { ...c, messages: c.messages.map(m => updatedHistory.some(u => u.id === m.id && u.sender === 'me') ? { ...m, status: 'pending' as MessageStatus } : m) } : c));
+      else await finishDeliveryFallback(chat, updatedHistory);
       clearChatActiveStatus(chatId);
       aiRespondingChatsRef.current.delete(chatId);
       schedulePersonaOffline(chatId);
@@ -2928,6 +2933,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     isBackgroundReply = false
   ) => {
     const settings = settingsRef.current;
+    if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
     const deadline = await beginPendingAttempt(group.id, updatedHistory);
     let replied = false;
     let timedOut = false;
@@ -2970,6 +2976,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     let currentHistory = [...updatedHistory];
 
     for (let i = 0; i < responseSequence.length; i++) {
+      if (callRef.current && callRef.current.snapshot.status !== 'ended') break;
       if (deadline !== undefined && Date.now() >= deadline) { if (!replied) await finishDeliveryFallback(group, updatedHistory); break; }
       const responderId = responseSequence[i];
       const persona = chats.find(c => c.id === responderId);
@@ -3002,6 +3009,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const abortController = new AbortController();
         personaAbortControllersRef.current[group.id] = abortController;
         if (deadline !== undefined && !replied) deadlineTimer = setTimeout(() => {
+          if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
           timedOut = true; abortController.abort(); void finishDeliveryFallback(group, updatedHistory);
         }, Math.max(0, deadline - Date.now()));
 
@@ -3021,7 +3029,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             isVoiceNote,
             persona.voiceSettings,
             abortController.signal,
-            true
+            false
           );
 
         if (personaStatusWatchdogTimersRef.current[group.id]) {
@@ -3317,6 +3325,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   const offlineQueueFlushingRef = React.useRef(false);
   const flushOfflineQueue = React.useCallback(async () => {
     const currentSettings = settingsRef.current;
+    if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
     if ((currentSettings.aiProvider || 'vertex') === 'vertex' && !currentSettings.isVertexUnlocked) return;
     if (offlineQueueFlushingRef.current) return;
     offlineQueueFlushingRef.current = true;
@@ -3627,6 +3636,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   };
 
   const processCallRecord = async (record: CallRecord) => {
+    if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
     if (pendingCallDiaries.current.has(record.id)) return;
     const chat = chatsRef.current.find(item => item.id === record.chatId);
     if (!chat) return;
@@ -3660,7 +3670,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       }
       const existing = chat.memoryBubbles?.find(memory => memory.callId === record.id);
       if (!existing && !record.summary) {
-        record = { ...record, summary: await generateCallDiary(record, chat, settingsRef.current, userRef.current) };
+        if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
+        const controller = new AbortController(); diaryControllers.current.set(record.id, controller);
+        record = { ...record, summary: await generateCallDiary(record, chat, settingsRef.current, userRef.current, controller.signal) };
         if (!(await getCalls()).some(saved => saved.id === record.id)) return;
         await saveCall(record);
       }
@@ -3682,7 +3694,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       await saveCall({ ...record, diary: 'saved', turns: [] });
     } catch {
       // The durable pending record is retried after reconnect/unlock or next startup.
-    } finally { pendingCallDiaries.current.delete(record.id); }
+    } finally { pendingCallDiaries.current.delete(record.id); diaryControllers.current.delete(record.id); }
   };
 
   const startPersonaCall = (chat: Chat) => {
@@ -3695,11 +3707,16 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }
     const call = new PersonaCall(chat, settingsRef.current, userRef.current, record => {
       void call.whenSaved().then(() => {
-        void processCallRecord(record);
+        void getCalls().then(records => records.forEach(saved => { void processCallRecord(saved); }));
         return reconcileBackgroundExchanges();
       }).then(() => flushOfflineQueue()).catch(() => {});
     });
     callRef.current = call;
+    diaryControllers.current.forEach(controller => controller.abort());
+    Object.keys(personaAbortControllersRef.current).forEach(id => personaAbortControllersRef.current[id]?.abort());
+    Object.keys(aiResponseTimeoutsRef.current).forEach(id => clearTimeout(aiResponseTimeoutsRef.current[id]));
+    aiResponseTimeoutsRef.current = {};
+
     setCallSession(call);
     void call.start();
   };

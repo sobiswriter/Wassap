@@ -1,5 +1,13 @@
 # Wassap System Architecture (`architecture.md`)
 
+## Call continuity and single-turn recovery correction (19 October 2026)
+
+Current notifications are persona-only; notificationConversation returns the persona text, and chatAvatar carries the foreground's square persona icon for standalone worker replacements. This supersedes the paired-body policy below. Staged media placeholders are short.
+
+Foreground ordinary chat uses existing bounded provider retries inside one turn instead of throwing into a repeated outbox/presence cycle. Terminal errors acknowledge one fallback without reverting read ticks to pending. Offline-first queueing and the one-minute in-flight ceiling remain. Calls globally gate foreground/group/automation/outbox/diary generation; starting a call aborts browser-side chat/diary requests and clears stacking timers, preserving durable work for after hang-up.
+
+Live ignores GoAway warnings until actual closure, uses generation invalidation to deduplicate close/error callbacks, and resumes post-setup provider failures. Audio queues tolerate normal bursts up to 30 seconds. Suspended or overflow playback is cleared/marked interrupted without killing the network session. Recovered diary jobs receive cancellation signals and restart after hang-up. These changes address confirmed code paths, not a proven reproduction of the reported physical Android disconnection.
+
 ## Retry deadline and notification pair policy (19 October 2026)
 
 PendingQueueItem optionally stores retryStartedAt, attempts and nextAttemptAt; old records remain valid. beginPendingAttempt commits the first-attempt timestamp and increments the attempt count. retryExpired terminates after 60 seconds or three attempts. Durable text generation does not nest additional provider retry loops. Foreground request controllers use remaining time; the lifecycle poll checks every five seconds but schedules network attempts no more often than every 15 seconds. A deterministic fallback message receipt prevents repeated fallback/late-response delivery and acknowledges the exhausted captured turn. Worker delivery mirrors this persisted budget and atomically commits/acknowledges fallback. An unattempted offline/call-held send has no running deadline; browser suspension can delay settlement until execution resumes.

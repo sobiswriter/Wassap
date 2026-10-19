@@ -80,6 +80,14 @@ async (page) => {
 
     await page.waitForFunction(() => /^\d+:\d{2}$/.test(document.querySelector('.call-status')?.textContent || ''));
     check(await page.evaluate(() => window.__ringback.paused), 'Ringback continued after pickup');
+    connections[0].send(JSON.stringify({ goAway: { timeLeft: '30s' } }));
+    await page.clock.runFor(35000);
+    check(connections.length === 1 && await page.locator('.call-status').innerText() !== 'Call ended', 'A warning or 30-second timer ended the call');
+    const burst = Buffer.alloc(4 * 24000 * 2).toString('base64');
+    for (let i = 0; i < 3; i++) connections[0].send(JSON.stringify({ serverContent: { modelTurn: { parts: [{ inlineData: { data: burst, mimeType: 'audio/pcm;rate=24000' } }] } } }));
+    await page.waitForFunction(() => !!document.querySelector('.call-screen'));
+    check(!await page.getByRole('button', { name: 'Return to chat', exact: true }).isVisible(), 'A normal audio burst ended the call');
+
     check(prompt.includes('A thoughtful friend') && prompt.includes('Kyoto') && prompt.includes('LIVE VOICE CALL'), 'Persona/summary context missing');
     check(!prompt.includes('temple') && !prompt.includes('We met in Kyoto.') && !prompt.includes('Casual Hinglish'), 'Raw chats/memories/persona extras leaked into Live');
     check(contextRequests[0].messages.length === 1 && Object.keys(contextRequests[0]).length === 1, 'Call summary received excessive context');
@@ -107,7 +115,7 @@ async (page) => {
     connections[0].close();
     await page.waitForFunction(() => document.querySelector('.call-status')?.textContent === 'Reconnecting…');
     await page.clock.runFor(1500);
-    await page.waitForFunction(() => /^0:0/.test(document.querySelector('.call-status')?.textContent || ''));
+    await page.waitForFunction(() => /^\d+:\d{2}$/.test(document.querySelector('.call-status')?.textContent || ''));
     check(connections.length === 2, 'Call did not resume on a new connection');
     connections.at(-1).send(JSON.stringify({ serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm;rate=24000', data: Buffer.alloc(48000).toString('base64') } }] } } }));
     await page.locator('.call-speaking').waitFor();

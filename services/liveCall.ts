@@ -47,13 +47,13 @@ export async function summarizeCallContext(chat: Chat, settings: AppSettings, si
   return result.text.trim().slice(0, 1600);
 }
 
-export async function generateCallDiary(call: CallRecord, chat: Chat, settings: AppSettings, user: UserProfile) {
+export async function generateCallDiary(call: CallRecord, chat: Chat, settings: AppSettings, user: UserProfile, signal?: AbortSignal) {
   const messages = buildCallDiaryMessages(call, chat.name, user.name || 'You');
   const date = getLocalDateKey(new Date(call.startedAt));
   const persona = { name: chat.name, about: chat.about, role: chat.role, speechStyle: chat.speechStyle, systemInstruction: chat.systemInstruction, humaneSettings: chat.humaneSettings };
   if ((settings.aiProvider || 'vertex') === 'vertex') {
     const response = await fetch('/api/gemini/diary', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(45000), body: JSON.stringify({ persona, messageHistory: messages, startDate: date, endDate: date, userProfile: user, settings: { selectedModel: settings.selectedModel } }) });
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(45000)]) : AbortSignal.timeout(45000), body: JSON.stringify({ persona, messageHistory: messages, startDate: date, endDate: date, userProfile: user, settings: { selectedModel: settings.selectedModel } }) });
     if (!response.ok) throw new Error('Call diary is waiting for cloud access or a connection.');
     const data = await response.json();
     if (typeof data.text !== 'string' || !data.text.trim()) throw new Error('Call diary was empty.');
@@ -61,7 +61,7 @@ export async function generateCallDiary(call: CallRecord, chat: Chat, settings: 
   }
   if (!settings.apiKey) throw new Error('Add your Gemini key to finish this call diary.');
   const { prompt } = buildDiaryHistoryAndPrompt(persona, messages, date, date, user);
-  const result = await new GoogleGenAI({ apiKey: settings.apiKey }).models.generateContent({ model: settings.selectedModel === 'gemini-3.5-flash-lite' ? settings.selectedModel : 'gemini-3.8-flash', contents: prompt, config: { httpOptions: { timeout: 45000 } } });
+  const result = await new GoogleGenAI({ apiKey: settings.apiKey }).models.generateContent({ model: settings.selectedModel === 'gemini-3.5-flash-lite' ? settings.selectedModel : 'gemini-3.8-flash', contents: prompt, config: { abortSignal: signal, httpOptions: { timeout: 45000 } } });
   if (!result.text?.trim()) throw new Error('Call diary was empty.');
   return result.text.trim();
 }
@@ -94,6 +94,7 @@ export class PersonaCall {
   private timer?: ReturnType<typeof setInterval>;
   private input = '';
   private output = '';
+  private playbackInterrupted = false;
   private writes: Promise<unknown> = Promise.resolve();
   private mediaHandlers: string[] = [];
   private releaseLock?: () => void;
@@ -231,7 +232,7 @@ export class PersonaCall {
     const onmessage = (message: any) => {
       if (generation !== this.generation || this.ended) return;
       if (message.error) { this.end(message.error); return; }
-      if (message.sessionResumptionUpdate?.newHandle) this.handle = message.sessionResumptionUpdate.newHandle;
+      if (message.sessionResumptionUpdate?.newHandle && message.sessionResumptionUpdate.resumable !== false) this.handle = message.sessionResumptionUpdate.newHandle;
       if (message.setupComplete) {
         this.stopRing();
         clearTimeout(this.setupTimer);
@@ -240,7 +241,7 @@ export class PersonaCall {
         this.update({ status: 'active', error: '' });
         void this.notify();
       }
-      if (message.goAway) { this.socket?.close(); this.session?.close(); return; }
+      if (message.goAway) return; // A warning is not a disconnect; keep playing until the provider closes.
       const content = message.serverContent;
       if (!content) return;
       if (content.interrupted) { this.stopAudio(); this.commitTurns(true); }
@@ -267,7 +268,7 @@ export class PersonaCall {
           endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW, prefixPaddingMs: 200, silenceDurationMs: 900 }, activityHandling: ActivityHandling.START_OF_ACTIVITY_INTERRUPTS },
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: this.voice } } },
         inputAudioTranscription: {}, outputAudioTranscription: {}, sessionResumption: this.handle ? { handle: this.handle } : {}, contextWindowCompression: { slidingWindow: {} },
-      }, callbacks: { onmessage, onerror: () => this.end('The voice provider rejected this connection. Check your Gemini key and Live access.'), onclose: () => this.disconnected(generation) } });
+      }, callbacks: { onmessage, onerror: () => { if (this.connectedAt || this.connectedMs) this.disconnected(generation); else this.end('The voice provider rejected this connection. Check your Gemini key and Live access.'); }, onclose: () => this.disconnected(generation) } });
       if (this.ended || generation !== this.generation) { session.close(); return; }
       this.session = session;
       if (!resumed) session.sendClientContent({ turns: [{ role: 'user', parts: [{ text: 'The voice call just connected. Say a brief natural hello in character, then listen.' }] }], turnComplete: true });
@@ -275,6 +276,11 @@ export class PersonaCall {
   }
   private disconnected(generation: number) {
     if (this.ended || generation !== this.generation) return;
+    ++this.generation;
+    clearTimeout(this.setupTimer);
+    const socket = this.socket; const session = this.session;
+    this.socket = undefined; this.session = undefined;
+    try { socket?.close(); session?.close(); } catch {}
     if (this.connectedAt) { this.connectedMs += Date.now() - this.connectedAt; this.connectedAt = 0; }
     this.stopAudio();
     this.commitTurns(true);
@@ -285,14 +291,15 @@ export class PersonaCall {
   private commitTurns(interrupted: boolean) {
     const turns = [...this.snapshot.turns];
     if (this.input.trim()) turns.push({ speaker: 'me', text: this.input.trim() });
-    if (this.output.trim()) turns.push({ speaker: 'other', text: this.output.trim(), interrupted });
-    this.input = ''; this.output = '';
+    if (this.output.trim()) turns.push({ speaker: 'other', text: this.output.trim(), interrupted: interrupted || this.playbackInterrupted });
+    this.input = ''; this.output = ''; this.playbackInterrupted = false;
     if (turns.reduce((length, turn) => length + turn.text.length, 0) > 100000) { this.end('This conversation reached its memory limit. You can start another call.'); return; }
     this.update({ turns });
     this.persist();
   }
   private play(base64: string) {
     if (!this.audio || !this.gain || this.ended) return;
+    if (this.audio.state !== 'running') { this.playbackInterrupted = true; this.stopAudio(); void this.audio.resume().catch(() => {}); return; }
     const binary = atob(base64);
     if (binary.length % 2 || binary.length > 1024 * 1024) return;
     const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
@@ -300,7 +307,7 @@ export class PersonaCall {
     const buffer = this.audio.createBuffer(1, bytes.length / 2, 24000);
     const samples = buffer.getChannelData(0);
     for (let i = 0; i < samples.length; i++) samples[i] = view.getInt16(i * 2, true) / 32768;
-    if (this.nextPlay - this.audio.currentTime > 8) { this.end('Audio connection fell behind. Please call again.'); return; }
+    if (this.nextPlay - this.audio.currentTime > 30) { this.playbackInterrupted = true; this.stopAudio(); return; }
     const source = this.audio.createBufferSource();
     source.buffer = buffer; source.connect(this.gain);
     this.nextPlay = Math.max(this.audio.currentTime + 0.04, this.nextPlay);
@@ -355,7 +362,7 @@ export class PersonaCall {
       const registration = await navigator.serviceWorker?.getRegistration();
       registration?.active?.postMessage({ type: 'CALL_STATE', callId: this.id, chatId: this.chat.id, expiresAt: Date.now() + 45000 });
       if (this.ended || !registration || Notification.permission !== 'granted') return;
-      await registration.showNotification(this.chat.name, { body: `${this.snapshot.status === 'active' ? formatCallDuration(this.seconds()) : this.snapshot.status === 'ringing' ? 'Ringing…' : 'Connecting…'} · ${this.snapshot.muted ? 'Microphone muted' : 'Voice call'}`, tag: `call-${this.id}`, icon: '/favicon.svg', badge: '/badge.svg', silent: true,
+      await registration.showNotification(this.chat.name, { body: `${this.snapshot.status === 'active' ? formatCallDuration(this.seconds()) : this.snapshot.status === 'ringing' ? 'Ringing…' : 'Connecting…'} · ${this.snapshot.muted ? 'Microphone muted' : 'Voice call'}`, tag: `call-${this.id}`, icon: this.chat.avatar || '/favicon.svg', badge: '/badge.svg', silent: true,
         data: { kind: 'persona-call', callId: this.id, chatId: this.chat.id }, actions: [{ action: 'end-call', title: 'End call' }] } as NotificationOptions);
       if (this.ended) (await registration.getNotifications({ tag: `call-${this.id}` })).forEach(notification => notification.close());
     } catch { /* Calls still work when notification permission is unavailable. */ }

@@ -771,7 +771,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                 <div className="flex-1 bg-white/10 dark:bg-[#0b1014] border border-white/15 rounded-full px-4 py-2.5 flex items-center gap-2.5 text-white focus-within:border-[#21c063] transition-colors shadow-lg">
                   <input
                     type="text"
-                    placeholder="Add a caption... (optional, press Enter to send)"
+                    placeholder="Add somethin.."
                     value={previewCaption}
                     onChange={(e) => setPreviewCaption(e.target.value)}
                     onKeyDown={(e) => {
@@ -878,7 +878,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
               {stagedAttachment && stagedVoiceNote
                 ? 'Voice note and caption will be attached to this photo'
                 : stagedAttachment?.type === 'image'
-                  ? 'Add a caption below or tap mic to attach a voice note'
+                  ? 'Add somethin..'
                   : stagedVoiceNote
                     ? 'Add an optional caption below'
                     : stagedAttachment?.name}
@@ -974,15 +974,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
               <textarea
                 ref={inputRef}
-                placeholder={
-                  stagedAttachment && stagedVoiceNote
-                    ? "Add a caption for this photo & voice note..."
-                    : stagedAttachment?.type === 'image'
-                      ? "Add a caption (or tap mic to attach voice note)..."
-                      : stagedVoiceNote
-                        ? "Add a caption for this voice note..."
-                        : "Message"
-                }
+                placeholder={stagedAttachment || stagedVoiceNote ? 'Add somethin..' : 'Message'}
                 aria-label="Message"
                 className="flex-1 bg-transparent outline-none text-[length:var(--input-font-size)] py-3 min-w-0 resize-none max-h-[140px] leading-6 custom-scrollbar disabled:opacity-70"
                 value={text}

@@ -1,5 +1,11 @@
 # Wassap Persona Simulation (v1.9.9)
 
+## Call and conversation-flow correction (19 October 2026)
+
+Persona notifications now show only the incoming reply and retain the persona profile image on worker updates. Staged media uses **Add somethin..**. Ordinary chat recovery stays inside one reply/recording flow; it no longer marks read messages unsent and restarts the persona's delivery sequence. Offline input is still saved, and a terminal failure settles once through the existing fallback.
+
+Calls defer unrelated AI work until hang-up, tolerate disconnect warnings/audio bursts without premature hang-up, and resume recoverable provider connections once per disconnect. The interruption marker still honestly marks speech that may not have been heard. The affected physical phone's exact disconnect cause remains unverified; see the latest entry in memory.md. This correction supersedes the two-participant notification policy described below.
+
 ## Reliability follow-up (19 October 2026)
 
 Weak-network sends stay queued until replies are saved, with at most three delivery attempts within one minute from the first attempt, then one in-character fallback and no further automatic retries for that turn. Reconnection/resume avoids repeating saved answers. Notification replies persist before network work; each body keeps the latest user message and persona reply separated by one blank line, replacing older turns. Full texts are supplied, but Android controls visible line limits. Android's browser-supplied domain label remains outside the web app's control.

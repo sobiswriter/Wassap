@@ -471,7 +471,7 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
 };
 
 function notificationConversation(userText, personaText) {
-  return userText ? `You: ${userText}\n\n${personaText}` : personaText;
+  return personaText;
 }
 
 function retryExpired(item, now = Date.now()) {
@@ -525,7 +525,7 @@ const deliverNotificationReply = async (item) => {
   windows.forEach(client => client.postMessage({ type: 'BACKGROUND_EXCHANGE_SYNC', chatId: item.chatId, userMessage: { ...item.message, status: 'sent' }, personaReplies }));
   await self.registration.showNotification(data.chatName || 'Contact', {
     body: notificationConversation(item.message.text, personaReplies.at(-1)?.text || text),
-    icon: data.avatar || '/favicon.svg', badge: '/badge.svg', tag: item.chatId, renotify: true,
+    icon: data.chatAvatar || data.avatar || '/favicon.svg', badge: '/badge.svg', tag: item.chatId, renotify: true,
     data: { ...data, recentMessages: [...history, ...personaReplies].slice(-45) },
     actions: [{ action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' }, { action: 'read', title: 'Mark as read' }]
   });
@@ -549,7 +549,7 @@ const activeCallFor = async (chatId) => {
   try {
     const response = await (await caches.open(callControlCache)).match('/__call_active');
     const call = response && await response.json();
-    return call && call.chatId === chatId && call.expiresAt > Date.now() ? call : null;
+    return call && call.expiresAt > Date.now() ? call : null; // Defer every persona while a call is active.
   } catch { return null; }
 };
 self.addEventListener('message', event => {

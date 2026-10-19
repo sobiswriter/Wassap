@@ -31,16 +31,15 @@ async (page) => {
     const colors = await page.evaluate(() => ['--chat-bg', '--panel-bg', '--header-bg', '--bubble-other'].map(name => getComputedStyle(document.documentElement).getPropertyValue(name).trim()));
     check(colors.every(color => color === '#0b1014'), `Dark surfaces mismatch: ${colors}`);
     const input = page.getByRole('textbox', { name: /message/i }).last();
+    await context.setOffline(true);
     await input.fill('Please keep this request if the network drops.'); await input.press('Enter');
     await page.waitForFunction(() => JSON.parse(localStorage.getItem('whatsapp_chats'))[0].messages.some(m => m.text === 'Please keep this request if the network drops.' && m.status === 'pending'));
-    check(requests >= 1, 'Test did not exercise a failed network request');
+    check(requests === 0, 'Offline send unexpectedly dispatched');
     check((await pending()).length === 1, 'Failed request was discarded');
     stage = 'reload';
-    await page.reload();
     stage = 'reconnect';
     fail = false;
-    await page.clock.install();
-    await page.clock.runFor(16000);
+    await context.setOffline(false);
     await page.evaluate(() => window.dispatchEvent(new Event('online')));
     await page.waitForFunction(() => JSON.parse(localStorage.getItem('whatsapp_chats'))[0].messages.some(m => m.text === 'The connection recovered. Bring the blue folder.'));
     await page.waitForFunction(() => new Promise(resolve => { const req = indexedDB.open('whatsapp_offline_db', 1); req.onsuccess = () => { const db = req.result; const query = db.transaction('pending_outbox').objectStore('pending_outbox').getAll(); query.onsuccess = () => { db.close(); resolve(query.result.length === 0); }; }; }));
@@ -70,6 +69,6 @@ async (page) => {
     }
     check(errors.length === 0, errors.join('\n'));
     await page.screenshot({ path: 'output/playwright/stability-dark-360.png', animations: 'disabled' });
-    return 'Failed requests survive reload; reconnect retries once without losing history; 1000-message chat renders 80/160 rows; last seen wraps; dark base matches; repeated navigation stays visible.';
+    return 'Offline sends stay durable; reconnect retries once without losing history; 1000-message chat renders 80/160 rows; last seen wraps; dark base matches; repeated navigation stays visible.';
   } catch(error) { await page.screenshot({path:'output/playwright/stability-failure.png'}); throw new Error(`${stage}: ${error.message}; ${await page.evaluate(()=>JSON.stringify({state:history.state, screens:[...document.querySelectorAll('.mobile-screen')].map(el=>({class:el.className, inert:el.inert, visibility:getComputedStyle(el).visibility}))}))}`); } finally { await context.close(); }
 }

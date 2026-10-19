@@ -2,6 +2,16 @@
 
 The reported Android black screen was not reproduced exactly. Investigation did reproduce an offline panel failure and several message-loss paths; those are fixed locally. No deployment or private-user-data testing was performed.
 
+## Later correction: call continuity and no visible retry cycles
+
+The owner's later screenshots supersede the paired notification request: persona reply only, and a sender profile photo. Worker updates were reading avatar while notification payloads supplied chatAvatar; corrected, and the square foreground icon is carried into worker data.
+
+Ordinary chat now recovers within the existing provider call/turn, preserving recording and delivered/read ticks. It no longer uses a failure to revert status to pending and run a new visible persona turn. A terminal failure settles once via fallback. Offline-first pending sends remain recoverable and the minute safety ceiling remains.
+
+Confirmed premature call-end paths were corrected: immediate closure on GoAway warning, fatal treatment of recoverable post-setup errors, duplicate disconnect callbacks, and an eight-second audio-backlog hang-up. Queues now tolerate 30 seconds of burst audio; suspended/overflow playback marks unheard audio without hanging up. Unrelated AI jobs are deferred, and browser-side chat/diary requests are cancelled at call start, preserving queued work for after hang-up. [Google documents GoAway as advance warning and supports session resumption](https://ai.google.dev/gemini-api/docs/live-api/session-management); a warning is not itself a reason to immediately cut the current reply.
+
+61 unit/integration tests plus browser regressions cover normal audio bursts, suspended audio, disconnect deduplication, GoAway/35-second call continuation, one-flow voice recovery and photo-icon notification data. No real-phone/production reproduction proves these were the sole cause of the reported 30–44-second call ends. Media caption placeholder is `Add somethin..`. No push/deploy.
+
 ## Owner clarification: bounded retry and conversation pair
 
 A later clarification caps a durable delivery turn at **three attempts or 60 seconds from the first attempt**, whichever ends first. Actual retry attempts remain at least 15 seconds apart; foreground lifecycle checks run every five seconds to settle expired work even offline. Durable text turns use one provider call per delivery attempt instead of nested retries. At exhaustion, the existing persona network fallback is saved once and the turn leaves the automatic queue. Active-request controllers use the remaining window; worker delivery mirrors the policy. Background suspension may defer the fallback until execution resumes. Unattempted offline/call-held input does not consume the window.

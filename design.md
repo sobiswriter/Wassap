@@ -1,5 +1,11 @@
 # Wassap Design System (`design.md`)
 
+## Incoming-only notification and reply continuity correction (19 October 2026)
+
+Latest owner preference supersedes the paired notification body: show only the incoming persona reply, with its persona profile image. The app badge remains the app identity; it is separate from the sender portrait. Worker replacements must keep chatAvatar and never replace an available sender image with the generic logo.
+
+Use Add somethin.. for media caption placeholders. Preserve a single typing/recording flow during bounded provider recovery; never reverse delivered/read ticks to an unsent clock or replay the visible presence sequence. A terminal failure finishes that flow once using the existing in-character fallback. Interrupted call transcript labels remain accurate; they are not hidden to disguise unheard audio.
+
 ## Reliability presentation follow-up (19 October 2026)
 
 Dark chat/header/received-bubble/composer base is #0b1014, matching the app and theme-color; keep green sent messages and light colors. The call/search/menu actions keep 44px targets. Last-seen text can wrap and the header grows to fit, with a smaller non-shrinking avatar. Long chats expose Load earlier messages without hiding older entries from search or diary capture.
