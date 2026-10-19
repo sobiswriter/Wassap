@@ -35,7 +35,7 @@ export const shouldSummarizeCall = ({ duration, turns }: Pick<CallRecord, 'durat
 export function buildCallDiaryMessages(call: CallRecord, persona: string, user: string) {
   return [{ sender: 'me', date: new Date(call.startedAt).toLocaleDateString('en-CA'), isEvent: true,
     eventTitle: `Completed voice conversation (${formatCallDuration(call.duration)})`,
-    text: `Reflect on this actual voice call in your private diary voice. Cover the whole conversation, including early events, feelings, promises and important details. Do not invent unheard words. Match the language/dialect spoken.\n\n${call.turns.map(turn => `${turn.speaker === 'me' ? user : persona}: ${turn.text}${turn.interrupted ? ' [interrupted; may not have been fully heard]' : ''}`).join('\n')}` }];
+    text: `Completed in-app voice call between ${persona} and ${user}.\n\n${call.turns.map(turn => `${turn.speaker === 'me' ? user : persona}: ${turn.text}${turn.interrupted ? ' [interrupted; may not have been fully heard]' : ''}`).join('\n')}` }];
 }
 
 export function pcm16(samples: Float32Array): Uint8Array {

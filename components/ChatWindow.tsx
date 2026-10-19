@@ -1204,6 +1204,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   useEffect(() => {
     setSelectedMessageIds([]);
+    setMemoryCaptureDate(null);
+    setMemoryFromSelectionMessages(null);
     setRecentMessageIds(new Set());
     lastMessageCountRef.current = chat?.messages?.length || 0;
     setShowScrollBottom(false);
@@ -1427,6 +1429,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {memoryCaptureDate && !chat.isGroup && onSaveMemory && (
         <DateMemoryModal
+          key={chat.id}
           chat={chat}
           dateKey={memoryCaptureDate}
           onCancel={() => setMemoryCaptureDate(null)}
@@ -1441,6 +1444,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {memoryFromSelectionMessages && !chat.isGroup && onSaveMemory && (
         <DateMemoryModal
+          key={chat.id}
           chat={chat}
           dateKey={getMessageDateKey(memoryFromSelectionMessages[0])}
           selectedMessages={memoryFromSelectionMessages}

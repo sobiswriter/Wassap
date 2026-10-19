@@ -8,7 +8,7 @@ import { ChatWindow } from './components/ChatWindow';
 import { MessageInput } from './components/MessageInput';
 import { MobileNavigation } from './components/MobileNavigation';
 import { CallOverlay } from './components/CallOverlay';
-import { PersonaCall, generateCallDiary } from './services/liveCall';
+import { PersonaCall, generateCallSummary } from './services/liveCall';
 import { getCalls, saveCall, deleteCall, shouldSummarizeCall, formatCallDuration, callHistoryText, type CallRecord } from './utils/calls';
 
 // Lazy-loaded secondary panels to optimize initial bundle size & load performance
@@ -1424,6 +1424,7 @@ ${memoryText}`;
   };
 
   const handleSaveMemory = (chatId: string, memory: MemoryBubble) => {
+    if (memory.chatId !== chatId) return;
     setChats(prev => prev.map(chat => {
       if (chat.id !== chatId) return chat;
       return {
@@ -3679,7 +3680,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       if (!existing && !record.summary) {
         if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
         const controller = new AbortController(); diaryControllers.current.set(record.id, controller);
-        record = { ...record, summary: await generateCallDiary(record, chat, settingsRef.current, userRef.current, controller.signal) };
+        record = { ...record, summary: await generateCallSummary(record, chat, settingsRef.current, userRef.current, controller.signal) };
         if (!(await getCalls()).some(saved => saved.id === record.id)) return;
         await saveCall(record);
       }
@@ -3688,7 +3689,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       const updated = chatsRef.current.map(item => item.id !== record.chatId ? item : {
         ...item,
         memoryBubbles: item.memoryBubbles?.some(memory => memory.callId === record.id) ? item.memoryBubbles : [...(item.memoryBubbles || []), {
-          id: `call-memory-${record.id}`, callId: record.id, chatId: item.id, title: `${item.name}'s Call Diary · ${date}`, startDate: date, endDate: date, summary: record.summary || existing!.summary, createdAt: now,
+          id: `call-memory-${record.id}`, callId: record.id, chatId: item.id, title: `${item.name}'s Call Summary · ${date}`, startDate: date, endDate: date, summary: record.summary || existing!.summary, createdAt: now,
         }],
         messages: item.messages.map(message => message.call?.id === record.id ? { ...message,
           text: callHistoryText(record, item.name, record.summary || existing!.summary),

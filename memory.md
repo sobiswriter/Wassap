@@ -15,6 +15,12 @@
 
 ## ⚡ Current State & What Was Just Worked On
 
+### Persona diary authenticity and short call recaps (19 October 2026)
+- Root cause: all three diary implementations counted common English words (the/main) as Hindi clues and imposed an absolute Hinglish mandate. Removed language guessing and Hindi pronoun examples. Author/language instruction anchors the selected profile and only that persona's own non-event speech samples, excluding the user and other named speakers. Diaries retain intimate feelings; concrete claims must be grounded.
+- Calls now use generateCallSummary and a separate brief recap prompt (2–4 sentences, one paragraph, at most 120 words; 1024 output tokens) in Studio and Cloud via optional kind=call-summary. Removed diary-writing instructions from transcript data, reject mismatched call/persona IDs, label new call memories Call Summary. Preserve existing summaries/diaries and legacy storage/status fields; calls under one minute still keep transcripts without automatic summary.
+- Found and fixed another ownership risk: an open diary editor persisted across chat switches. Clear diary selections on chat ID changes, key editors by owner, reject mismatched memory.chatId saves. Late results cannot populate the next persona's editor.
+- Checks: 64 tests, TypeScript/build pass. SDK-capture regression compares single/multi-day and call recap requests across Studio/local Cloud/deployed endpoint; checks English keyword collision, other-speaker exclusion, explicit language profiles, full/interrupted transcript and mismatched owner rejection. Chrome call regression and pending-generation chat-switch/save regression pass. Live Google output quality was not sampled; no deployment or rewriting saved entries.
+
 ### Ringback cadence (19 October 2026)
 - Ringback now waits 1500 ms after each completed clip before replaying. Pickup/end cancels the timer and removes the ended handler, preserving the existing simulated pickup delay and sound toggle.
 - Checks: 62 unit tests, TypeScript and production build pass; timer regression covers the full gap and cancellation during the gap. Chrome calling regression confirms pause/repeat, pickup cleanup and both provider transports. No deployment or physical-device listening test.
@@ -752,6 +758,8 @@ Wassap/
 ---
 
 ## 📜 Feature Milestones Completed
+
+- [x] 19 October 2026: Persona-specific diary ownership/language, isolated diary editor state and dedicated short call summaries across both providers.
 
 - [x] 19 October 2026: Professional static boot screen and complete current-turn persona notifications, retaining profile pictures and inline reply.
 

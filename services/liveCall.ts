@@ -4,7 +4,7 @@ import { GEMINI_TTS_VOICE_DETAILS } from '../constants';
 import { getSavedCustomVoices, getVoiceAudioPreview } from '../utils/customVoices';
 import { selectPersonaVoice, personaVoiceStyle } from '../utils/voiceSelection';
 import { convertAudioTo24kMonoWav } from '../utils/audioResampler';
-import { buildDiaryHistoryAndPrompt } from './geminiService';
+import { buildCallSummaryPrompt } from './geminiService';
 import { getLocalDateKey } from '../utils/dates';
 import { buildCallDiaryMessages, callDuration, formatCallDuration, pcm16, saveCall, shouldSummarizeCall, recentCallMessages, CALL_CONTEXT_INSTRUCTION, type CallRecord, type CallTurn } from '../utils/calls';
 
@@ -47,22 +47,23 @@ export async function summarizeCallContext(chat: Chat, settings: AppSettings, si
   return result.text.trim().slice(0, 1600);
 }
 
-export async function generateCallDiary(call: CallRecord, chat: Chat, settings: AppSettings, user: UserProfile, signal?: AbortSignal) {
+export async function generateCallSummary(call: CallRecord, chat: Chat, settings: AppSettings, user: UserProfile, signal?: AbortSignal) {
+  if (call.chatId !== chat.id) throw new Error('Call summary must belong to the call persona.');
   const messages = buildCallDiaryMessages(call, chat.name, user.name || 'You');
   const date = getLocalDateKey(new Date(call.startedAt));
   const persona = { name: chat.name, about: chat.about, role: chat.role, speechStyle: chat.speechStyle, systemInstruction: chat.systemInstruction, humaneSettings: chat.humaneSettings };
   if ((settings.aiProvider || 'vertex') === 'vertex') {
     const response = await fetch('/api/gemini/diary', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(45000)]) : AbortSignal.timeout(45000), body: JSON.stringify({ persona, messageHistory: messages, startDate: date, endDate: date, userProfile: user, settings: { selectedModel: settings.selectedModel } }) });
-    if (!response.ok) throw new Error('Call diary is waiting for cloud access or a connection.');
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(45000)]) : AbortSignal.timeout(45000), body: JSON.stringify({ kind: 'call-summary', persona, messageHistory: messages, startDate: date, endDate: date, userProfile: user, settings: { selectedModel: settings.selectedModel } }) });
+    if (!response.ok) throw new Error('Call summary is waiting for cloud access or a connection.');
     const data = await response.json();
-    if (typeof data.text !== 'string' || !data.text.trim()) throw new Error('Call diary was empty.');
+    if (typeof data.text !== 'string' || !data.text.trim()) throw new Error('Call summary was empty.');
     return data.text.trim();
   }
-  if (!settings.apiKey) throw new Error('Add your Gemini key to finish this call diary.');
-  const { prompt } = buildDiaryHistoryAndPrompt(persona, messages, date, date, user);
-  const result = await new GoogleGenAI({ apiKey: settings.apiKey }).models.generateContent({ model: settings.selectedModel === 'gemini-3.5-flash-lite' ? settings.selectedModel : 'gemini-3.8-flash', contents: prompt, config: { abortSignal: signal, httpOptions: { timeout: 45000 } } });
-  if (!result.text?.trim()) throw new Error('Call diary was empty.');
+  if (!settings.apiKey) throw new Error('Add your Gemini key to finish this call summary.');
+  const prompt = buildCallSummaryPrompt(persona, messages);
+  const result = await new GoogleGenAI({ apiKey: settings.apiKey }).models.generateContent({ model: settings.selectedModel === 'gemini-3.5-flash-lite' ? settings.selectedModel : 'gemini-3.8-flash', contents: prompt, config: { maxOutputTokens: 1024, abortSignal: signal, httpOptions: { timeout: 45000 } } });
+  if (!result.text?.trim()) throw new Error('Call summary was empty.');
   return result.text.trim();
 }
 

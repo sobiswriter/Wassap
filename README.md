@@ -1,5 +1,9 @@
 # Wassap Persona Simulation (v1.9.9)
 
+## Persona-authentic diaries and brief call recaps (19 October 2026)
+
+Diary language now follows the selected persona's profile and own voice, rather than guessing Hindi from common English words or the user's messages. Daily and multi-day entries remain personal first-person reflections. Switching chats closes the diary editor; drafts and saves cannot carry into another persona. Calls of at least a minute use a separate brief recap prompt (one paragraph, 2–4 sentences, at most 120 words), saved as a **Call Summary** in chat and memory. Existing saved entries are preserved. Both personal-key and Cloud paths use matching prompts.
+
 ## Loading screen and complete notification replies (19 October 2026)
 
 Call ringback pauses for 1.5 seconds after each clip before repeating, until pickup or cancellation.

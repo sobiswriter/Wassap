@@ -1,5 +1,11 @@
 # Wassap System Architecture (`architecture.md`)
 
+## Diary ownership and call-summary separation (19 October 2026)
+
+Removed keyword language detection from Studio, local Cloud and the standalone diary endpoint: ordinary English words such as the/main had triggered a forced Hinglish mandate. The author/language instruction uses the selected persona profile plus up to 12 of that persona's own non-event messages, excluding user/other named participants. Daily/multi-day emotional diary prompts remain; grounded events and language stay with the author. Chat changes clear diary selection state and key the editor by persona ID; handleSaveMemory rejects mismatched owner IDs.
+
+generateCallSummary rejects a mismatched call.chatId/chat.id. It sends kind=call-summary to the existing authenticated diary endpoint; Studio uses the matching buildCallSummaryPrompt. The dedicated prompt asks for a first-person 2–4-sentence recap of the full call, at most 120 words, with no invented platforms or unheard details. The old diary instructions embedded in the transcript were removed. Cloud and Studio use a 1024-token output budget for recaps. New memory titles say Call Summary; legacy diary status/storage fields and existing records are unchanged. Regression tests compare actual SDK prompt requests across all three paths so the self-contained deployed endpoint cannot drift from local/client behavior unnoticed.
+
 ## Boot shell and complete reply notifications (19 October 2026)
 
 Call ringback schedules its next playback 1500 ms after the audio ended event rather than looping continuously. Pickup/end removes the handler and cancels the repeat timer.

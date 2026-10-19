@@ -133,7 +133,8 @@ async (page) => {
     check(await page.evaluate(() => window.__callTracks.every(track => track.readyState === 'ended')), 'Hang-up left microphone running');
     await page.getByRole('button', { name: 'Return to chat', exact: true }).click();
     await page.waitForFunction(() => JSON.parse(localStorage.getItem('whatsapp_chats')).some(chat => chat.memoryBubbles?.some(memory => memory.callId)));
-    check(diaryBody.messageHistory[0].text.includes('Kyoto') && diaryBody.messageHistory[0].text.includes('river tomorrow'), 'Diary omitted beginning/end of call');
+    check(diaryBody.kind === 'call-summary' && diaryBody.persona.name === 'Maya', 'Call did not request a summary from its own persona');
+    check(diaryBody.messageHistory[0].text.includes('Kyoto') && diaryBody.messageHistory[0].text.includes('river tomorrow'), 'Summary omitted beginning/end of call');
     await page.waitForFunction(() => JSON.parse(localStorage.getItem('whatsapp_chats')).some(chat => chat.messages.some(message => message.call?.diary === 'saved')));
     await page.reload();
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('whatsapp_chats')).find(chat => chat.id === 'call-persona'));
@@ -141,6 +142,7 @@ async (page) => {
     const savedCall = saved.messages.find(message => message.call);
     check(savedCall.isEvent && savedCall.text.includes(new Date(savedCall.call.startedAt).toISOString()) && savedCall.text.includes('Call summary:') && savedCall.call.transcript.length >= 4, 'Dated call conversation missing from ordinary chat history');
     check(saved.memoryBubbles.length === 2 && saved.messages.some(message => message.id === 'before-call'), 'Old data lost or diary duplicated');
+    check(saved.memoryBubbles.find(memory => memory.callId).title.includes('Call Summary'), 'New call memory is still labeled as a diary');
     await page.getByRole('button', { name: 'Open chat with Maya', exact: true }).click();
     for (const [dark, background, foreground] of [[false, 'rgb(217, 253, 211)', 'rgb(17, 27, 33)'], [true, 'rgb(0, 92, 75)', 'rgb(233, 237, 239)']]) {
       await page.evaluate(dark => document.documentElement.classList.toggle('dark', dark), dark);

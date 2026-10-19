@@ -1,5 +1,11 @@
 # Wassap Design System (`design.md`)
 
+## Author authenticity in journals and calls (19 October 2026)
+
+Every diary belongs to the selected chat's persona: preserve their language, script, dialect and individual emotional voice. The user's language and other participants do not determine the author's voice. Diary editors close on chat switches, preventing previous persona drafts from appearing or saving in the next chat. Personal feelings remain welcome; invented concrete events and arbitrary language changes do not.
+
+Call cards show a brief first-person recap of what was discussed, not a long private diary: one paragraph, 2–4 sentences, at most 120 words requested. New call memories are labeled Call Summary. Keep full transcripts, time attribution, the one-minute summary threshold and legacy entries intact.
+
 ## Startup and full-response notifications (19 October 2026)
 
 Call ringback has a minimum 1.5-second silent gap between clips. Keep the existing 6–12-second simulated pickup delay; stop ringback immediately on connection or cancellation.
