@@ -10,7 +10,8 @@ export function parsePersonaBackup(raw: unknown): PersonaBackupData['persona'] {
   const fields = (value: Record<string, any>, keys: string[], type: string) => {
     if (keys.some(key => value[key] !== undefined && typeof value[key] !== type)) fail();
   };
-  fields(data, ['avatar', 'about', 'role', 'speechStyle', 'systemInstruction', 'imageModel', 'voiceModel'], 'string');
+  fields(data, ['avatar', 'about', 'role', 'speechStyle', 'language', 'systemInstruction', 'imageModel', 'voiceModel'], 'string');
+  if (data.language !== undefined && data.language.length > 160) return fail();
   fields(data, ['memoryEnabled', 'timeAwarenessEnabled'], 'boolean');
   if (data.voiceSettings !== undefined) {
     const voice = data.voiceSettings;

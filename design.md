@@ -1,5 +1,11 @@
 # Wassap Design System (`design.md`)
 
+## Persona language field (19 October 2026)
+
+Contact info places a labeled Language text field beside Speech Style/Persona Notes. Empty displays Auto — from persona description; accept free-form language/script requests up to 160 characters. Save Changes persists it for that persona only; clearing restores Auto. Explain that it applies to messages, calls, captions and diaries. Reuse existing theme tokens and mobile input styling.
+
+An explicit language is authoritative over old incorrect Hinglish memories, profile examples and incoming requests to change language. Keep diary/call-summary authorship and emotional style separate from the language choice. Localized stock voice previews use a generated introduction instead of hardcoded English. Offline generation failure uses a language-neutral indicator rather than a fabricated sentence in a different language. Do not translate/rewrite existing saved history as part of changing this setting.
+
 ## Author authenticity in journals and calls (19 October 2026)
 
 Every diary belongs to the selected chat's persona: preserve their language, script, dialect and individual emotional voice. The user's language and other participants do not determine the author's voice. Diary editors close on chat switches, preventing previous persona drafts from appearing or saving in the next chat. Personal feelings remain welcome; invented concrete events and arbitrary language changes do not.

@@ -15,6 +15,12 @@
 
 ## ⚡ Current State & What Was Just Worked On
 
+### Explicit persona language setting (19 October 2026)
+- Added optional language to Chat/backup types, profile initial/reset/export/save, backup validation/import and diary UI payload. Contact info field is free text (160 chars); blank/Auto uses persona description. Shared language instruction makes explicit choice override conflicting descriptions, speech style, old memories and conversation requests. No existing chats/entries are rewritten.
+- Covered client/local/deployed chat, voice-note text, group/automation, Live setup, short call recaps, daily/multi-day diaries, photo captions/camera excuses and TTS metadata. Studio/local share utils/personaLanguage.ts; self-contained deployed endpoints and worker mirror it. Voice previews now generate a localized short introduction before TTS; this adds one text request per preview click. Custom/prebuilt voice selection remains intact.
+- Saved language is mirrored in wassap-persona-settings cache for stale notification snapshots/queued replies, including group responder ownership and resetting to Auto. Worker falls back to snapshot if the cache is unavailable. Explicit-language deterministic network fallback is 📶… and camera fallback is 📷…; no guessed English/Hinglish exception. Empty generated captions use 📷. Existing DB/storage keys/formats remain compatible. Existing active Live sessions retain the language from setup; a changed setting is used on the next call.
+- Checks: 67 tests, TypeScript/build; browser covers Auto default, 320px layout, French save/reload/export, localized voice-preview text/TTS payload, actual diary-editor payload, clearing and persona isolation. SDK request captures cover Studio/local/deployed chat/media/photo/TTS plus diary/call recap parity; worker test covers overriding a stale Hindi snapshot with saved French. Call regression passes. Mobile screenshot inspected. Live Google output quality not sampled; no push/deploy.
+
 ### Persona diary authenticity and short call recaps (19 October 2026)
 - Root cause: all three diary implementations counted common English words (the/main) as Hindi clues and imposed an absolute Hinglish mandate. Removed language guessing and Hindi pronoun examples. Author/language instruction anchors the selected profile and only that persona's own non-event speech samples, excluding the user and other named speakers. Diaries retain intimate feelings; concrete claims must be grounded.
 - Calls now use generateCallSummary and a separate brief recap prompt (2–4 sentences, one paragraph, at most 120 words; 1024 output tokens) in Studio and Cloud via optional kind=call-summary. Removed diary-writing instructions from transcript data, reject mismatched call/persona IDs, label new call memories Call Summary. Preserve existing summaries/diaries and legacy storage/status fields; calls under one minute still keep transcripts without automatic summary.
@@ -758,6 +764,8 @@ Wassap/
 ---
 
 ## 📜 Feature Milestones Completed
+
+- [x] 19 October 2026: Persona-specific explicit language with description-led Auto, complete prompt/payload coverage and backup preservation.
 
 - [x] 19 October 2026: Persona-specific diary ownership/language, isolated diary editor state and dedicated short call summaries across both providers.
 

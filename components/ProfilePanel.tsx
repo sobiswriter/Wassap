@@ -9,7 +9,7 @@ import { Chat, MemoryBubble, PersonaSchedule, PersonaScheduleBlock, PersonaTempl
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatDateRangeLabel, getDaysBetween, getLocalDateKey, normalizeDateKey, getAppNow, getAppDateKey } from '../utils/dates';
 import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TTS_VOICE_DETAILS, AVAILABLE_IMAGE_MODELS, DEFAULT_IMAGE_MODEL, AVAILABLE_VOICE_MODELS, DEFAULT_VOICE_MODEL, VOICE_STYLE_PRESETS, DEFAULT_VARY_MESSAGE_LENGTH_PROMPT, VARY_MESSAGE_LENGTH_PRESETS } from '../constants';
-import { generateGeminiVoiceNote } from '../services/geminiService';
+import { generateGeminiVoiceNote, getGeminiResponse } from '../services/geminiService';
 import { getSavedCustomVoices, saveCustomVoice, deleteCustomVoiceComplete, craftCustomVoice, replicateCustomVoice, VOICE_DESIGN_INSPIRATIONS, isDesignedVoice, isReplicatedVoice, getVoiceAudioPreview } from '../utils/customVoices';
 import { convertAudioTo24kMonoWav } from '../utils/audioResampler';
 
@@ -49,6 +49,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     about: chat.about || (chat.isGroup ? 'Group Description' : 'Hey there! I am using WhatsApp.'),
     role: chat.role || '',
     speechStyle: chat.speechStyle || '',
+    language: chat.language || '',
     systemInstruction: chat.systemInstruction || '',
     avatar: chat.avatar,
     memoryEnabled: chat.memoryEnabled || false,
@@ -115,6 +116,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
       about: chat.about || (chat.isGroup ? 'Group Description' : 'Hey there! I am using WhatsApp.'),
       role: chat.role || '',
       speechStyle: chat.speechStyle || '',
+      language: chat.language || '',
       systemInstruction: chat.systemInstruction || '',
       avatar: chat.avatar,
       memoryEnabled: chat.memoryEnabled || false,
@@ -400,12 +402,16 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     }
   };
 
+  const generateVoicePreviewText = () => getGeminiResponse(formData,
+    [{ sender: 'me', text: 'Introduce yourself for a voice preview in one short sentence, using your configured language. Return only the words to speak.' }],
+    undefined, undefined, settings, undefined, true, formData.voiceSettings);
+
   const handleTestDesignedVoiceNote = async (voiceOverride?: CustomVoiceItem) => {
     setIsTestingVoiceNote(true);
     try {
       const activeVoice = voiceOverride?.id || formData.voiceSettings?.designedVoiceId || formData.voiceSettings?.voiceName || 'Aoede';
       const promptToUse = voiceOverride?.promptDescription || customVoices.find(v => v.id === activeVoice)?.promptDescription;
-      const testText = `Hey! Just trying out my new voice on Wassap. Can you hear me clearly? <chuckle>`;
+      const testText = await generateVoicePreviewText();
       
       const testVoiceSettings: PersonaVoiceSettings = {
         ...(formData.voiceSettings || DEFAULT_VOICE_SETTINGS),
@@ -422,6 +428,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
         {
           name: formData.name,
           speechStyle: formData.speechStyle,
+          language: formData.language,
           role: formData.role
         },
         testVoiceSettings
@@ -580,7 +587,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   };
 
   const handleSave = () => {
-    onUpdate(formData);
+    onUpdate({ ...formData, language: formData.language.trim() });
   };
 
   const handleExportPersonaBackup = () => {
@@ -594,6 +601,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
         about: formData.about,
         role: formData.role,
         speechStyle: formData.speechStyle,
+        language: formData.language,
         systemInstruction: formData.systemInstruction,
         voiceSettings: formData.voiceSettings,
         schedule: formData.schedule,
@@ -1200,6 +1208,15 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                 onChange={(e) => setFormData(prev => ({ ...prev, speechStyle: e.target.value }))}
                 className={inputClass}
               />
+            </div>
+            <div className="relative">
+              <label htmlFor="persona-language" className={labelClass}>Language</label>
+              <input id="persona-language" type="text" maxLength={160}
+                placeholder="Auto — from persona description"
+                value={formData.language}
+                onChange={event => setFormData(previous => ({ ...previous, language: event.target.value }))}
+                className={inputClass} />
+              <p className="text-secondary text-xs mt-2">Leave blank for Auto. Set a language and script, such as English, Hindi in Devanagari, or Hinglish. Applies to messages, calls, captions and diaries.</p>
             </div>
             <div className="relative">
               <div className="flex items-center justify-between mb-2">
@@ -2756,11 +2773,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                       onClick={async () => {
                         setIsPreviewingVoice(true);
                         try {
-                          const activeModel = formData.voiceSettings?.voiceModel || settings?.selectedVoiceModel || DEFAULT_VOICE_MODEL;
-                          const is38 = activeModel.includes('3.8');
-                          const sampleText = is38
-                            ? `Hey there! This is ${formData.name}. <laugh> I can now send you ultra-realistic voice notes directly on WhatsApp!`
-                            : `Hey! This is ${formData.name}. [laughs] I can now send you voice notes right here on WhatsApp!`;
+                          const sampleText = await generateVoicePreviewText();
 
                           const res = await generateGeminiVoiceNote(
                             sampleText,
@@ -2769,6 +2782,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
                             {
                               name: formData.name,
                               speechStyle: formData.speechStyle,
+                              language: formData.language,
                               role: formData.role
                             },
                             formData.voiceSettings

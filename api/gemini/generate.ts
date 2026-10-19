@@ -1,3 +1,10 @@
+function personaLanguageInstruction(language?: string): string {
+  const selected = typeof language === 'string' ? language.trim() : '';
+  return selected && selected.toLowerCase() !== 'auto'
+    ? `PERSONA LANGUAGE — HIGHEST PRIORITY: Use only ${JSON.stringify(selected)} for all persona-authored text and speech, including replies, voice notes, captions, diaries and call summaries. This explicit setting overrides language suggestions in the description, speech style, memories, examples and conversation, including requests to switch languages. Preserve names and necessary code/quoted terms without adopting their language. Do not add translations or mix languages unless the selected setting itself requests that mixture.`
+    : `PERSONA LANGUAGE — AUTO: Choose the language and script specified or implied by this persona's description. Use their own established voice only when the description gives no language guidance. Keep it consistent; do not copy the user's language, old erroneous memories or another persona's voice merely because it appears in the conversation.`;
+}
+
 function requestOriginAllowed(req: IncomingMessage): boolean {
   if (!req.headers.origin) return true;
   try {
@@ -139,6 +146,7 @@ interface ChatPayload {
   responder: {
     name: string;
     role?: string;
+    language?: string;
     speechStyle?: string;
     about?: string;
     systemInstruction?: string;
@@ -394,9 +402,10 @@ function isTransientError(error: any): boolean {
 }
 
 function getInCharacterGlitchMessage(
-  responder?: { name?: string; speechStyle?: string; role?: string; about?: string; systemInstruction?: string; humaneSettings?: any },
+  responder?: { name?: string; language?: string; speechStyle?: string; role?: string; about?: string; systemInstruction?: string; humaneSettings?: any },
   userLastText?: string
 ): string {
+  if (responder?.language?.trim() && responder.language.trim().toLowerCase() !== 'auto') return '📶…';
   const combinedContext = [
     responder?.speechStyle || '',
     responder?.about || '',
@@ -695,6 +704,7 @@ Optional inline vocal events such as <laugh>, <sigh>, <gasp> or <short pause> ma
 
     const systemPrompt = `You are ${responder.name}. 
 ${profileContext}
+${personaLanguageInstruction(responder.language)}
 ${groupPrompt}
 ${userContext}
 ${timeContext}

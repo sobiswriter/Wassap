@@ -1,3 +1,10 @@
+function personaLanguageInstruction(language?: string): string {
+  const selected = typeof language === 'string' ? language.trim() : '';
+  return selected && selected.toLowerCase() !== 'auto'
+    ? `PERSONA LANGUAGE — HIGHEST PRIORITY: Use only ${JSON.stringify(selected)} for all persona-authored text and speech, including replies, voice notes, captions, diaries and call summaries. This explicit setting overrides language suggestions in the description, speech style, memories, examples and conversation, including requests to switch languages. Preserve names and necessary code/quoted terms without adopting their language. Do not add translations or mix languages unless the selected setting itself requests that mixture.`
+    : `PERSONA LANGUAGE — AUTO: Choose the language and script specified or implied by this persona's description. Use their own established voice only when the description gives no language guidance. Keep it consistent; do not copy the user's language, old erroneous memories or another persona's voice merely because it appears in the conversation.`;
+}
+
 function requestOriginAllowed(req: IncomingMessage): boolean {
   if (!req.headers.origin) return true;
   try {
@@ -361,6 +368,7 @@ Name: ${persona?.name || 'Friend'}
 About: ${persona?.about || 'N/A'}
 Role: ${persona?.role || 'N/A'}
 Speech Style: ${persona?.speechStyle || 'Casual WhatsApp texting'}
+${personaLanguageInstruction(persona?.language)}
 System Guidelines: ${persona?.systemInstruction || 'N/A'}
 ${moodDesc}
 
@@ -431,7 +439,7 @@ Return ONLY a valid JSON object with keys "mode", "user_wants_posed", "caption",
           mode,
           is_persona_subject: mode !== 'pov',
           user_wants_posed,
-          caption: parsed.caption || "Snapped this just now!",
+          caption: parsed.caption || '📷',
           action_and_setting: parsed.action_and_setting || "sitting on the living room couch",
         }
       });
@@ -452,6 +460,7 @@ Return ONLY a valid JSON object with keys "mode", "user_wants_posed", "caption",
 About: ${persona?.about || ''}
 Role: ${persona?.role || ''}
 Speech Style: ${persona?.speechStyle || 'Casual text messaging'}
+${personaLanguageInstruction(persona?.language)}
 Current Mood: ${moodState}
 
 The user sent: "${userPrompt || 'Send me a photo'}", asking for a photo or selfie, but right now you CANNOT take or send one (for instance: camera app crashed, terrible overhead lighting, phone is on 1% battery, or lens is all smudged).
@@ -469,9 +478,9 @@ RULES:
           model: modelToUse,
           contents: [{ role: 'user', parts: [{ text: excusePrompt }] }],
         });
-        sendJson(res, 200, { text: response.text?.trim() || "My camera app just crashed on me, hold on!" });
+        sendJson(res, 200, { text: response.text?.trim() || '📷…' });
       } catch (e) {
-        sendJson(res, 200, { text: "Camera app is glitching out right now haha, I'll send one later!" });
+        sendJson(res, 200, { text: '📷…' });
       }
       return;
     }

@@ -155,6 +155,7 @@ export interface Chat {
   messages: Message[];
   about?: string;
   role?: string;
+  language?: string;
   speechStyle?: string;
   systemInstruction?: string;
   isGroup?: boolean;
@@ -224,6 +225,7 @@ export interface PersonaBackupData {
     avatar: string;
     about?: string;
     role?: string;
+    language?: string;
     speechStyle?: string;
     systemInstruction?: string;
     voiceSettings?: PersonaVoiceSettings;

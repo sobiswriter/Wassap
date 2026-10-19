@@ -128,6 +128,7 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
     instruction: chat.systemInstruction,
     role: chat.role,
     speechStyle: chat.speechStyle,
+    language: chat.language,
     about: chat.about,
     humaneSettings: chat.humaneSettings,
     voiceSettings: chat.voiceSettings,
@@ -1590,6 +1591,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
           {
             name: targetChat.name,
             speechStyle: targetChat.speechStyle,
+            language: targetChat.language,
             role: targetChat.role
           },
           targetChat.voiceSettings
@@ -2497,6 +2499,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
                 {
                   name: chat.name,
                   speechStyle: chat.speechStyle,
+                  language: chat.language,
                   role: chat.role
                 },
                 chat.voiceSettings,
@@ -3064,6 +3067,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             {
               name: persona.name,
               speechStyle: persona.speechStyle,
+              language: persona.language,
               role: persona.role
             },
             persona.voiceSettings,
@@ -3200,7 +3204,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               icon: personaAvatar,
               tag: group.id,
               silentUpdate: !isFirstChunkOfTurn,
-              data: buildNotificationPersonaData(group, userRef.current, settingsRef.current)
+              data: { ...buildNotificationPersonaData(group, userRef.current, settingsRef.current), language: chats.find(contact => contact.id === responderId)?.language, languagePersonaId: responderId }
             });
           }
 
@@ -3465,6 +3469,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       about: personaData.about || 'Hey there! I am using WhatsApp.',
       role: personaData.role || '',
       speechStyle: personaData.speechStyle || '',
+      language: personaData.language || '',
       systemInstruction: personaData.systemInstruction || '',
       voiceSettings: personaData.voiceSettings,
       schedule: personaData.schedule,
@@ -3491,6 +3496,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
   const updateActiveChat = (updates: Partial<Chat>) => {
     if (!activeChatId) return;
+    if (updates.language !== undefined && 'caches' in window) {
+      // Older notification cards and queued worker replies must use the latest saved preference.
+      void caches.open('wassap-persona-settings').then(cache => cache.put(`/__persona_language/${encodeURIComponent(activeChatId)}`, new Response(JSON.stringify({ language: updates.language })))).catch(() => {});
+    }
     setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, ...updates } : c));
   };
 

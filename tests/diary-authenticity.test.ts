@@ -6,7 +6,7 @@ import { generateCallSummary } from '../services/liveCall';
 import { handleVertexDiary } from '../server/vertexHandler';
 import diaryHandler from '../api/gemini/diary';
 
-const persona = { id: 'tom', name: 'Tommy', about: 'A gaming friend', speechStyle: 'African English accent; relaxed English', systemInstruction: 'Speak English in your own relaxed voice.' };
+const persona = { id: 'tom', name: 'Tommy', language: 'English', about: 'A gaming friend', speechStyle: 'African English accent; relaxed English', systemInstruction: 'Speak English in your own relaxed voice.' };
 const history = [
   { sender: 'me', text: 'haan bhai kya kal khelenge?', date: '2026-10-18' },
   { sender: 'other', senderName: 'Tommy', text: 'The main update is done. The game is ready.', date: '2026-10-19' },
@@ -54,7 +54,7 @@ test('Studio, local Cloud and standalone Cloud keep diary ownership and use a di
       assert.ok((await handleVertexDiary(payload)).ok); await endpoint(payload);
       const prompts = requests.map(r => r.contents[0].parts[0].text);
       assert.equal(prompts.length, 3); assert.equal(prompts[0], prompts[1]); assert.equal(prompts[1], prompts[2]);
-      assert.ok(prompts[0].includes('You are only Tommy') && prompts[0].includes(persona.speechStyle));
+      assert.ok(prompts[0].includes('You are only Tommy') && prompts[0].includes(persona.speechStyle) && prompts[0].includes('Use only "English"'));
       assert.ok(prompts[0].includes('intimate, personal') && !prompts[0].includes('TASK: BRIEF CALL SUMMARY'));
     }
     requests.length = 0;
@@ -67,7 +67,7 @@ test('Studio, local Cloud and standalone Cloud keep diary ownership and use a di
     });
     try { await generateCallSummary(call, persona as any, { aiProvider: 'vertex' } as any, user); }
     finally { transport.mock.restore(); }
-    assert.equal(cloudPayload.kind, 'call-summary'); assert.equal(cloudPayload.persona.name, 'Tommy');
+    assert.equal(cloudPayload.kind, 'call-summary'); assert.equal(cloudPayload.persona.name, 'Tommy'); assert.equal(cloudPayload.persona.language, 'English');
     assert.ok((await handleVertexDiary(cloudPayload)).ok); await endpoint(cloudPayload);
     const prompts = requests.map(r => typeof r.contents === 'string' ? r.contents : r.contents[0].parts[0].text);
     assert.equal(prompts.length, 3); assert.equal(prompts[0], prompts[1]); assert.equal(prompts[1], prompts[2]);

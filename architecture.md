@@ -1,5 +1,13 @@
 # Wassap System Architecture (`architecture.md`)
 
+## Explicit persona language preference (19 October 2026)
+
+Chat and persona backups add optional language; legacy missing/blank/Auto values select description-led language. ProfilePanel offers a labeled free-text field (160 characters), trims on save and includes the value in export/import. ChatWindow explicitly carries it into diary generation; liveCall carries it into Live instructions and recap payloads. Voice previews generate a localized introduction through the normal persona reply path; synthesis keeps that text verbatim.
+
+utils/personaLanguage.ts defines explicit-language priority and description-led Auto instructions. Client/local Cloud share it; standalone Vercel endpoints and the plain-JS worker retain matching self-contained copies. Apply it to normal/media/group/automated replies, diary/call recap prompts, photo captions/excuses and TTS delivery metadata. Explicit selection supersedes contradictory profile/history language. Voice-prompting toggles do not disable the language preference. Deterministic network/camera fallbacks avoid inventing English/Hinglish for explicit-language personas; empty generated captions use a camera symbol.
+
+Notification payloads carry language; group payloads also identify the responding persona's language owner. Saving a profile mirrors only the language preference to the wassap-persona-settings cache at /__persona_language/{encodedChatId}. The worker reads it before generating or settling a queued reply, so older notification snapshots use the latest preference (including clearing to Auto). Cache failure falls back to the snapshot. Existing databases, provider access and stored history remain unchanged; already-started Live sessions retain their setup snapshot until the next call.
+
 ## Diary ownership and call-summary separation (19 October 2026)
 
 Removed keyword language detection from Studio, local Cloud and the standalone diary endpoint: ordinary English words such as the/main had triggered a forced Hinglish mandate. The author/language instruction uses the selected persona profile plus up to 12 of that persona's own non-event messages, excluding user/other named participants. Daily/multi-day emotional diary prompts remain; grounded events and language stay with the author. Chat changes clear diary selection state and key the editor by persona ID; handleSaveMemory rejects mismatched owner IDs.

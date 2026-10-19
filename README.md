@@ -1,5 +1,9 @@
 # Wassap Persona Simulation (v1.9.9)
 
+## Per-persona language (19 October 2026)
+
+Open a persona's **Contact info → Language**, type the desired language/script (for example **English**, **Hindi in Devanagari**, or **Hinglish**), then **Save Changes**. Blank or Auto follows the persona description. An explicit choice takes priority over conflicting descriptions, memories, speech styles and conversation requests in messages, group/automated turns, voice notes/previews, calls, captions, diaries and call recaps. Voice previews generate a brief localized introduction before synthesizing it. Backups preserve the setting; older personas stay on Auto. Existing saved writing/transcripts are not translated. If generation is unavailable, an explicit-language persona uses a neutral connection/camera indicator instead of an English/Hinglish stock sentence.
+
 ## Persona-authentic diaries and brief call recaps (19 October 2026)
 
 Diary language now follows the selected persona's profile and own voice, rather than guessing Hindi from common English words or the user's messages. Daily and multi-day entries remain personal first-person reflections. Switching chats closes the diary editor; drafts and saves cannot carry into another persona. Calls of at least a minute use a separate brief recap prompt (one paragraph, 2–4 sentences, at most 120 words), saved as a **Call Summary** in chat and memory. Existing saved entries are preserved. Both personal-key and Cloud paths use matching prompts.

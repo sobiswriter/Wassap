@@ -146,6 +146,7 @@ const DateMemoryModal: React.FC<{
           about: chat.about, 
           role: chat.role, 
           speechStyle: chat.speechStyle, 
+          language: chat.language,
           systemInstruction: chat.systemInstruction,
           humaneSettings: chat.humaneSettings,
         },
