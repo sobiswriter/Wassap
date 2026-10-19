@@ -1,5 +1,13 @@
 # Wassap System Architecture (`architecture.md`)
 
+## Live voice continuity and Extended Thinking (19 October 2026)
+
+AppSettings.selectedLiveModel is additive and normalized to one of the two documented Live IDs; missing/invalid saved settings use gemini-3.8-live. PersonaCall captures model/voice at construction and caches the setup prompt after compact context preparation. All resume attempts reuse those values and the same custom sample. The Cloud relay validates the model allowlist before connecting and does not retry another model/voice after a provider rejection. No arbitrary model routing is exposed.
+
+Extended Thinking alone sends thinkingConfig.thinkingLevel=LOW. The normal model omits thinkingConfig. Incoming interactionStatus is read from SDK serverContent or top-level camel/snake variants; processing remains true for IN_PROGRESS even after turnComplete, until IDLE/interruption/disconnect/end. Utterances still commit independently and all later audio parts continue through the existing playback queue. No tools or extra AI jobs run during the call. Proactivity is left at the provider default, compatible with Thinking's required proactive behavior.
+
+personaLiveStyle separates conversation delivery from configured speaker identity: omit automatic voice descriptors, duplicated custom reference design and pitch overrides. Keep explicit non-duplicate style and pacing; voice-note synthesis settings remain unchanged. ProfilePanel pauses detached preview players on unmount and wassap:call-start, and ignores completed preview audio when unmounted or a call surface is open. This closes an actual audio-overlap path missed by document audio queries. See the source-backed audit for observed facts versus unverified provider drift.
+
 ## Explicit persona language preference (19 October 2026)
 
 Chat and persona backups add optional language; legacy missing/blank/Auto values select description-led language. ProfilePanel offers a labeled free-text field (160 characters), trims on save and includes the value in export/import. ChatWindow explicitly carries it into diary generation; liveCall carries it into Live instructions and recap payloads. Voice previews generate a localized introduction through the normal persona reply path; synthesis keeps that text verbatim.

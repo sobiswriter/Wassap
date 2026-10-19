@@ -1,5 +1,11 @@
 # Wassap Persona Simulation (v1.9.9)
 
+## Live voice continuity and model choice (19 October 2026)
+
+**Settings → Live Call Model** now offers Gemini 3.8 Live (default) and Gemini 3.8 Live Extended Thinking, independently of the voice-note model. Save Settings; the next call uses that model. Calls keep the same selected voice/reference, model and setup prompt across resumption, with no provider/model fallback during an active call. Invalid/unavailable model access fails explicitly.
+
+Closed-profile voice previews now stop, and delayed preview generation cannot start another speaker over a call. Live prompts no longer duplicate custom voice-design descriptions, automatic preset traits or pitch overrides alongside the configured voice/reference; ordinary delivery and emotion remain. This fixes confirmed app-side overlap/steering risks; a provider-generated timbre shift within an uninterrupted stream has not been reproduced or ruled out. See [Live audit and official references](tasks/live-voice-audit-2026-10-19.md).
+
 ## Per-persona language (19 October 2026)
 
 Open a persona's **Contact info → Language**, type the desired language/script (for example **English**, **Hindi in Devanagari**, or **Hinglish**), then **Save Changes**. Blank or Auto follows the persona description. An explicit choice takes priority over conflicting descriptions, memories, speech styles and conversation requests in messages, group/automated turns, voice notes/previews, calls, captions, diaries and call recaps. Voice previews generate a brief localized introduction before synthesizing it. Backups preserve the setting; older personas stay on Auto. Existing saved writing/transcripts are not translated. If generation is unavailable, an explicit-language persona uses a neutral connection/camera indicator instead of an English/Hinglish stock sentence.

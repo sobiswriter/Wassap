@@ -26,7 +26,7 @@ const PanelLoadingFallback: React.FC = () => (
     <div className="h-full bg-[#21c063] w-1/2 rounded-full animate-pulse" />
   </div>
 );
-import { INITIAL_CHATS, normalizeTextModel, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, GEMINI_TTS_VOICE_DETAILS } from './constants';
+import { INITIAL_CHATS, normalizeTextModel, normalizeLiveModel, DEFAULT_LIVE_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, GEMINI_TTS_VOICE_DETAILS } from './constants';
 import { Chat, Message, UserProfile, AppSettings, FileAttachment, MemoryBubble, MessageStatus, PersonaVoiceSettings } from './types';
 import { 
   getGeminiResponse, 
@@ -1059,6 +1059,7 @@ const App: React.FC = () => {
             enableDynamicOnlinePresence: false,
             ...parsed,
             selectedModel: normalizeTextModel(parsed.selectedModel),
+            selectedLiveModel: normalizeLiveModel(parsed.selectedLiveModel),
             isVertexUnlocked: false,
             ...(activeVoiceModel ? { selectedVoiceModel: activeVoiceModel } : {})
           };
@@ -1076,6 +1077,7 @@ const App: React.FC = () => {
       chatWallpaperOpacity: 0.85,
       isVertexUnlocked: false,
       selectedVoiceModel: DEFAULT_VOICE_MODEL,
+      selectedLiveModel: DEFAULT_LIVE_MODEL,
       enableDynamicOnlinePresence: false
     };
   });

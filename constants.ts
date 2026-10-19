@@ -278,6 +278,13 @@ export const AVAILABLE_VOICE_MODELS = [
 
 export const DEFAULT_VOICE_MODEL = 'gemini-3.8-flash-tts';
 
+export const AVAILABLE_LIVE_MODELS = [
+  { id: 'gemini-3.8-live', label: 'Gemini 3.8 Live' },
+  { id: 'gemini-3.8-live-extended-thinking', label: 'Gemini 3.8 Live Extended Thinking' },
+];
+export const DEFAULT_LIVE_MODEL = 'gemini-3.8-live';
+export const normalizeLiveModel = (model?: string) => AVAILABLE_LIVE_MODELS.some(option => option.id === model) ? model! : DEFAULT_LIVE_MODEL;
+
 export const VOICE_STYLE_PRESETS = [
   { id: 'default', label: 'Natural & Expressive Acting (Default)', prompt: 'warm, natural, and expressive with authentic emotional cadence' },
   { id: 'whispering', label: 'Whispering & Intimate', prompt: 'whispered gently, intimate, soft, and quiet late-night tone' },

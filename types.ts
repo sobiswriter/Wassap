@@ -198,6 +198,7 @@ export interface AppSettings {
   selectedModel?: string;
   selectedImageModel?: string; // 'gemini-3.1-flash-lite-image' | 'gemini-3.1-flash-image'
   selectedVoiceModel?: string; // 'gemini-3.8-flash-tts' | 'gemini-3.8-flash-lite-tts' | 'gemini-3.1-flash-tts-preview'
+  selectedLiveModel?: string;
   calendarNotes?: string;
   enableNotifications?: boolean;
   fontSize?: number;

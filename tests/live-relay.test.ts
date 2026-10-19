@@ -34,6 +34,7 @@ test('authenticated Live relay streams PCM and closes upstream when user hangs u
     const [message] = await once(socket, 'message');
     assert.ok(JSON.parse(message.toString()).setupComplete);
     assert.equal(config.model, 'gemini-3.8-live');
+    assert.equal(config.config.thinkingConfig, undefined);
     assert.equal(config.config.systemInstruction, 'You are Maya.');
     assert.deepEqual(config.config.realtimeInputConfig, { automaticActivityDetection: { disabled: false,
       startOfSpeechSensitivity: 'START_SENSITIVITY_LOW', endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', prefixPaddingMs: 200, silenceDurationMs: 900 }, activityHandling: 'START_OF_ACTIVITY_INTERRUPTS' });
@@ -49,9 +50,11 @@ test('authenticated Live relay streams PCM and closes upstream when user hangs u
     socket = new WebSocket(`ws://${host}/api/gemini/live`, { headers: { Origin: `http://${host}`, Cookie: 'wassap_vertex=synthetic-passkey' } });
     await once(socket, 'open');
     const voiceSample = Buffer.alloc(10 * 24000 * 2).toString('base64');
-    socket.send(JSON.stringify({ type: 'start', prompt: 'You are Maya.', voice: 'Fenrir', voiceSample }));
+    socket.send(JSON.stringify({ type: 'start', model: 'gemini-3.8-live-extended-thinking', prompt: 'You are Maya.', voice: 'Fenrir', voiceSample }));
     const [customMessage] = await once(socket, 'message');
     assert.ok(JSON.parse(customMessage.toString()).setupComplete);
+    assert.equal(config.model, 'gemini-3.8-live-extended-thinking');
+    assert.deepEqual(config.config.thinkingConfig, { thinkingLevel: 'LOW' });
     assert.deepEqual(config.config.speechConfig.voiceConfig, { replicatedVoiceConfig: { voiceSampleAudio: voiceSample, mimeType: 'audio/pcm;rate=24000' } });
     socket.send(JSON.stringify({ type: 'end' }));
     await once(socket, 'close');
@@ -63,6 +66,11 @@ test('authenticated Live relay streams PCM and closes upstream when user hangs u
     assert.ok(JSON.parse(invalid.toString()).error);
     await once(socket, 'close');
     assert.equal(upstream.mock.callCount(), calls, 'Invalid sample reached the provider');
+    socket = new WebSocket(`ws://${host}/api/gemini/live`, { headers: { Origin: `http://${host}`, Cookie: 'wassap_vertex=synthetic-passkey' } });
+    await once(socket, 'open');
+    socket.send(JSON.stringify({ type: 'start', model: 'unapproved-model', prompt: 'You are Maya.', voice: 'Fenrir' }));
+    const [invalidModel] = await once(socket, 'message'); assert.ok(JSON.parse(invalidModel.toString()).error);
+    await once(socket, 'close'); assert.equal(upstream.mock.callCount(), calls, 'Unsupported model reached the provider');
   } finally {
     socket?.terminate(); upstream.mock.restore();
     await new Promise<void>(resolve => server.close(() => resolve()));

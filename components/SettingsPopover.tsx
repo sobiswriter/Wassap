@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { resolveWallpaperUrl } from '../utils/wallpaper';
 import { Moon, Sun, ShieldCheck, ShieldAlert, X, Key, Eye, EyeOff, Clock, CalendarDays, Sparkles, Globe, Bell, ALargeSmall, Cloud, Check, AlertCircle, Image as ImageIcon, Upload, RotateCcw, Lock, Unlock, HelpCircle, Smartphone, RotateCw, Camera, Mic, Zap, Film, Download } from 'lucide-react';
 import { AppSettings, AiProvider } from '../types';
-import { AVAILABLE_MODELS, AVAILABLE_IMAGE_MODELS, AVAILABLE_VOICE_MODELS, GCP_CONFIG, DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE_HINT } from '../constants';
+import { AVAILABLE_MODELS, AVAILABLE_IMAGE_MODELS, AVAILABLE_VOICE_MODELS, AVAILABLE_LIVE_MODELS, DEFAULT_LIVE_MODEL, GCP_CONFIG, DEFAULT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VOICE_MODEL, WALLPAPER_PRESETS, VERTEX_PASSCODE_HINT } from '../constants';
 import { compressWallpaperImage } from '../utils/imageCompressor';
 import { checkVertexConnectionStatus } from '../services/geminiService';
 import { parsePersonaBackup } from '../utils/personaBackup';
@@ -770,6 +770,23 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({ settings, onUp
               {AVAILABLE_MODELS.map(model => (
                 <option key={model.id} value={model.id}>{model.label}</option>
               ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <Mic size={20} className="text-[#00a884] shrink-0" />
+            <div>
+              <label htmlFor="live-call-model" className="text-[length:var(--msg-font-size)] font-medium">Live Call Model</label>
+              <p className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary">Fast conversation or deeper reasoning. Applies to your next call; keeps the persona's voice.</p>
+            </div>
+          </div>
+          <div className="ml-[32px]">
+            <select id="live-call-model" value={draftSettings.selectedLiveModel || DEFAULT_LIVE_MODEL}
+              onChange={event => setDraftSettings({ ...draftSettings, selectedLiveModel: event.target.value })}
+              className="w-full bg-[#f0f2f5] dark:bg-[#202c33] border app-border rounded-lg px-3 py-2 text-[calc(var(--msg-font-size)-1.5px)] outline-none focus:border-[#00a884] transition-all cursor-pointer">
+              {AVAILABLE_LIVE_MODELS.map(model => <option key={model.id} value={model.id}>{model.label}</option>)}
             </select>
           </div>
         </div>

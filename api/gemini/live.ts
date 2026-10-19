@@ -11,7 +11,7 @@ function requestOriginAllowed(req: IncomingMessage): boolean {
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
-import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity, ActivityHandling, type Session } from '@google/genai';
+import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity, ActivityHandling, ThinkingLevel, type Session } from '@google/genai';
 
 const DEFAULT_GCP_PROJECT = 'gen-lang-client-0100408368';
 
@@ -258,6 +258,8 @@ sockets.on('connection', (socket: WebSocket) => {
       if (message.type === 'audioEnd') { session?.sendRealtimeInput({ audioStreamEnd: true }); return; }
       if (message.type !== 'start' || started) throw new Error('Invalid call command');
       started = true;
+      const model = message.model ?? 'gemini-3.8-live';
+      if (model !== 'gemini-3.8-live' && model !== 'gemini-3.8-live-extended-thinking') throw new Error('Invalid Live model');
       if (typeof message.prompt !== 'string' || message.prompt.length > 60000 || typeof message.voice !== 'string' || !/^[A-Za-z]{2,30}$/.test(message.voice)
         || (message.resume && (typeof message.resume !== 'string' || message.resume.length > 8192))) throw new Error('Invalid call configuration');
       if (message.voiceSample !== undefined && (typeof message.voiceSample !== 'string' || message.voiceSample.length < 640000
@@ -270,9 +272,10 @@ sockets.on('connection', (socket: WebSocket) => {
       let ready = false;
       const customVoiceError = 'Google rejected the custom call voice. Check custom Live voice access, or select a built-in persona voice.';
       const connected = await client.live.connect({
-        model: 'gemini-3.8-live',
+        model,
         config: {
           responseModalities: [Modality.AUDIO], systemInstruction: message.prompt,
+          ...(model === 'gemini-3.8-live-extended-thinking' ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
           realtimeInputConfig: { automaticActivityDetection: { disabled: false, startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
             endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW, prefixPaddingMs: 200, silenceDurationMs: 900 }, activityHandling: ActivityHandling.START_OF_ACTIVITY_INTERRUPTS },
           speechConfig: { voiceConfig: message.voiceSample

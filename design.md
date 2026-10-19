@@ -1,5 +1,11 @@
 # Wassap Design System (`design.md`)
 
+## Stable Live voice and model setting (19 October 2026)
+
+General Settings places an accessible Live Call Model selector beside existing model choices. Offer Gemini 3.8 Live and Gemini 3.8 Live Extended Thinking; explain fast conversation versus deeper reasoning and that changes apply to the next call without changing the persona voice. Keep the full model names readable at phone widths. Voice-note model remains a separate setting.
+
+Do not let profile preview audio continue after the profile closes or play over an active/minimized call. Speaker identity is supplied through the session's preset/reference voice, with emotional delivery kept separate from duplicate design text or pitch overrides. Thinking can produce several utterances before the interaction is idle; keep listening and playing later audio without a new greeting or speaker switch. Ended call copy says summary rather than diary. Do not claim that provider-generated voice drift is impossible.
+
 ## Persona language field (19 October 2026)
 
 Contact info places a labeled Language text field beside Speech Style/Persona Notes. Empty displays Auto — from persona description; accept free-form language/script requests up to 160 characters. Save Changes persists it for that persona only; clearing restores Auto. Explain that it applies to messages, calls, captions and diaries. Reuse existing theme tokens and mobile input styling.

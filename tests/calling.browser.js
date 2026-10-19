@@ -94,7 +94,7 @@ async (page) => {
     check(prompt.includes('A thoughtful friend') && prompt.includes('Kyoto') && prompt.includes('LIVE VOICE CALL'), 'Persona/summary context missing');
     check(!prompt.includes('temple') && !prompt.includes('We met in Kyoto.') && !prompt.includes('Casual Hinglish'), 'Raw chats/memories/persona extras leaked into Live');
     check(contextRequests[0].messages.length === 1 && Object.keys(contextRequests[0]).length === 1, 'Call summary received excessive context');
-    check(prompt.includes('warm and gentle, speaking slowly, deep'), 'Voice-note delivery settings missing from call');
+    check(prompt.includes('warm and gentle, speaking slowly') && !prompt.includes('speaking slowly, deep'), 'Live should preserve delivery without overriding the session voice pitch');
     await page.clock.runFor(500);
     for (let i = 0; i < 30 && !audioFrames; i++) await new Promise(resolve => setTimeout(resolve, 100));
     check(audioFrames > 0, 'Microphone PCM frames missing');
@@ -161,14 +161,15 @@ async (page) => {
     });
     await context.addInitScript(() => {
       if (sessionStorage.getItem('__locked')) localStorage.setItem('whatsapp_settings', JSON.stringify({ aiProvider: 'vertex', theme: 'light' }));
-      else if (sessionStorage.getItem('__studio')) localStorage.setItem('whatsapp_settings', JSON.stringify({ aiProvider: 'studio', apiKey: 'synthetic-never-sent', theme: 'dark' }));
+      else if (sessionStorage.getItem('__studio')) localStorage.setItem('whatsapp_settings', JSON.stringify({ aiProvider: 'studio', apiKey: 'synthetic-never-sent', theme: 'dark', selectedLiveModel: 'gemini-3.8-live-extended-thinking' }));
     });
     await page.evaluate(() => sessionStorage.setItem('__studio', '1'));
     await page.reload();
     await page.getByRole('button', { name: 'Open chat with Maya', exact: true }).click();
     await page.getByRole('button', { name: 'Voice call', exact: true }).click();
     await pickup();
-    check(studioSetup.model.endsWith('gemini-3.8-live'), 'Studio SDK did not select Live model');
+    check(studioSetup.model.endsWith('gemini-3.8-live-extended-thinking'), 'Studio SDK did not select Extended Thinking');
+    check(studioSetup.generationConfig.thinkingConfig.thinkingLevel === 'LOW', 'Thinking config was not serialized by the installed SDK');
     check(studioSetup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName === 'Fenrir', 'Call ignored the voice-note voice');
     check(studioSetup.realtimeInputConfig.automaticActivityDetection.startOfSpeechSensitivity === 'START_SENSITIVITY_LOW' && studioSetup.realtimeInputConfig.automaticActivityDetection.silenceDurationMs === 900, 'Studio VAD tuning missing');
     for (let i = 0; i < 30 && !studioAudio; i++) await new Promise(resolve => setTimeout(resolve, 100));

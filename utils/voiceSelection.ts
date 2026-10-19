@@ -27,3 +27,10 @@ export function personaTtsStyle(settings: PersonaVoiceSettings | undefined, voic
     settings?.paceSpeed !== 'default' ? settings?.paceSpeed : '', settings?.pitchTone,
     speechStyle?.replace(/^manner:\s*/i, '')].filter(Boolean).join(', ');
 }
+
+export function personaLiveStyle(settings: PersonaVoiceSettings | undefined, voice: ReturnType<typeof selectPersonaVoice>, speechStyle?: string) {
+  if (settings?.enableVoicePrompting === false) return '';
+  // The session voice/reference owns speaker identity; do not restate its design or override its pitch.
+  return [settings?.stylePrompt !== voice.item?.promptDescription ? settings?.stylePrompt : '',
+    settings?.paceSpeed !== 'default' ? settings?.paceSpeed : '', speechStyle].filter(Boolean).join(', ');
+}

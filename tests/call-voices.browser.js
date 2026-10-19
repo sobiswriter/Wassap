@@ -49,7 +49,7 @@ async (page) => {
         if (request.voiceSample || request.voice !== 'Fenrir') throw new Error(`${kind}: invalid sample was transmitted or wrong fallback selected`);
         await page.getByText(/Call fallback: Fenrir/).waitFor();
       }
-      if (!request.prompt.includes('custom vocal design: soft British voice')) throw new Error('Designed style missing');
+      if (request.prompt.includes('custom vocal design:')) throw new Error('Voice identity was redundantly steered through the conversation prompt');
       await page.getByRole('button', { name: 'End call', exact: true }).click();
       await page.getByRole('button', { name: 'Return to chat', exact: true }).click();
       await page.evaluate(() => window.fixtureAudio.close());

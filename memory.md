@@ -15,6 +15,13 @@
 
 ## ⚡ Current State & What Was Just Worked On
 
+### Live voice continuity investigation and model selector (19 October 2026)
+- Follow-up real-provider attempt: workspace has no project .env/provider credential variables; a local Google application-default credential file exists. Attempted both documented Live models directly through the actual SDK/Cloud client with synthetic text and Fenrir. Both connection attempts timed out at 15 seconds before setupComplete or any audio. This does not establish invalid credentials, model rejection or acoustic quality; the cause of connection failure remains unconfirmed. Local unauthenticated member-session probe returned 401. Never report these as successful Live audio tests.
+- Read Google's current 3.8 Live, Extended Thinking, voice configuration, session/capability and best-practice documentation. Found no app-side voice/model replacement after setup, but found concrete preview leakage: detached ProfilePanel Audio survived unmount and async preview completion could start after closing the profile. Now pause on unmount/call-start and suppress late preview playback while a call surface is open. Browser reproduction covers both paths.
+- Reduced conflicting Live speaker steering via personaLiveStyle: do not duplicate custom reference design, automatic voice descriptors or pitchTone alongside the configured preset/reference. Keep explicit non-duplicate delivery/pacing and existing emotion prompt; TTS voice-note settings stay intact. This mitigates a steering risk, not proof of the reported upstream timbre shift. PersonaCall captures voice/model and caches its setup prompt, reusing all three plus the custom sample on resumption. Old-generation frames remain rejected.
+- Added global selectedLiveModel with normal/Extended Thinking choices in General Settings, normal as backward-compatible default. Cloud relay validates both IDs; unknown requests are rejected before the provider. Both provider paths send LOW thinkingConfig only for Extended Thinking, which tracks IN_PROGRESS/IDLE independently of per-utterance turnComplete. No tool integration, proactivity disabling, model switching or alternate speaker fallback was introduced mid-call. UI call-ended copy now says call summary.
+- Checks: 69 tests, TypeScript/build; browser regressions cover settings save/reload/320px, Cloud resumption retaining voice/model/prompt, actual SDK serialization of Studio Extended Thinking, both provider audio transports, custom sample conversion, and detached/pending preview isolation. See tasks/live-voice-audit-2026-10-19.md for official sources and audit. No live Google listening or physical-phone reproduction, so provider-level voice drift remains unverified. No push/deploy/data reset.
+
 ### Explicit persona language setting (19 October 2026)
 - Added optional language to Chat/backup types, profile initial/reset/export/save, backup validation/import and diary UI payload. Contact info field is free text (160 chars); blank/Auto uses persona description. Shared language instruction makes explicit choice override conflicting descriptions, speech style, old memories and conversation requests. No existing chats/entries are rewritten.
 - Covered client/local/deployed chat, voice-note text, group/automation, Live setup, short call recaps, daily/multi-day diaries, photo captions/camera excuses and TTS metadata. Studio/local share utils/personaLanguage.ts; self-contained deployed endpoints and worker mirror it. Voice previews now generate a localized short introduction before TTS; this adds one text request per preview click. Custom/prebuilt voice selection remains intact.
@@ -764,6 +771,8 @@ Wassap/
 ---
 
 ## 📜 Feature Milestones Completed
+
+- [x] 19 October 2026: Live model choice, pinned session setup and isolated preview audio, with documented provider-drift limits.
 
 - [x] 19 October 2026: Persona-specific explicit language with description-led Auto, complete prompt/payload coverage and backup preservation.
 

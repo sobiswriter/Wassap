@@ -1,9 +1,9 @@
 import { personaLanguageInstruction } from '../utils/personaLanguage';
-import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity, ActivityHandling, type Session } from '@google/genai';
+import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity, ActivityHandling, ThinkingLevel, type Session } from '@google/genai';
 import type { AppSettings, Chat, UserProfile } from '../types';
-import { GEMINI_TTS_VOICE_DETAILS } from '../constants';
+import { GEMINI_TTS_VOICE_DETAILS, normalizeLiveModel } from '../constants';
 import { getSavedCustomVoices, getVoiceAudioPreview } from '../utils/customVoices';
-import { selectPersonaVoice, personaVoiceStyle } from '../utils/voiceSelection';
+import { selectPersonaVoice, personaLiveStyle } from '../utils/voiceSelection';
 import { convertAudioTo24kMonoWav } from '../utils/audioResampler';
 import { buildCallSummaryPrompt } from './geminiService';
 import { getLocalDateKey } from '../utils/dates';
@@ -16,12 +16,13 @@ export interface CallSnapshot {
   sound: boolean;
   seconds: number;
   speaking: boolean;
+  processing: boolean;
   error: string;
   turns: CallTurn[];
 }
 
 export function callPrompt(chat: Chat, summary: string) {
-  const style = personaVoiceStyle(chat.voiceSettings, selectPersonaVoice(chat.voiceSettings, undefined, getSavedCustomVoices()));
+  const style = personaLiveStyle(chat.voiceSettings, selectPersonaVoice(chat.voiceSettings, undefined, getSavedCustomVoices()));
   return `PERSONA: ${JSON.stringify({ name: chat.name.slice(0, 100), description: (chat.about || '').slice(0, 2000) })}
 LIVE VOICE CALL:
 ${personaLanguageInstruction(chat.language)}
@@ -73,9 +74,10 @@ export class PersonaCall {
   readonly id = globalThis.crypto?.randomUUID?.() || `call-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   readonly startedAt = Date.now();
   readonly voice: string;
+  readonly model: string;
   voiceNotice: string;
   private voiceSample?: string;
-  snapshot: CallSnapshot = { status: 'connecting', muted: false, sound: true, seconds: 0, speaking: false, error: '', turns: [] };
+  snapshot: CallSnapshot = { status: 'connecting', muted: false, sound: true, seconds: 0, speaking: false, processing: false, error: '', turns: [] };
   private listeners = new Set<(snapshot: CallSnapshot) => void>();
   private stream?: MediaStream;
   private audio?: AudioContext;
@@ -103,10 +105,12 @@ export class PersonaCall {
   private releaseLock?: () => void;
   private preparation = new AbortController();
   private context = '';
+  private sessionPrompt = '';
   private ringPlayer?: HTMLAudioElement;
   private ringRepeatTimer?: ReturnType<typeof setTimeout>;
   private endedAt?: number;
   constructor(readonly chat: Chat, readonly settings: AppSettings, readonly user: UserProfile, private finish: (record: CallRecord) => void) {
+    this.model = normalizeLiveModel(settings.selectedLiveModel);
     const selected = selectPersonaVoice(chat.voiceSettings);
     const configured = selected.custom ? chat.voiceSettings?.voiceName || 'Aoede' : selected.id;
     this.voice = GEMINI_TTS_VOICE_DETAILS[configured] ? configured : 'Aoede';
@@ -128,6 +132,7 @@ export class PersonaCall {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone access needs HTTPS or localhost.');
       if ((this.settings.aiProvider || 'vertex') === 'vertex' && !this.settings.isVertexUnlocked) throw new Error('Unlock Built-in Cloud in Settings before calling.');
       if (this.settings.aiProvider !== 'vertex' && !this.settings.apiKey && this.settings.aiProvider) throw new Error('Add your Gemini API key in Settings before calling.');
+      window.dispatchEvent(new Event('wassap:call-start'));
       this.audio = new AudioContext({ latencyHint: 'interactive' });
       await this.audio.resume();
       if (navigator.locks) {
@@ -233,6 +238,7 @@ export class PersonaCall {
     this.ringPlayer = undefined;
   }
   private async connect() {
+    this.sessionPrompt ||= callPrompt(this.chat, this.context);
     const generation = ++this.generation;
     clearTimeout(this.setupTimer);
     this.setupTimer = setTimeout(() => this.end('Voice connection timed out. Check your network and provider access.'), 20000);
@@ -250,8 +256,10 @@ export class PersonaCall {
       }
       if (message.goAway) return; // A warning is not a disconnect; keep playing until the provider closes.
       const content = message.serverContent;
+      const interaction = content?.interactionStatus || content?.interaction_status || message.interactionStatus || message.interaction_status;
+      if (this.model === 'gemini-3.8-live-extended-thinking' && interaction) this.update({ processing: interaction === 'IN_PROGRESS' });
       if (!content) return;
-      if (content.interrupted) { this.stopAudio(); this.commitTurns(true); }
+      if (content.interrupted) { this.update({ processing: false }); this.stopAudio(); this.commitTurns(true); }
       if (content.inputTranscription?.text) this.input += content.inputTranscription.text;
       if (content.outputTranscription?.text) this.output += content.outputTranscription.text;
       for (const part of content.modelTurn?.parts || []) if (part.inlineData?.data) this.play(part.inlineData.data);
@@ -262,15 +270,16 @@ export class PersonaCall {
       this.socket = socket;
       socket.onopen = () => {
         if (this.ended || generation !== this.generation) { socket.close(); return; }
-        socket.send(JSON.stringify({ type: 'start', prompt: callPrompt(this.chat, this.context), voice: this.voice, voiceSample: this.voiceSample, resume: this.handle }));
+        socket.send(JSON.stringify({ type: 'start', model: this.model, prompt: this.sessionPrompt, voice: this.voice, voiceSample: this.voiceSample, resume: this.handle }));
       };
       socket.onmessage = event => { try { onmessage(JSON.parse(event.data)); } catch { this.end('Invalid voice stream. Please call again.'); } };
       socket.onclose = () => this.disconnected(generation);
       socket.onerror = () => { if (!this.connectedAt && !this.connectedMs) this.end('Call server unavailable. Check cloud unlock, network and WebSocket hosting support.'); };
     } else {
       const resumed = !!this.handle;
-      const session = await new GoogleGenAI({ apiKey: this.settings.apiKey }).live.connect({ model: 'gemini-3.8-live', config: {
-        responseModalities: [Modality.AUDIO], systemInstruction: callPrompt(this.chat, this.context),
+      const session = await new GoogleGenAI({ apiKey: this.settings.apiKey }).live.connect({ model: this.model, config: {
+        responseModalities: [Modality.AUDIO], systemInstruction: this.sessionPrompt,
+        ...(this.model === 'gemini-3.8-live-extended-thinking' ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
         realtimeInputConfig: { automaticActivityDetection: { disabled: false, startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
           endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW, prefixPaddingMs: 200, silenceDurationMs: 900 }, activityHandling: ActivityHandling.START_OF_ACTIVITY_INTERRUPTS },
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: this.voice } } },
@@ -292,7 +301,7 @@ export class PersonaCall {
     this.stopAudio();
     this.commitTurns(true);
     if (!this.handle || this.reconnects++ >= 2) { this.end('Connection lost. Your call history has been kept.'); return; }
-    this.update({ status: 'reconnecting' });
+    this.update({ status: 'reconnecting', processing: false });
     this.reconnectTimer = setTimeout(() => { void this.checkEndRequest().then(() => { if (!this.ended) void this.connect().catch(() => this.end('Unable to reconnect.')); }); }, 1200);
   }
   private commitTurns(interrupted: boolean) {
@@ -397,7 +406,7 @@ export class PersonaCall {
     const turns = [...this.snapshot.turns];
     if (this.input.trim()) turns.push({ speaker: 'me', text: this.input.trim() });
     if (this.output.trim()) turns.push({ speaker: 'other', text: this.output.trim(), interrupted: true });
-    this.update({ status: 'ended', seconds: this.seconds(), turns, error });
+    this.update({ status: 'ended', seconds: this.seconds(), turns, error, processing: false });
     const record = this.record(); record.diary = shouldSummarizeCall(record) ? 'pending' : 'none';
     this.writes = this.writes.catch(() => {}).then(() => saveCall(record));
     void this.writes.catch(() => this.update({ error: 'Call history could not be saved. Please free device storage.' }));

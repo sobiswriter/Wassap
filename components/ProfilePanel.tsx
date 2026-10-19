@@ -206,6 +206,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   // Audio Preview & Media Recorder State
   const [playingPreviewVoiceId, setPlayingPreviewVoiceId] = useState<string | null>(null);
   const activeAudioPreviewRef = useRef<HTMLAudioElement | null>(null);
+  const previewMountedRef = useRef(true);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<any>(null);
@@ -229,7 +230,23 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    previewMountedRef.current = true;
+    const stopPreview = () => {
+      activeAudioPreviewRef.current?.pause();
+      activeAudioPreviewRef.current = null;
+      setPlayingPreviewVoiceId(null);
+    };
+    window.addEventListener('wassap:call-start', stopPreview);
+    return () => {
+      previewMountedRef.current = false;
+      activeAudioPreviewRef.current?.pause();
+      window.removeEventListener('wassap:call-start', stopPreview);
+    };
+  }, []);
+
   const playAudioPreview = (audioUrl: string, voiceId?: string) => {
+    if (!previewMountedRef.current || document.querySelector('.call-backdrop, .call-mini')) return;
     if (activeAudioPreviewRef.current) {
       activeAudioPreviewRef.current.pause();
       const prevVoice = playingPreviewVoiceId;
