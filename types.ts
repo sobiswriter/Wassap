@@ -28,6 +28,7 @@ export interface Message {
   voiceMediaId?: string; // ID for IndexedDB storage for attached voice note
   voiceDuration?: number; // Duration of attached voice note in seconds
   replyToMessage?: Message;
+  responseToMessageId?: string; // Durable reply receipt for interrupted outbox acknowledgement.
   isEvent?: boolean;
   eventTitle?: string;
   timestampEpoch?: number;

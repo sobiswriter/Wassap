@@ -564,7 +564,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         >
           <div className="bg-white dark:bg-[#222e35] rounded-xl shadow-2xl w-full max-w-[380px] overflow-hidden text-primary border border-black/10 dark:border-white/10 animate-in zoom-in-95 duration-150 flex flex-col">
             {/* Header */}
-            <div className="px-5 py-3.5 flex items-center justify-between border-b border-black/10 dark:border-white/10 bg-[#f0f2f5] dark:bg-[#182229]">
+            <div className="px-5 py-3.5 flex items-center justify-between border-b border-black/10 dark:border-white/10 bg-[#f0f2f5] dark:bg-[#0b1014]">
               <h3 className="text-[15px] font-medium text-primary">New Event</h3>
               <button 
                 onClick={() => {
@@ -768,7 +768,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
           >
             {mediaPreview.type === 'gif' ? (
               <div className="flex items-center gap-3">
-                <div className="flex-1 bg-white/10 dark:bg-[#202c33] border border-white/15 rounded-full px-4 py-2.5 flex items-center gap-2.5 text-white focus-within:border-[#21c063] transition-colors shadow-lg">
+                <div className="flex-1 bg-white/10 dark:bg-[#0b1014] border border-white/15 rounded-full px-4 py-2.5 flex items-center gap-2.5 text-white focus-within:border-[#21c063] transition-colors shadow-lg">
                   <input
                     type="text"
                     placeholder="Add a caption... (optional, press Enter to send)"
@@ -818,7 +818,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
       {/* Attachment Preview Area (Staged) */}
       {(stagedAttachment || stagedVoiceNote) && (
-        <div className="bg-[#f0f2f5] dark:bg-[#182229] border-t app-border px-4 py-3 flex items-end gap-3 animate-in slide-in-from-bottom-2 duration-300 shadow-inner overflow-x-auto">
+        <div className="bg-[#f0f2f5] dark:bg-[#0b1014] border-t app-border px-4 py-3 flex items-end gap-3 animate-in slide-in-from-bottom-2 duration-300 shadow-inner overflow-x-auto">
           {/* Staged Image or Document */}
           {stagedAttachment && (
             <div className="relative group bg-white dark:bg-[#2a3942] p-2 rounded-xl border app-border shadow-md shrink-0">
@@ -835,7 +835,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
                 </div>
               )}
               {stagedAttachment.type === 'document' && (
-                <div className="w-24 h-24 sm:w-28 sm:h-28 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#182229] rounded-lg border app-border p-2">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 flex flex-col items-center justify-center bg-gray-50 dark:bg-[#0b1014] rounded-lg border app-border p-2">
                   <FileText className="text-[#7f66ff] mb-2" size={32} />
                   <span className="text-[11px] text-[#667781] text-center line-clamp-2 w-full leading-tight font-medium">{stagedAttachment.name}</span>
                 </div>
@@ -889,7 +889,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
       {/* Reply Banner Area */}
       {replyingTo && (
-        <div className="bg-[#f0f2f5] dark:bg-[#182229] border-t app-border px-3 py-2 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-300">
+        <div className="bg-[#f0f2f5] dark:bg-[#0b1014] border-t app-border px-3 py-2 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-300">
            <div className="flex-1 bg-black/5 dark:bg-black/20 border-l-4 border-[#21c063] rounded p-2 relative pr-8 overflow-hidden">
              <button onClick={onCancelReply} className="absolute right-2 top-2 text-secondary hover:text-primary"><X size={16}/></button>
              <p className="text-[calc(var(--input-font-size)-4px)] text-[#21c063] font-medium mb-0.5 truncate">
@@ -924,7 +924,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
         <input type="file" ref={audioInputRef} className="hidden" accept="audio/*" onChange={(e) => handleFileSelection(e, 'audio')} />
         <input type="file" ref={stickerInputRef} className="hidden" accept="image/*,.webp" onChange={handleStickerFileSelection} />
 
-        <div className="flex-1 bg-white dark:bg-[#233138] rounded-[24px] flex items-end shadow-[0_1px_2px_rgba(11,20,26,.1)] overflow-hidden min-h-[48px]">
+        <div className="flex-1 bg-white dark:bg-[#0b1014] rounded-[24px] flex items-end shadow-[0_1px_2px_rgba(11,20,26,.1)] overflow-hidden min-h-[48px]">
           {isRecording ? (
             <div className="flex-1 py-[10px] px-4 flex items-center justify-between text-primary animate-in fade-in duration-200">
               <div className="flex items-center gap-2.5">

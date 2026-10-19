@@ -182,7 +182,7 @@ test('persona rules and history stay separate without losing group, event, react
 
 test('notification replies rebuild ledger and clock without replaying stale snapshots or gap directives', async () => {
   const bodies: any[] = [];
-  const context = { self: { addEventListener() {} }, console, Date, Math, JSON, Number, setTimeout, clearTimeout, URL,
+  const context = { self: { addEventListener() {} }, console, Date, Math, JSON, Number, AbortController, setTimeout, clearTimeout, URL,
     fetch: async (_url: string, init: any) => { bodies.push(JSON.parse(init.body)); return { json: async () => ({ text: 'Hi', candidates: [{ content: { parts: [{ text: 'Hi' }] } }] }) }; } };
   runInNewContext(readFileSync('public/sw.js', 'utf8'), context);
   const rules = { chatName: 'Maya', systemRules: 'You are Maya. Speak casual Hinglish.', fullSystemPrompt: 'STALE_COPY', clientTimeContext: 'STALE_TIME', timeGapContext: 'STALE_GAP', timeAwarenessEnabled: false, customTimeOffsetMs: 86400000 };

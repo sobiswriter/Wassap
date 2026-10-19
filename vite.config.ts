@@ -1,5 +1,6 @@
 import path from 'path';
-import { readFileSync } from 'node:fs';
+import { Script } from 'node:vm';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { defineConfig, loadEnv, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { handleGeminiApiMiddleware } from './server/api';
@@ -27,6 +28,19 @@ function vertexAiApiPlugin(): Plugin {
   };
 }
 
+function offlineShellPlugin(): Plugin {
+  return {
+    name: 'offline-shell-assets',
+    apply: 'build',
+    writeBundle(options, bundle) {
+      const assets = Object.keys(bundle).filter(file => /\.(js|css)$/.test(file)).map(file => `/${file}`);
+      const worker = readFileSync('public/sw.js', 'utf8').replace('/* BUILD_ASSETS */ []', JSON.stringify(assets));
+      new Script(worker); // Fail the build if injected worker code is invalid.
+      writeFileSync(path.join(options.dir || 'dist', 'sw.js'), worker);
+    }
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
 
@@ -45,7 +59,7 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
     },
-    plugins: [react(), vertexAiApiPlugin()],
+    plugins: [react(), vertexAiApiPlugin(), offlineShellPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

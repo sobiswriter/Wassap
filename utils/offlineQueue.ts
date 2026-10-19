@@ -12,6 +12,30 @@ export interface PendingQueueItem {
   chatId: string;
   message: Message;
   queuedAt: number;
+  leaseUntil?: number;
+  retryStartedAt?: number;
+  attempts?: number;
+  nextAttemptAt?: number;
+}
+
+export function retryExpired(item: PendingQueueItem, now = Date.now()): boolean {
+  return (item.attempts || 0) >= 3 || (item.retryStartedAt !== undefined && now - item.retryStartedAt >= 60000);
+}
+
+export async function beginPendingAttempt(chatId: string, history: Message[]): Promise<number | undefined> {
+  const ids = new Set(history.map(message => message.id));
+  const items = (await getPendingMessages()).filter(item => item.chatId === chatId && ids.has(item.id));
+  if (!items.length) return;
+  const now = Date.now();
+  if (items.some(item => retryExpired(item, now))) return now;
+  const startedAt = Math.min(...items.map(item => item.retryStartedAt ?? now));
+  const db = await openOfflineDB();
+  try {
+    const tx = db.transaction(PENDING_OUTBOX_STORE, 'readwrite');
+    items.forEach(item => tx.objectStore(PENDING_OUTBOX_STORE).put({ ...item, retryStartedAt: startedAt, attempts: (item.attempts || 0) + 1, nextAttemptAt: now + 15000 }));
+    await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onerror = tx.onabort = () => reject(tx.error); });
+  } finally { db.close(); }
+  return startedAt + 60000;
 }
 
 export interface BackgroundExchangeItem {
@@ -71,10 +95,10 @@ export const enqueuePendingMessage = async (chatId: string, message: Message): P
       queuedAt: Date.now()
     };
 
+    store.put(item);
     return new Promise((resolve, reject) => {
-      const req = store.put(item);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
     });
   } catch (err) {
     console.warn('Failed to enqueue pending offline message:', err);
@@ -87,6 +111,7 @@ export const getPendingMessages = async (): Promise<PendingQueueItem[]> => {
     const db = await openOfflineDB();
     const tx = db.transaction(PENDING_OUTBOX_STORE, 'readonly');
     const store = tx.objectStore(PENDING_OUTBOX_STORE);
+    tx.oncomplete = () => db.close();
 
     return new Promise((resolve, reject) => {
       const req = store.getAll();
@@ -105,11 +130,12 @@ export const removePendingMessage = async (id: string): Promise<void> => {
     const db = await openOfflineDB();
     const tx = db.transaction(PENDING_OUTBOX_STORE, 'readwrite');
     const store = tx.objectStore(PENDING_OUTBOX_STORE);
+    tx.oncomplete = () => db.close();
 
     return new Promise((resolve, reject) => {
-      const req = store.delete(id);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+      store.delete(id);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
     });
   } catch (err) {
     console.warn('Failed to remove pending offline message:', err);
@@ -135,10 +161,10 @@ export const recordBackgroundExchange = async (
       timestamp: Date.now()
     };
 
+    store.put(item);
     return new Promise((resolve, reject) => {
-      const req = store.put(item);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
     });
   } catch (err) {
     console.warn('Failed to record background exchange in IndexedDB:', err);
@@ -159,10 +185,10 @@ export const recordBackgroundMarkAsRead = async (chatId: string): Promise<void> 
       timestamp: Date.now()
     };
 
+    store.put(item);
     return new Promise((resolve, reject) => {
-      const req = store.put(item);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
     });
   } catch (err) {
     console.warn('Failed to record background mark as read in IndexedDB:', err);
@@ -175,6 +201,7 @@ export const getBackgroundExchanges = async (): Promise<BackgroundExchangeItem[]
     const db = await openOfflineDB();
     const tx = db.transaction(SYNCED_BACKGROUND_STORE, 'readonly');
     const store = tx.objectStore(SYNCED_BACKGROUND_STORE);
+    tx.oncomplete = () => db.close();
 
     return new Promise((resolve, reject) => {
       const req = store.getAll();
@@ -188,16 +215,17 @@ export const getBackgroundExchanges = async (): Promise<BackgroundExchangeItem[]
 };
 
 // Clear all background exchanges once reconciled in React state
-export const clearBackgroundExchanges = async (): Promise<void> => {
+export const clearBackgroundExchanges = async (ids?: string[]): Promise<void> => {
   try {
     const db = await openOfflineDB();
     const tx = db.transaction(SYNCED_BACKGROUND_STORE, 'readwrite');
     const store = tx.objectStore(SYNCED_BACKGROUND_STORE);
+    tx.oncomplete = () => db.close();
 
     return new Promise((resolve, reject) => {
-      const req = store.clear();
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+      if (ids) ids.forEach(id => store.delete(id)); else store.clear();
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
     });
   } catch (err) {
     console.warn('Failed to clear background exchanges:', err);

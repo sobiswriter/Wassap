@@ -1,5 +1,11 @@
 # Wassap Design System (`design.md`)
 
+## Reliability presentation follow-up (19 October 2026)
+
+Dark chat/header/received-bubble/composer base is #0b1014, matching the app and theme-color; keep green sent messages and light colors. The call/search/menu actions keep 44px targets. Last-seen text can wrap and the header grows to fit, with a smaller non-shrinking avatar. Long chats expose Load earlier messages without hiding older entries from search or diary capture.
+
+Native notifications retain the latest user message and latest persona fragment with one blank line between them, replacing older turns under the same chat tag. Supply both complete strings without app truncation; platform line limits can still shorten long messages. Remove text-drawn dividers and previous user/AI transcript blocks; preserve the full exchange in chat instead. Browser/OS owns notification card layout, attribution/domain and line limits; the app does not pretend to hide or restyle those. A saved pending send is shown with its existing clock status while retry waits for connectivity.
+
 ## v1.9.9 release presentation (19 October 2026)
 
 Browser/PWA titles, manifest, metadata and the latest Updates card identify v1.9.9. Keep the installed app identity `/` and all theme tokens stable. Calls retain the reference-led dark surface; light-mode chat call cards use the existing themed bubble/text tokens. Production CSP allows the app's inline styling, bundled icons, wallpapers and audio worklet; call/media controls must be checked in the production preview. No camera/screen-sharing control is enabled in this release.

@@ -266,13 +266,12 @@ export function isRawErrorMessage(text?: string): boolean {
   );
 }
 
-async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSignal): Promise<string> {
+async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSignal, durable = false): Promise<string> {
+  const failure = () => { if (durable) throw new Error('REPLY_UNAVAILABLE'); return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText); };
   const lastUserText = payload?.messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
 
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-    if (signal?.aborted) {
-      return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
-    }
+    if (signal?.aborted) throw signal.reason || new DOMException('Aborted', 'AbortError');
 
     try {
       // 20s timeout on attempt 1, 8s on attempt 2 to give model adequate thinking headroom
@@ -293,7 +292,7 @@ async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSigna
           payload.messageHistory = payload.messageHistory.slice(-6);
           continue;
         }
-        return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
+        return failure();
       }
 
       if (res.status === 429 || res.status === 503 || res.status === 502 || res.status === 504) {
@@ -313,7 +312,7 @@ async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSigna
           await new Promise(r => setTimeout(r, 1000));
           continue;
         }
-        return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
+        return failure();
       }
 
       const data = await res.json();
@@ -324,17 +323,18 @@ async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSigna
           await new Promise(r => setTimeout(r, delay + Math.random() * 300));
           continue;
         }
-        return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
+        return failure();
       }
 
       // Check if text itself accidentally contains raw error string
       if (isRawErrorMessage(data.text)) {
-        return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
+        return failure();
       }
 
       return data.text;
     } catch (e: any) {
       console.warn(`[Vertex Chat Network Error Attempt ${attempt}/${maxRetries + 1}]:`, e?.message || e);
+      if (signal?.aborted) throw signal.reason || new DOMException('Aborted', 'AbortError');
       if (attempt <= maxRetries && !signal?.aborted) {
         // If first attempt timed out or failed, trim history to recent 10 messages for lightweight recovery
         if (payload?.messageHistory && payload.messageHistory.length > 10) {
@@ -343,11 +343,11 @@ async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSigna
         await new Promise(r => setTimeout(r, 1000 + Math.random() * 300));
         continue;
       }
-      return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
+      return failure();
     }
   }
 
-  return getInCharacterNetworkGlitchExcuse(payload?.responder, lastUserText);
+  return failure();
 }
 
 async function fetchVertexDiary(payload: any, maxRetries = 1, signal?: AbortSignal): Promise<string> {
@@ -766,8 +766,11 @@ export const getGeminiResponse = async (
   initiationContext?: string,
   isVoiceNoteReply?: boolean,
   voiceSettings?: PersonaVoiceSettings,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  durable = false
 ) => {
+  const failure = () => { if (durable) throw new Error('REPLY_UNAVAILABLE'); return getInCharacterNetworkGlitchExcuse(responder, lastUserText); };
+  const lastUserText = messageHistory?.filter(m => m.sender === 'me')?.pop()?.text;
   const provider = settings?.aiProvider || 'vertex';
 
   // Option A: Built-in / Server Credits (Vertex AI)
@@ -792,7 +795,7 @@ export const getGeminiResponse = async (
       initiationContext,
       isVoiceNoteReply,
       voiceSettings,
-    }, 1, abortSignal);
+    }, durable ? 0 : 1, abortSignal, durable);
   }
 
   // Option B: Custom API Key (Gemini AI Studio)
@@ -845,12 +848,10 @@ export const getGeminiResponse = async (
     }
 
     const lastUserText = messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
-    const maxRetries = 2;
+    const maxRetries = durable ? 0 : 2;
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-      if (abortSignal?.aborted) {
-        return getInCharacterNetworkGlitchExcuse(responder, lastUserText);
-      }
+      if (abortSignal?.aborted) throw abortSignal.reason || new DOMException('Aborted', 'AbortError');
 
       try {
         // On retries after a rate limit or server issue, fallback to a lighter model
@@ -859,24 +860,11 @@ export const getGeminiResponse = async (
           modelToUse = 'gemini-3.5-flash-lite';
         }
 
-        const candidateTimeout = new Promise<never>((_, reject) => {
-          const t = setTimeout(() => reject(new Error('Custom API request timed out')), 20000);
-          if (abortSignal) {
-            abortSignal.addEventListener('abort', () => {
-              clearTimeout(t);
-              reject(new Error('Request aborted'));
-            }, { once: true });
-          }
+        const response = await ai.models.generateContent({
+          model: modelToUse,
+          contents: [{ role: 'user', parts }],
+          config: { ...config, abortSignal, httpOptions: { timeout: 20000 } },
         });
-
-        const response = await Promise.race([
-          ai.models.generateContent({
-            model: modelToUse,
-            contents: [{ role: 'user', parts }],
-            config,
-          }),
-          candidateTimeout
-        ]);
 
         const replyText = response.text?.trim();
         if (replyText && !isRawErrorMessage(replyText)) {
@@ -887,7 +875,7 @@ export const getGeminiResponse = async (
           await new Promise(r => setTimeout(r, 1200 * attempt));
           continue;
         }
-        return getInCharacterNetworkGlitchExcuse(responder, lastUserText);
+        return failure();
       } catch (error: any) {
         console.warn(`[Custom Gemini API Attempt ${attempt}/${maxRetries + 1} Error]:`, error?.message || error);
         if (error.status === 401 || error.status === 403) {
@@ -898,18 +886,19 @@ export const getGeminiResponse = async (
           await new Promise(r => setTimeout(r, delay + Math.random() * 400));
           continue;
         }
-        return getInCharacterNetworkGlitchExcuse(responder, lastUserText);
+        return failure();
       }
     }
 
-    return getInCharacterNetworkGlitchExcuse(responder, lastUserText);
+    return failure();
   } catch (error: any) {
+    if (abortSignal?.aborted) throw abortSignal.reason || new DOMException('Aborted', 'AbortError');
     console.error("Connection error:", error);
     if (error?.status === 401 || error?.status === 403) {
       return "Invalid API Key. Please check your settings.";
     }
     const lastUserText = messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
-    return getInCharacterNetworkGlitchExcuse(responder, lastUserText);
+    return failure();
   }
 };
 

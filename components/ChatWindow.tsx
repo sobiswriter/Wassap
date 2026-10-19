@@ -62,7 +62,7 @@ const DateDivider: React.FC<{ dateKey: string; onClick?: () => void; settings?: 
       onClick={onClick}
       disabled={!onClick}
       title={onClick ? 'Save this day as a diary memory' : undefined}
-      className={`bg-white dark:bg-[#182229] text-[#54656f] dark:text-[#8696a0] text-[12px] px-3 py-1 rounded-lg font-medium tracking-wide shadow-xs transition-all ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#21c063]' : 'pointer-events-none opacity-90'}`}
+      className={`bg-white dark:bg-[#0b1014] text-[#54656f] dark:text-[#8696a0] text-[12px] px-3 py-1 rounded-lg font-medium tracking-wide shadow-xs transition-all ${onClick ? 'pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 hover:text-[#21c063]' : 'pointer-events-none opacity-90'}`}
     >
       {formatChatDividerLabel(dateKey, settings)}
     </button>
@@ -1155,6 +1155,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [visibleCount, setVisibleCount] = useState(80);
+  useEffect(() => setVisibleCount(80), [chat?.id]);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [hasNewUnreadWhileScrolled, setHasNewUnreadWhileScrolled] = useState(false);
   const lastMessageCountRef = useRef(chat?.messages?.length || 0);
@@ -1280,7 +1282,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
     try {
       // Heal all messages with strictly monotonic forward-flowing dates
-      const healedList = resolveChatMessagesDates(filteredMessages, settings);
+      const healedList = resolveChatMessagesDates(filteredMessages, settings).slice(searchTerm ? 0 : -visibleCount);
 
       // Map strictly keyed by unique dateKey to mathematically eliminate duplicate date dividers
       const groupMap = new Map<string, { msg: Message; isConsecutive: boolean }[]>();
@@ -1316,18 +1318,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       console.error("Failsafe caught in messageGroups:", err);
       return [{
         dateKey: 'old',
-        items: (filteredMessages || []).map((msg, index) => ({
+        items: (searchTerm ? filteredMessages : filteredMessages.slice(-visibleCount)).map((msg, index) => ({
           msg,
           isConsecutive: index > 0 && filteredMessages[index - 1]?.sender === msg.sender
         }))
       }];
     }
-  }, [filteredMessages, chat, settings, liveDateKey]);
+  }, [filteredMessages, chat?.id, chat?.isGroup, settings, liveDateKey, visibleCount, searchTerm]);
 
   if (!chat) {
     return (
       <div className="flex-1 app-header flex flex-col items-center justify-center relative overflow-hidden transition-colors duration-300">
-        <div className="flex gap-8 relative z-10 p-12 border rounded-xl app-border bg-[#f8f9fa] dark:bg-[#182229] shadow-sm">
+        <div className="flex gap-8 relative z-10 p-12 border rounded-xl app-border bg-[#f8f9fa] dark:bg-[#0b1014] shadow-sm">
           <div className="flex flex-col items-center gap-3 group cursor-pointer" onClick={onProfileClick}>
             <div className="w-20 h-20 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-[#54656f] group-hover:bg-black/10 dark:group-hover:bg-white/10 transition-all active:scale-95">
               <User size={32} />
@@ -1349,7 +1351,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   background: 'linear-gradient(45deg, #00d2ff 0%, #3a7bd5 50%, #8e2de2 100%)',
                   borderColor: 'transparent'
                 }}>
-                <div className="w-full h-full rounded-full bg-[#f8f9fa] dark:bg-[#182229]"></div>
+                <div className="w-full h-full rounded-full bg-[#f8f9fa] dark:bg-[#0b1014]"></div>
               </div>
             </div>
             <span className="text-[calc(var(--msg-font-size)-0.5px)] text-secondary font-medium">Ask Meta AI</span>
@@ -1591,7 +1593,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </div>
       ) : (
-        <div className="h-[59px] app-header border-b app-border px-2 md:px-4 flex items-center justify-between z-20 shrink-0">
+        <div className="min-h-[64px] app-header border-b app-border px-1 md:px-4 flex items-center justify-between z-20 shrink-0">
           <div className="flex items-center cursor-pointer flex-1 min-w-0">
             {onBack && (
               <button
@@ -1602,17 +1604,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               </button>
             )}
             <div className="flex items-center flex-1 min-w-0 ml-1 cursor-pointer active:opacity-75 transition-opacity select-none" onClick={onHeaderClick}>
-              <img src={chat.avatar} alt={chat.name} className="w-9 h-9 md:w-10 md:h-10 rounded-full mr-3 object-cover shadow-sm" />
-              <div className="flex flex-col min-w-0">
+              <img src={chat.avatar} alt={chat.name} className="w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full mr-2 object-cover shadow-sm" />
+              <div className="flex flex-col min-w-0 flex-1">
                 <h2 className="text-[calc(var(--msg-font-size)+1.5px)] text-primary font-medium leading-none truncate">{chat.name}</h2>
-                <span className="text-[calc(var(--msg-font-size)-2.5px)] text-secondary mt-1 truncate">
+                <span className="text-[calc(var(--msg-font-size)-2.5px)] chat-presence text-secondary mt-1 leading-tight whitespace-normal">
                   {getGroupMembersLabel()}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-0 md:gap-2 text-secondary relative">
+          <div className="chat-header-actions flex items-center gap-0 md:gap-2 text-secondary relative shrink-0">
             <button type="button" aria-label="Voice call" title={chat.isGroup ? 'Group calls are not available' : 'Start voice call'} disabled={chat.isGroup} className="icon-button text-primary hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30" onClick={onCall}><Phone size={23} strokeWidth={1.8} /></button>
             <button
               onClick={() => setShowSearch(!showSearch)}
@@ -1706,6 +1708,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         )}
 
+        {!searchTerm && filteredMessages.length > visibleCount && <button type="button" className="mx-auto block app-header text-primary rounded-full px-4 py-2 my-3" onClick={() => {
+          const container = scrollContainerRef.current; const height = container?.scrollHeight || 0; const top = container?.scrollTop || 0;
+          setVisibleCount(count => count + 80);
+          requestAnimationFrame(() => { if (container) container.scrollTop = top + container.scrollHeight - height; });
+        }}>Load earlier messages</button>}
         {messageGroups.map((group) => (
           <div key={group.dateKey} className="relative space-y-1">
             <DateDivider

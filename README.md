@@ -1,5 +1,11 @@
 # Wassap Persona Simulation (v1.9.9)
 
+## Reliability follow-up (19 October 2026)
+
+Weak-network sends stay queued until replies are saved, with at most three delivery attempts within one minute from the first attempt, then one in-character fallback and no further automatic retries for that turn. Reconnection/resume avoids repeating saved answers. Notification replies persist before network work; each body keeps the latest user message and persona reply separated by one blank line, replacing older turns. Full texts are supplied, but Android controls visible line limits. Android's browser-supplied domain label remains outside the web app's control.
+
+The complete app shell (including unvisited panels) is cached for offline use. Long chats initially render the latest 80 messages; **Load earlier messages** reveals older history, and search still covers the full conversation. Last-seen text wraps, and dark received bubbles/header/composer use the same #0b1014 base. Artificial response pauses are shorter; configured message stacking stays intact. AI generation itself still needs a connection, and Android may suspend background work. See [investigation and verification](tasks/stability-followup-2026-10-19.md).
+
 ## v1.9.9 release candidate (19 October 2026)
 
 Persona calls, repeating ringback, dated call transcripts/diaries, shared voice selection, persona time-awareness controls and expanded reactions are included. This release also improves voice delivery and photo intent, hardens API origins/media fetching, and adds browser security headers. Existing member access, both providers and saved data are preserved.
@@ -8,7 +14,7 @@ Production: https://wassapyo.vercel.app. The last read-only production check sti
 
 ## Generation quality follow-up (19 October 2026)
 
-Voice-note delivery settings now reach Gemini 3.8 as speech metadata. Ordinary camera photos remain the default; explicit photoshoot/style/mirror requests override it. Foreground prompts separate system rules from history, and background notification replies refresh their message ledger and clock. Personal diary behavior is preserved. Google SDK is pinned to 2.24.0; worker cache is v23. Verification and limits: [generation quality report](tasks/generation-quality-followup-2026-10-19.md).
+Voice-note delivery settings now reach Gemini 3.8 as speech metadata. Ordinary camera photos remain the default; explicit photoshoot/style/mirror requests override it. Foreground prompts separate system rules from history, and background notification replies refresh their message ledger and clock. Personal diary behavior is preserved. Google SDK is pinned to 2.24.0; worker cache is v24. Verification and limits: [generation quality report](tasks/generation-quality-followup-2026-10-19.md).
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 

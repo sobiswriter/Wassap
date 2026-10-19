@@ -114,14 +114,14 @@ body { overflow: hidden; overscroll-behavior: none; }
     --border-color: #1f2c34;
     --divider-color: rgba(233, 237, 239, .035);
     --panel-bg: #0b1014;
-    --header-bg: #182229;
+    --header-bg: #0b1014;
     --text-primary: #e9edef;
     --text-secondary: #8696a0;
     --bg-secondary: #0b1014;
-    --encryption-bg: #182229;
+    --encryption-bg: #0b1014;
     --encryption-text: #8696a0;
     --bubble-me: #005c4b;
-    --bubble-other: #182229;
+    --bubble-other: #0b1014;
     --whatsapp-green: #21c063;
     --whatsapp-green-hover: #1eb05b;
     background-color: #0b1014;

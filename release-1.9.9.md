@@ -2,6 +2,10 @@
 
 19 October 2026. Local release candidate; the owner pushes and deploys.
 
+## Reliability follow-up
+
+A subsequent report of Android blank screens and slow/background replies prompted the [19 October stability follow-up](tasks/stability-followup-2026-10-19.md). It adds durable retry/receipts, atomic notification reply persistence, complete worker v24 precaching with module-cache lookup correction, bounded conversation DOM, shorter presence pauses, latest-only notification content and matching dark surfaces. Current verification is **54 tests** plus TypeScript/build/browser checks; the earlier release-pass results below remain historical. No deployment or exact physical-handset crash reproduction is claimed. CSS has intentionally changed for the requested dark-palette correction, so the earlier dependency-only CSS comparison below is not the current stylesheet hash.
+
 ## Included
 
 - Persona internet voice calls, repeating bundled CC0 ringback during preparation/pickup, compact call UI, mute/audio controls, dated chat transcripts and call diaries after 60 connected seconds.

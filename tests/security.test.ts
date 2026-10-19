@@ -226,7 +226,7 @@ import { runInNewContext } from 'node:vm';
 test('background replies use the saved Gemini key provider and cookie-authenticated cloud path', async () => {
   const calls: { url: string; options: any }[] = [];
   const context: any = {
-    self: { addEventListener() {} }, console, URL, Date, Math, Promise, setTimeout, clearTimeout,
+    self: { addEventListener() {} }, console, URL, Date, Math, Promise, AbortController, setTimeout, clearTimeout,
     fetch: async (url: string, options: any) => {
       calls.push({ url, options });
       return { json: async () => url.startsWith('/api/') ? { text: 'Cloud reply' } : { candidates: [{ content: { parts: [{ text: 'Custom reply' }] } }] } };

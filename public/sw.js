@@ -1,5 +1,6 @@
 // Wassap Service Worker: cookie-authenticated replies and persona call controls.
-const CACHE_NAME = 'wassap-shell-v23';
+const CACHE_NAME = 'wassap-shell-v24';
+const BUILD_ASSETS = /* BUILD_ASSETS */ [];
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -9,7 +10,8 @@ const PRECACHE_ASSETS = [
   '/whatapp.wav',
   '/msgsentpop.mp3',
   '/call-capture.js',
-  '/sounds/ringback.wav'
+  '/sounds/ringback.wav',
+  ...BUILD_ASSETS
 ];
 
 // Offline DB details for background synchronization
@@ -37,13 +39,14 @@ const openOfflineDB = () => {
   });
 };
 
-const saveBackgroundExchangeToIDB = async (chatId, userMsg, personaReplies) => {
+const saveBackgroundExchangeToIDB = async (chatId, userMsg, personaReplies, acknowledge = false) => {
   try {
     const db = await openOfflineDB();
-    const tx = db.transaction(SYNCED_BACKGROUND_STORE, 'readwrite');
+    const tx = db.transaction(acknowledge ? [SYNCED_BACKGROUND_STORE, 'pending_outbox'] : SYNCED_BACKGROUND_STORE, 'readwrite');
     const store = tx.objectStore(SYNCED_BACKGROUND_STORE);
+    if (acknowledge) tx.objectStore('pending_outbox').delete(userMsg.id);
     store.put({
-      id: (userMsg && userMsg.id) ? userMsg.id : `left-read-${chatId}-${Date.now()}`,
+      id: (userMsg && userMsg.id) ? `${userMsg.id}${personaReplies.length ? '' : '-input'}` : `left-read-${chatId}-${Date.now()}`,
       chatId,
       type: 'exchange',
       userMessage: userMsg || null,
@@ -51,11 +54,12 @@ const saveBackgroundExchangeToIDB = async (chatId, userMsg, personaReplies) => {
       timestamp: Date.now()
     });
     await new Promise((resolve, reject) => {
-      tx.oncomplete = resolve;
-      tx.onerror = reject;
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
     });
   } catch (err) {
     console.warn('SW: Failed to save background exchange to IndexedDB:', err);
+    throw err;
   }
 };
 
@@ -88,8 +92,11 @@ self.addEventListener('install', (event) => {
             const response = await fetch(asset, { cache: 'reload' });
             if (response && (response.status === 200 || response.type === 'opaque')) {
               await cache.put(asset, response);
+            } else if (BUILD_ASSETS.includes(asset) || asset === '/index.html' || asset === '/') {
+              throw new Error('Required app asset unavailable');
             }
           } catch (err) {
+            if (BUILD_ASSETS.includes(asset) || asset === '/index.html' || asset === '/') throw err;
             console.warn('Pre-cache warning for ' + asset + ':', err);
           }
         })
@@ -104,7 +111,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME && key.startsWith('wassap-shell-')) {
+          const previous = keys.filter(name => name.startsWith('wassap-shell-') && name !== CACHE_NAME).sort((a, b) => Number(b.split('v').pop()) - Number(a.split('v').pop()))[0];
+          if (key !== CACHE_NAME && key !== previous && key.startsWith('wassap-shell-')) {
             return caches.delete(key);
           }
         })
@@ -121,49 +129,41 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Navigation requests: Network with 1.5s fast timeout, fallback to cached index.html
-  // Guarantees instantaneous loading on offline or flaky/slow 2G/3G connections
   if (event.request.mode === 'navigate') {
-    event.respondWith(
-      (async () => {
-        try {
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Network timeout')), 1500)
-          );
-          const networkResponse = await Promise.race([fetch(event.request), timeoutPromise]);
-          if (networkResponse && networkResponse.status === 200) {
-            const copy = networkResponse.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put('/index.html', copy));
-          }
-          return networkResponse;
-        } catch (e) {
-          const cached = await caches.match('/index.html');
-          if (cached) return cached;
-          return caches.match('/');
-        }
-      })()
-    );
+    const network = fetch(event.request).then(async response => {
+      if (response.ok) { const cache = await caches.open(CACHE_NAME); await cache.put('/index.html', response.clone()); }
+      return response;
+    });
+    event.waitUntil(network.catch(() => {}));
+    event.respondWith((async () => {
+      let timer;
+      try {
+        const response = await Promise.race([network, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Slow navigation')), 1500); })]);
+        if (response.ok) return response;
+        return (await caches.match('/index.html')) || response;
+      } catch {
+        const cached = await caches.match('/index.html');
+        return cached || new Response('Wassap is offline. Reconnect and reload to finish setup.', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+      } finally { clearTimeout(timer); }
+    })());
     return;
   }
 
-  // 3. Static assets, fonts & Vite chunks: Stale-While-Revalidate with dynamic caching
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
-
-      return cachedResponse || fetchPromise;
-    })
-  );
+  // Cache only app resources; remote media stays under browser HTTP cache control.
+  if (url.origin !== self.location.origin) return;
+  const network = fetch(event.request).then(async response => {
+    if (response.ok && !response.headers.get('content-type')?.includes('text/html')) {
+      const cache = await caches.open(CACHE_NAME); await cache.put(event.request, response.clone());
+    }
+    return response;
+  });
+  event.waitUntil(network.catch(() => {}));
+  event.respondWith((async () => {
+    const cached = await caches.match(event.request, { ignoreVary: true }); // Module requests may add Origin to the same hashed asset.
+    if (cached) return cached;
+    try { return await network; }
+    catch { return new Response('', { status: 503 }); }
+  })());
 });
 
 // Utility to split AI responses into authentic human-like chunks
@@ -382,8 +382,18 @@ const buildSWPrompt = (notifData, history, promptOverride) => {
   return { systemInstruction, clientTimeContext, historyText: `${legacy}Conversation ledger (sender, text, events, reactions and recorded timestamps):\n${JSON.stringify(ledger)}\nResponse as ${notifData.chatName || 'Contact'}:` };
 };
 
+const fetchReplyJSON = async (url, options, timeoutMs = 20000) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    if (response.ok === false) throw new Error(`Reply HTTP ${response.status}`);
+    return await response.json();
+  } finally { clearTimeout(timer); }
+};
+
 // Autonomous Service Worker Persona Reply Synthesizer
-const generateSWPersonaReply = async (notifData, history, promptOverride, replyText) => {
+const generateSWPersonaReply = async (notifData, history, promptOverride, replyText, timeoutMs = 20000) => {
   let replyContent = '';
   const provider = notifData.provider || 'vertex';
   const customApiKey = notifData.customApiKey;
@@ -396,7 +406,7 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
     
 
     try {
-      const apiRes = await fetch(url, {
+      const apiJson = await fetchReplyJSON(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -404,11 +414,10 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
           contents: [{ role: 'user', parts: [{ text: prompt.historyText }] }],
           generationConfig: { temperature: 0.85, maxOutputTokens: 800 }
         })
-      });
-      const apiJson = await apiRes.json();
+      }, timeoutMs);
       replyContent = apiJson.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (e) {
-      console.warn("SW custom API call failed", e);
+      throw e;
     }
   } else {
     const payload = {
@@ -441,26 +450,97 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
     };
 
     try {
-      const apiRes = await fetch('/api/gemini/generate', {
+      const apiJson = await fetchReplyJSON('/api/gemini/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload)
-      });
-      const apiJson = await apiRes.json();
+      }, timeoutMs);
       replyContent = apiJson.text || apiJson.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (e) {
-      console.warn("SW proxy call failed", e);
+      throw e;
     }
   }
 
   if (!replyContent || typeof replyContent !== 'string' || isRawErrorMessage(replyContent)) {
-    replyContent = getGlitchExcuse(notifData, replyText || promptOverride);
+    throw new Error('Reply unavailable');
   }
 
   return replyContent.trim();
 };
+
+function notificationConversation(userText, personaText) {
+  return userText ? `You: ${userText}\n\n${personaText}` : personaText;
+}
+
+function retryExpired(item, now = Date.now()) {
+  return (item.attempts || 0) >= 3 || (item.retryStartedAt !== undefined && now - item.retryStartedAt >= 60000);
+}
+
+const updateNotificationOutbox = async (item, claim = false) => {
+  const db = await openOfflineDB();
+  try {
+    const tx = db.transaction('pending_outbox', 'readwrite');
+    const store = tx.objectStore('pending_outbox');
+    let claimed = true;
+    if (claim) {
+      const request = store.get(item.id);
+      request.onsuccess = () => {
+        if (!request.result || request.result.leaseUntil > Date.now()) claimed = false;
+        else if (!retryExpired(request.result) && request.result.nextAttemptAt > Date.now()) claimed = 'deferred';
+        else {
+          Object.assign(item, { retryStartedAt: request.result.retryStartedAt ?? Date.now(), attempts: (request.result.attempts || 0) + 1, nextAttemptAt: Date.now() + 15000, leaseUntil: Date.now() + 45000 });
+          store.put({ ...request.result, ...item });
+        }
+      };
+    } else store.put(item);
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = tx.onabort = () => reject(tx.error); });
+    return claimed;
+  } finally { db.close(); }
+};
+
+const deliverNotificationReply = async (item) => {
+  if (await activeCallFor(item.chatId)) return;
+  let exhausted = retryExpired(item);
+  // A bounded lease prevents a returning page from duplicating an active worker request.
+  const claim = await updateNotificationOutbox(item, true);
+  if (claim === 'deferred') throw new Error('Retry deferred until backoff ends');
+  if (!claim) return;
+  exhausted ||= item.attempts > 3 || Date.now() >= item.retryStartedAt + 60000;
+  const data = item.notificationData;
+  const history = [...(data.recentMessages || []), item.message];
+  let text;
+  try {
+    text = exhausted ? getGlitchExcuse(data, item.message.text) : await generateSWPersonaReply(data, history, undefined, item.message.text, Math.max(1, Math.min(20000, item.retryStartedAt + 60000 - Date.now())));
+  } catch (error) {
+    if (retryExpired(item)) text = getGlitchExcuse(data, item.message.text);
+    else { await updateNotificationOutbox({ ...item, leaseUntil: 0 }); throw error; }
+  }
+  const now = new Date();
+  const personaReplies = splitMessage(text).map((chunk, i) => ({ id: `${item.id}-response-${i}`, sender: 'other', senderName: data.chatName, responseToMessageId: item.id, text: chunk, timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }), date: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`, timestampEpoch: now.getTime(), status: 'delivered' }));
+  // Save the whole answer before displaying it; suspension cannot lose later fragments.
+  await saveBackgroundExchangeToIDB(item.chatId, { ...item.message, status: 'sent' }, personaReplies, true);
+  const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+  windows.forEach(client => client.postMessage({ type: 'BACKGROUND_EXCHANGE_SYNC', chatId: item.chatId, userMessage: { ...item.message, status: 'sent' }, personaReplies }));
+  await self.registration.showNotification(data.chatName || 'Contact', {
+    body: notificationConversation(item.message.text, personaReplies.at(-1)?.text || text),
+    icon: data.avatar || '/favicon.svg', badge: '/badge.svg', tag: item.chatId, renotify: true,
+    data: { ...data, recentMessages: [...history, ...personaReplies].slice(-45) },
+    actions: [{ action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' }, { action: 'read', title: 'Mark as read' }]
+  });
+};
+
+self.addEventListener('sync', event => {
+  if (event.tag !== 'wassap-notification-outbox') return;
+  event.waitUntil((async () => {
+    const db = await openOfflineDB();
+    let items;
+    try { items = await new Promise((resolve, reject) => { const req = db.transaction('pending_outbox').objectStore('pending_outbox').getAll(); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); }); }
+    finally { db.close(); }
+    for (const item of items) if (item.notificationData && !(item.leaseUntil > Date.now())) await deliverNotificationReply(item);
+  })());
+});
 
 // Native OS Notification Click & Continuous Inline Reply Handler
 // Call controls are separate from message notifications and survive a suspended page.
@@ -588,17 +668,11 @@ self.addEventListener('notificationclick', (event) => {
               personaReplies.push(personaMsg);
 
               const stackedChunks = chunks.slice(0, i + 1).join('\n');
-              const DIVIDER = '\n────────────────────\n';
-              const existingTurns = existingBody ? existingBody.split(DIVIDER).filter(t => t.trim().length > 0) : [];
-              const recentHistoryTurns = existingTurns.slice(-2);
-              const personaTurnText = notifData.isGroup ? `${chatName}: ${stackedChunks}` : stackedChunks;
-              const threadedBody = recentHistoryTurns.length > 0
-                ? `${recentHistoryTurns.join(DIVIDER)}${DIVIDER}${personaTurnText}`
-                : personaTurnText;
+              const threadedBody = chunk;
 
               // The first chunk POPS UP as a new native notification with sound/vibration!
               await self.registration.showNotification(chatName, {
-                body: threadedBody,
+                body: notificationConversation(recent.filter(message => message.sender === 'me').at(-1)?.text || '', threadedBody),
                 icon: squareIcon,
                 badge: badgeIcon,
                 tag: targetChatId,
@@ -644,191 +718,28 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  // 2. User submitted an inline reply directly in the OS notification shade
+  // Persist inline input before handing it to a page or making any network request.
   if (replyText) {
-    event.notification.close(); // Crucial: Closes the RemoteInput session to dismiss the green loading spinner!
-    const squareIcon = event.notification.icon || '/favicon.svg';
-    const badgeIcon = event.notification.badge || '/badge.svg';
-    const previousBody = event.notification.body || '';
-    const DIVIDER = '\n────────────────────\n';
-    const existingTurns = previousBody ? previousBody.split(DIVIDER).filter(t => t.trim().length > 0) : [];
-    const recentTurnsWithUser = existingTurns.slice(-2);
-    recentTurnsWithUser.push(`You: ${replyText}`);
-    const updatedBodyWithUser = recentTurnsWithUser.join(DIVIDER);
-
-    event.waitUntil(
-      (async () => {
-        if (await activeCallFor(targetChatId)) {
-          const now = new Date();
-          const userMessage = { id: `call-queued-${crypto.randomUUID()}`, sender: 'me', text: replyText, status: 'pending', timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), date: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`, timestampEpoch: now.getTime() };
-          const db = await openOfflineDB();
-          try {
-            const tx = db.transaction('pending_outbox', 'readwrite');
-            tx.objectStore('pending_outbox').put({ id: userMessage.id, chatId: targetChatId, message: userMessage, queuedAt: now.getTime() });
-            await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = tx.onabort = () => reject(tx.error); });
-          } finally { db.close(); }
-          await saveBackgroundExchangeToIDB(targetChatId, userMessage, []);
-          await self.registration.showNotification(chatName, { body: 'Message queued until your voice call ends.', tag: targetChatId, silent: true, data: notifData });
-          return;
-        }
-        // Immediately show notification in shade silently to reflect user's input and keep card anchored
-        await self.registration.showNotification(chatName, {
-          body: updatedBodyWithUser,
-          icon: squareIcon,
-          badge: badgeIcon,
-          tag: targetChatId,
-          renotify: false,
-          silent: true,
-          data: {
-            ...notifData,
-            lastUserReply: replyText
-          },
-          actions: [
-            { action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' },
-            { action: 'read', title: 'Mark as read' }
-          ]
-        });
-
-        // Check if a client window is currently VISIBLE in the foreground
-        const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-        const visibleClient = clientList.find(c => c.visibilityState === 'visible');
-        if (visibleClient) {
-          visibleClient.postMessage({
-            type: 'INLINE_REPLY',
-            chatId: targetChatId,
-            text: replyText
-          });
-          return;
-        }
-
-        // If app is in the background, minimized, or closed, Service Worker autonomously handles the conversation reliably!
-        try {
-          // 1. Snappy reading delay that respects user's enableTextStacking setting
-          const readingDelay = notifData.enableTextStacking === false
-            ? 300 + Math.random() * 300
-            : 900 + Math.random() * 600;
-          await new Promise(r => setTimeout(r, readingDelay));
-
-          const recent = (notifData.recentMessages || []).filter(m => !isRawErrorMessage(m?.text));
-          const history = [
-            ...recent,
-            { text: replyText, sender: 'me', senderName: notifData.userName || 'You' }
-          ];
-
-          const cleanReply = await generateSWPersonaReply(notifData, history, undefined, replyText);
-
-          // 2. FRAGMENTATION: Break reply into authentic WhatsApp message bubbles!
-          const chunks = splitMessage(cleanReply);
-
-          // Format current time
-          const now = new Date();
-          const hours = now.getHours();
-          const minutes = now.getMinutes();
-          const ampm = hours >= 12 ? 'PM' : 'AM';
-          const formattedHours = hours % 12 || 12;
-          const timeStr = `${formattedHours}:${minutes < 10 ? '0' : ''}${minutes} ${ampm}`;
-
-          const userMsg = {
-            id: Date.now().toString(),
-            text: replyText,
-            sender: 'me',
-            timestamp: timeStr,
-            status: 'sent'
-          };
-
-          const personaReplies = [];
-
-          // 3. Typing duration and sequential delivery for each fragment
-          for (let i = 0; i < chunks.length; i++) {
-            const chunk = chunks[i];
-
-            // Snappy typing duration proportional to chunk length
-            const typingDuration = notifData.enableTextStacking === false
-              ? Math.min(Math.max(chunk.length * 10, 300), 800)
-              : Math.min(Math.max(chunk.length * 16, 500), 1500);
-            await new Promise(r => setTimeout(r, typingDuration));
-
-            const personaMsg = {
-              id: `${Date.now()}-${i}`,
-              text: chunk,
-              sender: 'other',
-              senderName: chatName,
-              timestamp: timeStr,
-              status: 'read'
-            };
-            personaReplies.push(personaMsg);
-
-            // Stack clean dialogue: user message + delivered persona fragments with thin line divider
-            const stackedChunks = chunks.slice(0, i + 1).join('\n');
-            const personaTurnText = notifData.isGroup ? `${chatName}: ${stackedChunks}` : stackedChunks;
-            const threadedBody = recentTurnsWithUser.length > 0
-              ? `${recentTurnsWithUser.join(DIVIDER)}${DIVIDER}${personaTurnText}`
-              : personaTurnText;
-
-            // Deliver notification: first chunk POPS UP as a new native notification with sound/vibration!
-            await self.registration.showNotification(chatName, {
-              body: threadedBody,
-              icon: squareIcon,
-              badge: badgeIcon,
-              tag: targetChatId,
-              renotify: (i === 0),
-              silent: (i > 0),
-              vibrate: (i === 0) ? [200, 100, 200] : undefined,
-              data: {
-                ...notifData,
-                recentMessages: [
-                  ...history.slice(-45),
-                  ...chunks.slice(0, i + 1).map(c => ({ text: c, sender: 'other', senderName: chatName }))
-                ]
-              },
-              actions: [
-                { action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' },
-                { action: 'read', title: 'Mark as read' }
-              ]
-            });
-
-            // Snappy pause between consecutive message chunks
-            if (i < chunks.length - 1) {
-              const interPause = notifData.enableTextStacking === false
-                ? 250 + Math.random() * 200
-                : 400 + Math.random() * 300;
-              await new Promise(r => setTimeout(r, interPause));
-            }
-          }
-
-          // Save complete exchange with all fragmented messages into IndexedDB
-          await saveBackgroundExchangeToIDB(targetChatId, userMsg, personaReplies);
-
-          // Broadcast all fragmented messages to active window in real-time
-          const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-          clientList.forEach((client) => {
-            try {
-              client.postMessage({
-                type: 'BACKGROUND_EXCHANGE_SYNC',
-                chatId: targetChatId,
-                userMessage: userMsg,
-                personaReplies: personaReplies
-              });
-            } catch (e) {}
-          });
-        } catch (err) {
-          console.error('SW: Autonomous reply handling failed:', err);
-          const excuse = getGlitchExcuse(notifData, replyText);
-          await self.registration.showNotification(chatName, {
-            body: excuse,
-            icon: squareIcon,
-            badge: badgeIcon,
-            tag: targetChatId,
-            renotify: false,
-            silent: true,
-            actions: [
-              { action: 'reply', title: 'Reply', type: 'text' },
-              { action: 'read', title: 'Mark as read' }
-            ]
-          });
-        }
-      })()
-    );
+    event.notification.close();
+    event.waitUntil((async () => {
+      const now = new Date();
+      const userMessage = { id: `reply-${crypto.randomUUID()}`, sender: 'me', text: replyText, status: 'pending', timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }), date: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`, timestampEpoch: now.getTime() };
+      const item = { id: userMessage.id, chatId: targetChatId, message: userMessage, queuedAt: now.getTime(), notificationData: notifData };
+      await updateNotificationOutbox(item);
+      await saveBackgroundExchangeToIDB(targetChatId, userMessage, []);
+      const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const visible = windows.find(client => client.visibilityState === 'visible');
+      if (visible && !(await activeCallFor(targetChatId))) {
+        visible.postMessage({ type: 'INLINE_REPLY', chatId: targetChatId, text: replyText, userMessage });
+        return;
+      }
+      if (await activeCallFor(targetChatId)) return;
+      try { await deliverNotificationReply(item); }
+      catch {
+        await self.registration.showNotification(chatName, { body: notificationConversation(replyText, 'Waiting for a connection…'), tag: targetChatId, silent: true, data: notifData });
+        try { await self.registration.sync?.register('wassap-notification-outbox'); } catch {}
+      }
+    })());
     return;
   }
 

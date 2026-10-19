@@ -33,7 +33,6 @@ class AppErrorBoundary extends Component<Props, State> {
   handleReset = async () => {
     try {
       // Non-destructive soft reload that preserves user chats, personas, and settings
-      sessionStorage.clear();
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
         for (const reg of registrations) {
