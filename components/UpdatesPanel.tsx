@@ -81,10 +81,22 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem
+              version="v1.9.9"
+              title="Persona Calls & More Natural Conversations"
+              date="19 October 2026"
+              isLatest={true}
+              changes={[
+                "Voice calls with repeating ringback, tuned speech detection, mute, minimize and supported notification controls.",
+                "Call transcripts and timestamps stay in chat; longer conversations also receive a personal diary entry.",
+                "Voice-note delivery follows saved settings. Casual photos respect explicit photoshoot and mirror requests.",
+                "60 reactions plus custom emoji, with subtler influence beside text, images and audio.",
+                "Per-persona time awareness, refreshed background context and release security improvements."
+              ]}
+            />
+            <UpdateItem
               version="v1.9.7"
               title="Android UI Polish & Chat Organization"
               date="18 October 2026"
-              isLatest={true}
               changes={[
                 "Android-first layouts, compact trays, accessible controls and smooth forward/back transitions with reduced-motion support.",
                 "Archive and pin chats with touch or mouse hold, desktop right-click, or keyboard selection, preserving chat history.",

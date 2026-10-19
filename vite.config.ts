@@ -1,4 +1,5 @@
 import path from 'path';
+import { readFileSync } from 'node:fs';
 import { defineConfig, loadEnv, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { handleGeminiApiMiddleware } from './server/api';
@@ -40,6 +41,7 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
     },
     preview: {
+      headers: Object.fromEntries(JSON.parse(readFileSync(path.resolve(__dirname, 'vercel.json'), 'utf8')).headers[0].headers.map(({ key, value }: { key: string; value: string }) => [key, value])),
       port: 3000,
       host: '0.0.0.0',
     },
@@ -54,6 +56,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
+            if (id.includes('commonjsHelpers')) return 'vendor-other';
             if (id.includes('node_modules')) {
               if (id.includes('react') || id.includes('react-dom')) {
                 return 'vendor-react';

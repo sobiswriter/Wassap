@@ -1,3 +1,13 @@
+function requestOriginAllowed(req: IncomingMessage): boolean {
+  if (!req.headers.origin) return true;
+  try {
+    const origin = new URL(req.headers.origin);
+    const secure = req.headers['x-forwarded-proto'] === 'https' || Boolean((req.socket as any)?.encrypted) || Boolean(process.env.VERCEL);
+    return ['http:', 'https:'].includes(origin.protocol) && !origin.username && !origin.password
+      && origin.host === req.headers.host && (!secure || origin.protocol === 'https:');
+  } catch { return false; }
+}
+
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { GoogleGenAI } from '@google/genai';
@@ -155,10 +165,15 @@ function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<
   }
 
   return new Promise((resolve, reject) => {
-    let body = '';
+    let body = ''; let size = 0; let oversized = false;
+    req.setEncoding?.('utf8');
     req.on('data', chunk => {
+      if (oversized) return;
+      size += Buffer.byteLength(chunk);
+      if (size > 4 * 1024 * 1024) {
+        oversized = true; reject(Object.assign(new Error('Payload too large'), { statusCode: 413 })); return;
+      }
       body += chunk;
-      if (body.length > 50 * 1024 * 1024) reject(new Error('Payload too large'));
     });
     req.on('end', () => {
       try { resolve(body ? JSON.parse(body) : ({} as T)); } catch (e) { reject(e); }
@@ -221,7 +236,11 @@ function getSuggestedActivitiesSample(count: number = 7): string[] {
 }
 
 export default async function handler(req: IncomingMessage & { body?: any }, res: ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!requestOriginAllowed(req)) {
+    res.statusCode = 403; res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Invalid origin' })); return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-vertex-passcode, x-passcode');
 
@@ -261,7 +280,7 @@ export default async function handler(req: IncomingMessage & { body?: any }, res
       : 'Persona Mood: Natural and conversational';
 
     const timeContextPrompt = clientTimeContext
-      ? `\nCURRENT SYSTEM DATE & TIME CONTEXT:\n${clientTimeContext}\nCRITICAL LIGHTING & TIME RULE: The photo setting and lighting MUST realistically match this current time of day. If it is late at night or evening, use realistic indoor room lighting, bedside/desk lamp illumination, or cozy dim ambiance (never bright sunlight). If daytime, use natural room daylight or outdoor daylight.\n`
+      ? `\nCURRENT SYSTEM DATE & TIME CONTEXT:\n${clientTimeContext}\nCRITICAL LIGHTING & TIME RULE: Use this clock only when the user did not specify another time, lighting or photo style. If it is late at night or evening, use realistic indoor room lighting, bedside/desk lamp illumination, or cozy dim ambiance (never bright sunlight). If daytime, use natural room daylight or outdoor daylight.\n`
       : '';
 
     const synthesisPrompt = `You are a Context & Caption Synthesizer for an authentic, smartphone-style photo exchange in a messaging app.
@@ -305,6 +324,7 @@ OUTPUT REQUIREMENTS:
    - A realistic, in-character text comment matching the persona's tone, current mood, speech style, and photo context (e.g. 'Excuse the messy hair haha, literally just woke up', 'Look what just arrived!', 'Having this right now, send me yours too!').
    - NEVER sound robotic or assistant-like. Keep it casual like a real WhatsApp message.
 3. "action_and_setting": string
+   - Preserve explicit camera viewpoint (including mirror selfies), photo style, pose, lighting and requested time. Professional photoshoots are valid when requested; casual phone realism is only the default.
    - A concise, context-aware description of the active action and environment (e.g. 'holding a warm mug sitting cross-legged on the couch under soft lamp light', 'taking a bite of ramen at a cozy street stall with steam rising', 'at a study desk writing in an open notebook with pens scattered around').
 4. "user_wants_posed": boolean
    - If the user explicitly asks for a specific pose (e.g., 'look at the camera', 'smile', 'pose nicely', 'stand straight', 'pose for me', 'just a simple of u standing and posing'), set user_wants_posed: true and reflect that exact request in action_and_setting.
@@ -378,7 +398,7 @@ Return ONLY a valid JSON object with keys "mode", "user_wants_posed", "caption",
     });
   } catch (error: any) {
     console.error("[Vertex AI Image Synthesis Error]:", error);
-    sendJson(res, 500, {
+    sendJson(res, error?.statusCode === 413 ? 413 : 500, {
       error: `Synthesis failed: ${error?.message || String(error)}`
     });
   }

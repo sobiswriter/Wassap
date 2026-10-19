@@ -50,7 +50,7 @@ import {
   generatePersonaImage, 
   generatePersonaImageExcuse, 
   resolveAvatarBase64,
-  buildFullPersonaSystemPrompt,
+  buildFullPersonaSystemPrompt, buildPersonaPrompt,
   isRawErrorMessage,
   getInCharacterNetworkGlitchExcuse
 } from './services/geminiService';
@@ -106,12 +106,13 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
   const clientTimeContext = getAppTimeContext(currentSettings);
   const timeGapContext = getTimeGapAndFrequencyContext(chat.messages || [], false, currentSettings, chat.timeAwarenessEnabled !== false) || '';
 
-  const recentMessages = (chat.messages || []).slice(-45).map(m => ({
+  const recentMessages = (chat.messages || []).filter(m => !m.isDeleted).slice(-45).map(m => ({
     id: m.id,
     text: m.text,
     sender: m.sender,
     senderName: m.senderName || (m.sender === 'me' ? (currentUser?.name || 'You') : chat.name),
     timestamp: m.timestamp,
+    timestampEpoch: m.timestampEpoch,
     date: m.date,
     isEvent: (m as any).isEvent,
     eventTitle: (m as any).eventTitle,
@@ -158,6 +159,8 @@ const buildNotificationPersonaData = (chat: Chat, overrideUser?: UserProfile, ov
     timeGapContext,
     groupContext,
     fullSystemPrompt,
+    systemRules: buildPersonaPrompt(chat, [], currentUser, groupContext, { ...currentSettings, shareTimeContext: false }).systemInstruction,
+    customTimeOffsetMs: currentSettings?.timeMode === 'custom' ? currentSettings.customTimeOffsetMs : 0,
     userName: currentUser?.name || 'You',
     userAbout: currentUser?.about || '',
     userStatus: currentUser?.status || 'Online',
@@ -1043,7 +1046,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        document.title = 'Wassap v1.9.7';
+        document.title = 'Wassap v1.9.9';
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -2588,6 +2591,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             is_persona_subject: isSubject,
             user_wants_posed,
             action_and_setting,
+            userRequest: userPrompt,
             avatarBase64: avatarBase64Data,
             avatarMimeType: avatarMime,
             avatarUrl: chat.avatar,

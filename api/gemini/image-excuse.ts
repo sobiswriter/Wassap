@@ -1,3 +1,13 @@
+function requestOriginAllowed(req: IncomingMessage): boolean {
+  if (!req.headers.origin) return true;
+  try {
+    const origin = new URL(req.headers.origin);
+    const secure = req.headers['x-forwarded-proto'] === 'https' || Boolean((req.socket as any)?.encrypted) || Boolean(process.env.VERCEL);
+    return ['http:', 'https:'].includes(origin.protocol) && !origin.username && !origin.password
+      && origin.host === req.headers.host && (!secure || origin.protocol === 'https:');
+  } catch { return false; }
+}
+
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { GoogleGenAI } from '@google/genai';
@@ -155,10 +165,15 @@ function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<
   }
 
   return new Promise((resolve, reject) => {
-    let body = '';
+    let body = ''; let size = 0; let oversized = false;
+    req.setEncoding?.('utf8');
     req.on('data', chunk => {
+      if (oversized) return;
+      size += Buffer.byteLength(chunk);
+      if (size > 4 * 1024 * 1024) {
+        oversized = true; reject(Object.assign(new Error('Payload too large'), { statusCode: 413 })); return;
+      }
       body += chunk;
-      if (body.length > 50 * 1024 * 1024) reject(new Error('Payload too large'));
     });
     req.on('end', () => {
       try { resolve(body ? JSON.parse(body) : ({} as T)); } catch (e) { reject(e); }
@@ -192,7 +207,11 @@ function isPasscodeValid(req: IncomingMessage & { body?: any }, payload?: any): 
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!requestOriginAllowed(req)) {
+    res.statusCode = 403; res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Invalid origin' })); return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-vertex-passcode, x-passcode');
 
@@ -253,6 +272,7 @@ RULES:
       text: response.text?.trim() || "My camera app just crashed on me, I'll send one in a bit!"
     });
   } catch (error: any) {
+    if (error?.statusCode === 413) { sendJson(res, 413, { error: 'Payload too large' }); return; }
     console.error("[Vertex AI Image Excuse Error]:", error);
     sendJson(res, 200, {
       text: "Camera app is acting up right now haha, I'll send one later!"

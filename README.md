@@ -1,8 +1,18 @@
-# Wassap Persona Simulation (v1.9.7)
+# Wassap Persona Simulation (v1.9.9)
 
-A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience. I hope this fixes vercel yk finally :)
+## v1.9.9 release candidate (19 October 2026)
 
-### Persona voice calls (local implementation, 18 October 2026)
+Persona calls, repeating ringback, dated call transcripts/diaries, shared voice selection, persona time-awareness controls and expanded reactions are included. This release also improves voice delivery and photo intent, hardens API origins/media fetching, and adds browser security headers. Existing member access, both providers and saved data are preserved.
+
+Production: https://wassapyo.vercel.app. The last read-only production check still served v1.9.7; local changes do not deploy themselves. See [release verification, known limits and owner push steps](release-1.9.9.md). After the owner pushes and Vercel finishes, run `npm run release:smoke -- https://wassapyo.vercel.app`, then verify member unlock and a real call on a phone.
+
+## Generation quality follow-up (19 October 2026)
+
+Voice-note delivery settings now reach Gemini 3.8 as speech metadata. Ordinary camera photos remain the default; explicit photoshoot/style/mirror requests override it. Foreground prompts separate system rules from history, and background notification replies refresh their message ledger and clock. Personal diary behavior is preserved. Google SDK is pinned to 2.24.0; worker cache is v23. Verification and limits: [generation quality report](tasks/generation-quality-followup-2026-10-19.md).
+
+A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
+
+### Persona voice calls (v1.9.9)
 
 The handset in a one-to-one conversation opens an internet AI voice call using `gemini-3.8-live`: reference-led dark call screen, persona avatar, mute, audio playback toggle, transcript, compact in-app bar and call-history cards. Group/video calling is unavailable. A random 6–12 second ringback plays while the latest 20 text messages are summarized. Only that bounded summary, persona name/description and voice settings seed Live; raw chats, diary memories, schedules and the full persona prompt are omitted. Microphone audio and the greeting wait for pickup. Calls share voice-note voice selection, style, pitch and pacing settings. Built-in Cloud can submit a designed/replicated voice's available preview as a 10–20 second PCM reference; Google must enable custom Live voices for that project. Custom TTS IDs cannot be passed directly to Live. Missing/short previews and personal-key mode show the prebuilt fallback explicitly; provider rejection of a submitted custom sample ends the call with an explanation. Previews remain in the existing session cache, so a reload can require recreating the preview. Voice identity across TTS and Live still needs a listening check.
 
@@ -16,7 +26,7 @@ Enable call notifications with **Notify** inside the call screen. Supported noti
 
 ### Android-first mobile polish (18 October 2026)
 
-**Mobile reload:** tap the **WhatsApp** heading at the top left of the inbox to reload, including in the installed PWA. Online reloads request the latest app shell; offline reloads retain the cached app. Saved data is preserved. This follow-up remains part of v1.9.7.
+**Mobile reload:** tap the **WhatsApp** heading at the top left of the inbox to reload, including in the installed PWA. Online reloads request the latest app shell; offline reloads retain the cached app. Saved data is preserved. This behavior is retained in v1.9.9.
 
 **Chat selection and pinning:** touch and hold (or hold the left mouse button) on a chat to select it. Click additional rows for multiple selection, then use the top **Pin/Unpin** or **Archive/Unarchive** icons. Pinned chats stay at the top after reload. Desktop also supports right-click or Space/Shift+F10 to select; Escape cancels. Mobile Back exits selection. These actions preserve chat history and work in both the inbox and Archived list.
 
@@ -50,7 +60,7 @@ npx --yes --package @playwright/cli playwright-cli -s=wassap-check close
 
 The regression creates its own fresh browser context with synthetic storage fixtures, checks 320–1440 px layouts and persistence, and saves ignored screenshots under `output/playwright/`. It does not use real credentials or make paid-generation checks. Run `npm test`, `npx tsc --noEmit`, and `npm run build` for the remaining automated gates.
 
-![Version](https://img.shields.io/badge/version-1.9.7-brightgreen)
+![Version](https://img.shields.io/badge/version-1.9.9-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -68,7 +78,7 @@ The regression creates its own fresh browser context with synthetic storage fixt
 - Put shared Google credentials (`GEMINI_API_KEY`, `VERTEX_API_KEY`, or service-account variables) in server environment settings. Custom Gemini keys entered in Settings continue to work directly from that browser. Never put a shared secret in a `VITE_` variable: those variables are public.
 - Public image/audio URLs remain supported. Private/reserved addresses and unsafe redirects are blocked; downloads have a six-second deadline and an 8 MB byte limit.
 - Verification: `npm test`, `npm run typecheck`, `npm run build`, and `npm audit`. The lockfile pins the reviewed dependency tree.
-- Seven remaining audit entries come from the Tailwind 3 build-time dependency chain. A forced Tailwind 4 upgrade is deferred to preserve the current UI; use only trusted source/config input for builds and review this deferral by **18 November 2026**. `npm audit --omit=dev` checks the deployed dependency tree separately.
+- Five high-severity audit entries remain in the build-only Tailwind 3/braces chain; braces has no compatible patched release. Selector-parser is patched through scoped overrides. Build only trusted source/config; review the remaining deferral by **26 October 2026**. See [v1.9.9 release checks](release-1.9.9.md). `npm audit --omit=dev` checks the deployed dependency tree separately.
 
 
 ## 🚀 Overview
@@ -466,7 +476,7 @@ This is the newest, most advanced stuff. This is where "Wassap" becomes "Sentien
 
 ### 1. Requirements Check
 > [!IMPORTANT]
-> Ensure you have **Node.js v22.12.0+** and **npm v9.0.0+** installed on your machine before proceeding.
+> Ensure you have **Node.js 22.x (v22.12.0+)** and **npm 11.7.0** installed on your machine before proceeding.
 
 ### 2. Installation Pipeline
 ```bash

@@ -1,3 +1,13 @@
+function requestOriginAllowed(req: IncomingMessage): boolean {
+  if (!req.headers.origin) return true;
+  try {
+    const origin = new URL(req.headers.origin);
+    const secure = req.headers['x-forwarded-proto'] === 'https' || Boolean((req.socket as any)?.encrypted) || Boolean(process.env.VERCEL);
+    return ['http:', 'https:'].includes(origin.protocol) && !origin.username && !origin.password
+      && origin.host === req.headers.host && (!secure || origin.protocol === 'https:');
+  } catch { return false; }
+}
+
 import dns from 'node:dns/promises';
 import http from 'node:http';
 import https from 'node:https';
@@ -13,7 +23,7 @@ for (const [address, prefix] of [
   ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
   ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24],
   ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24],
-  ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
+  ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4], ['240.0.0.0', 4],
 ] as const) privateMediaAddresses.addSubnet(address, prefix, 'ipv4');
 const globalMediaIPv6 = new BlockList();
 globalMediaIPv6.addSubnet('2000::', 3, 'ipv6');
@@ -240,10 +250,15 @@ function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<
   }
 
   return new Promise((resolve, reject) => {
-    let body = '';
+    let body = ''; let size = 0; let oversized = false;
+    req.setEncoding?.('utf8');
     req.on('data', chunk => {
+      if (oversized) return;
+      size += Buffer.byteLength(chunk);
+      if (size > 4 * 1024 * 1024) {
+        oversized = true; reject(Object.assign(new Error('Payload too large'), { statusCode: 413 })); return;
+      }
       body += chunk;
-      if (body.length > 50 * 1024 * 1024) reject(new Error('Payload too large'));
     });
     req.on('end', () => {
       try { resolve(body ? JSON.parse(body) : ({} as T)); } catch (e) { reject(e); }
@@ -276,8 +291,31 @@ function isPasscodeValid(req: IncomingMessage & { body?: any }, payload?: any): 
       && timingSafeEqual(createHash('sha256').update(code).digest(), expected));
 }
 
+// Mirrored from utils/photoPrompt.ts: keep serverless entry self-contained.
+function buildPersonaPhotoPrompt(mode: string, scene: string, request: string, hasReference: boolean, posed = false, personaName = 'the persona') {
+  const subject = mode !== 'pov';
+  return [
+    subject ? (hasReference
+      ? 'Use the supplied image as the identity reference: preserve the same face, facial structure, skin tone and hair. Do not copy its pose, background or lighting unless requested.'
+      : `Depict ${personaName} realistically.`)
+      : 'First-person view of the requested objects or surroundings. Do not insert the persona or use their portrait as a reference.',
+    `Scene: ${scene}`,
+    `User photo request: ${JSON.stringify(typeof request === 'string' ? request.slice(0, 4000) : '')}`,
+    'Honor the requested subject, pose, framing, camera viewpoint, time, lighting and visual style. An explicit request overrides the defaults below; do not refuse a photoshoot or replace requested professional styling with a casual snapshot.',
+    'DEFAULT ONLY when no different style is requested: an ordinary unedited phone photo someone would send in a chat. Average everyday camera quality in ordinary phone-camera auto mode, realistic skin texture, natural available light and believable unarranged surroundings. Use broad phone-camera depth of field rather than stylized portrait-mode bokeh; do not add decorative props or lettering merely to beautify the composition. Slightly imperfect framing or subtle grain/softness may fit the scene. Avoid beauty filters, plastic skin, cinematic grading and polished advertising composition. Do not force blur, clutter or faults into every image; imperfections should be plausible, not a staged effect.',
+    mode === 'selfie' ? 'For an ordinary selfie, use a believable handheld phone viewpoint. For a requested mirror selfie, show the phone in the reflection with consistent mirror geometry; do not turn it into a front-camera arm-extended selfie.'
+      : subject ? (posed ? 'Honor the requested pose and expression.' : 'Use a relaxed everyday moment by default; an explicit pose or photoshoot request takes priority.')
+        : 'Keep framing focused on the requested scene or object.',
+    'For a requested studio session, editorial, professional photoshoot or other aesthetic, use the requested lighting, sharpness, composition and finish instead of the casual-phone defaults. Keep physical details and identity believable.',
+  ].join('\n');
+}
+
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!requestOriginAllowed(req)) {
+    res.statusCode = 403; res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Invalid origin' })); return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-vertex-passcode, x-passcode');
 
@@ -359,6 +397,7 @@ OUTPUT REQUIREMENTS:
    - A realistic, in-character text comment matching the persona's tone, current mood, speech style, and photo context (e.g. 'Excuse the bed hair haha, literally just woke up', 'Look what just arrived!', 'Having this right now, send me yours too!').
    - NEVER sound robotic or assistant-like. Keep it casual like a real WhatsApp message.
 3. "action_and_setting": string
+   - Preserve explicit camera viewpoint (including mirror selfies), photo style, pose, lighting and requested time in this description. Professional photoshoots are valid when requested; casual phone realism is only the default.
    - A concise, context-aware description of the action and environment (e.g. 'sitting on the living room couch with a mug', 'eating ramen at a cozy street food stall with steam rising', 'at a study desk with an open laptop and notebook').
 4. "user_wants_posed": boolean
    - If the user explicitly asks for a specific pose (e.g., 'look at the camera', 'smile', 'pose nicely', 'stand straight', 'pose for me', 'just a simple of u standing and posing'), set user_wants_posed: true and reflect that exact request in action_and_setting.
@@ -466,40 +505,12 @@ RULES:
     let parts: any[] = [];
     let promptText = '';
 
-    if (mode === 'selfie') {
-      promptText = `Use [Input Image 1] as the subject reference (identical face, exact facial structure, hair, and eye shape). A spontaneous, casual amateur selfie taken on a smartphone front-facing camera. She is ${action_and_setting}. Arm extended holding the phone at a slight, natural angle; the shot is slightly off-center and imperfectly framed. Natural, flat indoor lighting or screen glare illuminating her face—strictly no studio rim lighting or warm glam glow. Casual relaxed expression, half-smile or candid smirk (not an Instagram model pose). Authentic smartphone front-lens compression, subtle motion blur around edges, faint digital camera grain. Raw unedited Snapchat/WhatsApp front camera snap, zero beauty filter, zero cinematic styling.`;
-
-      if (avatarBase64) {
-        const cleanBase64 = avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64;
-        parts.push({
-          inlineData: {
-            mimeType: avatarMimeType,
-            data: cleanBase64,
-          },
-        });
-      }
-      parts.push({ text: promptText });
-    } else if (mode === 'candid') {
-      if (payload.user_wants_posed) {
-        promptText = `Use [Input Image 1] as the subject reference (same woman, exact same facial features, hair, and skin tone). A casual, amateur smartphone snapshot of her ${action_and_setting}. She is posing casually for someone taking her photo on a phone, looking directly toward the camera with a natural, unforced expression. Shot on an everyday smartphone, slightly imperfect composition, authentic room/outdoor lighting. Realistic skin texture, natural soft focus, raw unedited mobile photo.`;
-      } else {
-        promptText = `Use [Input Image 1] as the subject reference (same woman, exact same facial features, hair, and skin tone). A natural, unposed amateur photo of her ${action_and_setting}. Captured quickly on an everyday smartphone, feels accidental rather than staged. Composition is slightly imperfect: off-center framing, awkward angle (either slightly too low or tilted, horizon not completely straight, or part of her body slightly cropped out of frame). She is mid-action or looking away casually (looking at her phone, lost in thought, or reaching for something—not aware of or posing for the camera). Uneven realistic lighting [e.g., flat fluorescent lighting, harsh daylight with one side slightly overblown, or fading low light with subtle grain]. Focus is naturally soft or slightly missed rather than razor-sharp, with subtle motion blur from quick movement. An uncurated, unedited raw capture sent over chat.`;
-      }
-
-      if (avatarBase64) {
-        const cleanBase64 = avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64;
-        parts.push({
-          inlineData: {
-            mimeType: avatarMimeType,
-            data: cleanBase64,
-          },
-        });
-      }
-      parts.push({ text: promptText });
-    } else {
-      promptText = `A casual amateur first-person POV photo taken on a smartphone of ${action_and_setting}. Documentary everyday realism, flat natural light or harsh indoor fluorescent bulbs. Slightly off-center angle, real clutter in the background, believable phone lens depth. An accidental 2-second snapshot, no editorial color grading, zero artistic styling.`;
-      parts.push({ text: promptText });
+    promptText = buildPersonaPhotoPrompt(mode, action_and_setting, payload.userRequest || '',
+      Boolean(avatarBase64 && isSubject), payload.user_wants_posed, payload.personaName);
+    if (isSubject && avatarBase64) {
+      parts.push({ inlineData: { mimeType: avatarMimeType || 'image/jpeg', data: avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64 } });
     }
+    parts.push({ text: promptText });
 
     let generatedBase64: string | undefined;
     let generatedMime = 'image/jpeg';
@@ -575,6 +586,6 @@ RULES:
     sendJson(res, 200, { imageData: dataUrl });
   } catch (error: any) {
     console.error('[API Error /image]:', error);
-    sendJson(res, 500, { error: error?.message || 'Internal server error' });
+    sendJson(res, error?.statusCode === 413 ? 413 : 500, { error: error?.message || 'Internal server error' });
   }
 }

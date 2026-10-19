@@ -1,3 +1,13 @@
+function requestOriginAllowed(req: IncomingMessage): boolean {
+  if (!req.headers.origin) return true;
+  try {
+    const origin = new URL(req.headers.origin);
+    const secure = req.headers['x-forwarded-proto'] === 'https' || Boolean((req.socket as any)?.encrypted) || Boolean(process.env.VERCEL);
+    return ['http:', 'https:'].includes(origin.protocol) && !origin.username && !origin.password
+      && origin.host === req.headers.host && (!secure || origin.protocol === 'https:');
+  } catch { return false; }
+}
+
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { GoogleGenAI } from '@google/genai';
@@ -42,12 +52,15 @@ async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Pr
   }
 
   return new Promise((resolve, reject) => {
-    let body = '';
+    let body = ''; let size = 0; let oversized = false;
+    req.setEncoding?.('utf8');
     req.on('data', chunk => {
-      body += chunk;
-      if (body.length > 50 * 1024 * 1024) {
-        reject(new Error('Payload too large'));
+      if (oversized) return;
+      size += Buffer.byteLength(chunk);
+      if (size > 4 * 1024 * 1024) {
+        oversized = true; reject(Object.assign(new Error('Payload too large'), { statusCode: 413 })); return;
       }
+      body += chunk;
     });
     req.on('end', () => {
       try {
@@ -511,7 +524,11 @@ PRIVATE RECOLLECTION OF EVENTS BY ${persona.name} (${dateLabel}):`;
 }
 
 export default async function handler(req: IncomingMessage & { body?: any }, res: ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!requestOriginAllowed(req)) {
+    res.statusCode = 403; res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Invalid origin' })); return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-vertex-passcode, x-passcode');
 
@@ -544,6 +561,6 @@ export default async function handler(req: IncomingMessage & { body?: any }, res
     }
   } catch (err: any) {
     console.error('[Vercel Serverless /api/gemini/diary Error]:', err);
-    sendJson(res, 400, { error: err.message || 'Invalid request body' });
+    sendJson(res, err?.statusCode === 413 ? 413 : 400, { error: err.message || 'Invalid request body' });
   }
 }

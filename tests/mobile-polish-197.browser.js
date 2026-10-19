@@ -6,7 +6,7 @@ async (page) => {
   const c=await browser.newContext({viewport:{width:mobile?390:1440,height:844},isMobile:mobile,hasTouch:mobile,serviceWorkers:'block'});
   await c.addInitScript(({theme})=>localStorage.setItem('whatsapp_settings',JSON.stringify({theme,aiProvider:'vertex',chatWallpaper:'/images/misty-forest.svg',chatWallpaperOpacity:.85})),{theme});
   const p=await c.newPage();p.setDefaultTimeout(5000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
-  await p.goto('http://127.0.0.1:3013');check(await p.title()==='Wassap v1.9.7','Stale browser title');
+  await p.goto('http://127.0.0.1:3013');check(await p.title()==='Wassap v1.9.9','Stale browser title');
   if(mobile){
    const styles=await p.locator('.chat-list-row').first().evaluate(e=>({divider:getComputedStyle(e,'::after').borderBottomColor,right:getComputedStyle(document.querySelector('.mobile-inbox > .app-panel')).borderRightWidth}));
    check(styles.right==='0px','Mobile right frame remains');
@@ -38,7 +38,7 @@ async (page) => {
    await p.setViewportSize({width:740,height:390});await p.waitForFunction(()=>document.querySelector('.chat-wallpaper').clientWidth===740&&document.querySelector('.chat-wallpaper').clientHeight===document.querySelector('.mobile-conversation').clientHeight);
   }
   check(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Horizontal overflow');
-  await p.evaluate(()=>{document.title='(1) New Message';document.dispatchEvent(new Event('visibilitychange'));});check(await p.title()==='Wassap v1.9.7','Foreground title loses version');
+  await p.evaluate(()=>{document.title='(1) New Message';document.dispatchEvent(new Event('visibilitychange'));});check(await p.title()==='Wassap v1.9.9','Foreground title loses version');
   check(errors.length===0,errors.join('; '));results.push(`${mobile?'mobile':'desktop'} ${theme}`);await c.close();
  }
  return `Passed wallpaper crop/draft/focus, composer bars, diary action/date, subtle dividers, title and overflow: ${results.join(', ')}`;

@@ -14,11 +14,11 @@ async (page) => {
   await Promise.all([p.waitForNavigation({waitUntil:'domcontentloaded'}),button.click()]);
   await p.getByRole('button',{name:'Reload app',exact:true}).waitFor();
   const after=await p.evaluate(()=>({chats:localStorage.getItem('whatsapp_chats'),settings:localStorage.getItem('whatsapp_settings')}));
-  check(JSON.stringify(before)===JSON.stringify(after),'Reload changed saved chats/settings');check(await p.title()==='Wassap v1.9.7','Version changed');
+  check(JSON.stringify(before)===JSON.stringify(after),'Reload changed saved chats/settings');check(await p.title()==='Wassap v1.9.9','Version changed');
   // The installed app has no browser reload control; exercise its cached offline fallback too.
   await c.setOffline(true);await Promise.all([p.waitForNavigation({waitUntil:'domcontentloaded'}),p.getByRole('button',{name:'Reload app',exact:true}).click()]);
   await p.getByRole('button',{name:'Reload app',exact:true}).waitFor();check(await p.evaluate(()=>localStorage.getItem('whatsapp_chats'))===before.chats,'Offline reload changed chats');
   await c.setOffline(false);await p.setViewportSize({width:1440,height:844});await p.getByRole('heading',{name:'Chats',exact:true}).waitFor();check(await p.getByRole('button',{name:'Reload app',exact:true}).count()===0,'Mobile reload appeared on desktop');
-  return 'Worker-controlled mobile reload, offline cached reload, 44px target, saved chats/settings, version 1.9.7 and unchanged desktop heading passed';
+  return 'Worker-controlled mobile reload, offline cached reload, 44px target, saved chats/settings, version 1.9.9 and unchanged desktop heading passed';
  } finally {await c.close();}
 }

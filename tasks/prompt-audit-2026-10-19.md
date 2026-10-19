@@ -1,5 +1,7 @@
 # Gemini prompt audit — 19 October 2026
 
+Follow-up: the owner approved improvements while preserving emotional diaries. Implemented changes and verification are recorded in [generation-quality-followup-2026-10-19.md](generation-quality-followup-2026-10-19.md). Findings below describe the earlier audit state.
+
 ## Assessment
 
 The existing work has a solid foundation: explicit persona identity, configurable speaking style, memories, multimodal input, a photo-intent planning step and reference images. Keep those. The main weakness is instruction competition: repeated CRITICAL/MUST language makes small social cues compete with the actual question. More instructions do not automatically produce more natural conversation.

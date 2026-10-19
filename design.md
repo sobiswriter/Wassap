@@ -1,5 +1,13 @@
 # Wassap Design System (`design.md`)
 
+## v1.9.9 release presentation (19 October 2026)
+
+Browser/PWA titles, manifest, metadata and the latest Updates card identify v1.9.9. Keep the installed app identity `/` and all theme tokens stable. Calls retain the reference-led dark surface; light-mode chat call cards use the existing themed bubble/text tokens. Production CSP allows the app's inline styling, bundled icons, wallpapers and audio worklet; call/media controls must be checked in the production preview. No camera/screen-sharing control is enabled in this release.
+
+## Generated media behavior (19 October 2026)
+
+Default persona photos should feel like ordinary, unedited phone-camera captures, with plausible imperfections rather than obligatory blur/clutter. Explicit user requests for professional photoshoots, particular lighting, poses or mirror viewpoints take priority over those defaults. Voice-note delivery follows saved controls without reading acting directions aloud. Preserve the intimate first-person diary tone; diary entries are personal reflections rather than documentation. No new visible controls are introduced by this follow-up.
+
 ## Persona call surfaces (18 October 2026)
 
 The supplied WhatsApp Android screenshots guide the dark full-screen call surface: centered name/status, large round persona avatar, bundled line-art doodles, circular controls in a rounded bottom sheet, and a red handset End action. The compact strip stays above in-app navigation and restores the same session. Desktop centers the same surface, and short screens scroll controls rather than crop them. Focus isolation/return, Tab/Escape, reduced motion and accurate connection/mute states are part of the interaction contract.

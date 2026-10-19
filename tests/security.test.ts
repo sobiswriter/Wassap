@@ -41,6 +41,9 @@ import dns from 'node:dns/promises';
 import http from 'node:http';
 import { mock } from 'node:test';
 import authHandler from '../api/gemini/auth';
+import { requestOriginAllowed } from '../api/gemini/auth';
+import statusHandler from '../api/gemini/status';
+import { parseJsonBody } from '../server/api';
 import { fetchRemoteMedia, isPublicMediaAddress } from '../server/remoteMedia';
 import { parsePersonaBackup } from '../utils/personaBackup';
 import { normalizeTextModel } from '../constants';
@@ -50,6 +53,47 @@ function responseRecorder() {
     setHeader(name: string, value: any) { this.headers[name.toLowerCase()] = value; },
     end(value = '') { this.body = value; } };
 }
+
+test('origin guards match on every isolated route and reject cross-site requests before work', async () => {
+  const canonical = readFileSync('api/gemini/auth.ts', 'utf8').match(/function requestOriginAllowed\(.*?\n}/s)![0];
+  for (const file of readdirSync('api/gemini').filter(file => file.endsWith('.ts'))) {
+    assert.ok(readFileSync(`api/gemini/${file}`, 'utf8').includes(canonical), file);
+    const { default: handler } = await import(`../api/gemini/${file}`);
+    const res = responseRecorder();
+    const req = { method: 'POST', headers: { host: 'wassap.test', origin: 'https://attacker.test' }, body: {} };
+    if (typeof handler === 'function') await handler(req, res); else handler.emit('request', req, res);
+    assert.equal(res.statusCode, 403, file);
+  }
+  assert.equal(requestOriginAllowed({ headers: { host: 'wassap.test', origin: 'http://wassap.test', 'x-forwarded-proto': 'https' } } as any), false);
+  assert.equal(requestOriginAllowed({ headers: { host: 'wassap.test', origin: 'null' } } as any), false);
+  assert.equal(requestOriginAllowed({ headers: { host: 'wassap.test', origin: 'https://wassap.test' } } as any), true);
+});
+
+test('public health omits deployment details while member diagnostics remain available', async () => {
+  const old = process.env.VERTEX_PASSCODE;
+  process.env.VERTEX_PASSCODE = 'synthetic-passkey';
+  try {
+    const publicRes = responseRecorder();
+    await statusHandler({ method: 'GET', headers: {} } as any, publicRes as any);
+    assert.deepEqual(Object.keys(JSON.parse(publicRes.body)).sort(), ['provider', 'status']);
+    assert.equal(publicRes.headers['cache-control'], 'no-store');
+    const memberRes = responseRecorder();
+    await statusHandler({ method: 'GET', headers: { 'x-vertex-passcode': 'synthetic-passkey' } } as any, memberRes as any);
+    assert.equal(typeof JSON.parse(memberRes.body).hasCredentials, 'boolean');
+  } finally { if (old === undefined) delete process.env.VERTEX_PASSCODE; else process.env.VERTEX_PASSCODE = old; }
+});
+
+test('streamed JSON preserves split UTF-8 and rejects oversized bodies despite later chunks', async () => {
+  const unicode = new PassThrough(); const parsed = parseJsonBody(unicode as any);
+  const bytes = Buffer.from('{"text":"🙂"}');
+  unicode.write(bytes.subarray(0, 11)); unicode.end(bytes.subarray(11));
+  assert.deepEqual(await parsed, { text: '🙂' });
+  const large = new PassThrough(); const rejected = assert.rejects(parseJsonBody(large as any), { statusCode: 413 });
+  large.write('x'.repeat(4 * 1024 * 1024 + 1));
+  large.write('ignored'); large.end(); await rejected;
+  assert.equal(isPublicMediaAddress('240.0.0.1'), false);
+  assert.equal(isPublicMediaAddress('255.255.255.255'), false);
+});
 
 test('unlock cookie is HTTP-only, HTTPS-only on HTTPS, and works for future requests', async () => {
   const previous = process.env.VERTEX_PASSCODE;

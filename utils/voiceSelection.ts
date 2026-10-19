@@ -20,3 +20,10 @@ export function personaVoiceStyle(settings: PersonaVoiceSettings | undefined, vo
   }
   return parts.filter(Boolean).join(', ');
 }
+
+export function personaTtsStyle(settings: PersonaVoiceSettings | undefined, voice: ReturnType<typeof selectPersonaVoice>, speechStyle?: string) {
+  if (settings?.enableVoicePrompting === false) return '';
+  return [settings?.stylePrompt || (!voice.custom ? getVoiceDescriptor(voice.id)?.stylePrompt : ''),
+    settings?.paceSpeed !== 'default' ? settings?.paceSpeed : '', settings?.pitchTone,
+    speechStyle?.replace(/^manner:\s*/i, '')].filter(Boolean).join(', ');
+}

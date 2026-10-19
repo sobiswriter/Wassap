@@ -1,3 +1,28 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
+function isPasscodeValid(req: IncomingMessage & { body?: any }, payload?: any): boolean {
+  let cookieCode: string | undefined;
+  try {
+    const cookie = req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith('wassap_vertex='));
+    if (cookie) cookieCode = decodeURIComponent(cookie.slice('wassap_vertex='.length));
+  } catch { return false; }
+  const expected = process.env.VERTEX_PASSCODE
+    ? createHash('sha256').update(process.env.VERTEX_PASSCODE).digest()
+    : Buffer.from('065aa98a12229c668d822a2ef7e4cdc84fa1c0ec55671eae4560d50be441cdf5', 'hex');
+  return [cookieCode, req.headers['x-vertex-passcode'], req.headers['x-passcode'], payload?.passcode]
+    .some(code => typeof code === 'string' && code.length > 0 && code.length <= 1024
+      && timingSafeEqual(createHash('sha256').update(code).digest(), expected));
+}
+
+function requestOriginAllowed(req: IncomingMessage): boolean {
+  if (!req.headers.origin) return true;
+  try {
+    const origin = new URL(req.headers.origin);
+    const secure = req.headers['x-forwarded-proto'] === 'https' || Boolean((req.socket as any)?.encrypted) || Boolean(process.env.VERCEL);
+    return ['http:', 'https:'].includes(origin.protocol) && !origin.username && !origin.password
+      && origin.host === req.headers.host && (!secure || origin.protocol === 'https:');
+  } catch { return false; }
+}
+
 import type { IncomingMessage, ServerResponse } from 'http';
 
 const DEFAULT_GCP_PROJECT = 'gen-lang-client-0100408368';
@@ -14,7 +39,11 @@ function sendJson(res: ServerResponse & { status?: (code: number) => any; json?:
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!requestOriginAllowed(req)) {
+    res.statusCode = 403; res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Invalid origin' })); return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
 
   if (req.method === 'OPTIONS') {
@@ -23,6 +52,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
+  if (req.method !== 'GET') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+  if (!isPasscodeValid(req)) { sendJson(res, 200, { status: 'online', provider: 'Vertex AI (Built-in Server Credits)' }); return; }
   const project = process.env.VERTEX_PROJECT_ID || DEFAULT_GCP_PROJECT;
   const region = process.env.VERTEX_LOCATION || process.env.GOOGLE_CLOUD_LOCATION || DEFAULT_GCP_REGION;
   const clientEmail =

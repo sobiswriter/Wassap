@@ -1,3 +1,13 @@
+function requestOriginAllowed(req: IncomingMessage): boolean {
+  if (!req.headers.origin) return true;
+  try {
+    const origin = new URL(req.headers.origin);
+    const secure = req.headers['x-forwarded-proto'] === 'https' || Boolean((req.socket as any)?.encrypted) || Boolean(process.env.VERCEL);
+    return ['http:', 'https:'].includes(origin.protocol) && !origin.username && !origin.password
+      && origin.host === req.headers.host && (!secure || origin.protocol === 'https:');
+  } catch { return false; }
+}
+
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { GoogleGenAI } from '@google/genai';
@@ -112,12 +122,15 @@ async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Pr
   }
 
   return new Promise((resolve, reject) => {
-    let body = '';
+    let body = ''; let size = 0; let oversized = false;
+    req.setEncoding?.('utf8');
     req.on('data', chunk => {
-      body += chunk;
-      if (body.length > 50 * 1024 * 1024) {
-        reject(new Error('Payload too large'));
+      if (oversized) return;
+      size += Buffer.byteLength(chunk);
+      if (size > 4 * 1024 * 1024) {
+        oversized = true; reject(Object.assign(new Error('Payload too large'), { statusCode: 413 })); return;
       }
+      body += chunk;
     });
     req.on('end', () => {
       try {
@@ -313,7 +326,11 @@ export default async function handler(
   req: IncomingMessage & { body?: any },
   res: ServerResponse & { status?: (code: number) => any; json?: (data: any) => any }
 ) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!requestOriginAllowed(req)) {
+    res.statusCode = 403; res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Invalid origin' })); return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-vertex-passcode, x-passcode');
 
@@ -354,7 +371,6 @@ export default async function handler(
     );
     const voiceDescriptor = getVoiceDescriptor(selectedVoice);
     const selectedModel = voiceModel || 'gemini-3.8-flash-tts';
-    const is38 = selectedModel.includes('3.8');
 
     // Build consolidated style directives
     const styleParts: string[] = [];
@@ -412,8 +428,8 @@ export default async function handler(
           ? verbatimWithVocalTags
           : `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} voice delivery, honoring vocal tags like <laugh>, <sigh>, <gasp>, <whisper>, <cough>: ${verbatimWithVocalTags}`;
 
-        // Attempt 1: If custom voice on 3.8, use native voiceConfig.voice
-        const voiceConfigToUse = (isCustomVoice && isCandidate38)
+        // 3.8 accepts the selected prebuilt or custom identity in voiceConfig.voice.
+        const voiceConfigToUse = isCandidate38
           ? { voice: selectedVoice }
           : {
               prebuiltVoiceConfig: {
@@ -423,13 +439,15 @@ export default async function handler(
 
         const generateConfig: any = {
           responseModalities: ["AUDIO"],
+          httpOptions: { timeout: 18000 },
           speechConfig: {
             voiceConfig: voiceConfigToUse
           }
         };
 
+        let candidateTimer: ReturnType<typeof setTimeout>;
         const candidateTimeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`TTS candidate ${modelCandidate} timed out after 18s`)), 18000)
+          candidateTimer = setTimeout(() => reject(new Error(`TTS candidate ${modelCandidate} timed out after 18s`)), 18000)
         );
 
         let response: any;
@@ -437,7 +455,7 @@ export default async function handler(
           response = await Promise.race([
             aiClient.models.generateContent({
               model: modelCandidate,
-              contents: [{ role: 'user', parts: [{ text: inputText }] }],
+              contents: [{ role: 'user', parts: [{ text: inputText, ...(isCandidate38 && (stylePrompt ?? combinedStyle) ? { speechMetadata: { style: stylePrompt ?? combinedStyle } } : {}) }] }],
               config: generateConfig as any
             }),
             candidateTimeout
@@ -447,19 +465,15 @@ export default async function handler(
           if (isCustomVoice && isCandidate38) {
             console.warn(`[Vertex TTS] Custom voice ID ${selectedVoice} failed on ${modelCandidate}, falling back to prompt-steered studio voice:`, initialErr?.message || initialErr);
             const fallbackVoiceName = voiceDescriptor?.name || 'Zephyr';
-            const fallbackPromptText = `Say the following in a natural WhatsApp voice note ${personaDirective}with a ${styleDirective} delivery: ${verbatimWithVocalTags}`;
             response = await Promise.race([
               aiClient.models.generateContent({
                 model: modelCandidate,
-                contents: [{ role: 'user', parts: [{ text: customVoicePrompt ? fallbackPromptText : inputText }] }],
+                contents: [{ role: 'user', parts: [{ text: verbatimWithVocalTags, ...((stylePrompt ?? combinedStyle) ? { speechMetadata: { style: stylePrompt ?? combinedStyle } } : {}) }] }],
                 config: {
                   responseModalities: ["AUDIO"],
+          httpOptions: { timeout: 18000 },
                   speechConfig: {
-                    voiceConfig: {
-                      prebuiltVoiceConfig: {
-                        voiceName: fallbackVoiceName
-                      }
-                    }
+                    voiceConfig: { voice: fallbackVoiceName }
                   }
                 } as any
               }),
@@ -468,7 +482,7 @@ export default async function handler(
           } else {
             throw initialErr;
           }
-        }
+        } finally { clearTimeout(candidateTimer); }
 
         const candidate = response.candidates?.[0];
         const part = candidate?.content?.parts?.find((p: any) => p.inlineData);
@@ -504,6 +518,6 @@ export default async function handler(
     sendJson(res, 200, { audioData: audioDataUrl, mimeType: 'audio/wav' });
   } catch (error: any) {
     console.error('[API Error /tts]:', error);
-    sendJson(res, 500, { error: error?.message || 'TTS generation failed' });
+    sendJson(res, error?.statusCode === 413 ? 413 : 500, { error: error?.message || 'TTS generation failed' });
   }
 }

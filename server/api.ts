@@ -1,4 +1,5 @@
-import authHandler, { isPasscodeValid } from '../api/gemini/auth';
+import statusHandler from '../api/gemini/status';
+import authHandler, { isPasscodeValid, requestOriginAllowed } from '../api/gemini/auth';
 export { isPasscodeValid };
 import type { IncomingMessage, ServerResponse } from 'http';
 import { 
@@ -9,7 +10,6 @@ import {
   handleVertexImageGeneration, 
   handleVertexImageExcuse 
 } from './vertexHandler';
-import { GCP_CONFIG } from '../constants';
 import voicesHandler from '../api/gemini/voices';
 import { handleLiveRequest } from '../api/gemini/live';
 
@@ -28,12 +28,15 @@ export async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any
   }
 
   return new Promise((resolve, reject) => {
-    let body = '';
+    let body = ''; let size = 0; let oversized = false;
+    req.setEncoding?.('utf8');
     req.on('data', chunk => {
-      body += chunk;
-      if (body.length > 50 * 1024 * 1024) {
-        reject(new Error('Payload too large'));
+      if (oversized) return;
+      size += Buffer.byteLength(chunk);
+      if (size > 4 * 1024 * 1024) {
+        oversized = true; reject(Object.assign(new Error('Payload too large'), { statusCode: 413 })); return;
       }
+      body += chunk;
     });
     req.on('end', () => {
       try {
@@ -62,6 +65,8 @@ export async function handleGeminiApiMiddleware(
   next: () => void
 ) {
   const url = req.url?.split('?')[0] || '';
+  if (url.startsWith('/api/gemini/') && !requestOriginAllowed(req)) { sendJson(res, 403, { error: 'Invalid origin' }); return; }
+  if (url.startsWith('/api/gemini/')) res.setHeader('Cache-Control', 'no-store');
 
   if (url === '/api/gemini/auth') { await authHandler(req, res); return; }
   if (url === '/api/gemini/live') { await handleLiveRequest(req, res); return; }
@@ -85,7 +90,7 @@ export async function handleGeminiApiMiddleware(
       }
     } catch (err: any) {
       console.error('[API Error /generate]:', err);
-      sendJson(res, 400, { error: err.message || 'Invalid request body' });
+      sendJson(res, err?.statusCode === 413 ? 413 : 400, { error: err.message || 'Invalid request body' });
     }
     return;
   }
@@ -109,7 +114,7 @@ export async function handleGeminiApiMiddleware(
       }
     } catch (err: any) {
       console.error('[API Error /diary]:', err);
-      sendJson(res, 400, { error: err.message || 'Invalid request body' });
+      sendJson(res, err?.statusCode === 413 ? 413 : 400, { error: err.message || 'Invalid request body' });
     }
     return;
   }
@@ -133,7 +138,7 @@ export async function handleGeminiApiMiddleware(
       }
     } catch (err: any) {
       console.error('[API Error /tts]:', err);
-      sendJson(res, 400, { error: err.message || 'Invalid request body' });
+      sendJson(res, err?.statusCode === 413 ? 413 : 400, { error: err.message || 'Invalid request body' });
     }
     return;
   }
@@ -162,7 +167,7 @@ export async function handleGeminiApiMiddleware(
       }
     } catch (err: any) {
       console.error('[API Error /image-synthesize]:', err);
-      sendJson(res, 400, { error: err.message || 'Invalid request body' });
+      sendJson(res, err?.statusCode === 413 ? 413 : 400, { error: err.message || 'Invalid request body' });
     }
     return;
   }
@@ -186,7 +191,7 @@ export async function handleGeminiApiMiddleware(
       }
     } catch (err: any) {
       console.error('[API Error /image-generate]:', err);
-      sendJson(res, 400, { error: err.message || 'Invalid request body' });
+      sendJson(res, err?.statusCode === 413 ? 413 : 400, { error: err.message || 'Invalid request body' });
     }
     return;
   }
@@ -210,20 +215,12 @@ export async function handleGeminiApiMiddleware(
       }
     } catch (err: any) {
       console.error('[API Error /image-excuse]:', err);
-      sendJson(res, 400, { error: err.message || 'Invalid request body' });
+      sendJson(res, err?.statusCode === 413 ? 413 : 400, { error: err.message || 'Invalid request body' });
     }
     return;
   }
 
-  if (req.method === 'GET' && url === '/api/gemini/status') {
-    sendJson(res, 200, {
-      status: 'online',
-      provider: 'Vertex AI',
-      project: process.env.VERTEX_PROJECT_ID || GCP_CONFIG.projectId,
-      region: process.env.VERTEX_LOCATION || GCP_CONFIG.defaultRegion,
-    });
-    return;
-  }
+  if (url === '/api/gemini/status') { await statusHandler(req, res); return; }
 
   if (url === '/api/giphy/search') {
     res.setHeader('Access-Control-Allow-Origin', '*');

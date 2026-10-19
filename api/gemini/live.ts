@@ -1,3 +1,13 @@
+function requestOriginAllowed(req: IncomingMessage): boolean {
+  if (!req.headers.origin) return true;
+  try {
+    const origin = new URL(req.headers.origin);
+    const secure = req.headers['x-forwarded-proto'] === 'https' || Boolean((req.socket as any)?.encrypted) || Boolean(process.env.VERCEL);
+    return ['http:', 'https:'].includes(origin.protocol) && !origin.username && !origin.password
+      && origin.host === req.headers.host && (!secure || origin.protocol === 'https:');
+  } catch { return false; }
+}
+
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -151,11 +161,16 @@ function getVertexClient(locationOverride?: string) {
 
 export function liveRequestAllowed(req: IncomingMessage): boolean {
   try {
-    return new URL(req.headers.origin || '').host === req.headers.host && isPasscodeValid(req);
+    return Boolean(req.headers.origin) && requestOriginAllowed(req) && isPasscodeValid(req);
   } catch { return false; }
 }
 
 export async function handleLiveRequest(req: IncomingMessage & { body?: any }, res: ServerResponse) {
+  if (!requestOriginAllowed(req)) {
+    res.statusCode = 403; res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Invalid origin' })); return;
+  }
+
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Type', 'application/json');
   const reply = (status: number, data: object) => { res.statusCode = status; res.end(JSON.stringify(data)); };
@@ -167,7 +182,7 @@ export async function handleLiveRequest(req: IncomingMessage & { body?: any }, r
       req.setEncoding('utf8');
       const body = await new Promise<string>((resolve, reject) => {
         let text = ''; let size = 0;
-        req.on('data', chunk => { size += Buffer.byteLength(chunk); if (size > 192 * 1024) { reject(new Error('Context too large')); return; } text += chunk; });
+        req.on('data', chunk => { if (size > 192 * 1024) return; size += Buffer.byteLength(chunk); if (size > 192 * 1024) { reject(new Error('Context too large')); return; } text += chunk; });
         req.on('end', () => resolve(text)); req.on('error', reject);
       });
       payload = JSON.parse(body);

@@ -6,14 +6,31 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.9.7`
+- **Current Version**: `v1.9.9`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
-- **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/` and `api/giphy/`, plus a local Express development server in `server/`.
+- **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/` and `api/giphy/`, plus Vite dev/preview middleware backed by `server/`.
 
 ---
 
 ## ⚡ Current State & What Was Just Worked On
+
+### v1.9.9 release/security pass (19 October 2026)
+- Updated package/lockfile, browser/PWA metadata, Updates card and active documentation to 1.9.9; shell cache v23, stable PWA identity and user storage. No push/deploy; owner-only rule remains.
+- Fixed dedicated production photo endpoints to honor explicit style/camera/time requests and preserve safety-block outcomes, matching Studio/local/main image routes. Added actual-entry-point and prompt-parity coverage.
+- Mirrored same-origin validation across all Gemini endpoints, removed wildcard CORS, made API responses non-cacheable, kept authenticated status diagnostics private, bounded streamed UTF-8 bodies to 4 MiB, and blocked reserved 240.0.0.0/4 media destinations. Existing passkey/cookie and custom-key provider preserved.
+- Added production/preview security headers; CI read-only token, no persisted Git credentials, 15-minute job timeout and Node 22. Scoped selector-parser 7.1.6 overrides remove the patchable build finding. Runtime audit clean; five high build-only Tailwind/braces entries remain with no compatible patched braces release. Review 26 October 2026; do not accept public build inputs.
+- Final verification: clean install, 51 tests, TypeScript, production build, runtime audit and local deployment smoke pass. Real Chrome tests pass both call transports, custom designed/replicated samples/fallback, reactions, time-awareness save/reload, mobile light/dark layout and worker-controlled online/offline reload. CSP initially blocked fetching local audio samples; connect-src now permits data/blob conversion and regression coverage protects it. CSS output matches the pre-override SHA-256. No physical phone/deployed authenticated check.
+- Added `npm run release:smoke -- URL` for version/assets/headers/public status/unauthenticated API checks. Production URL is https://wassapyo.vercel.app; last probe served v1.9.7 and old headers/status disclosure. Local fixes need owner push and deployed validation. See `release-1.9.9.md` for final results and limits.
+
+### Voice delivery, explicit photo intent and context quality (19 October 2026)
+- Owner approved audit follow-ups with strict quality control and clarified that diaries should remain deeply personal/emotional. Diary prompts/data were preserved. No release version bump or storage migration.
+- Pinned Google SDK 2.24.0. All three TTS routes now send 3.8 speechMetadata.style separately from verbatim text and use voiceConfig.voice for prebuilt/custom identity. Prompting off skips metadata; personaTtsStyle does not repeat immutable custom design descriptions. Legacy 3.1 steering stays intact. Custom fallback never reads steering instructions aloud. Completed timeout handles clear; SDK timeouts and browser abort propagate, including no replacement voice after cancellation. Live/custom sample routing unchanged and regression checked.
+- Shared utils/photoPrompt.ts supplies phone-camera realism by default, explicit professional/studio/lighting/pose/time overrides and mirror framing. Original userRequest travels through App, browser service and both Cloud image paths; Vercel mirrors the builder with a parity test. POV does not receive a persona portrait. Photo blocks return a controlled failure instead of dropping identity/style to retry a different scene. Final camera constructors are no longer independently hard-coded across routes.
+- buildPersonaPrompt separates native API system rules from the existing serialized history; buildFullPersonaSystemPrompt remains compatible for snapshot callers. Group/events/reaction/media/voice context preserved on Studio/local/Vercel. No simultaneous native per-turn role migration.
+- New notification systemRules omit embedded history/clock/gap; worker uses the latest available ledger and recomputes clock (including custom offset), preserving clock/time-awareness off and proactive intent. Legacy notification snapshots retain a fallback. Deleted messages excluded from new notification snapshots. SW cache v22, no database changes.
+- Checks: 46 tests, TypeScript and clean build; browser call/custom-voice/reactions/mobile suites pass. SDK browser chunk adds ~19KB gzip; explicit CommonJS helper placement removes the vendor cycle exposed by the upgrade. No speculative dependency/framework added.
+- Real synthetic Google probes: before/after text both answered the main question with persona tone and no emoji narration; plain/styled Aoede WAVs valid 24kHz mono, 4.52s/5.40s. Casual versus professional mug photos generated and visually inspected; refined casual prompt still can produce some bokeh. No broad quality guarantee, subjective listening or physical device/custom entitlement check. Results/limits: tasks/generation-quality-followup-2026-10-19.md. No user private chat/mic used, no push/deploy.
 
 ### Continuous ringback, nuanced reactions and prompt audit (19 October 2026)
 - Ringback uses native audio looping until Live setup completes, including the connecting handshake. The random 6–12-second minimum preparation delay remains; End, failure and pickup stop playback. Removed the six-second replay interval that left most of the wait silent.

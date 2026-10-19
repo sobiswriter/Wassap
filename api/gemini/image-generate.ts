@@ -1,3 +1,13 @@
+function requestOriginAllowed(req: IncomingMessage): boolean {
+  if (!req.headers.origin) return true;
+  try {
+    const origin = new URL(req.headers.origin);
+    const secure = req.headers['x-forwarded-proto'] === 'https' || Boolean((req.socket as any)?.encrypted) || Boolean(process.env.VERCEL);
+    return ['http:', 'https:'].includes(origin.protocol) && !origin.username && !origin.password
+      && origin.host === req.headers.host && (!secure || origin.protocol === 'https:');
+  } catch { return false; }
+}
+
 import dns from 'node:dns/promises';
 import http from 'node:http';
 import https from 'node:https';
@@ -13,7 +23,7 @@ for (const [address, prefix] of [
   ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
   ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24],
   ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24],
-  ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
+  ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4], ['240.0.0.0', 4],
 ] as const) privateMediaAddresses.addSubnet(address, prefix, 'ipv4');
 const globalMediaIPv6 = new BlockList();
 globalMediaIPv6.addSubnet('2000::', 3, 'ipv6');
@@ -240,10 +250,15 @@ function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<
   }
 
   return new Promise((resolve, reject) => {
-    let body = '';
+    let body = ''; let size = 0; let oversized = false;
+    req.setEncoding?.('utf8');
     req.on('data', chunk => {
+      if (oversized) return;
+      size += Buffer.byteLength(chunk);
+      if (size > 4 * 1024 * 1024) {
+        oversized = true; reject(Object.assign(new Error('Payload too large'), { statusCode: 413 })); return;
+      }
       body += chunk;
-      if (body.length > 50 * 1024 * 1024) reject(new Error('Payload too large'));
     });
     req.on('end', () => {
       try { resolve(body ? JSON.parse(body) : ({} as T)); } catch (e) { reject(e); }
@@ -276,8 +291,31 @@ function isPasscodeValid(req: IncomingMessage & { body?: any }, payload?: any): 
       && timingSafeEqual(createHash('sha256').update(code).digest(), expected));
 }
 
+// Mirrored from utils/photoPrompt.ts; keep this Vercel entry self-contained.
+function buildPersonaPhotoPrompt(mode: string, scene: string, request: string, hasReference: boolean, posed = false, personaName = 'the persona') {
+  const subject = mode !== 'pov';
+  return [
+    subject ? (hasReference
+      ? 'Use the supplied image as the identity reference: preserve the same face, facial structure, skin tone and hair. Do not copy its pose, background or lighting unless requested.'
+      : `Depict ${personaName} realistically.`)
+      : 'First-person view of the requested objects or surroundings. Do not insert the persona or use their portrait as a reference.',
+    `Scene: ${scene}`,
+    `User photo request: ${JSON.stringify(typeof request === 'string' ? request.slice(0, 4000) : '')}`,
+    'Honor the requested subject, pose, framing, camera viewpoint, time, lighting and visual style. An explicit request overrides the defaults below; do not refuse a photoshoot or replace requested professional styling with a casual snapshot.',
+    'DEFAULT ONLY when no different style is requested: an ordinary unedited phone photo someone would send in a chat. Average everyday camera quality in ordinary phone-camera auto mode, realistic skin texture, natural available light and believable unarranged surroundings. Use broad phone-camera depth of field rather than stylized portrait-mode bokeh; do not add decorative props or lettering merely to beautify the composition. Slightly imperfect framing or subtle grain/softness may fit the scene. Avoid beauty filters, plastic skin, cinematic grading and polished advertising composition. Do not force blur, clutter or faults into every image; imperfections should be plausible, not a staged effect.',
+    mode === 'selfie' ? 'For an ordinary selfie, use a believable handheld phone viewpoint. For a requested mirror selfie, show the phone in the reflection with consistent mirror geometry; do not turn it into a front-camera arm-extended selfie.'
+      : subject ? (posed ? 'Honor the requested pose and expression.' : 'Use a relaxed everyday moment by default; an explicit pose or photoshoot request takes priority.')
+        : 'Keep framing focused on the requested scene or object.',
+    'For a requested studio session, editorial, professional photoshoot or other aesthetic, use the requested lighting, sharpness, composition and finish instead of the casual-phone defaults. Keep physical details and identity believable.',
+  ].join('\n');
+}
+
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!requestOriginAllowed(req)) {
+    res.statusCode = 403; res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Invalid origin' })); return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-vertex-passcode, x-passcode');
 
@@ -341,41 +379,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     let parts: any[] = [];
     let promptText = '';
 
-    if (mode === 'selfie') {
-      promptText = `${referenceDirective}A spontaneous, casual amateur selfie taken on a smartphone front-facing camera. ${subjPronoun} is ${action_and_setting}. Arm extended holding the phone at a slight, natural angle; the shot is slightly off-center and imperfectly framed. Natural everyday indoor lighting, cozy ambient room light, or natural daylight illuminating ${possPronoun} face—strictly no studio rim lighting or artificial glam glow. Casual relaxed expression, half-smile or candid smirk (not an Instagram model pose). Authentic smartphone front-lens compression, subtle motion blur around edges, faint digital camera grain. Raw unedited mobile front camera photo, zero beauty filter, zero cinematic styling.`;
-
-      if (hasAvatar) {
-        const cleanBase64 = avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64;
-        parts.push({
-          inlineData: {
-            mimeType: avatarMimeType,
-            data: cleanBase64,
-          },
-        });
-      }
-      parts.push({ text: promptText });
-    } else if (mode === 'candid') {
-      if (payload.user_wants_posed) {
-        promptText = `${referenceDirective}A casual, amateur smartphone snapshot of ${isMale ? 'him' : 'her'} ${action_and_setting}. ${subjPronoun} is posing casually for someone taking ${possPronoun} photo on a phone, looking directly toward the camera with a natural, unforced expression (${personLabel}, identical facial features and skin tone). Shot on an everyday smartphone, slightly imperfect composition, authentic room/outdoor lighting. Realistic skin texture, natural soft focus, raw unedited mobile photo.`;
-      } else {
-        promptText = `${referenceDirective}A natural, unposed amateur photo of ${isMale ? 'him' : 'her'} ${action_and_setting} (${personLabel}, identical facial features and skin tone). Captured quickly on an everyday smartphone, feels accidental rather than staged. Composition is slightly imperfect: off-center framing, awkward angle (either slightly too low or tilted, horizon not completely straight, or part of the body slightly cropped out of frame). ${subjPronoun} is actively engaged in the setting, looking away, observing something across the room, lost in thought, reaching for an item, or laughing mid-moment (natural authentic body posture, hands occupied naturally with the activity, not aware of or posing for the camera). Uneven realistic lighting [e.g., flat room lighting, soft ambient lamp light, or natural window light with subtle grain]. Focus is naturally soft or slightly missed rather than razor-sharp, with subtle motion blur from quick movement. An uncurated, unedited raw capture sent over chat.`;
-      }
-
-      if (hasAvatar) {
-        const cleanBase64 = avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64;
-        parts.push({
-          inlineData: {
-            mimeType: avatarMimeType,
-            data: cleanBase64,
-          },
-        });
-      }
-      parts.push({ text: promptText });
-    } else {
-      // mode === 'pov'
-      promptText = `A casual amateur first-person POV photo taken on a smartphone of ${action_and_setting}. Documentary everyday realism, flat natural light or indoor lighting. Slightly off-center angle, real clutter in the background, believable phone lens depth. An accidental 2-second snapshot, no editorial color grading, zero artistic styling.`;
-      parts.push({ text: promptText });
+    promptText = buildPersonaPhotoPrompt(mode, action_and_setting, payload.userRequest || '',
+      Boolean(avatarBase64 && isSubject), payload.user_wants_posed, payload.personaName);
+    if (isSubject && avatarBase64) {
+      parts.push({ inlineData: { mimeType: avatarMimeType || 'image/jpeg', data: avatarBase64.includes(',') ? avatarBase64.split(',')[1] : avatarBase64 } });
     }
+    parts.push({ text: promptText });
 
     let generatedBase64: string | undefined;
     let generatedMime = 'image/jpeg';
@@ -404,12 +413,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         const candidate = response.candidates?.[0];
         if (candidate?.finishReason === 'SAFETY' || (response.promptFeedback as any)?.blockReason) {
           console.warn(`[Vertex AI Image Gen Attempt ${attempt}] Safety filter flagged.`);
-          if (attempt <= maxRetries) {
-            // Simplify prompt on safety retry to avoid human reference trigger
-            parts = [{ text: `A casual amateur smartphone photo of ${action_and_setting}. Natural everyday lighting, authentic mobile snapshot.` }];
-            await new Promise(r => setTimeout(r, 1000));
-            continue;
-          }
           sendJson(res, 500, {
             blocked: true,
             error: "Image generation triggered safety filter.",
@@ -436,11 +439,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
         const errMsg = String(genContentErr?.message || '');
         if (errMsg.includes('SAFETY') || errMsg.includes('IMAGE_SAFETY')) {
-          if (attempt <= maxRetries) {
-            parts = [{ text: `A casual amateur smartphone photo of ${action_and_setting}. Natural everyday lighting, authentic mobile snapshot.` }];
-            await new Promise(r => setTimeout(r, 1000));
-            continue;
-          }
           sendJson(res, 500, { blocked: true, error: "Image generation blocked by safety filters." });
           return;
         }
@@ -494,7 +492,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     console.error("[Vertex AI Image Generation Error]:", error);
     const errStr = error?.message || String(error);
     const isBlocked = errStr.includes('SAFETY') || errStr.includes('blocked') || errStr.includes('IMAGE_SAFETY');
-    sendJson(res, 500, {
+    sendJson(res, error?.statusCode === 413 ? 413 : 500, {
       blocked: isBlocked,
       error: `Image generation failed: ${errStr}`,
     });

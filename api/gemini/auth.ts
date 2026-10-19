@@ -1,3 +1,13 @@
+function requestOriginAllowed(req: IncomingMessage): boolean {
+  if (!req.headers.origin) return true;
+  try {
+    const origin = new URL(req.headers.origin);
+    const secure = req.headers['x-forwarded-proto'] === 'https' || Boolean((req.socket as any)?.encrypted) || Boolean(process.env.VERCEL);
+    return ['http:', 'https:'].includes(origin.protocol) && !origin.username && !origin.password
+      && origin.host === req.headers.host && (!secure || origin.protocol === 'https:');
+  } catch { return false; }
+}
+
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
@@ -15,16 +25,15 @@ function isPasscodeValid(req: IncomingMessage & { body?: any }, payload?: any): 
       && timingSafeEqual(createHash('sha256').update(code).digest(), expected));
 }
 
-export { isPasscodeValid };
+export { isPasscodeValid, requestOriginAllowed };
 
 export default async function handler(req: IncomingMessage & { body?: any }, res: ServerResponse) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Type', 'application/json');
   const reply = (status: number, data: object) => { res.statusCode = status; res.end(JSON.stringify(data)); };
-  if (req.headers.origin) {
-    try {
-      if (new URL(req.headers.origin).host !== req.headers.host) { reply(403, { error: 'Invalid origin' }); return; }
-    } catch { reply(403, { error: 'Invalid origin' }); return; }
+  if (!requestOriginAllowed(req)) {
+    res.statusCode = 403; res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Invalid origin' })); return;
   }
   const secure = req.headers['x-forwarded-proto'] === 'https' || Boolean((req.socket as any)?.encrypted);
   const cookieFlags = `Path=/api/gemini; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`;
