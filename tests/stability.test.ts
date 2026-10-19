@@ -47,7 +47,7 @@ function workerFixture() {
   return { stores, notifications, events, context, get requests() { return requests; }, reconnect: () => { online = true; } };
 }
 
-test('offline notification input is durable and retry saves the whole answer before showing the latest user/persona pair', async () => {
+test('offline notification input is durable and shows every fragment of the current persona answer', async () => {
   const fixture = workerFixture(); let pending: Promise<any>;
   fixture.events.notificationclick({ reply: 'Keep this reply', action: 'reply', notification: { close() {}, title: 'Maya', tag: 'chat', data: { chatId: 'chat', chatName: 'Maya', chatAvatar: '/persona-test.png', provider: 'vertex' } }, waitUntil(promise: Promise<any>) { pending = promise; } });
   await pending!;
@@ -62,12 +62,18 @@ test('offline notification input is durable and retry saves the whole answer bef
   assert.equal(fixture.stores.get('pending_outbox')!.size, 0);
   const saved = [...fixture.stores.get('synced_background')!.values()].find(item => item.personaReplies.length);
   assert.equal(saved.personaReplies.map((m: any) => m.text).join(' '), 'An older fragment. Here is the newest reply.');
-  assert.equal(fixture.notifications.at(-1).body, 'Here is the newest reply.');
+  assert.equal(fixture.notifications.at(-1).body, 'An older fragment.\n\nHere is the newest reply.');
   assert.ok(!fixture.notifications.at(-1).body.includes('─'));
   assert.equal(fixture.notifications.at(-1).icon, '/persona-test.png');
   const count = fixture.notifications.length;
   await fixture.context.deliver(items[0]);
   assert.equal(fixture.notifications.length, count, 'Completed outbox item must not deliver twice');
+  const next = { id: 'next-turn', chatId: 'chat', message: { id: 'next-message', text: 'Next question', sender: 'me' }, notificationData: { chatName: 'Maya', chatAvatar: '/persona-test.png', provider: 'vertex', recentMessages: [...saved.personaReplies, { text: 'Old response must not return', sender: 'other' }] } };
+  fixture.stores.get('pending_outbox')!.set(next.id, next);
+  await fixture.context.deliver(next);
+  assert.equal(fixture.notifications.at(-1).tag, 'chat', 'Next response replaces the same chat notification');
+  assert.equal(fixture.notifications.at(-1).body, 'An older fragment.\n\nHere is the newest reply.', 'Only the current turn appears, not the conversation history');
+  assert.ok(fixture.notifications.at(-1).actions.some((action: any) => action.action === 'reply'));
 });
 
 

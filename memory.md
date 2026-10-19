@@ -15,6 +15,15 @@
 
 ## ⚡ Current State & What Was Just Worked On
 
+### Ringback cadence (19 October 2026)
+- Ringback now waits 1500 ms after each completed clip before replaying. Pickup/end cancels the timer and removes the ended handler, preserving the existing simulated pickup delay and sound toggle.
+- Checks: 62 unit tests, TypeScript and production build pass; timer regression covers the full gap and cancellation during the gap. Chrome calling regression confirms pause/repeat, pickup cleanup and both provider transports. No deployment or physical-device listening test.
+
+### Professional boot shell and complete reply notifications (19 October 2026)
+- Replaced static Opening/Reload text with a centered asset-independent brand screen, thin indeterminate progress, reduced-motion support and accessible reload link. Explicit dark boot background avoids a clash when the light stylesheet arrives before JavaScript.
+- Fixed lost notification fragments across ordinary, automated, group and worker replies: accumulate the current response with blank-line boundaries, reset for the next response and replace using the same chat tag. Persona image and inline Reply remain. Browser-side revisions stop stale avatar/worker lookups overwriting newer bodies without blocking message delivery.
+- Verified TypeScript/build, 61 unit tests, isolated Chrome regression for two complete multi-fragment turns, portrait/actions, responsive boot at 320/390/1440px and reduced motion; offline panel/cold reload regression passed. Inspected mobile loading screenshot. Physical Android shade remains unverified: browser/OS can clip very long bodies and owns the domain label, which a web API cannot hide. No push/deploy, dependencies or storage changes.
+
 ### Call continuity, single-flow replies and persona-only notifications (19 October 2026)
 - Owner superseded the two-participant notification request: show persona text only, no user echo/divider. Fixed worker icon field mismatch (chatAvatar versus avatar); foreground notifications carry their square persona icon into notification data so subsequent worker replacements retain it. Call notifications use the persona avatar too.
 - Rolled ordinary chat generation back to bounded provider recovery within the same turn. Failed delivery no longer reverses read/sent messages to pending, clears recording and replays the whole presence flow. Unexpected terminal failure settles once through the existing deterministic fallback. Offline-first sends remain durable until reconnection; the one-minute in-flight safety ceiling remains. Worker-only background outbox limits remain bounded.
@@ -743,6 +752,8 @@ Wassap/
 ---
 
 ## 📜 Feature Milestones Completed
+
+- [x] 19 October 2026: Professional static boot screen and complete current-turn persona notifications, retaining profile pictures and inline reply.
 
 - [x] **v1.9.7**: Android-first polish, archive/unarchive and pin selection across touch/mouse/keyboard, call coming-soon shortcut, reversible transitions, larger diary dates, stable mobile wallpaper, clean composer focus and subtle dividers; synchronized release labels.
 

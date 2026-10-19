@@ -4,6 +4,22 @@ import { PersonaCall } from '../services/liveCall';
 
 const fixture = () => new PersonaCall({ id: 'test', name: 'Maya', voiceSettings: { voiceName: 'Aoede' } } as any, {} as any, {} as any, () => {}) as any;
 
+test('ringback waits 1.5 seconds after each clip and cancels a pending repeat on pickup', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const originalAudio = globalThis.Audio; let plays = 0; let paused = false;
+  globalThis.Audio = class { loop = true; currentTime = 0; onended?: () => void; play() { plays++; return Promise.resolve(); } pause() { paused = true; } } as any;
+  const call = fixture(); call.notify = async () => {};
+  try {
+    const ringing = call.ring(); const player = call.ringPlayer;
+    assert.equal(plays, 1); assert.equal(player.loop, false);
+    player.onended(); t.mock.timers.tick(1499); assert.equal(plays, 1);
+    t.mock.timers.tick(1); assert.equal(plays, 2);
+    player.onended(); call.stopRing(); t.mock.timers.tick(1500);
+    assert.equal(plays, 2); assert.equal(paused, true); assert.equal(player.onended, null);
+    call.preparation.abort(); await ringing;
+  } finally { call.stopRing(); call.preparation.abort(); globalThis.Audio = originalAudio; }
+});
+
 test('normal audio bursts over eight seconds stay in the same call', () => {
   const call = fixture(); let ended = false;
   call.end = () => { ended = true; };

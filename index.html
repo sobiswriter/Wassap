@@ -16,11 +16,36 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json">
+    <style>
+        body { margin: 0; background: #0b1014; }
+        .app-boot { box-sizing: border-box; min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: max(32px, env(safe-area-inset-top)) 24px max(32px, env(safe-area-inset-bottom)); background: #0b1014; font-family: system-ui, sans-serif; text-align: center; color: #e9edef; }
+        .app-boot-content { width: min(100%, 280px); }
+        .app-boot-icon { display: block; width: 64px; height: 64px; color: #21c063; margin: 0 auto 20px; }
+        .app-boot h1 { margin: 0 0 12px; font-size: 28px; font-weight: 600; letter-spacing: -.6px; }
+        .app-boot p { margin: 0; color: #8696a0; font-size: 14px; line-height: 1.6; }
+        .app-boot-track { height: 3px; margin: 32px 24px 20px; border-radius: 3px; background: #202c33; overflow: hidden; }
+        .app-boot-track::after { content: ''; display: block; width: 40%; height: 100%; border-radius: inherit; background: #21c063; animation: app-boot-progress 1.8s ease-in-out infinite; }
+        .app-boot a { display: inline-block; margin-top: 36px; padding: 12px; color: #8696a0; font-size: 13px; text-underline-offset: 4px; }
+        .app-boot a:hover, .app-boot a:focus-visible { color: #21c063; }
+        @keyframes app-boot-progress { from { transform: translateX(-110%); } to { transform: translateX(360%); } }
+        @media (prefers-reduced-motion: reduce) { .app-boot-track::after { animation: none; width: 100%; opacity: .6; } }
+    </style>
     <script type="module" src="/index.tsx"></script>
 </head>
 
 <body>
-    <div id="root"><div role="status" style="padding:48px 24px;font-family:system-ui;text-align:center;color:#8696a0;background:#0b1014;min-height:100vh">Opening Wassap…<p><a href="/" style="color:#21c063">Reload Wassap</a></p></div></div>
+    <div id="root">
+        <main class="app-boot">
+            <div class="app-boot-content">
+                <svg class="app-boot-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M53 30a22 22 0 0 1-32 20L9 54l4-12A22 22 0 1 1 53 30Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M23 23h18M23 31h14M23 39h9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+                <h1>Wassap</h1>
+                <p role="status">Getting your conversations ready</p>
+                <div class="app-boot-track" aria-hidden="true"></div>
+                <p>Your conversations, right where you left them.</p>
+                <a href="/">Taking a while? Reload</a>
+            </div>
+        </main>
+    </div>
 </body>
 
 </html>

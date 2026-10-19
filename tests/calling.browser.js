@@ -71,11 +71,14 @@ async (page) => {
     await page.clock.runFor(6650);
     for (let i = 0; i < 30 && !awaitSetup; i++) await new Promise(resolve => setTimeout(resolve, 100));
     check(!!awaitSetup, 'Handshake was not attempted after the ring delay');
-    check(await page.evaluate(() => window.__ringback.loop && !window.__ringback.paused), 'Ringback stopped while awaiting setup');
+    check(await page.evaluate(() => !window.__ringback.loop), 'Ringback should pause between clips');
     // Media playback runs on real time even while the page clock is controlled.
     await page.evaluate(() => { window.__ringback.currentTime = window.__ringback.duration - 0.15; });
     await new Promise(resolve => setTimeout(resolve, 600));
-    check(await page.evaluate(() => !window.__ringback.paused && window.__ringback.currentTime < 1), 'Ringback did not loop across the end of its clip');
+    check(await page.evaluate(() => window.__ringback.paused), 'Ringback did not pause at the end of its clip');
+    // Media's ended event runs in real time; the unit timer test checks the exact boundary.
+    await page.clock.runFor(1600);
+    check(await page.evaluate(() => !window.__ringback.paused && window.__ringback.currentTime < 1), 'Ringback did not repeat after its gap');
     awaitSetup();
 
     await page.waitForFunction(() => /^\d+:\d{2}$/.test(document.querySelector('.call-status')?.textContent || ''));

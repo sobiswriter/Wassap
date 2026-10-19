@@ -234,8 +234,12 @@ const getSquareNotificationIcon = async (url?: string): Promise<string> => {
 };
 
 // Robust Native OS Notification Helper for System Tray & Notification Shade
+const notificationRevisions = new Map<string, number>();
 const showNotification = async (title: string, options: NotificationOptions & { silentUpdate?: boolean }) => {
   if (!('Notification' in window)) return;
+  const tag = options.tag || title;
+  const revision = (notificationRevisions.get(tag) || 0) + 1;
+  notificationRevisions.set(tag, revision);
 
   if (Notification.permission === 'default') {
     try {
@@ -275,6 +279,8 @@ const showNotification = async (title: string, options: NotificationOptions & { 
       const regPromise = navigator.serviceWorker.ready;
       const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 1000));
       const reg = await Promise.race([regPromise, timeoutPromise]);
+      // A slow avatar/worker lookup must not replace a newer, more complete reply.
+      if (notificationRevisions.get(tag) !== revision) return;
       if (reg && reg.showNotification) {
         await reg.showNotification(title, notificationOptions);
         return;
@@ -285,6 +291,7 @@ const showNotification = async (title: string, options: NotificationOptions & { 
   }
 
   // 2. Direct Native OS Desktop Notification Fallback
+  if (notificationRevisions.get(tag) !== revision) return;
   try {
     const n = new Notification(title, notificationOptions);
     n.onclick = () => {
@@ -1701,7 +1708,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
             document.title = `(1) New Message - ${targetChat.name}`;
           }
           showNotification(targetChat.name, {
-            body: notificationConversation(targetChat.messages.filter(message => message.sender === 'me').at(-1)?.text || '', chunk),
+            body: notificationConversation('', chunks.slice(0, i + 1).join('\n\n')),
             icon: targetChat.avatar,
             tag: chatId,
             silentUpdate: !isFirstChunkOfTurn,
@@ -2883,7 +2890,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             document.title = `(1) New Message - ${chat.name}`;
           }
           showNotification(chat.name, {
-            body: notificationConversation(updatedHistory.filter(message => message.sender === 'me').at(-1)?.text || '', chunk),
+            body: notificationConversation('', chunks.slice(0, i + 1).join('\n\n')),
             icon: chat.avatar,
             tag: chat.id,
             silentUpdate: !isFirstChunkOfTurn,
@@ -3188,7 +3195,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               document.title = `(1) New Message - ${group.name}`;
             }
             showNotification(`${group.name} - ${personaLabel}`, {
-              body: notificationConversation(updatedHistory.filter(message => message.sender === 'me').at(-1)?.text || '', chunk),
+              body: notificationConversation('', chunks.slice(0, j + 1).join('\n\n')),
               icon: personaAvatar,
               tag: group.id,
               silentUpdate: !isFirstChunkOfTurn,

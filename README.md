@@ -1,5 +1,11 @@
 # Wassap Persona Simulation (v1.9.9)
 
+## Loading screen and complete notification replies (19 October 2026)
+
+Call ringback pauses for 1.5 seconds after each clip before repeating, until pickup or cancellation.
+
+Startup now shows a centered Wassap mark, subtle loading indicator and reload recovery link before JavaScript loads. It respects reduced motion and needs no external assets. Native notifications accumulate every fragment of the current persona response with blank-line spacing; the next response replaces it under the same chat tag. Persona portraits and inline Reply remain. This corrects the earlier last-fragment-only behavior. Browser/OS controls notification height and domain attribution, so very long replies can still be clipped by the device and the site label cannot be hidden through a web API.
+
 ## Call and conversation-flow correction (19 October 2026)
 
 Persona notifications now show only the incoming reply and retain the persona profile image on worker updates. Staged media uses **Add somethin..**. Ordinary chat recovery stays inside one reply/recording flow; it no longer marks read messages unsent and restarts the persona's delivery sequence. Offline input is still saved, and a terminal failure settles once through the existing fallback.

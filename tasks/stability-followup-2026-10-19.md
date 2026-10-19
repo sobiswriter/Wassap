@@ -1,5 +1,11 @@
 # v1.9.9 reliability follow-up — 19 October 2026
 
+## Latest correction: full notification turn and startup polish
+
+Fixed the app dropping all but the last persona fragment. Browser normal/group/automated paths and worker reply/read paths now carry the entire current response with blank-line fragment spacing; the next response replaces it. Stale async notification lookups are revision-guarded, preserving nonblocking chat delivery. Portraits, inline reply and durable receipts remain.
+
+Static startup now has a centered brand mark, indeterminate loader and recovery link, no external assets, explicit dark surface and reduced-motion support. Chrome regression verifies narrow/desktop layouts and two multi-fragment turns; offline panel/cold reload smoke, 61 tests, TypeScript and build pass. Android notification height/domain attribution remain platform controlled; no physical handset verification or deployment.
+
 The reported Android black screen was not reproduced exactly. Investigation did reproduce an offline panel failure and several message-loss paths; those are fixed locally. No deployment or private-user-data testing was performed.
 
 ## Later correction: call continuity and no visible retry cycles

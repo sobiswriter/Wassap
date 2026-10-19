@@ -1,5 +1,13 @@
 # Wassap System Architecture (`architecture.md`)
 
+## Boot shell and complete reply notifications (19 October 2026)
+
+Call ringback schedules its next playback 1500 ms after the audio ended event rather than looping continuously. Pickup/end removes the handler and cancels the repeat timer.
+
+The static index.html root contains a scoped, asset-independent loading screen, replaced by React on mount. Its background is explicit so the app's light stylesheet cannot override the dark boot surface. Reduced-motion preference stops the indeterminate animation; the reload link remains usable if the bundle fails.
+
+Normal, group and automated browser notifications send chunks.slice(0, index + 1) joined by two newlines. Worker inline replies send all persisted personaReplies; read-triggered replies likewise accumulate fragments. The response-local chunk list resets each turn, while the chat tag replaces the previous card. Per-tag revisions discard stale asynchronous avatar/worker lookups without delaying chat delivery. Persona icon, actions, durable transactions and both provider paths remain intact. No app-side truncation is applied; browser-owned notification limits and site attribution remain.
+
 ## Call continuity and single-turn recovery correction (19 October 2026)
 
 Current notifications are persona-only; notificationConversation returns the persona text, and chatAvatar carries the foreground's square persona icon for standalone worker replacements. This supersedes the paired-body policy below. Staged media placeholders are short.

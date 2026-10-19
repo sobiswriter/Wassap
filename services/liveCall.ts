@@ -101,6 +101,7 @@ export class PersonaCall {
   private preparation = new AbortController();
   private context = '';
   private ringPlayer?: HTMLAudioElement;
+  private ringRepeatTimer?: ReturnType<typeof setTimeout>;
   private endedAt?: number;
   constructor(readonly chat: Chat, readonly settings: AppSettings, readonly user: UserProfile, private finish: (record: CallRecord) => void) {
     const selected = selectPersonaVoice(chat.voiceSettings);
@@ -207,13 +208,14 @@ export class PersonaCall {
     this.update({ status: 'ringing' });
     void this.notify();
     this.ringPlayer = new Audio('/sounds/ringback.wav');
-    this.ringPlayer.loop = true;
+    this.ringPlayer.loop = false;
     this.ringPlayer.volume = 0.7; this.ringPlayer.muted = !this.snapshot.sound;
     const pulse = () => {
       if (!this.ringPlayer) return;
       this.ringPlayer.currentTime = 0;
       void this.ringPlayer.play().catch(() => { if (!this.ended && this.snapshot.status === 'ringing') this.update({ error: 'Ringback could not play. Check this tab’s sound settings.' }); });
     };
+    this.ringPlayer.onended = () => { this.ringRepeatTimer = setTimeout(pulse, 1500); };
     pulse();
     return new Promise<void>(resolve => {
       const finish = () => { clearTimeout(timer); this.preparation.signal.removeEventListener('abort', finish); resolve(); };
@@ -222,6 +224,8 @@ export class PersonaCall {
     });
   }
   private stopRing() {
+    clearTimeout(this.ringRepeatTimer);
+    if (this.ringPlayer) this.ringPlayer.onended = null;
     this.ringPlayer?.pause(); if (this.ringPlayer) this.ringPlayer.currentTime = 0;
     this.ringPlayer = undefined;
   }

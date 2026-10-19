@@ -1,5 +1,13 @@
 # Wassap Design System (`design.md`)
 
+## Startup and full-response notifications (19 October 2026)
+
+Call ringback has a minimum 1.5-second silent gap between clips. Keep the existing 6–12-second simulated pickup delay; stop ringback immediately on connection or cancellation.
+
+Use a centered green outline conversation mark, Wassap wordmark and thin indeterminate track on #0b1014 during static startup. Keep a muted, accessible reload recovery link; avoid invented percentage progress. Respect reduced motion and phone safe areas. Boot styles must survive loading the light app stylesheet before the JavaScript bundle.
+
+Persona-only native notification bodies include ALL fragments of the current reply, separated by one blank line, without drawn divider characters. Replace the previous response on the next turn, preserve the sender portrait and Reply/Mark as read actions. This supersedes older last-fragment and two-participant guidance below. Native card size and visible site attribution are controlled by the browser/OS; do not claim guaranteed unlimited display or hidden domain branding.
+
 ## Incoming-only notification and reply continuity correction (19 October 2026)
 
 Latest owner preference supersedes the paired notification body: show only the incoming persona reply, with its persona profile image. The app badge remains the app identity; it is separate from the sender portrait. Worker replacements must keep chatAvatar and never replace an available sender image with the generic logo.

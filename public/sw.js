@@ -524,7 +524,7 @@ const deliverNotificationReply = async (item) => {
   const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
   windows.forEach(client => client.postMessage({ type: 'BACKGROUND_EXCHANGE_SYNC', chatId: item.chatId, userMessage: { ...item.message, status: 'sent' }, personaReplies }));
   await self.registration.showNotification(data.chatName || 'Contact', {
-    body: notificationConversation(item.message.text, personaReplies.at(-1)?.text || text),
+    body: notificationConversation('', personaReplies.map(message => message.text).join('\n\n') || text),
     icon: data.chatAvatar || data.avatar || '/favicon.svg', badge: '/badge.svg', tag: item.chatId, renotify: true,
     data: { ...data, recentMessages: [...history, ...personaReplies].slice(-45) },
     actions: [{ action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' }, { action: 'read', title: 'Mark as read' }]
@@ -667,8 +667,7 @@ self.addEventListener('notificationclick', (event) => {
               };
               personaReplies.push(personaMsg);
 
-              const stackedChunks = chunks.slice(0, i + 1).join('\n');
-              const threadedBody = chunk;
+              const threadedBody = chunks.slice(0, i + 1).join('\n\n');
 
               // The first chunk POPS UP as a new native notification with sound/vibration!
               await self.registration.showNotification(chatName, {
