@@ -15,6 +15,13 @@
 
 ## ⚡ Current State & What Was Just Worked On
 
+### Slow Cloud responses and fragment pacing (20 October 2026)
+- User reports Built-in Cloud feels unreliable despite strong Wi-Fi/cellular connectivity. Found chat fetch/SDK and worker timeouts at 20 seconds, while server duration and outbox delivery allow 60 seconds. Increased initial text request tolerance to 40 seconds, short retries to 10 seconds, worker requests to 40 seconds clamped to remaining delivery budget. Existing three-attempt/one-minute limit and cancellation remain. Cache v25 ships the worker; no data reset or credential changes.
+- Fragment spacing now totals 2.5–4 seconds, including online beat; first-reply cue and splitting unchanged. Earlier pacing entries below are historical.
+- Public production probes returned HTTP 200 for shell (~0.37 s) and status (~0.83 s) from this machine. These do not measure authenticated Google generation or reproduce the user's phone/network. Browser background suspension and provider errors remain possible; increasing bandwidth priority is not the implemented fix.
+- Verification: 72 tests, TypeScript and production build pass. Fake-clock regressions prove 25-second page/worker Cloud responses are accepted once; Studio SDK timeout/cancellation config is captured. Chromium also delivers a real-time synthetic 25-second Cloud response once without fallback, verifies 2.5–4-second single/group pacing in both themes, and confirms fresh-worker cached panels/cold reload work offline. No authenticated production AI generation, handset reproduction or push/deploy.
+- Official reference: https://developer.chrome.com/docs/web-platform/page-lifecycle-api explains frozen background pages; https://vercel.com/docs/functions/configuring-functions/duration describes server execution duration, which is separate from the client's request timeout.
+
 ### Fragment pacing and gray busy indicators (20 October 2026)
 - Follow-up: increased inter-fragment pacing to 1.5–2.5 seconds including the online beat; first reply remains unchanged. Updated Chromium regression passes for single/group chats and both themes (100 ms scheduling tolerance); TypeScript and production build pass.
 - Added one shared length-based typing delay for subsequent single/group/automated text fragments, with a short inter-bubble beat. First-reply timing, fragmentation, cancellation and notification contents remain unchanged. No worker delivery/persistence delay added.

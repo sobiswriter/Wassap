@@ -2,7 +2,9 @@
 
 ## Fragment pacing and muted busy indicators (20 October 2026)
 
-Text replies now pause 1.5–2.5 seconds between fragments with a visible typing cue. The first-reply timing and fragmentation rules stay unchanged. Typing and recording-audio labels use the same muted gray in chat headers, inbox previews and recording bubbles in both themes.
+Text replies now pause 2.5–4 seconds between fragments with a visible typing cue. The first-reply timing and fragmentation rules stay unchanged. Typing and recording-audio labels use the same muted gray in chat headers, inbox previews and recording bubbles in both themes.
+
+Cloud chat now allows 40 seconds for the first response instead of cancelling at 20 seconds, then a short 10-second retry if needed. Studio chat uses the same request timeouts; notification-worker requests allow up to 40 seconds within their remaining one-minute delivery budget. This tolerates slow generation without increasing the existing three-attempt/one-minute outbox limits. It does not grant extra network priority or guarantee background execution on phones.
 
 ## Live voice continuity and model choice (19 October 2026)
 
@@ -44,7 +46,7 @@ Production: https://wassapyo.vercel.app. The last read-only production check sti
 
 ## Generation quality follow-up (19 October 2026)
 
-Voice-note delivery settings now reach Gemini 3.8 as speech metadata. Ordinary camera photos remain the default; explicit photoshoot/style/mirror requests override it. Foreground prompts separate system rules from history, and background notification replies refresh their message ledger and clock. Personal diary behavior is preserved. Google SDK is pinned to 2.24.0; worker cache is v24. Verification and limits: [generation quality report](tasks/generation-quality-followup-2026-10-19.md).
+Voice-note delivery settings now reach Gemini 3.8 as speech metadata. Ordinary camera photos remain the default; explicit photoshoot/style/mirror requests override it. Foreground prompts separate system rules from history, and background notification replies refresh their message ledger and clock. Personal diary behavior is preserved. Google SDK is pinned to 2.24.0; worker cache is v25. Verification and limits: [generation quality report](tasks/generation-quality-followup-2026-10-19.md).
 
 A high-fidelity WhatsApp Web replica built with **React 19**, **Vite**, and **Tailwind CSS v3**, integrated with **Google Gemini & Vertex AI** to provide a sophisticated AI persona simulation experience.
 

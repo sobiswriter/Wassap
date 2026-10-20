@@ -439,7 +439,7 @@ const playSentMessageSound = () => {
 
 
 
-const fragmentTypingDelay = (text: string) => 1350 + Math.min(750, text.length * 8) + Math.random() * 150;
+const fragmentTypingDelay = (text: string) => 2350 + Math.min(1250, text.length * 12) + Math.random() * 150;
 
 // Utility to split AI responses into human-like chunks
 const splitMessage = (text: string): string[] => {

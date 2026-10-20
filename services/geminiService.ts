@@ -276,8 +276,8 @@ async function fetchVertexChat(payload: any, maxRetries = 1, signal?: AbortSigna
     if (signal?.aborted) throw signal.reason || new DOMException('Aborted', 'AbortError');
 
     try {
-      // 20s timeout on attempt 1, 8s on attempt 2 to give model adequate thinking headroom
-      const perAttemptTimeout = attempt === 1 ? 20000 : 8000;
+      // Allow cold starts/model latency without restarting a still-healthy request at 20s.
+      const perAttemptTimeout = attempt === 1 ? 40000 : 10000;
       const res = await fetchWithTimeout('/api/gemini/generate', {
         method: 'POST',
         headers: {
@@ -867,7 +867,7 @@ export const getGeminiResponse = async (
         const response = await ai.models.generateContent({
           model: modelToUse,
           contents: [{ role: 'user', parts }],
-          config: { ...config, abortSignal, httpOptions: { timeout: 20000 } },
+          config: { ...config, abortSignal, httpOptions: { timeout: attempt === 1 ? 40000 : 10000 } },
         });
 
         const replyText = response.text?.trim();

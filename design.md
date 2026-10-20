@@ -2,7 +2,7 @@
 
 ## Conversation busy states (20 October 2026)
 
-Typing and recording-audio text/icons use text-secondary in the chat header, inbox and recording bubble, matching muted presence text in both themes. Online presence keeps its existing green. Subsequent text bubbles have a brief online beat followed by visible typing, totaling 1.5–2.5 seconds, without adding latency to the first reply.
+Typing and recording-audio text/icons use text-secondary in the chat header, inbox and recording bubble, matching muted presence text in both themes. Online presence keeps its existing green. Subsequent text bubbles have a brief online beat followed by visible typing, totaling 2.5–4 seconds, without adding latency to the first reply. Slow AI requests retain the existing continuous typing/recording flow while awaiting a response; transport timeout tolerance is not presented as a change in device connectivity.
 
 ## Stable Live voice and model setting (19 October 2026)
 

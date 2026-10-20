@@ -5,6 +5,35 @@ import { runInNewContext } from 'node:vm';
 import { enqueuePendingMessage, retryExpired } from '../utils/offlineQueue';
 import { notificationConversation } from '../utils/notificationText';
 import { getGeminiResponse } from '../services/geminiService';
+import { Models } from '@google/genai';
+
+test('Cloud preserves a healthy 25-second generation rather than aborting at 20 seconds', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  let requests = 0;
+  const transport = mock.method(globalThis, 'fetch', async (_url: any, options: any) => new Promise<Response>((resolve, reject) => {
+    requests++;
+    options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+    setTimeout(() => resolve(new Response(JSON.stringify({ text: 'Still here.' }), { headers: { 'Content-Type': 'application/json' } })), 25000);
+  }));
+  try {
+    const reply = getGeminiResponse({ name: 'Maya' }, [{ text: 'Hi', sender: 'me' }], undefined, undefined, { aiProvider: 'vertex', isVertexUnlocked: true } as any, undefined, false, undefined, undefined, true).then(text => ({ text }), error => ({ error }));
+    mock.timers.tick(25000);
+    assert.deepEqual(await reply, { text: 'Still here.' });
+    assert.equal(requests, 1);
+  } finally { transport.mock.restore(); mock.timers.reset(); }
+});
+
+test('Studio chat also allows 40 seconds and preserves cancellation', async () => {
+  const controller = new AbortController();
+  const transport = mock.method(Models.prototype as any, 'generateContentInternal', async (args: any) => {
+    assert.equal(args.config.httpOptions.timeout, 40000);
+    assert.equal(args.config.abortSignal, controller.signal);
+    return { text: 'Still here.' };
+  });
+  try {
+    assert.equal(await getGeminiResponse({ name: 'Maya' }, [{ text: 'Hi', sender: 'me' }], undefined, undefined, { aiProvider: 'studio', apiKey: 'synthetic' } as any, undefined, false, undefined, controller.signal, true), 'Still here.');
+  } finally { transport.mock.restore(); }
+});
 
 test('durable foreground generation rejects unavailable replies instead of inventing successful messages', async () => {
   const transport = mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ error: 'Unavailable' }), { status: 400, headers: { 'Content-Type': 'application/json' } }));
@@ -46,6 +75,28 @@ function workerFixture() {
   runInNewContext(readFileSync('public/sw.js', 'utf8') + '\nglobalThis.deliver = deliverNotificationReply;', context);
   return { stores, notifications, events, context, get requests() { return requests; }, reconnect: () => { online = true; } };
 }
+
+test('notification worker preserves a healthy 25-second Cloud response within its lease', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const fixture = workerFixture();
+    let requests = 0;
+    fixture.context.fetch = async (_url: any, options: any) => new Promise((resolve, reject) => {
+      requests++;
+      options.signal.addEventListener('abort', () => reject(new Error('Request aborted')), { once: true });
+      setTimeout(() => resolve({ ok: true, json: async () => ({ text: 'Still here.' }) }), 25000);
+    });
+    const item = { id: 'slow', chatId: 'chat', message: { id: 'slow', text: 'Hello', sender: 'me' }, notificationData: { chatName: 'Maya', provider: 'vertex' } };
+    fixture.stores.get('pending_outbox')!.set(item.id, item);
+    const delivery = fixture.context.deliver(item);
+    await new Promise(resolve => setImmediate(resolve));
+    mock.timers.tick(25000);
+    await delivery;
+    assert.equal(requests, 1);
+    assert.equal(fixture.notifications.at(-1).body, 'Still here.');
+    assert.equal(fixture.stores.get('pending_outbox')!.size, 0);
+  } finally { mock.timers.reset(); }
+});
 
 test('offline notification input is durable and shows every fragment of the current persona answer', async () => {
   const fixture = workerFixture(); let pending: Promise<any>;

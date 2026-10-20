@@ -8,7 +8,7 @@ async (page) => {
   try {
     await page.goto(origin); await page.evaluate(() => navigator.serviceWorker.ready);
     await page.reload(); await page.waitForFunction(() => navigator.serviceWorker.controller);
-    const cache = await page.evaluate(async () => { const cache = await caches.open('wassap-shell-v24'); return (await cache.keys()).map(request => request.url); });
+    const cache = await page.evaluate(async () => { const cache = await caches.open('wassap-shell-v25'); return (await cache.keys()).map(request => request.url); });
     if (!cache.some(url => /SettingsPopover-.*\.js/.test(url)) || !cache.some(url => /vendor-genai-.*\.js/.test(url))) throw new Error('Worker omitted unvisited app chunks');
     await context.setOffline(true);
     const probe = await page.evaluate(async url => { const response = await fetch(url); return [response.status, response.headers.get('Content-Type'), (await response.text()).slice(0,80)]; }, cache.find(url => /SettingsPopover-.*\.js/.test(url)));

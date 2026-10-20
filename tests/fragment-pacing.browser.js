@@ -32,7 +32,7 @@ async (page) => {
         await screen.locator('span').filter({ hasText: /^And the final part\.$/ }).waitFor();
         const times = await screen.evaluate(id => JSON.parse(localStorage.getItem('whatsapp_chats')).find(chat => chat.id === id).messages.filter(message => message.sender === 'other').map(message => message.timestampEpoch), id);
         if (times.length !== 2) throw new Error('Fragment count changed');
-        for (let i = 1; i < times.length; i++) if (times[i] - times[i - 1] < 1500 || times[i] - times[i - 1] > 2600) throw new Error(`${name}: unnatural fragment gap ${times[i] - times[i - 1]} ms`);
+        for (let i = 1; i < times.length; i++) if (times[i] - times[i - 1] < 2500 || times[i] - times[i - 1] > 4100) throw new Error(`${name}: unnatural fragment gap ${times[i] - times[i - 1]} ms`);
         await screen.getByRole('button', { name: 'Back to chats', exact: true }).click();
       }
       await screen.getByRole('button', { name: 'Open chat with Voice', exact: true }).click();
@@ -45,6 +45,6 @@ async (page) => {
     } catch (error) { throw new Error(`${error.message}\n${await screen.locator('body').innerText()}`); }
     finally { await context.close(); }
   }
-  return 'Single/group fragments arrive after visible typing with 1.5–2.5 second pacing (100 ms scheduling tolerance); typing/recording text is muted gray in both themes.';
+  return 'Single/group fragments arrive after visible typing with 2.5–4 second pacing (100 ms scheduling tolerance); typing/recording text is muted gray in both themes.';
 }
 

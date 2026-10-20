@@ -6,7 +6,7 @@ function personaLanguageInstruction(language) {
 }
 
 // Wassap Service Worker: cookie-authenticated replies and persona call controls.
-const CACHE_NAME = 'wassap-shell-v24';
+const CACHE_NAME = 'wassap-shell-v25';
 const BUILD_ASSETS = /* BUILD_ASSETS */ [];
 const PRECACHE_ASSETS = [
   '/',
@@ -390,7 +390,7 @@ const buildSWPrompt = (notifData, history, promptOverride) => {
   return { systemInstruction, clientTimeContext, historyText: `${legacy}Conversation ledger (sender, text, events, reactions and recorded timestamps):\n${JSON.stringify(ledger)}\nResponse as ${notifData.chatName || 'Contact'}:` };
 };
 
-const fetchReplyJSON = async (url, options, timeoutMs = 20000) => {
+const fetchReplyJSON = async (url, options, timeoutMs = 40000) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -407,7 +407,7 @@ const latestPersonaLanguage = async data => {
     return saved ? { ...data, ...await saved.json() } : data;
   } catch { return data; }
 };
-const generateSWPersonaReply = async (notifData, history, promptOverride, replyText, timeoutMs = 20000) => {
+const generateSWPersonaReply = async (notifData, history, promptOverride, replyText, timeoutMs = 40000) => {
   notifData = await latestPersonaLanguage(notifData);
   let replyContent = '';
   const provider = notifData.provider || 'vertex';
@@ -528,7 +528,7 @@ const deliverNotificationReply = async (item) => {
   const history = [...(data.recentMessages || []), item.message];
   let text;
   try {
-    text = exhausted ? getGlitchExcuse(data, item.message.text) : await generateSWPersonaReply(data, history, undefined, item.message.text, Math.max(1, Math.min(20000, item.retryStartedAt + 60000 - Date.now())));
+    text = exhausted ? getGlitchExcuse(data, item.message.text) : await generateSWPersonaReply(data, history, undefined, item.message.text, Math.max(1, Math.min(40000, item.retryStartedAt + 60000 - Date.now())));
   } catch (error) {
     if (retryExpired(item)) text = getGlitchExcuse(data, item.message.text);
     else { await updateNotificationOutbox({ ...item, leaseUntil: 0 }); throw error; }
