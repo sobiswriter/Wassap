@@ -38,9 +38,10 @@ async (page) => {
     for (let turn = 0; turn < 2; turn++) {
       const input = screen.getByRole('textbox', { name: 'Message', exact: true });
       await input.fill(turn ? 'What should I bring?' : 'Where are you?'); await input.press('Enter');
-      await screen.waitForFunction(expected => window.__notifications.some(item => item.body === expected), replies[turn]);
+      const expected = replies[turn].replace(/\n\n/g, '\n');
+      await screen.waitForFunction(expected => window.__notifications.some(item => item.body === expected), expected);
       const notification = await screen.evaluate(() => window.__notifications.at(-1));
-      if (notification.body !== replies[turn] || notification.tag !== 'notify' || !notification.icon.startsWith('data:image/png') || !notification.actions.some(action => action.action === 'reply')) throw new Error('Full turn, persona photo or reply action lost');
+      if (notification.body !== expected || notification.tag !== 'notify' || !notification.icon.startsWith('data:image/png') || !notification.actions.some(action => action.action === 'reply')) throw new Error('Full turn, persona photo or reply action lost');
       if (turn && notification.body.includes('hostel')) throw new Error('Previous response leaked into new notification');
     }
     if (requests !== 2) throw new Error('Unexpected model request');

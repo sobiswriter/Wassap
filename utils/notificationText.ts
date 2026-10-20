@@ -1,3 +1,3 @@
 export function notificationConversation(_userText: string, personaText: string): string {
-  return personaText;
+  return personaText.replace(/\r?\n(?:[ \t]*\r?\n)+/g, '\n');
 }

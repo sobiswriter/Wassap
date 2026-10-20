@@ -487,7 +487,7 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
 };
 
 function notificationConversation(userText, personaText) {
-  return personaText;
+  return personaText.replace(/\r?\n(?:[ \t]*\r?\n)+/g, '\n');
 }
 
 function retryExpired(item, now = Date.now()) {

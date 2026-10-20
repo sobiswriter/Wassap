@@ -15,6 +15,10 @@
 
 ## ⚡ Current State & What Was Just Worked On
 
+### Compact notification line breaks (20 October 2026)
+- Notification formatting alone now collapses empty lines to single line breaks in both page and worker paths. Full persona text, saved chat content, avatars, actions and replacement behavior remain unchanged. No other app behavior changed.
+- Checks: 11 targeted tests, TypeScript and build pass; Chromium confirms complete current replies with single line breaks, portrait/Reply retention and replacement on the next turn. Android notification rendering not directly checked; no push/deploy.
+
 ### Slow Cloud responses and fragment pacing (20 October 2026)
 - User reports Built-in Cloud feels unreliable despite strong Wi-Fi/cellular connectivity. Found chat fetch/SDK and worker timeouts at 20 seconds, while server duration and outbox delivery allow 60 seconds. Increased initial text request tolerance to 40 seconds, short retries to 10 seconds, worker requests to 40 seconds clamped to remaining delivery budget. Existing three-attempt/one-minute limit and cancellation remain. Cache v25 ships the worker; no data reset or credential changes.
 - Fragment spacing now totals 2.5–4 seconds, including online beat; first-reply cue and splitting unchanged. Earlier pacing entries below are historical.

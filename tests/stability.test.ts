@@ -113,7 +113,7 @@ test('offline notification input is durable and shows every fragment of the curr
   assert.equal(fixture.stores.get('pending_outbox')!.size, 0);
   const saved = [...fixture.stores.get('synced_background')!.values()].find(item => item.personaReplies.length);
   assert.equal(saved.personaReplies.map((m: any) => m.text).join(' '), 'An older fragment. Here is the newest reply.');
-  assert.equal(fixture.notifications.at(-1).body, 'An older fragment.\n\nHere is the newest reply.');
+  assert.equal(fixture.notifications.at(-1).body, 'An older fragment.\nHere is the newest reply.');
   assert.ok(!fixture.notifications.at(-1).body.includes('─'));
   assert.equal(fixture.notifications.at(-1).icon, '/persona-test.png');
   const count = fixture.notifications.length;
@@ -123,7 +123,7 @@ test('offline notification input is durable and shows every fragment of the curr
   fixture.stores.get('pending_outbox')!.set(next.id, next);
   await fixture.context.deliver(next);
   assert.equal(fixture.notifications.at(-1).tag, 'chat', 'Next response replaces the same chat notification');
-  assert.equal(fixture.notifications.at(-1).body, 'An older fragment.\n\nHere is the newest reply.', 'Only the current turn appears, not the conversation history');
+  assert.equal(fixture.notifications.at(-1).body, 'An older fragment.\nHere is the newest reply.', 'Only the current turn appears, not the conversation history');
   assert.ok(fixture.notifications.at(-1).actions.some((action: any) => action.action === 'reply'));
 });
 
@@ -140,7 +140,20 @@ test('notifications contain only the latest persona reply and no user echo', () 
   const user = 'A complete user message'; const persona = 'A complete persona reply';
   assert.equal(notificationConversation(user, persona), persona);
   assert.equal(notificationConversation('', persona), persona);
-  assert.ok(readFileSync('public/sw.js', 'utf8').includes('return personaText;'));
+});
+
+test('page and worker notifications keep line breaks without empty lines', () => {
+  const worker = workerFixture().context.notificationConversation;
+  for (const [input, expected] of [
+    ['First\n\nSecond\n\n\nThird', 'First\nSecond\nThird'],
+    ['First\n \t\nSecond', 'First\nSecond'],
+    ['First\r\n\r\nSecond', 'First\nSecond'],
+    ['First\nSecond', 'First\nSecond'],
+    ['Same words, same spacing.', 'Same words, same spacing.'],
+  ]) {
+    assert.equal(notificationConversation('User text', input), expected);
+    assert.equal(worker('User text', input), expected);
+  }
 });
 
 test('expired background reply falls back once without making another model request', async () => {

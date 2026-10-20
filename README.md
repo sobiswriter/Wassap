@@ -24,7 +24,7 @@ Diary language now follows the selected persona's profile and own voice, rather 
 
 Call ringback pauses for 1.5 seconds after each clip before repeating, until pickup or cancellation.
 
-Startup now shows a centered Wassap mark, subtle loading indicator and reload recovery link before JavaScript loads. It respects reduced motion and needs no external assets. Native notifications accumulate every fragment of the current persona response with blank-line spacing; the next response replaces it under the same chat tag. Persona portraits and inline Reply remain. This corrects the earlier last-fragment-only behavior. Browser/OS controls notification height and domain attribution, so very long replies can still be clipped by the device and the site label cannot be hidden through a web API.
+Startup now shows a centered Wassap mark, subtle loading indicator and reload recovery link before JavaScript loads. It respects reduced motion and needs no external assets. Native notifications accumulate every fragment of the current persona response with single line breaks and no empty lines; the next response replaces it under the same chat tag. Persona portraits and inline Reply remain. This corrects the earlier last-fragment-only behavior. Browser/OS controls notification height and domain attribution, so very long replies can still be clipped by the device and the site label cannot be hidden through a web API.
 
 ## Call and conversation-flow correction (19 October 2026)
 

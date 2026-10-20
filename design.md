@@ -28,7 +28,7 @@ Call ringback has a minimum 1.5-second silent gap between clips. Keep the existi
 
 Use a centered green outline conversation mark, Wassap wordmark and thin indeterminate track on #0b1014 during static startup. Keep a muted, accessible reload recovery link; avoid invented percentage progress. Respect reduced motion and phone safe areas. Boot styles must survive loading the light app stylesheet before the JavaScript bundle.
 
-Persona-only native notification bodies include ALL fragments of the current reply, separated by one blank line, without drawn divider characters. Replace the previous response on the next turn, preserve the sender portrait and Reply/Mark as read actions. This supersedes older last-fragment and two-participant guidance below. Native card size and visible site attribution are controlled by the browser/OS; do not claim guaranteed unlimited display or hidden domain branding.
+Persona-only native notification bodies include ALL fragments of the current reply, separated by single line breaks without empty lines, without drawn divider characters. Replace the previous response on the next turn, preserve the sender portrait and Reply/Mark as read actions. This supersedes older last-fragment and two-participant guidance below. Native card size and visible site attribution are controlled by the browser/OS; do not claim guaranteed unlimited display or hidden domain branding.
 
 ## Incoming-only notification and reply continuity correction (19 October 2026)
 

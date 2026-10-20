@@ -50,7 +50,7 @@ Live ignores GoAway warnings until actual closure, uses generation invalidation 
 
 PendingQueueItem optionally stores retryStartedAt, attempts and nextAttemptAt; old records remain valid. beginPendingAttempt commits the first-attempt timestamp and increments the attempt count. retryExpired terminates after 60 seconds or three attempts. Durable text generation does not nest additional provider retry loops. Foreground request controllers use remaining time; the lifecycle poll checks every five seconds but schedules network attempts no more often than every 15 seconds. A deterministic fallback message receipt prevents repeated fallback/late-response delivery and acknowledges the exhausted captured turn. Worker delivery mirrors this persisted budget and atomically commits/acknowledges fallback. An unattempted offline/call-held send has no running deadline; browser suspension can delay settlement until execution resumes.
 
-notificationConversation preserves the latest complete user text and persona fragment with a blank line. Older pairs are replaced under the same chat tag. No CSS/custom native card or truncation trick is used; platform line limits still apply. Tests cover exact budget boundaries, terminal replay, pair preservation and an active-request deadline in Chrome.
+notificationConversation formats the complete current persona reply with single line breaks and no empty lines; user text is omitted. Older pairs are replaced under the same chat tag. No CSS/custom native card or truncation trick is used; platform line limits still apply. Tests cover exact budget boundaries, terminal replay, pair preservation and an active-request deadline in Chrome.
 
 ## Reliability and delivery follow-up (19 October 2026)
 
