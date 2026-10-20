@@ -439,6 +439,8 @@ const playSentMessageSound = () => {
 
 
 
+const fragmentTypingDelay = (text: string) => 1350 + Math.min(750, text.length * 8) + Math.random() * 150;
+
 // Utility to split AI responses into human-like chunks
 const splitMessage = (text: string): string[] => {
   if (!text) return [];
@@ -1672,8 +1674,7 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         
-        // 2. Typing Duration (1.8s - 2.5s)
-        const typingDuration = 1800 + Math.random() * 700;
+        const typingDuration = i > 0 ? fragmentTypingDelay(chunk) : 1800 + Math.random() * 700;
 
         setChatStatus(chatId, 'typing...');
         await new Promise(resolve => setTimeout(resolve, typingDuration));
@@ -1723,10 +1724,10 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
 
 
 
-        // 3. Inter-message Delay (1.8s - 2.5s)
+        // Leave a short online beat before typing the next fragment.
         if (i < chunks.length - 1) {
           setChatStatus(chatId, 'online');
-          const interDelay = 1800 + Math.random() * 700;
+          const interDelay = 150 + Math.random() * 100;
           await new Promise(resolve => setTimeout(resolve, interDelay));
         }
       }
@@ -2843,7 +2844,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         setChatStatus(chatId, 'typing...');
 
         // Brief typing cue; network time already provides most of the wait.
-        if (!isBackgroundReply) {
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, fragmentTypingDelay(chunk)));
+        } else if (!isBackgroundReply) {
           const typingDuration = isFastOnlineChat
             ? Math.min(Math.max(chunk.length * 8, 200), 600)
             : 250 + Math.random() * 200;
@@ -2904,18 +2907,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           });
         }
 
-        // 4. Inter-message Delay (1.8s - 2.5s)
+        // Brief online beat, followed by the next fragment's visible typing cue.
         if (i < chunks.length - 1) {
           if (!isBackgroundReply) {
             setChatStatus(chatId, 'online');
-            const interDelay = isFastOnlineChat
-              ? 300 + Math.random() * 200
-              : 250 + Math.random() * 200;
+            const interDelay = 150 + Math.random() * 100;
             await new Promise(resolve => setTimeout(resolve, interDelay));
           } else {
-            const interPause = settings.enableTextStacking === false
-              ? 250 + Math.random() * 200
-              : 400 + Math.random() * 300;
+            const interPause = 150 + Math.random() * 100;
             await new Promise(resolve => setTimeout(resolve, interPause));
           }
         }
@@ -3145,10 +3144,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
           const chunk = chunks[j];
 
-          // 3. Typing Duration for group personas (1.8s - 2.5s)
-          if (!isBackgroundReply) {
+          setChatStatus(group.id, 'typing...');
+          if (j > 0) {
+            await new Promise(resolve => setTimeout(resolve, fragmentTypingDelay(chunk)));
+          } else if (!isBackgroundReply) {
             const typingDuration = 250 + Math.random() * 200;
-            setChatStatus(group.id, 'typing...');
             await new Promise(resolve => setTimeout(resolve, typingDuration));
           } else {
             const typingDuration = settings.enableTextStacking === false
@@ -3213,12 +3213,10 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           if (j < chunks.length - 1) {
             if (!isBackgroundReply) {
               setChatStatus(group.id, 'online');
-              const interDelay = 250 + Math.random() * 200; // 1.8s - 2.5s
+              const interDelay = 150 + Math.random() * 100;
               await new Promise(resolve => setTimeout(resolve, interDelay));
             } else {
-              const interPause = settings.enableTextStacking === false
-                ? 250 + Math.random() * 200
-                : 400 + Math.random() * 300;
+              const interPause = 150 + Math.random() * 100;
               await new Promise(resolve => setTimeout(resolve, interPause));
             }
           }

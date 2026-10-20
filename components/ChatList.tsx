@@ -71,9 +71,9 @@ const ChatListItem = React.memo<ChatListItemProps>(({ chat, isActive, onSelect, 
       <div className="flex justify-between items-center mt-0.5">
         <p className={`text-[calc(var(--msg-font-size)-0.5px)] truncate flex-1 ${chat.unreadCount ? 'text-primary font-semibold' : 'text-secondary'}`}>
           {chat.status === 'typing...' ? (
-            <span className="text-[#21c063] font-medium italic animate-pulse">typing...</span>
+            <span className="text-secondary font-medium italic animate-pulse">typing...</span>
           ) : chat.status === 'recording audio...' ? (
-            <span className="text-[#21c063] font-medium italic animate-pulse flex items-center gap-1">
+            <span className="text-secondary font-medium italic animate-pulse flex items-center gap-1">
               <Mic className="w-3 h-3 inline animate-bounce" /> recording audio...
             </span>
           ) : (

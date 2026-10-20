@@ -1,5 +1,9 @@
 # Wassap System Architecture (`architecture.md`)
 
+## Fragment delivery pacing (20 October 2026)
+
+App.tsx shares a length-based fragmentTypingDelay across single, group and automated text delivery: subsequent fragments type for 1350–2250 ms after a 150–250 ms inter-bubble beat, totaling 1.5–2.5 seconds. Existing first-fragment waits, splitting, cancellation guards, saving and notification accumulation remain intact. Worker persistence is not delayed for presentation effects.
+
 ## Live voice continuity and Extended Thinking (19 October 2026)
 
 AppSettings.selectedLiveModel is additive and normalized to one of the two documented Live IDs; missing/invalid saved settings use gemini-3.8-live. PersonaCall captures model/voice at construction and caches the setup prompt after compact context preparation. All resume attempts reuse those values and the same custom sample. The Cloud relay validates the model allowlist before connecting and does not retry another model/voice after a provider rejection. No arbitrary model routing is exposed.

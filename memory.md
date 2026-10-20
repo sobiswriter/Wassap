@@ -15,6 +15,12 @@
 
 ## ⚡ Current State & What Was Just Worked On
 
+### Fragment pacing and gray busy indicators (20 October 2026)
+- Follow-up: increased inter-fragment pacing to 1.5–2.5 seconds including the online beat; first reply remains unchanged. Updated Chromium regression passes for single/group chats and both themes (100 ms scheduling tolerance); TypeScript and production build pass.
+- Added one shared length-based typing delay for subsequent single/group/automated text fragments, with a short inter-bubble beat. First-reply timing, fragmentation, cancellation and notification contents remain unchanged. No worker delivery/persistence delay added.
+- Chat header, inbox and recording bubble now use text-secondary for typing/recording status in both themes; online presence remains green. Browser regression uses isolated synthetic replies without model calls or changing user data.
+- Verification: 69 tests, TypeScript and production build pass. Chromium verifies single/group fragments remain separate with visible typing and 750–2000 ms measured gap bounds; typing/recording labels match the gray theme token in both themes. No push/deploy or physical-phone timing test.
+
 ### Live voice continuity investigation and model selector (19 October 2026)
 - Follow-up real-provider attempt: workspace has no project .env/provider credential variables; a local Google application-default credential file exists. Attempted both documented Live models directly through the actual SDK/Cloud client with synthetic text and Fenrir. Both connection attempts timed out at 15 seconds before setupComplete or any audio. This does not establish invalid credentials, model rejection or acoustic quality; the cause of connection failure remains unconfirmed. Local unauthenticated member-session probe returned 401. Never report these as successful Live audio tests.
 - Read Google's current 3.8 Live, Extended Thinking, voice configuration, session/capability and best-practice documentation. Found no app-side voice/model replacement after setup, but found concrete preview leakage: detached ProfilePanel Audio survived unmount and async preview completion could start after closing the profile. Now pause on unmount/call-start and suppress late preview playback while a call surface is open. Browser reproduction covers both paths.

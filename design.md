@@ -1,5 +1,9 @@
 # Wassap Design System (`design.md`)
 
+## Conversation busy states (20 October 2026)
+
+Typing and recording-audio text/icons use text-secondary in the chat header, inbox and recording bubble, matching muted presence text in both themes. Online presence keeps its existing green. Subsequent text bubbles have a brief online beat followed by visible typing, totaling 1.5–2.5 seconds, without adding latency to the first reply.
+
 ## Stable Live voice and model setting (19 October 2026)
 
 General Settings places an accessible Live Call Model selector beside existing model choices. Offer Gemini 3.8 Live and Gemini 3.8 Live Extended Thinking; explain fast conversation versus deeper reasoning and that changes apply to the next call without changing the persona voice. Keep the full model names readable at phone widths. Voice-note model remains a separate setting.

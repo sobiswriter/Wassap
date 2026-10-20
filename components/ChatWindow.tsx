@@ -1121,8 +1121,8 @@ const RecordingAudioBubble: React.FC = () => (
       className="px-3 py-1.5 rounded-lg shadow-sm relative transition-all duration-300 select-none rounded-tl-none flex items-center gap-2"
       style={{ backgroundColor: 'var(--bubble-other)' }}
     >
-      <Mic className="w-3.5 h-3.5 text-[#21c063] animate-pulse" />
-      <span className="text-[12.5px] text-[#21c063] font-medium italic">recording audio...</span>
+      <Mic className="w-3.5 h-3.5 text-secondary animate-pulse" />
+      <span className="text-[12.5px] text-secondary font-medium italic">recording audio...</span>
       <div
         className="absolute top-0 -left-2 border-r-[10px] border-t-[10px] border-t-transparent"
         style={{ borderRightColor: 'var(--bubble-other)' }}
@@ -1365,10 +1365,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   }
 
   const getGroupMembersLabel = () => {
-    if (chat.status === 'typing...') return <span className="text-[#21c063] font-medium italic animate-pulse">typing...</span>;
+    if (chat.status === 'typing...') return <span className="text-secondary font-medium italic animate-pulse">typing...</span>;
     if (chat.status === 'recording audio...') {
       return (
-        <span className="text-[#21c063] dark:text-[#25d366] font-medium italic animate-pulse flex items-center gap-1">
+        <span className="text-secondary font-medium italic animate-pulse flex items-center gap-1">
           <Mic className="w-3.5 h-3.5 inline animate-bounce" />
           recording audio...
         </span>

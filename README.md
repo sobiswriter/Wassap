@@ -1,5 +1,9 @@
 # Wassap Persona Simulation (v1.9.9)
 
+## Fragment pacing and muted busy indicators (20 October 2026)
+
+Text replies now pause 1.5–2.5 seconds between fragments with a visible typing cue. The first-reply timing and fragmentation rules stay unchanged. Typing and recording-audio labels use the same muted gray in chat headers, inbox previews and recording bubbles in both themes.
+
 ## Live voice continuity and model choice (19 October 2026)
 
 **Settings → Live Call Model** now offers Gemini 3.8 Live (default) and Gemini 3.8 Live Extended Thinking, independently of the voice-note model. Save Settings; the next call uses that model. Calls keep the same selected voice/reference, model and setup prompt across resumption, with no provider/model fallback during an active call. Invalid/unavailable model access fails explicitly.
