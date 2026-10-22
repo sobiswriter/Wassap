@@ -6,7 +6,7 @@
 
 ## 📌 Project Identity & Overview
 - **Project Name**: Wassap (Wassap Persona Simulation)
-- **Current Version**: `v1.9.9`
+- **Current Version**: `v1.9.9.5`
 - **Core Concept**: A pixel-perfect, high-fidelity WhatsApp Web replica built with React 19, Tailwind CSS v3, and Vite, repurposed as an advanced AI persona simulator powered by Google Gemini & Vertex AI.
 - **Repository / User**: `sobiswriter/Wassap`
 - **Primary Runtime**: Single-Page App (SPA) deployed on **Vercel** with Node.js Serverless Functions in `api/gemini/` and `api/giphy/`, plus Vite dev/preview middleware backed by `server/`.
@@ -14,6 +14,17 @@
 ---
 
 ## ⚡ Current State & What Was Just Worked On
+
+### v1.9.9.5 release documentation and verification (22 October 2026)
+- Synchronized package/lockfile, browser/Apple/Open Graph titles, manifest, metadata, title-on-resume and release/browser tests. Added the latest dated System Updates card and accessible close label while retaining v1.9.9 history. Shell v27 and release smoke/cache expectations agree; app identity, storage and member access stay unchanged. Repository photo-failure rule now follows the owner's manual-retry instruction. New release-1.9.9.5.md records features, checks, security limits, owner push and rollback steps; README/architecture/design/CI references updated.
+- Fresh isolated npm ci --ignore-scripts, 78 tests, TypeScript, production build and local production deployment smoke passed. Source pattern scan found no embedded Google API keys, Google OAuth client secrets or private-key PEM blocks. Runtime audit reports zero vulnerabilities; full audit still has five high build-tool entries from the unpatched Tailwind 3/braces chain. No dependency upgrade or forced Tailwind 4 migration; existing 26 October 2026 review deadline retained and findings documented explicitly.
+- Production-preview browser checks passed online/offline PWA reload and storage preservation, offline unvisited panels, mobile/desktop light/dark layout/draft/focus/diary controls, both-provider manual retry, stack capture, rapid taps, saved media and group/photo recovery. Corrected older pixel-exact browser assertions for fractional device scaling without changing app geometry. No push/deploy, private-history review, paid Google requests, penetration test or physical handset/carrier validation.
+
+### Manual failed-message retry (22 October 2026)
+- Replaced terminal text/group/photo connection excuses with a red failed-send exclamation on the original outgoing bubble; saved image/video bubbles also show a centered Retry pill. Controls are keyboard labeled, isolate bubble gestures and disable for selection/busy/call states. Both Cloud and Studio are supported.
+- Existing pending_outbox retains failed inputs until explicit retry. Optional Message.deliveryGroupId captures the original prompt/stack; retry preserves IDs, attachments and stack boundaries even after changing stacking settings, resets only that batch's budget and leaves newer failed prompts untouched. Unstacked sends serialize per chat. Offline unattempted sends keep clock/reconnect behavior. Success/receipt recovery acknowledges captured IDs, with explicit groups preventing unrelated earlier failures from being discarded.
+- Local and standalone Cloud generation now return errors for exhausted/empty/fatal output rather than successful glitch text. Ordinary/group/automated callers reject unavailable replies with existing bounded provider retries; failed photo requests no longer generate an excuse. Worker terminal failures retain input, persist a failed-input exchange and show system copy directing users to open the chat. Read actions preserve failed/pending outgoing status; reconciliation restores interrupted failed bubbles and ignores stale failure snapshots after retry. Shell v26 and release smoke expectation match.
+- Verified 78 unit tests, TypeScript and production build; Chrome checks cover Cloud/Studio failure→reload→manual retry, stack capture, rapid taps, persisted deadline cancellation/new budget, original saved image hydration, 320px layout, group and photo retries without excuse calls. Inspected failure/media screenshots. No dependencies, database names/versions, credentials or existing saved replies changed. No push/deploy or physical cellular/PWA verification.
 
 ### Compact notification line breaks (20 October 2026)
 - Notification formatting alone now collapses empty lines to single line breaks in both page and worker paths. Full persona text, saved chat content, avatars, actions and replacement behavior remain unchanged. No other app behavior changed.
@@ -788,6 +799,8 @@ Wassap/
 ---
 
 ## 📜 Feature Milestones Completed
+
+- [x] **v1.9.9.5** (22 October 2026): Manual retry for failed original messages/stacks and media, synchronized installed-app release labels/cache, documented security findings and production-preview release checks, preserving all existing data and provider access.
 
 - [x] 19 October 2026: Live model choice, pinned session setup and isolated preview audio, with documented provider-drift limits.
 

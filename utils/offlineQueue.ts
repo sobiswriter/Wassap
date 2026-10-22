@@ -22,20 +22,50 @@ export function retryExpired(item: PendingQueueItem, now = Date.now()): boolean 
   return (item.attempts || 0) >= 3 || (item.retryStartedAt !== undefined && now - item.retryStartedAt >= 60000);
 }
 
-export async function beginPendingAttempt(chatId: string, history: Message[]): Promise<number | undefined> {
+export function pendingDeliveryTurn(items: PendingQueueItem[], stacking: boolean): PendingQueueItem[] {
+  const pending = items.filter(item => item.message.status !== 'failed' && !item.message.isDeleted);
+  const groupId = pending[0]?.message.deliveryGroupId;
+  return groupId ? pending.filter(item => item.message.deliveryGroupId === groupId)
+    : stacking ? pending.filter(item => !item.message.deliveryGroupId) : pending.slice(0, 1);
+}
+
+export function deliveryHistory(history: Message[], messageIds: string[]): Message[] {
+  const through = history.reduce((last, message, index) => messageIds.includes(message.id) ? index : last, -1);
+  return history.slice(0, through + 1).filter(message => message.sender !== 'me' || message.status !== 'failed');
+}
+
+export async function beginPendingAttempt(chatId: string, history: Message[], stacking = true): Promise<{ deadline: number; messageIds: string[] } | undefined> {
   const ids = new Set(history.map(message => message.id));
-  const items = (await getPendingMessages()).filter(item => item.chatId === chatId && ids.has(item.id));
+  const items = pendingDeliveryTurn((await getPendingMessages()).filter(item => item.chatId === chatId && ids.has(item.id)).sort((a, b) => a.queuedAt - b.queuedAt), stacking);
   if (!items.length) return;
   const now = Date.now();
-  if (items.some(item => retryExpired(item, now))) return now;
+  const expired = items.some(item => retryExpired(item, now));
   const startedAt = Math.min(...items.map(item => item.retryStartedAt ?? now));
+  const deliveryGroupId = items[0].message.deliveryGroupId || items.at(-1)!.id;
   const db = await openOfflineDB();
   try {
     const tx = db.transaction(PENDING_OUTBOX_STORE, 'readwrite');
-    items.forEach(item => tx.objectStore(PENDING_OUTBOX_STORE).put({ ...item, retryStartedAt: startedAt, attempts: (item.attempts || 0) + 1, nextAttemptAt: now + 15000 }));
+    items.forEach(item => tx.objectStore(PENDING_OUTBOX_STORE).put({ ...item, message: { ...item.message, deliveryGroupId }, retryStartedAt: startedAt, attempts: (item.attempts || 0) + 1, nextAttemptAt: now + 15000 }));
     await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onerror = tx.onabort = () => reject(tx.error); });
   } finally { db.close(); }
-  return startedAt + 60000;
+  return { deadline: expired ? now : startedAt + 60000, messageIds: items.map(item => item.id) };
+}
+
+export async function setPendingDeliveryStatus(chatId: string, messageIds: string[], status: 'failed' | 'pending'): Promise<void> {
+  const db = await openOfflineDB();
+  try {
+    const tx = db.transaction(PENDING_OUTBOX_STORE, 'readwrite');
+    const store = tx.objectStore(PENDING_OUTBOX_STORE);
+    const request = store.getAll();
+    request.onsuccess = () => {
+      for (const item of request.result as PendingQueueItem[]) {
+        if (item.chatId !== chatId || !messageIds.includes(item.id)) continue;
+        store.put({ ...item, message: { ...item.message, status, deliveryGroupId: item.message.deliveryGroupId || messageIds.at(-1) }, leaseUntil: 0,
+          ...(status === 'pending' ? { retryStartedAt: undefined, attempts: 0, nextAttemptAt: 0 } : {}) });
+      }
+    };
+    await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onerror = tx.onabort = () => reject(tx.error); });
+  } finally { db.close(); }
 }
 
 export interface BackgroundExchangeItem {

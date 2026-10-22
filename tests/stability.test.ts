@@ -156,16 +156,18 @@ test('page and worker notifications keep line breaks without empty lines', () =>
   }
 });
 
-test('expired background reply falls back once without making another model request', async () => {
+test('expired background reply stays failed for manual retry without inventing a persona response', async () => {
   const fixture = workerFixture();
   const item = { id: 'expired', chatId: 'chat', queuedAt: 0, retryStartedAt: Date.now() - 60000, attempts: 2, message: { id: 'expired', text: 'Are you there?', sender: 'me' }, notificationData: { chatName: 'Maya', provider: 'vertex' } };
   fixture.stores.get('pending_outbox')!.set(item.id, item);
   await fixture.context.deliver(item);
   assert.equal(fixture.requests, 0);
-  assert.equal(fixture.stores.get('pending_outbox')!.size, 0);
+  assert.equal(fixture.stores.get('pending_outbox')!.size, 1);
+  assert.equal(fixture.stores.get('pending_outbox')!.get(item.id).message.status, 'failed');
   const saved = [...fixture.stores.get('synced_background')!.values()][0];
-  assert.ok(saved.personaReplies.length > 0);
-  assert.ok(!fixture.notifications.at(-1).body.includes('You:'));
+  assert.equal(saved.personaReplies.length, 0);
+  assert.equal(saved.userMessage.status, 'failed');
+  assert.equal(fixture.notifications.at(-1).body, 'Message not sent. Open chat to retry.');
   await fixture.context.deliver(item);
   assert.equal(fixture.notifications.length, 1);
 });

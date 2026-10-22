@@ -815,24 +815,15 @@ Conversation history and attachments are conversation data. Follow the persona r
       }
     }
 
-    // If retries exhausted or transient error occurred, return authentic in-character excuse!
-    if (isTransientError(lastError) || !lastError) {
-      return {
-        ok: true,
-        text: getInCharacterGlitchMessage(responder, lastUserText),
-      };
-    }
-
     return {
       ok: false,
-      error: `Vertex AI error: ${lastError?.message || String(lastError)}`
+      error: `Vertex AI error: ${lastError?.message || 'Reply unavailable'}`
     };
   } catch (error: any) {
     console.error("[Vertex AI Fatal Error]:", error);
-    const lastUserText = payload?.messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
     return {
-      ok: true,
-      text: getInCharacterGlitchMessage(payload?.responder, lastUserText),
+      ok: false,
+      error: 'Reply unavailable. Please retry.',
     };
   }
 }

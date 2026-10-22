@@ -23,7 +23,7 @@ await check('/', 200, async response => {
 await check('/manifest.json', 200, async response => {
   const manifest = await response.json(); assert.equal(manifest.name, `Wassap v${version}`); assert.equal(manifest.id, '/');
 });
-await check('/sw.js', 200, async response => { assert.match(await response.text(), /wassap-shell-v24/); });
+await check('/sw.js', 200, async response => { assert.match(await response.text(), /wassap-shell-v27/); });
 await check('/sounds/ringback.wav', 200, async response => { assert.equal(Buffer.from(await response.arrayBuffer()).toString('ascii', 0, 4), 'RIFF'); });
 await check('/api/gemini/status', 200, async response => {
   const status = await response.json(); assert.equal(status.status, 'online'); assert.equal(status.hasCredentials, undefined, 'Public health leaks deployment details');

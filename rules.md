@@ -61,7 +61,7 @@ Never refactor code in a way that breaks or removes either of these two paths. B
 ### **Rule 4.2: Authentic In-Chat Image Realism**
 - For in-chat photo generation (`@img` / `@image`), never produce glossy, airbrushed, or studio-staged looks unless explicitly requested by the user.
 - Enforce the 2-step pipeline: Context & Caption Synthesizer first, followed by smartphone camera prompt steering (Mode A: Selfie, Mode B: Candid, Mode C: POV).
-- When generation fails or times out, always invoke the fail-safe excuse generator so the persona stays in-character.
+- When generation fails or times out, mark the original outgoing prompt as failed and offer manual retry. Never fabricate a persona excuse; preserve the original prompt, stack and attachments.
 
 ---
 

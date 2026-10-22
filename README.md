@@ -1,4 +1,10 @@
-# Wassap Persona Simulation (v1.9.9)
+# Wassap Persona Simulation (v1.9.9.5)
+
+Release **1.9.9.5** documents manual failed-message retry and refreshes browser/PWA assets. See [release notes, security findings and deployment checks](release-1.9.9.5.md). After deploying, run `npm run release:smoke -- https://wassapyo.vercel.app` before testing both providers on the target phone.
+
+## Failed messages and manual retry (22 October 2026)
+
+Failed chat/photo requests now show a red exclamation indicator on the original outgoing message instead of an invented persona excuse. Tap it to retry; saved images also show a Retry overlay. Retry reuses the original IDs, text and attachments. With stacking off, each prompt is delivered separately; an original stack retries together even after changing that setting. Newer failed prompts remain separate. Failures stay saved across reloads and wait for manual retry; genuinely offline, unattempted sends retain their clock and reconnect behavior. Both built-in Cloud and custom-key modes support this flow, including notification replies reconciled on reopening. No chats, media or existing replies are cleared.
 
 ## Fragment pacing and muted busy indicators (20 October 2026)
 
@@ -34,7 +40,7 @@ Calls defer unrelated AI work until hang-up, tolerate disconnect warnings/audio 
 
 ## Reliability follow-up (19 October 2026)
 
-Weak-network sends stay queued until replies are saved, with at most three delivery attempts within one minute from the first attempt, then one in-character fallback and no further automatic retries for that turn. Reconnection/resume avoids repeating saved answers. Notification replies persist before network work; each body keeps the latest user message and persona reply separated by one blank line, replacing older turns. Full texts are supplied, but Android controls visible line limits. Android's browser-supplied domain label remains outside the web app's control.
+Weak-network sends stay queued until replies are saved. Exhausted or timed-out attempts now remain failed for manual retry, superseding the former in-character fallback policy. Reconnection/resume avoids repeating saved answers. Notification replies persist before network work; notifications contain the current persona response, replacing older turns. Full texts are supplied, but Android controls visible line limits. Android's browser-supplied domain label remains outside the web app's control.
 
 The complete app shell (including unvisited panels) is cached for offline use. Long chats initially render the latest 80 messages; **Load earlier messages** reveals older history, and search still covers the full conversation. Last-seen text wraps, and dark received bubbles/header/composer use the same #0b1014 base. Artificial response pauses are shorter; configured message stacking stays intact. AI generation itself still needs a connection, and Android may suspend background work. See [investigation and verification](tasks/stability-followup-2026-10-19.md).
 
@@ -98,7 +104,7 @@ npx --yes --package @playwright/cli playwright-cli -s=wassap-check close
 
 The regression creates its own fresh browser context with synthetic storage fixtures, checks 320–1440 px layouts and persistence, and saves ignored screenshots under `output/playwright/`. It does not use real credentials or make paid-generation checks. Run `npm test`, `npx tsc --noEmit`, and `npm run build` for the remaining automated gates.
 
-![Version](https://img.shields.io/badge/version-1.9.9-brightgreen)
+![Version](https://img.shields.io/badge/version-1.9.9.5-brightgreen)
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Vite](https://img.shields.io/badge/Vite-6-purple)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-blue)
@@ -116,7 +122,7 @@ The regression creates its own fresh browser context with synthetic storage fixt
 - Put shared Google credentials (`GEMINI_API_KEY`, `VERTEX_API_KEY`, or service-account variables) in server environment settings. Custom Gemini keys entered in Settings continue to work directly from that browser. Never put a shared secret in a `VITE_` variable: those variables are public.
 - Public image/audio URLs remain supported. Private/reserved addresses and unsafe redirects are blocked; downloads have a six-second deadline and an 8 MB byte limit.
 - Verification: `npm test`, `npm run typecheck`, `npm run build`, and `npm audit`. The lockfile pins the reviewed dependency tree.
-- Five high-severity audit entries remain in the build-only Tailwind 3/braces chain; braces has no compatible patched release. Selector-parser is patched through scoped overrides. Build only trusted source/config; review the remaining deferral by **26 October 2026**. See [v1.9.9 release checks](release-1.9.9.md). `npm audit --omit=dev` checks the deployed dependency tree separately.
+- Five high-severity audit entries remain in the build-only Tailwind 3/braces chain; braces has no compatible patched release. Selector-parser is patched through scoped overrides. Build only trusted source/config; review the remaining deferral by **26 October 2026**. See [v1.9.9.5 release checks](release-1.9.9.5.md). `npm audit --omit=dev` checks the deployed dependency tree separately.
 
 
 ## 🚀 Overview

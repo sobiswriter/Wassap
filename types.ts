@@ -29,6 +29,7 @@ export interface Message {
   voiceDuration?: number; // Duration of attached voice note in seconds
   replyToMessage?: Message;
   responseToMessageId?: string; // Durable reply receipt for interrupted outbox acknowledgement.
+  deliveryGroupId?: string; // Original prompt/stack boundary, retained for manual retry.
   isEvent?: boolean;
   eventTitle?: string;
   timestampEpoch?: number;

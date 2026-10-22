@@ -780,6 +780,7 @@ export const getGeminiResponse = async (
   // Option A: Built-in / Server Credits (Vertex AI)
   if (provider === 'vertex') {
     if (!settings?.isVertexUnlocked) {
+      if (durable) throw new Error('CLOUD_LOCKED');
       return "Built-in Cloud (Vertex AI) is locked. Please enter the passcode in Settings to unlock server credits, or switch to Custom API Key.";
     }
     return await fetchVertexChat({
@@ -799,13 +800,14 @@ export const getGeminiResponse = async (
       initiationContext,
       isVoiceNoteReply,
       voiceSettings,
-    }, durable ? 0 : 1, abortSignal, durable);
+    }, 1, abortSignal, durable);
   }
 
   // Option B: Custom API Key (Gemini AI Studio)
   const finalKey = settings?.apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY;
 
   if (!finalKey) {
+    if (durable) throw new Error('API_KEY_MISSING');
     return "API Key not configured. Please enter your Gemini AI Studio API key in Settings, or switch to 'Built-in (Vertex AI)' mode.";
   }
 
@@ -852,7 +854,7 @@ export const getGeminiResponse = async (
     }
 
     const lastUserText = messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;
-    const maxRetries = durable ? 0 : 2;
+    const maxRetries = 2;
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       if (abortSignal?.aborted) throw abortSignal.reason || new DOMException('Aborted', 'AbortError');
@@ -883,6 +885,7 @@ export const getGeminiResponse = async (
       } catch (error: any) {
         console.warn(`[Custom Gemini API Attempt ${attempt}/${maxRetries + 1} Error]:`, error?.message || error);
         if (error.status === 401 || error.status === 403) {
+          if (durable) throw error;
           return "Invalid API Key. Please check your settings.";
         }
         if (attempt <= maxRetries && isTransientError(error)) {
@@ -899,6 +902,7 @@ export const getGeminiResponse = async (
     if (abortSignal?.aborted) throw abortSignal.reason || new DOMException('Aborted', 'AbortError');
     console.error("Connection error:", error);
     if (error?.status === 401 || error?.status === 403) {
+      if (durable) throw error;
       return "Invalid API Key. Please check your settings.";
     }
     const lastUserText = messageHistory?.filter((m: any) => m.sender === 'me')?.pop()?.text;

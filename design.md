@@ -1,5 +1,13 @@
 # Wassap Design System (`design.md`)
 
+## v1.9.9.5 release presentation (22 October 2026)
+
+Browser/PWA titles and metadata show v1.9.9.5. Prepend a dated Retry Failed Messages card to System Updates, retaining previous release history and giving the close control an accessible name. Preserve the installed-app identity and existing theme/layout; the failed indicator and media Retry pill use the behavior documented below.
+
+## Failed message retry (22 October 2026)
+
+Outgoing messages replace ticks/clock with a red circular exclamation button when their reply attempt fails. Its accessible label is Message not sent. Retry; the touch target extends around the compact timestamp icon, with a visible keyboard focus outline. Image/video bubbles also place a white Upload icon and Retry text on a dark translucent centered pill. Reuse the same status component across text, media, voice, document and sticker timestamp rows. Retry controls stop bubble gestures and disable during a call, active generation or selection. Pending offline input retains its clock. Never append a persona-authored connection or photo excuse for these failures.
+
 ## Conversation busy states (20 October 2026)
 
 Typing and recording-audio text/icons use text-secondary in the chat header, inbox and recording bubble, matching muted presence text in both themes. Online presence keeps its existing green. Subsequent text bubbles have a brief online beat followed by visible typing, totaling 2.5–4 seconds, without adding latency to the first reply. Slow AI requests retain the existing continuous typing/recording flow while awaiting a response; transport timeout tolerance is not presented as a change in device connectivity.

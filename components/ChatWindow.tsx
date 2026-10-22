@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Search, MoreVertical, CheckCheck, Check, Clock, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar, Star, Share2, Phone, Archive, ArchiveRestore } from 'lucide-react';
+import { Search, MoreVertical, CheckCheck, Check, Clock, CircleAlert, Upload, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar, Star, Share2, Phone, Archive, ArchiveRestore } from 'lucide-react';
 import { Chat, MemoryBubble, Message, AppSettings, UserProfile } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, getMessageTimestampEpoch, isDateInRange, normalizeDateKey, resolveChatMessagesDates, getAppDateKey } from '../utils/dates';
@@ -27,6 +27,8 @@ interface ChatWindowProps {
   onMetaAIClick?: () => void;
   onAddContact?: () => void;
   onReply?: (message: Message) => void;
+  onRetryMessage?: (chatId: string, messageId: string) => void;
+  retryDisabled?: boolean;
   onSaveMemory?: (chatId: string, memory: MemoryBubble) => void;
   onDeleteMessages?: (chatId: string, messageIds: string[]) => void;
   onMarkAsRead?: (chatId: string, messageIds?: string[]) => void;
@@ -303,6 +305,16 @@ const formatMessageText = (text: string) => {
   });
 };
 
+const MessageDeliveryStatus = ({ message, onRetry, disabled }: { message: Message; onRetry?: (messageId: string) => void; disabled?: boolean }) => {
+  if (message.status === 'failed') return <button type="button" aria-label="Message not sent. Retry" title="Message not sent. Tap to retry" disabled={disabled || !onRetry}
+    className="relative inline-flex shrink-0 rounded-full before:absolute before:-inset-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ea4f62] disabled:opacity-50"
+    onTouchStart={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()}
+    onClick={event => { event.stopPropagation(); onRetry?.(message.id); }}><CircleAlert size={16} className="fill-[#ea4f62] text-white" /></button>;
+  return <span className={`${message.status === 'read' ? 'text-[#53bdeb]' : 'text-secondary'} animate-status-tick`}>
+    {message.status === 'pending' ? <Clock size={13} aria-label="Waiting to send" className="text-secondary/70 animate-pulse" /> : message.status === 'sent' ? <Check size={16} /> : <CheckCheck size={16} />}
+  </span>;
+};
+
 const MessageBubble = React.memo<{ 
   message: Message; 
   highlight?: boolean; 
@@ -310,6 +322,8 @@ const MessageBubble = React.memo<{
   chatName?: string;
   chatAvatar?: string;
   onReply?: (message: Message) => void;
+  onRetry?: (messageId: string) => void;
+  retryDisabled?: boolean;
   selected?: boolean;
   onToggleSelect?: (message: Message) => void;
   onToggleReaction?: (messageId: string, emoji: string) => void;
@@ -317,7 +331,7 @@ const MessageBubble = React.memo<{
   isConsecutive?: boolean;
   isRecent?: boolean;
   onOpenImage?: (src: string, caption?: string, senderName?: string, timestamp?: string) => void;
-}>(({ message, highlight, isGroup, chatName, chatAvatar, onReply, selected, onToggleSelect, onToggleReaction, selectionMode, isConsecutive, isRecent, onOpenImage }) => {
+}>(({ message, highlight, isGroup, chatName, chatAvatar, onReply, onRetry, retryDisabled, selected, onToggleSelect, onToggleReaction, selectionMode, isConsecutive, isRecent, onOpenImage }) => {
   const isMe = message.sender === 'me';
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
   const hasAttachment = !!message.attachment || !!message.image || !!message.mediaId || !!message.voiceAttachment || !!message.voiceMediaId;
@@ -783,15 +797,7 @@ const MessageBubble = React.memo<{
               {message.timestamp}
             </span>
             {isMe && (
-              <span key={message.status} className={`${message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"} animate-status-tick`}>
-                {message.status === 'pending' ? (
-                  <Clock size={12} className="text-secondary/70 animate-pulse" />
-                ) : message.status === 'sent' ? (
-                  <Check size={14} />
-                ) : (
-                  <CheckCheck size={14} />
-                )}
-              </span>
+              <MessageDeliveryStatus message={message} onRetry={onRetry} disabled={retryDisabled} />
             )}
           </div>
 
@@ -907,6 +913,10 @@ const MessageBubble = React.memo<{
                   );
                 }}
               >
+                {isMe && message.status === 'failed' && onRetry && <button type="button" aria-label="Retry media message" disabled={retryDisabled}
+                  className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 inline-flex min-h-11 items-center gap-2 rounded-full bg-black/60 px-5 py-2 text-white font-medium disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                  onTouchStart={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()}
+                  onClick={event => { event.stopPropagation(); onRetry(message.id); }}><Upload size={20} />Retry</button>}
                 {isGifMessage ? (
                   <div className="relative overflow-hidden rounded-lg max-w-[220px] max-h-[220px] mx-auto">
                     {message.attachment?.type === 'video' ? (
@@ -965,15 +975,7 @@ const MessageBubble = React.memo<{
                     )}
                     <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
                     {isMe && (
-                      <span key={message.status} className={`${message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"} animate-status-tick`}>
-                        {message.status === 'pending' ? (
-                          <Clock size={13} className="text-secondary/70 animate-pulse" />
-                        ) : message.status === 'sent' ? (
-                          <Check size={16} />
-                        ) : (
-                          <CheckCheck size={16} />
-                        )}
-                      </span>
+                      <MessageDeliveryStatus message={message} onRetry={onRetry} disabled={retryDisabled} />
                     )}
                   </div>
                 </div>
@@ -984,15 +986,7 @@ const MessageBubble = React.memo<{
                   )}
                   <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
                   {isMe && (
-                    <span key={message.status} className={`${message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"} animate-status-tick`}>
-                      {message.status === 'pending' ? (
-                        <Clock size={13} className="text-secondary/70 animate-pulse" />
-                      ) : message.status === 'sent' ? (
-                        <Check size={16} />
-                      ) : (
-                        <CheckCheck size={16} />
-                      )}
-                    </span>
+                    <MessageDeliveryStatus message={message} onRetry={onRetry} disabled={retryDisabled} />
                   )}
                 </div>
               )}
@@ -1038,15 +1032,7 @@ const MessageBubble = React.memo<{
                   )}
                   <span className="text-[calc(var(--msg-font-size)-4.5px)] text-secondary uppercase whitespace-nowrap font-medium">{message.timestamp}</span>
                   {isMe && (
-                    <span key={message.status} className={`${message.status === 'read' ? "text-[#53bdeb]" : "text-secondary"} animate-status-tick`}>
-                      {message.status === 'pending' ? (
-                        <Clock size={13} className="text-secondary/70 animate-pulse" />
-                      ) : message.status === 'sent' ? (
-                        <Check size={16} />
-                      ) : (
-                        <CheckCheck size={16} />
-                      )}
-                    </span>
+                    <MessageDeliveryStatus message={message} onRetry={onRetry} disabled={retryDisabled} />
                   )}
                 </div>
               </div>
@@ -1146,6 +1132,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onMetaAIClick, 
   onAddContact, 
   onReply, 
+  onRetryMessage,
+  retryDisabled,
   onSaveMemory, 
   onDeleteMessages, 
   onMarkAsRead, 
@@ -1740,6 +1728,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         : chat.avatar)
                 }
                 onReply={onReply}
+                onRetry={messageId => onRetryMessage?.(chat.id, messageId)}
+                retryDisabled={retryDisabled || selectedMessageIds.length > 0}
                 selected={selectedMessageIds.includes(msg.id)}
                 onToggleSelect={(m) => {
                    setSelectedMessageIds(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]);

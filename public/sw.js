@@ -6,7 +6,7 @@ function personaLanguageInstruction(language) {
 }
 
 // Wassap Service Worker: cookie-authenticated replies and persona call controls.
-const CACHE_NAME = 'wassap-shell-v25';
+const CACHE_NAME = 'wassap-shell-v27';
 const BUILD_ASSETS = /* BUILD_ASSETS */ [];
 const PRECACHE_ASSETS = [
   '/',
@@ -503,7 +503,7 @@ const updateNotificationOutbox = async (item, claim = false) => {
     if (claim) {
       const request = store.get(item.id);
       request.onsuccess = () => {
-        if (!request.result || request.result.leaseUntil > Date.now()) claimed = false;
+        if (!request.result || request.result.message.status === 'failed' || request.result.leaseUntil > Date.now()) claimed = false;
         else if (!retryExpired(request.result) && request.result.nextAttemptAt > Date.now()) claimed = 'deferred';
         else {
           Object.assign(item, { retryStartedAt: request.result.retryStartedAt ?? Date.now(), attempts: (request.result.attempts || 0) + 1, nextAttemptAt: Date.now() + 15000, leaseUntil: Date.now() + 45000 });
@@ -517,6 +517,7 @@ const updateNotificationOutbox = async (item, claim = false) => {
 };
 
 const deliverNotificationReply = async (item) => {
+  if (item.message.status === 'failed') return;
   if (await activeCallFor(item.chatId)) return;
   let exhausted = retryExpired(item);
   // A bounded lease prevents a returning page from duplicating an active worker request.
@@ -528,10 +529,17 @@ const deliverNotificationReply = async (item) => {
   const history = [...(data.recentMessages || []), item.message];
   let text;
   try {
-    text = exhausted ? getGlitchExcuse(data, item.message.text) : await generateSWPersonaReply(data, history, undefined, item.message.text, Math.max(1, Math.min(40000, item.retryStartedAt + 60000 - Date.now())));
+    if (exhausted) throw new Error('Reply deadline exceeded');
+    text = await generateSWPersonaReply(data, history, undefined, item.message.text, Math.max(1, Math.min(40000, item.retryStartedAt + 60000 - Date.now())));
   } catch (error) {
-    if (retryExpired(item)) text = getGlitchExcuse(data, item.message.text);
-    else { await updateNotificationOutbox({ ...item, leaseUntil: 0 }); throw error; }
+    if (!retryExpired(item)) { await updateNotificationOutbox({ ...item, leaseUntil: 0 }); throw error; }
+    const userMessage = { ...item.message, status: 'failed', deliveryGroupId: item.id };
+    await updateNotificationOutbox({ ...item, message: userMessage, leaseUntil: 0 });
+    await saveBackgroundExchangeToIDB(item.chatId, userMessage, []);
+    const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    windows.forEach(client => client.postMessage({ type: 'BACKGROUND_EXCHANGE_SYNC', chatId: item.chatId, userMessage, personaReplies: [] }));
+    await self.registration.showNotification(data.chatName || 'Contact', { body: 'Message not sent. Open chat to retry.', icon: data.chatAvatar || data.avatar || '/favicon.svg', badge: '/badge.svg', tag: item.chatId, silent: true, data });
+    return;
   }
   const now = new Date();
   const personaReplies = splitMessage(text).map((chunk, i) => ({ id: `${item.id}-response-${i}`, sender: 'other', senderName: data.chatName, responseToMessageId: item.id, text: chunk, timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }), date: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`, timestampEpoch: now.getTime(), status: 'delivered' }));
@@ -554,7 +562,7 @@ self.addEventListener('sync', event => {
     let items;
     try { items = await new Promise((resolve, reject) => { const req = db.transaction('pending_outbox').objectStore('pending_outbox').getAll(); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); }); }
     finally { db.close(); }
-    for (const item of items) if (item.notificationData && !(item.leaseUntil > Date.now())) await deliverNotificationReply(item);
+    for (const item of items) if (item.notificationData && item.message.status !== 'failed' && !(item.leaseUntil > Date.now())) await deliverNotificationReply(item);
   })());
 });
 

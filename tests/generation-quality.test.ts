@@ -180,6 +180,24 @@ test('persona rules and history stay separate without losing group, event, react
   } finally { controller.abort(); upstream.mock.restore(); }
 });
 
+test('local and deployed Cloud report empty and fatal generation failures without successful excuse text', async () => {
+  const payload = { responder: { name: 'Maya' }, messageHistory: [{ sender: 'me', text: 'Please answer this prompt' }] };
+  const upstream = mock.method(Models.prototype as any, 'generateContentInternal', async () => ({ text: '' }));
+  // Avoid waiting through backoff; the real provider transport is fully intercepted.
+  const timer = mock.method(globalThis, 'setTimeout', ((callback: Function) => { queueMicrotask(() => callback()); return 0; }) as any);
+  try {
+    const local = await handleVertexChat(payload);
+    assert.equal(local.ok, false);
+    assert.equal(local.text, undefined);
+    const deployed = await endpoint(chatHandler, payload, 500);
+    assert.equal(deployed.text, undefined);
+    assert.ok(deployed.error);
+    upstream.mock.mockImplementation(async () => { throw new Error('Synthetic provider failure'); });
+    assert.equal((await handleVertexChat(payload)).ok, false);
+    assert.equal((await endpoint(chatHandler, payload, 500)).text, undefined);
+  } finally { upstream.mock.restore(); timer.mock.restore(); }
+});
+
 test('notification replies rebuild ledger and clock without replaying stale snapshots or gap directives', async () => {
   const bodies: any[] = [];
   const context = { self: { addEventListener() {} }, console, Date, Math, JSON, Number, AbortController, setTimeout, clearTimeout, URL,

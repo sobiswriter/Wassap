@@ -1,5 +1,15 @@
 # Wassap System Architecture (`architecture.md`)
 
+## Release 1.9.9.5 (22 October 2026)
+
+Package/lockfile, document/PWA titles, manifest, metadata and the newest Updates entry identify 1.9.9.5. Shell cache v27 installs its assets while retaining the previous shell for existing tabs; app identity, browser storage, queued data and member access remain compatible. See release-1.9.9.5.md for verification and the remaining build-tool advisory. Historical version/cache numbers below describe their original changes.
+
+## Manual failed-turn recovery (22 October 2026)
+
+Message.deliveryGroupId is an optional additive boundary for the original prompt/stack. The existing pending_outbox retains failed records using message.status=failed; pendingDeliveryTurn excludes these until setPendingDeliveryStatus resets the selected batch and retry budget. beginPendingAttempt returns its captured IDs/deadline; deliveryHistory ends at those prompts and excludes unrelated failed input. Unstacked sends serialize per chat. Successful persistence/receipt recovery acknowledges only captured IDs or their explicit group, never every earlier user message. An interrupted status save restores failed inputs from the outbox, including missing bubbles.
+
+Foreground single/group/automated generation opts into throwing on unavailable replies while retaining bounded provider retries. Local and standalone Cloud handlers return errors instead of successful glitch text. Failed photo requests use the same original-message retry path. Notification workers park exhausted inputs, persist a failed-input exchange without a persona reply, and show system retry copy; reconciliation ignores stale failed snapshots after a retry/success. Read actions cannot overwrite failed/pending outgoing state. Worker shell v26 and the release smoke expectation match. Existing IndexedDB versions/stores, passkey and provider credentials remain unchanged.
+
 ## Fragment delivery pacing (20 October 2026)
 
 App.tsx shares a length-based fragmentTypingDelay across single, group and automated text delivery: subsequent fragments type for 2350–3750 ms after a 150–250 ms inter-bubble beat, totaling 2.5–4 seconds. Existing first-fragment waits, splitting, cancellation guards, saving and notification accumulation remain intact. Worker persistence is not delayed for presentation effects.
@@ -96,7 +106,7 @@ The mobile inbox heading invokes a normal location reload. Existing service-work
 
 The composer textarea suppresses its clipped outline; keyboard focus indicators remain on buttons and other inputs. Dedicated low-alpha divider tokens soften decorative chat-list/navigation lines without weakening form borders. Shell cache v18 refreshes release assets; existing localStorage/IndexedDB keys and PWA identity are unchanged.
 
-This document provides a comprehensive technical overview of the architecture, data flow, tech stack, and directory structure of the **Wassap Persona Simulation** platform (v1.9.9).
+This document provides a comprehensive technical overview of the architecture, data flow, tech stack, and directory structure of the **Wassap Persona Simulation** platform (v1.9.9.5).
 
 ## Android mobile polish (18 October 2026)
 

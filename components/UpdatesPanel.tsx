@@ -49,7 +49,7 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
       {/* Header */}
       <div className="min-h-[64px] pt-[max(env(safe-area-inset-top),10px)] pb-2 bg-white dark:bg-[#202c33] flex items-center px-6 border-b app-border shrink-0">
         <div className="flex items-center gap-4 w-full max-w-4xl mx-auto">
-          <button data-panel-close onClick={onClose} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors">
+          <button data-panel-close aria-label="Close updates" onClick={onClose} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors">
             <ArrowLeft className="text-secondary" />
           </button>
           <div className="flex items-center gap-2">
@@ -81,10 +81,23 @@ export const UpdatesPanel: React.FC<UpdatesPanelProps> = ({ onClose }) => {
 
           <div className="space-y-12 mb-20">
             <UpdateItem
+              version="v1.9.9.5"
+              title="Retry Failed Messages"
+              date="22 October 2026"
+              isLatest={true}
+              changes={[
+                "Failed sends now show a red indicator you can tap to retry, instead of a made-up connection excuse.",
+                "Retry the original message or its original stack without retyping or losing saved attachments.",
+                "Failed photo requests and group messages use the same retry flow in both built-in Cloud and custom-key mode.",
+                "Failed attempts survive reloads and wait for you to retry. Newer failed prompts stay separate; offline sends still resume after reconnecting.",
+                "Refreshed installed-app assets and checked delivery recovery, security and saved-data compatibility."
+              ]}
+            />
+            <UpdateItem
               version="v1.9.9"
               title="Persona Calls & More Natural Conversations"
               date="19 October 2026"
-              isLatest={true}
+              isLatest={false}
               changes={[
                 "Voice calls with repeating ringback, tuned speech detection, mute, minimize and supported notification controls.",
                 "Call transcripts and timestamps stay in chat; longer conversations also receive a personal diary entry.",

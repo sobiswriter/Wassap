@@ -33,7 +33,6 @@ import {
   generateGeminiVoiceNote, 
   synthesizeImageContextAndCaption, 
   generatePersonaImage, 
-  generatePersonaImageExcuse, 
   resolveAvatarBase64,
   buildFullPersonaSystemPrompt, buildPersonaPrompt,
   isRawErrorMessage,
@@ -47,7 +46,7 @@ import {
   deleteMedia 
 } from './utils/storage';
 import { 
-  beginPendingAttempt, retryExpired,
+  beginPendingAttempt, retryExpired, pendingDeliveryTurn, deliveryHistory, setPendingDeliveryStatus,
   getPendingMessages, 
   removePendingMessage, 
   enqueuePendingMessage, 
@@ -845,7 +844,7 @@ const App: React.FC = () => {
 
         let changed = false;
         const updatedMsgs = c.messages.map(m => {
-          if ((shouldMarkAll || idsSet?.has(m.id)) && m.status !== 'read') {
+          if ((shouldMarkAll || idsSet?.has(m.id)) && m.status !== 'read' && !(m.sender === 'me' && (m.status === 'failed' || m.status === 'pending'))) {
             changed = true;
             return { ...m, status: 'read' as MessageStatus };
           }
@@ -898,13 +897,14 @@ const App: React.FC = () => {
   // Service Worker Notification Actions Listener (REPLY & MARK AS READ from phone / OS tray)
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      const handleServiceWorkerMessage = (event: MessageEvent) => {
+      const handleServiceWorkerMessage = async (event: MessageEvent) => {
         const { type, chatId } = event.data || {};
         if (type === 'OPEN_CHAT' && chatId) {
           activeNotificationSoundChatsRef.current.delete(chatId);
           handleChatSelectRef.current(chatId);
         } else if (type === 'BACKGROUND_EXCHANGE_SYNC' && chatId && event.data.personaReplies) {
           const { userMessage, personaReplies } = event.data;
+          if (userMessage?.status === 'failed' && !(await getPendingMessages()).some(item => item.id === userMessage.id && item.message.status === 'failed')) return;
           setChats(prev => prev.map(c => {
             if (c.id === chatId) {
               const existingIds = new Set(c.messages.map(m => m.id));
@@ -913,8 +913,8 @@ const App: React.FC = () => {
               for (const r of personaReplies) {
                 if (!existingIds.has(r.id)) toAdd.push(r);
               }
-              if (toAdd.length === 0 && !personaReplies.length) return c;
-              const allMsgs = [...c.messages, ...toAdd].map(m => userMessage?.id === m.id && personaReplies.length ? { ...m, status: 'sent' as MessageStatus } : m);
+              if (toAdd.length === 0 && !personaReplies.length && userMessage?.status !== 'failed') return c;
+              const allMsgs = [...c.messages, ...toAdd].map(m => userMessage?.id !== m.id ? m : personaReplies.length ? { ...m, status: 'sent' as MessageStatus } : userMessage.status === 'failed' ? { ...m, status: 'failed' as MessageStatus, deliveryGroupId: userMessage.deliveryGroupId } : m);
               const last = allMsgs[allMsgs.length - 1];
               return {
                 ...c,
@@ -1033,7 +1033,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        document.title = 'Wassap v1.9.9';
+        document.title = 'Wassap v1.9.9.5';
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -1147,24 +1147,18 @@ const App: React.FC = () => {
     return saved;
   };
 
-  const completeQueuedTurn = async (chatId: string, history: Message[]) => {
+  const completeQueuedTurn = async (chatId: string, messageIds: string[]) => {
     if (!saveChatsNow(chatsRef.current)) return;
-    const answered = new Set(history.filter(m => m.sender === 'me').map(m => m.id));
+    const answered = new Set(messageIds);
     for (const item of await getPendingMessages()) {
       if (item.chatId === chatId && answered.has(item.id)) await removePendingMessage(item.id);
     }
   };
 
-  const finishDeliveryFallback = async (chat: Chat, history: Message[]) => {
-    const lastUser = history.filter(message => message.sender === 'me').at(-1);
-    if (!lastUser) return;
-    const id = `delivery-fallback-${lastUser.id}`;
-    if (chatsRef.current.find(current => current.id === chat.id)?.messages.some(message => message.id === id)) { await completeQueuedTurn(chat.id, history); return; }
-    const text = getInCharacterNetworkGlitchExcuse(chat, lastUser.text);
-    const message: Message = { id, text, sender: 'other', senderName: chat.name, responseToMessageId: lastUser.id, date: getDateKey(), timestamp: getFormattedTime(), timestampEpoch: Date.now(), status: 'delivered' };
-    commitChatUpdate(previous => previous.map(current => current.id !== chat.id || current.messages.some(m => m.id === id) ? current : { ...current, messages: [...current.messages.map(m => history.some(h => h.id === m.id && h.sender === 'me') ? { ...m, status: 'sent' as MessageStatus } : m), message], lastMessage: text, lastMessageTime: message.timestamp }));
-    await completeQueuedTurn(chat.id, history);
-    if (settingsRef.current.enableNotifications && document.hidden) void showNotification(chat.name, { body: notificationConversation(lastUser.text, text), tag: chat.id, icon: chat.avatar, data: buildNotificationPersonaData(chat, userRef.current, settingsRef.current) });
+  const failQueuedTurn = async (chat: Chat, messageIds: string[]) => {
+    if (!messageIds.length) return;
+    await setPendingDeliveryStatus(chat.id, messageIds, 'failed');
+    commitChatUpdate(previous => previous.map(current => current.id !== chat.id ? current : { ...current, messages: current.messages.map(message => messageIds.includes(message.id) ? { ...message, status: 'failed' as MessageStatus, deliveryGroupId: messageIds.at(-1) } : message) }));
   };
 
   useEffect(() => {
@@ -1318,12 +1312,12 @@ const App: React.FC = () => {
     }, effectiveDelay);
   };
 
-  const markUserMessagesDelivered = (chatId: string) => {
+  const markUserMessagesDelivered = (chatId: string, messageIds?: string[]) => {
     setChats(prev => prev.map(c => {
       if (c.id === chatId) {
         let changed = false;
         const newMsgs = c.messages.map(m => {
-          if (m.sender === 'me' && m.status === 'sent') {
+          if (m.sender === 'me' && (!messageIds || messageIds.includes(m.id)) && (m.status === 'sent' || (m.status === 'pending' && messageIds?.includes(m.id)))) {
             changed = true;
             return { ...m, status: 'delivered' as const };
           }
@@ -1335,12 +1329,12 @@ const App: React.FC = () => {
     }));
   };
 
-  const markUserMessagesRead = (chatId: string) => {
+  const markUserMessagesRead = (chatId: string, messageIds?: string[]) => {
     setChats(prev => prev.map(c => {
       if (c.id === chatId) {
         let changed = false;
         const newMsgs = c.messages.map(m => {
-          if (m.sender === 'me' && m.status !== 'read') {
+          if (m.sender === 'me' && (!messageIds || messageIds.includes(m.id)) && m.status !== 'read' && m.status !== 'failed' && (m.status !== 'pending' || messageIds?.includes(m.id))) {
             changed = true;
             return { ...m, status: 'read' as const };
           }
@@ -1579,11 +1573,13 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
         settings,
         combinePersonaContexts(context, buildScheduleContext(targetChat), timeGapContext),
         isVoiceNote,
-        targetChat.voiceSettings
+        targetChat.voiceSettings,
+        undefined,
+        true
       );
 
       if (!response || isRawErrorMessage(response)) {
-        response = getInCharacterNetworkGlitchExcuse(targetChat);
+        throw new Error('REPLY_UNAVAILABLE');
       }
 
       if (isVoiceNote) {
@@ -2176,6 +2172,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     // Trigger AI response(s)
     const isStackingEnabled = settings.enableTextStacking !== false;
     if (!isStackingEnabled) {
+      if (aiRespondingChatsRef.current.has(chatId)) return;
       if (aiResponseTimeoutsRef.current[chatId]) {
         clearTimeout(aiResponseTimeoutsRef.current[chatId]);
         delete aiResponseTimeoutsRef.current[chatId];
@@ -2439,18 +2436,27 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     let replied = false;
     let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
     let deadline: number | undefined;
+    let turnIds: string[] = [];
     let timedOut = false;
     let ownController: AbortController | undefined;
     const commitReply = (update: (previous: Chat[]) => Chat[]) => { if (timedOut) return; replied = true; clearTimeout(deadlineTimer); commitChatUpdate(update); };
     const isAlreadyOnline = chatsRef.current.find(c => c.id === chatId)?.status === 'online';
     const isFastOnlineChat = !!(settingsRef.current.enableDynamicOnlinePresence && isAlreadyOnline);
     try {
-      deadline = await beginPendingAttempt(chatId, updatedHistory);
-      if (deadline !== undefined && deadline <= Date.now()) { timedOut = true; await finishDeliveryFallback(chat, updatedHistory); return; }
+      const attempt = await beginPendingAttempt(chatId, updatedHistory, settings.enableTextStacking !== false);
+      turnIds = attempt?.messageIds || [];
+      deadline = attempt?.deadline;
+      if (attempt) {
+        updatedHistory = deliveryHistory(updatedHistory, turnIds);
+        const prompts = updatedHistory.filter(message => turnIds.includes(message.id));
+        isImageRequest = prompts.some(message => message.isImageRequest);
+        imagePromptText = prompts.map(message => message.text).filter(Boolean).join(' ');
+      }
+      if (deadline !== undefined && deadline <= Date.now()) { timedOut = true; return; }
       // Hydrate history with media data immediately so background generation can begin
       const hydratedHistory = await prepareHydratedHistory(updatedHistory, chat.name);
 
-      const checkImageReq = isImageRequest || updatedHistory.slice(-2).some(m => m.sender === 'me' && m.isImageRequest);
+      const checkImageReq = isImageRequest || (!attempt && updatedHistory.slice(-2).some(m => m.sender === 'me' && m.isImageRequest));
 
       // Check if user sent a voice note or if persona will respond with voice
       const lastUserMsg = [...updatedHistory].reverse().find(m => m.sender === 'me');
@@ -2466,7 +2472,6 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       if (deadline !== undefined) deadlineTimer = setTimeout(() => {
         if (replied || (callRef.current && callRef.current.snapshot.status !== 'ended') || personaAbortControllersRef.current[chatId] !== abortController) return;
         timedOut = true; abortController.abort();
-        void finishDeliveryFallback(chat, updatedHistory);
       }, Math.max(0, deadline - Date.now()));
 
       const turnToken = Date.now();
@@ -2485,11 +2490,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
               isVoiceNote,
               chat.voiceSettings,
               abortController.signal,
-              false
+              true
             );
 
             if (!resText || isRawErrorMessage(resText)) {
-              resText = getInCharacterNetworkGlitchExcuse(chat, lastUserMsg?.text);
+              throw new Error('REPLY_UNAVAILABLE');
             }
 
             let ttsResult: { ok: boolean; audioDataUrl?: string; error?: string } | null = null;
@@ -2523,7 +2528,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           const deliveryWait = isFastOnlineChat ? (150 + Math.random() * 150) : (250 + Math.random() * 200);
           await new Promise(resolve => setTimeout(resolve, deliveryWait));
         }
-        markUserMessagesDelivered(chatId);
+        markUserMessagesDelivered(chatId, turnIds);
 
         // Step 2: Persona comes online after double grey ticks (1.8s - 2.5s)
         if (!isAlreadyOnline && !chat.isGroup) {
@@ -2536,11 +2541,11 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const seenDelay = isFastOnlineChat ? (200 + Math.random() * 200) : (250 + Math.random() * 200);
         await new Promise(resolve => setTimeout(resolve, seenDelay));
       } else {
-        markUserMessagesDelivered(chatId);
+        markUserMessagesDelivered(chatId, turnIds);
       }
 
       // Mark user messages as read (Blue ticks appear BEFORE reading & typing)
-      markUserMessagesRead(chatId);
+      markUserMessagesRead(chatId, turnIds);
 
       if (!isBackgroundReply) {
         // Step 4: Initial "Thinking / Reading" Delay before starting to type/record
@@ -2683,47 +2688,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           }
         }
 
-        // Graceful Degradation: If image generation fails, times out, or triggers safety filter
-        console.warn("Photo generation failed or blocked, falling back to in-character excuse");
-        const excuse = await generatePersonaImageExcuse(
-          { ...chat },
-          userPrompt,
-          settings
-        );
-
-        const typingDelay = 250 + Math.random() * 200; // 1.8s - 2.5s
-        await new Promise(resolve => setTimeout(resolve, typingDelay));
-
-        const aiMsg: Message = {
-          id: `${Date.now()}-excuse`,
-          text: excuse,
-          sender: 'other',
-          responseToMessageId: updatedHistory.filter(message => message.sender === 'me').at(-1)?.id,
-          senderName: chat.name,
-          date: getDateKey(),
-          timestamp: getFormattedTime(),
-          timestampEpoch: Date.now(),
-          status: 'delivered',
-        };
-
-        commitReply(prev => prev.map(c => {
-          if (c.id === chatId) {
-            return {
-              ...c,
-              messages: [...c.messages, aiMsg],
-              lastMessage: excuse,
-              lastMessageTime: aiMsg.timestamp,
-              unreadCount: (c.unreadCount || 0) + 1,
-            };
-          }
-          return c;
-        }));
-
-        playIncomingMessageSound();
-
-        setChatStatus(chatId, 'online');
-        schedulePersonaOffline(chatId);
-        return;
+        throw new Error('PHOTO_UNAVAILABLE');
       }
 
       // Display authentic active status
@@ -2752,7 +2717,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       const ttsRes = aiResult?.ttsRes;
 
       if (!response || isRawErrorMessage(response)) {
-        response = getInCharacterNetworkGlitchExcuse(chat, lastUserMsg?.text);
+        throw new Error('REPLY_UNAVAILABLE');
       }
 
       if (isVoiceNote) {
@@ -2928,9 +2893,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       clearTimeout(deadlineTimer);
       if (callRef.current && callRef.current.snapshot.status !== 'ended') { aiRespondingChatsRef.current.delete(chatId); return; }
       if (ownController && personaAbortControllersRef.current[chatId] && personaAbortControllersRef.current[chatId] !== ownController) return;
-      if (timedOut) await finishDeliveryFallback(chat, updatedHistory);
-      else if (replied) await completeQueuedTurn(chatId, updatedHistory);
-      else await finishDeliveryFallback(chat, updatedHistory);
+      if (replied) await completeQueuedTurn(chatId, turnIds);
+      else await failQueuedTurn(chat, turnIds);
       clearChatActiveStatus(chatId);
       aiRespondingChatsRef.current.delete(chatId);
       schedulePersonaOffline(chatId);
@@ -2946,7 +2910,12 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
   ) => {
     const settings = settingsRef.current;
     if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
-    const deadline = await beginPendingAttempt(group.id, updatedHistory);
+    if (!group.memberIds?.length) return;
+    aiRespondingChatsRef.current.add(group.id);
+    const attempt = await beginPendingAttempt(group.id, updatedHistory, settings.enableTextStacking !== false);
+    const deadline = attempt?.deadline;
+    const turnIds = attempt?.messageIds || [];
+    if (attempt) updatedHistory = deliveryHistory(updatedHistory, turnIds);
     let replied = false;
     let timedOut = false;
     let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
@@ -2965,17 +2934,17 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const deliveryWait = isFastOnlineGroup ? (150 + Math.random() * 150) : (250 + Math.random() * 200);
         await new Promise(resolve => setTimeout(resolve, deliveryWait));
       }
-      markUserMessagesDelivered(group.id);
+      markUserMessagesDelivered(group.id, turnIds);
       // 2. Initial "Seen" Delay for the whole group (simulating someone opening the group)
       const initialSeenDelay = isFastOnlineGroup ? (200 + Math.random() * 200) : (250 + Math.random() * 200);
       await new Promise(resolve => setTimeout(resolve, initialSeenDelay));
     } else {
-      markUserMessagesDelivered(group.id);
+      markUserMessagesDelivered(group.id, turnIds);
       await new Promise(resolve => setTimeout(resolve, 400));
     }
 
     // Mark user messages as read (Blue ticks)
-    markUserMessagesRead(group.id);
+    markUserMessagesRead(group.id, turnIds);
 
     let responseSequence = [...memberIds].sort(() => Math.random() - 0.5);
 
@@ -2989,7 +2958,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
 
     for (let i = 0; i < responseSequence.length; i++) {
       if (callRef.current && callRef.current.snapshot.status !== 'ended') break;
-      if (deadline !== undefined && Date.now() >= deadline) { if (!replied) await finishDeliveryFallback(group, updatedHistory); break; }
+      if (deadline !== undefined && Date.now() >= deadline) break;
       const responderId = responseSequence[i];
       const persona = chats.find(c => c.id === responderId);
       if (!persona) continue;
@@ -3022,7 +2991,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         personaAbortControllersRef.current[group.id] = abortController;
         if (deadline !== undefined && !replied) deadlineTimer = setTimeout(() => {
           if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
-          timedOut = true; abortController.abort(); void finishDeliveryFallback(group, updatedHistory);
+          timedOut = true; abortController.abort();
         }, Math.max(0, deadline - Date.now()));
 
         const turnToken = Date.now();
@@ -3041,7 +3010,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             isVoiceNote,
             persona.voiceSettings,
             abortController.signal,
-            false
+            true
           );
 
         if (personaStatusWatchdogTimersRef.current[group.id]) {
@@ -3055,7 +3024,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         }
 
         if (!responseText || isRawErrorMessage(responseText)) {
-          responseText = getInCharacterNetworkGlitchExcuse(persona, lastUserMsg?.text);
+          throw new Error('REPLY_UNAVAILABLE');
         }
 
         if (isVoiceNote) {
@@ -3233,8 +3202,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       }
     }
     
-    if (timedOut) await finishDeliveryFallback(group, updatedHistory);
-    else if (replied) await completeQueuedTurn(group.id, updatedHistory);
+    if (replied) await completeQueuedTurn(group.id, turnIds);
+    else if (!(callRef.current && callRef.current.snapshot.status !== 'ended')) await failQueuedTurn(group, turnIds);
     clearChatActiveStatus(group.id);
     aiRespondingChatsRef.current.delete(group.id);
     schedulePersonaOffline(group.id);
@@ -3277,13 +3246,14 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     try {
       const exchanges = await getBackgroundExchanges();
       if (!exchanges || exchanges.length === 0) return;
+      const pending = await getPendingMessages();
 
       const previous = chatsRef.current;
       let reconciled = previous;
       const saved = commitChatUpdate(prev => {
         let hasChanges = false;
         const updated = prev.map(chat => {
-          const matchingExchanges = exchanges.filter(e => e.chatId === chat.id);
+          const matchingExchanges = exchanges.filter(e => e.chatId === chat.id && (e.userMessage?.status !== 'failed' || pending.some(item => item.id === e.userMessage?.id && item.message.status === 'failed')));
           if (matchingExchanges.length === 0) return chat;
 
           const hasMarkAsRead = matchingExchanges.some(e => e.type === 'MARK_AS_READ');
@@ -3305,11 +3275,16 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             }
           }
 
-          if (newMessages.length > 0 || hasMarkAsRead || matchingExchanges.some(ex => ex.personaReplies?.length && chat.messages.some(m => m.id === ex.userMessage?.id && m.status === 'pending'))) {
+          if (newMessages.length > 0 || hasMarkAsRead || matchingExchanges.some(ex => ex.userMessage?.status === 'failed' || ex.personaReplies?.length && chat.messages.some(m => m.id === ex.userMessage?.id && (m.status === 'pending' || m.status === 'failed')))) {
             hasChanges = true;
-            const allMessages = [...chat.messages, ...newMessages].map(m => matchingExchanges.some(ex => ex.userMessage?.id === m.id && ex.personaReplies?.length) && m.sender === 'me' && m.status === 'pending' ? { ...m, status: 'sent' as MessageStatus } : m);
+            const allMessages = [...chat.messages, ...newMessages].map(m => {
+              const exchange = matchingExchanges.find(ex => ex.userMessage?.id === m.id);
+              if (m.sender !== 'me' || !exchange) return m;
+              return exchange.personaReplies?.length ? { ...m, status: 'sent' as MessageStatus }
+                : exchange.userMessage?.status === 'failed' ? { ...m, status: 'failed' as MessageStatus, deliveryGroupId: exchange.userMessage.deliveryGroupId } : m;
+            });
             const updatedMessages = hasMarkAsRead
-              ? allMessages.map(m => m.status !== 'read' ? { ...m, status: 'read' as MessageStatus } : m)
+              ? allMessages.map(m => m.status !== 'read' && !(m.sender === 'me' && (m.status === 'pending' || m.status === 'failed')) ? { ...m, status: 'read' as MessageStatus } : m)
               : allMessages;
             const lastMsg = updatedMessages[updatedMessages.length - 1];
             return {
@@ -3351,21 +3326,31 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         const targetChat = chatsRef.current.find(c => c.id === chatId);
         if (!targetChat) continue;
         const receipts = new Set(targetChat.messages.filter(message => message.sender === 'other').map(message => message.responseToMessageId));
-        const answeredThrough = targetChat.messages.reduce((last, message, index) => receipts.has(message.id) ? index : last, -1);
-        if (answeredThrough >= 0) await completeQueuedTurn(chatId, targetChat.messages.slice(0, answeredThrough + 1));
-        const answeredIds = new Set(targetChat.messages.slice(0, answeredThrough + 1).map(message => message.id));
-        const items = pendingItems.filter(item => item.chatId === chatId && !answeredIds.has(item.id));
+        const answeredIds = new Set(pendingItems.filter(item => item.chatId === chatId && (receipts.has(item.id) || (item.message.deliveryGroupId && receipts.has(item.message.deliveryGroupId)))).map(item => item.id));
+        if (answeredIds.size) await completeQueuedTurn(chatId, [...answeredIds]);
+        const items = pendingDeliveryTurn(pendingItems.filter(item => item.chatId === chatId && !answeredIds.has(item.id)), currentSettings.enableTextStacking !== false);
+        // The outbox is authoritative if suspension interrupted the UI status save.
+        const failedItems = pendingItems.filter(item => item.chatId === chatId && item.message.status === 'failed' && !answeredIds.has(item.id));
+        if (failedItems.some(item => targetChat.messages.find(message => message.id === item.id)?.status !== 'failed')) {
+          commitChatUpdate(previous => previous.map(chat => chat.id !== chatId ? chat : { ...chat, messages: [
+            ...chat.messages.map(message => {
+              const failed = failedItems.find(item => item.id === message.id);
+              return failed ? { ...message, status: 'failed' as MessageStatus, deliveryGroupId: failed.message.deliveryGroupId } : message;
+            }),
+            ...failedItems.filter(item => !chat.messages.some(message => message.id === item.id)).map(item => item.message)
+          ] }));
+        }
         if (!items.length) continue;
         if (items.some(item => (item.leaseUntil || 0) > Date.now())) continue;
         if (items.some(item => retryExpired(item))) {
-          const through = targetChat.messages.findIndex(message => message.id === items.at(-1)?.id);
-          await finishDeliveryFallback(targetChat, through >= 0 ? targetChat.messages.slice(0, through + 1) : [...targetChat.messages, ...items.map(item => item.message)]);
+          await failQueuedTurn(targetChat, items.map(item => item.id));
           continue;
         }
         if (!navigator.onLine || items.some(item => (item.nextAttemptAt || 0) > Date.now())) continue;
         const ids = new Set(targetChat.messages.map(m => m.id));
-        const updatedMessages = [...targetChat.messages, ...items.filter(item => !ids.has(item.id)).map(item => item.message)];
-        if (updatedMessages.length !== targetChat.messages.length) commitChatUpdate(previous => previous.map(chat => chat.id === chatId ? { ...chat, messages: updatedMessages } : chat));
+        const messages = [...targetChat.messages, ...items.filter(item => !ids.has(item.id)).map(item => item.message)];
+        if (messages.length !== targetChat.messages.length) commitChatUpdate(previous => previous.map(chat => chat.id === chatId ? { ...chat, messages } : chat));
+        const updatedMessages = deliveryHistory(messages, items.map(item => item.id));
         const last = items[items.length - 1].message;
         const combinedContexts = combinePersonaContexts(buildMemoryRecallContext(targetChat, last.text), buildScheduleContext(targetChat), getTimeGapAndFrequencyContext(updatedMessages, false, settingsRef.current, targetChat.timeAwarenessEnabled !== false));
         if (targetChat.isGroup) await handleGroupResponse(targetChat, updatedMessages, combinedContexts, true);
@@ -3377,6 +3362,26 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       offlineQueueFlushingRef.current = false;
     }
   }, [settings]);
+
+  const retryingMessagesRef = React.useRef(new Set<string>());
+  const handleRetryMessage = async (chatId: string, messageId: string) => {
+    const chat = chatsRef.current.find(chat => chat.id === chatId);
+    const message = chat?.messages.find(message => message.id === messageId);
+    if (!chat || message?.status !== 'failed' || retryingMessagesRef.current.has(chatId) || aiRespondingChatsRef.current.has(chatId) || (callRef.current && callRef.current.snapshot.status !== 'ended')) return;
+    retryingMessagesRef.current.add(chatId);
+    try {
+      const messages = chat.messages.filter(item => item.sender === 'me' && item.status === 'failed' && !item.isDeleted && (message.deliveryGroupId ? item.deliveryGroupId === message.deliveryGroupId : item.id === messageId));
+      const pending = await getPendingMessages();
+      if (pending.some(item => messages.some(message => message.id === item.id) && (item.leaseUntil || 0) > Date.now())) return;
+      // Older failed records may predate the durable outbox; preserve their original IDs/media.
+      for (const item of messages) if (!pending.some(queued => queued.id === item.id)) await enqueuePendingMessage(chatId, item);
+      const ids = messages.map(message => message.id);
+      await setPendingDeliveryStatus(chatId, ids, 'pending');
+      commitChatUpdate(previous => previous.map(current => current.id !== chatId ? current : { ...current, messages: current.messages.map(item => ids.includes(item.id) ? { ...item, status: 'pending' as MessageStatus } : item) }));
+      if (navigator.onLine) void flushOfflineQueue();
+    } catch (error) { console.error('Could not retry message:', error); }
+    finally { retryingMessagesRef.current.delete(chatId); }
+  };
 
   useEffect(() => {
     if (navigator.onLine) flushOfflineQueue();
@@ -3860,6 +3865,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
             onMetaAIClick={() => handleChatSelect('6')}
             onAddContact={() => setShowNewChatPanel(true)}
             onReply={setReplyingTo}
+            onRetryMessage={handleRetryMessage}
+            retryDisabled={!!callSession || (activeChat ? isBusyChatStatus(activeChat.status) : false)}
             onSaveMemory={handleSaveMemory}
             onDeleteMessages={handleDeleteMessages}
             onMarkAsRead={handleMarkAsRead}

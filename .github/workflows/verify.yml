@@ -20,6 +20,6 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=moderate
-      - name: Report build-tool advisories (see release-1.9.9.md)
+      - name: Report build-tool advisories (see release-1.9.9.5.md)
         run: npm audit --audit-level=moderate
         continue-on-error: true
