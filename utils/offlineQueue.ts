@@ -68,6 +68,23 @@ export async function setPendingDeliveryStatus(chatId: string, messageIds: strin
   } finally { db.close(); }
 }
 
+export async function releasePendingDeliveryLease(chatId: string, messageIds: string[]): Promise<void> {
+  if (!messageIds.length) return;
+  const db = await openOfflineDB();
+  try {
+    const tx = db.transaction(PENDING_OUTBOX_STORE, 'readwrite');
+    const store = tx.objectStore(PENDING_OUTBOX_STORE);
+    const request = store.getAll();
+    request.onsuccess = () => {
+      for (const item of request.result as PendingQueueItem[]) {
+        if (item.chatId !== chatId || !messageIds.includes(item.id)) continue;
+        store.put({ ...item, leaseUntil: 0 });
+      }
+    };
+    await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onerror = tx.onabort = () => reject(tx.error); });
+  } finally { db.close(); }
+}
+
 export interface BackgroundExchangeItem {
   id: string;
   chatId: string;
@@ -300,4 +317,3 @@ export const clearOfflineDataForChat = async (chatId: string): Promise<void> => 
     console.warn('Failed to clear offline data for chat:', chatId, err);
   }
 };
-

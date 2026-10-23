@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test, mock } from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { enqueuePendingMessage, retryExpired } from '../utils/offlineQueue';
+import { enqueuePendingMessage, releasePendingDeliveryLease, retryExpired } from '../utils/offlineQueue';
 import { notificationConversation } from '../utils/notificationText';
 import { getGeminiResponse } from '../services/geminiService';
 import { Models } from '@google/genai';
@@ -52,6 +52,28 @@ test('outbox enqueue resolves only when its transaction commits', async () => {
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(settled, false);
     transaction.oncomplete(); await pending; assert.equal(settled, true);
+  } finally { globalThis.indexedDB = previous; }
+});
+
+test('releasing a pending lease keeps the turn pending instead of failing it', async () => {
+  const previous = globalThis.indexedDB;
+  const stores = new Map<string, Map<string, any>>([['pending_outbox', new Map()], ['synced_background', new Map()]]);
+  const db: any = { close() {}, transaction(name: string) {
+    const tx: any = { objectStore: (storeName = name) => ({
+      put(item: any) { stores.get(storeName)!.set(item.id, structuredClone(item)); },
+      getAll() { const req: any = {}; queueMicrotask(() => { req.result = [...stores.get(storeName)!.values()]; req.onsuccess?.(); }); return req; }
+    }) };
+    queueMicrotask(() => tx.oncomplete?.());
+    return tx;
+  } };
+  globalThis.indexedDB = { open: () => { const request: any = { result: db }; queueMicrotask(() => request.onsuccess()); return request; } } as any;
+  stores.get('pending_outbox')!.set('m1', { id: 'm1', chatId: 'chat', message: { id: 'm1', status: 'pending' }, leaseUntil: Date.now() + 15000, attempts: 1, retryStartedAt: Date.now() - 2000, nextAttemptAt: Date.now() + 5000 });
+  try {
+    await releasePendingDeliveryLease('chat', ['m1']);
+    const released = stores.get('pending_outbox')!.get('m1');
+    assert.equal(released.leaseUntil, 0);
+    assert.equal(released.message.status, 'pending');
+    assert.equal(released.attempts, 1);
   } finally { globalThis.indexedDB = previous; }
 });
 
