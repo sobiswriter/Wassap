@@ -538,7 +538,9 @@ const deliverNotificationReply = async (item) => {
     await saveBackgroundExchangeToIDB(item.chatId, userMessage, []);
     const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     windows.forEach(client => client.postMessage({ type: 'BACKGROUND_EXCHANGE_SYNC', chatId: item.chatId, userMessage, personaReplies: [] }));
-    await self.registration.showNotification(data.chatName || 'Contact', { body: 'Message not sent. Open chat to retry.', icon: data.chatAvatar || data.avatar || '/favicon.svg', badge: '/badge.svg', tag: item.chatId, silent: true, data });
+    if (!(await hasVisibleWindowClient())) {
+      await self.registration.showNotification(data.chatName || 'Contact', { body: 'Message not sent. Open chat to retry.', icon: data.chatAvatar || data.avatar || '/favicon.svg', badge: '/badge.svg', tag: item.chatId, silent: true, data });
+    }
     return;
   }
   const now = new Date();
@@ -547,12 +549,14 @@ const deliverNotificationReply = async (item) => {
   await saveBackgroundExchangeToIDB(item.chatId, { ...item.message, status: 'sent' }, personaReplies, true);
   const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
   windows.forEach(client => client.postMessage({ type: 'BACKGROUND_EXCHANGE_SYNC', chatId: item.chatId, userMessage: { ...item.message, status: 'sent' }, personaReplies }));
-  await self.registration.showNotification(data.chatName || 'Contact', {
-    body: notificationConversation('', personaReplies.map(message => message.text).join('\n\n') || text),
-    icon: data.chatAvatar || data.avatar || '/favicon.svg', badge: '/badge.svg', tag: item.chatId, renotify: true,
-    data: { ...data, recentMessages: [...history, ...personaReplies].slice(-45) },
-    actions: [{ action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' }, { action: 'read', title: 'Mark as read' }]
-  });
+  if (!(await hasVisibleWindowClient())) {
+    await self.registration.showNotification(data.chatName || 'Contact', {
+      body: notificationConversation('', personaReplies.map(message => message.text).join('\n\n') || text),
+      icon: data.chatAvatar || data.avatar || '/favicon.svg', badge: '/badge.svg', tag: item.chatId, renotify: true,
+      data: { ...data, recentMessages: [...history, ...personaReplies].slice(-45) },
+      actions: [{ action: 'reply', title: 'Reply', type: 'text', placeholder: 'Type a message...' }, { action: 'read', title: 'Mark as read' }]
+    });
+  }
 };
 
 self.addEventListener('sync', event => {
@@ -575,6 +579,11 @@ const activeCallFor = async (chatId) => {
     const call = response && await response.json();
     return call && call.expiresAt > Date.now() ? call : null; // Defer every persona while a call is active.
   } catch { return null; }
+};
+
+const hasVisibleWindowClient = async () => {
+  const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+  return windows.some(client => client.visibilityState === 'visible');
 };
 self.addEventListener('message', event => {
   if (event.data?.type !== 'CALL_STATE') return;

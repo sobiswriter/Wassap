@@ -53,7 +53,8 @@ import {
   getBackgroundExchanges, 
   clearBackgroundExchanges,
   clearOfflineDataForChat,
-  recordBackgroundMarkAsRead
+  recordBackgroundMarkAsRead,
+  releasePendingDeliveryLease
 } from './utils/offlineQueue';
 import { MobileActionFAB } from './components/MobileActionFAB';
 
@@ -237,6 +238,7 @@ const getSquareNotificationIcon = async (url?: string): Promise<string> => {
 const notificationRevisions = new Map<string, number>();
 const showNotification = async (title: string, options: NotificationOptions & { silentUpdate?: boolean }) => {
   if (!('Notification' in window)) return;
+  if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;
   const tag = options.tag || title;
   const revision = (notificationRevisions.get(tag) || 0) + 1;
   notificationRevisions.set(tag, revision);
@@ -2894,6 +2896,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       if (callRef.current && callRef.current.snapshot.status !== 'ended') { aiRespondingChatsRef.current.delete(chatId); return; }
       if (ownController && personaAbortControllersRef.current[chatId] && personaAbortControllersRef.current[chatId] !== ownController) return;
       if (replied) await completeQueuedTurn(chatId, turnIds);
+      else if (timedOut) await releasePendingDeliveryLease(chatId, turnIds);
       else await failQueuedTurn(chat, turnIds);
       clearChatActiveStatus(chatId);
       aiRespondingChatsRef.current.delete(chatId);
@@ -3203,6 +3206,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     }
     
     if (replied) await completeQueuedTurn(group.id, turnIds);
+    else if (timedOut) await releasePendingDeliveryLease(group.id, turnIds);
     else if (!(callRef.current && callRef.current.snapshot.status !== 'ended')) await failQueuedTurn(group, turnIds);
     clearChatActiveStatus(group.id);
     aiRespondingChatsRef.current.delete(group.id);
