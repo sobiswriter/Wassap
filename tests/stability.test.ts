@@ -79,7 +79,7 @@ test('releasing a pending lease keeps the turn pending instead of failing it', a
 
 function workerFixture() {
   const stores = new Map<string, Map<string, any>>([['pending_outbox', new Map()], ['synced_background', new Map()]]);
-  const notifications: any[] = []; let requests = 0; let online = false; const events: Record<string, Function> = {};
+  const notifications: any[] = []; const clientList: any[] = []; let requests = 0; let online = false; const events: Record<string, Function> = {};
   const db: any = { close() {}, transaction(name: string) {
     const tx: any = { objectStore: (storeName = name) => ({
       put(item: any) { stores.get(storeName)!.set(item.id, structuredClone(item)); queueMicrotask(() => tx.oncomplete?.()); },
@@ -89,13 +89,13 @@ function workerFixture() {
     }) }; return tx;
   } };
   const context: any = { console, URL, Date, Math, Promise, AbortController, setTimeout, clearTimeout, crypto,
-    structuredClone, clients: { matchAll: async () => [] },
+    structuredClone, clients: { matchAll: async () => clientList },
     indexedDB: { open: () => { const request: any = { result: db }; queueMicrotask(() => request.onsuccess()); return request; } },
     fetch: async () => { requests++; if (!online) throw new TypeError('Network disconnected'); return { ok: true, json: async () => ({ text: 'An older fragment.\n\nHere is the newest reply.' }) }; },
     self: { addEventListener: (name: string, callback: Function) => events[name] = callback, registration: { showNotification: async (_title: string, options: any) => notifications.push(options), sync: { register: async () => {} } } }
   };
   runInNewContext(readFileSync('public/sw.js', 'utf8') + '\nglobalThis.deliver = deliverNotificationReply;', context);
-  return { stores, notifications, events, context, get requests() { return requests; }, reconnect: () => { online = true; } };
+  return { stores, notifications, events, context, clientList, get requests() { return requests; }, reconnect: () => { online = true; } };
 }
 
 test('notification worker preserves a healthy 25-second Cloud response within its lease', async () => {
@@ -147,6 +147,17 @@ test('offline notification input is durable and shows every fragment of the curr
   assert.equal(fixture.notifications.at(-1).tag, 'chat', 'Next response replaces the same chat notification');
   assert.equal(fixture.notifications.at(-1).body, 'An older fragment.\nHere is the newest reply.', 'Only the current turn appears, not the conversation history');
   assert.ok(fixture.notifications.at(-1).actions.some((action: any) => action.action === 'reply'));
+});
+
+test('worker suppresses native notification when app window is visible', async () => {
+  const fixture = workerFixture();
+  fixture.reconnect();
+  fixture.clientList.push({ visibilityState: 'visible', postMessage() {} });
+  const item = { id: 'visible', chatId: 'chat', message: { id: 'visible', text: 'Hello', sender: 'me' }, notificationData: { chatName: 'Maya', chatAvatar: '/persona-test.png', provider: 'vertex' } };
+  fixture.stores.get('pending_outbox')!.set(item.id, item);
+  await fixture.context.deliver(item);
+  assert.equal(fixture.notifications.length, 0);
+  assert.equal(fixture.stores.get('pending_outbox')!.size, 0);
 });
 
 

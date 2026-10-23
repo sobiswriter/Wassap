@@ -238,6 +238,7 @@ const getSquareNotificationIcon = async (url?: string): Promise<string> => {
 const notificationRevisions = new Map<string, number>();
 const showNotification = async (title: string, options: NotificationOptions & { silentUpdate?: boolean }) => {
   if (!('Notification' in window)) return;
+  if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;
   const tag = options.tag || title;
   const revision = (notificationRevisions.get(tag) || 0) + 1;
   notificationRevisions.set(tag, revision);
