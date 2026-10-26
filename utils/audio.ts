@@ -2,6 +2,25 @@
  * Audio utilities for AI Voice Notes (gemini-3.1-flash-tts-preview)
  */
 
+export async function createMicrophoneRecorder(): Promise<MediaRecorder> {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      sampleRate: { ideal: 48000 },
+      channelCount: { ideal: 1 },
+      // Voice recordings do not need the speech processing used by two-way calls.
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false
+    }
+  });
+  try {
+    return new MediaRecorder(stream, { audioBitsPerSecond: 192000 });
+  } catch (error) {
+    stream.getTracks().forEach(track => track.stop());
+    throw error;
+  }
+}
+
 /**
  * Strips all emoji characters, variation selectors, and pictographs from voice transcripts and speech inputs.
  */

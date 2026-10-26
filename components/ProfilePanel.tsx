@@ -12,6 +12,7 @@ import { DEFAULT_TEMPLATES, GEMINI_TTS_VOICES, DEFAULT_VOICE_SETTINGS, GEMINI_TT
 import { generateGeminiVoiceNote, getGeminiResponse } from '../services/geminiService';
 import { getSavedCustomVoices, saveCustomVoice, deleteCustomVoiceComplete, craftCustomVoice, replicateCustomVoice, VOICE_DESIGN_INSPIRATIONS, isDesignedVoice, isReplicatedVoice, getVoiceAudioPreview } from '../utils/customVoices';
 import { convertAudioTo24kMonoWav } from '../utils/audioResampler';
+import { createMicrophoneRecorder } from '../utils/audio';
 
 interface ProfilePanelProps {
   closing?: boolean;
@@ -284,9 +285,9 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   const startRecordingReplicationAudio = async () => {
     try {
       setReplicateError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = await createMicrophoneRecorder();
+      const stream = mediaRecorder.stream;
       audioChunksRef.current = [];
-      const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (e) => {
@@ -360,9 +361,9 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({
   const startRecordingConsentAudio = async () => {
     try {
       setReplicateError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = await createMicrophoneRecorder();
+      const stream = mediaRecorder.stream;
       consentAudioChunksRef.current = [];
-      const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderConsentRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (e) => {

@@ -1308,9 +1308,12 @@ const App: React.FC = () => {
       delete personaOnlineTimersRef.current[chatId];
       const current = chatsRef.current.find(c => c.id === chatId);
       if (callRef.current?.chat.id === chatId && callRef.current.snapshot.status !== 'ended') return;
-      if (!isBusyChatStatus(current?.status) && !aiRespondingChatsRef.current.has(chatId)) {
-        setChatStatus(chatId, 'offline', getFormattedTime());
+      if (!current) return;
+      if (isBusyChatStatus(current.status) || aiRespondingChatsRef.current.has(chatId) || aiResponseTimeoutsRef.current[chatId]) {
+        schedulePersonaOffline(chatId, delayMs);
+        return;
       }
+      setChatStatus(chatId, 'offline', getFormattedTime());
     }, effectiveDelay);
   };
 
@@ -2204,9 +2207,8 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
         pendingTimeGapsRef.current[chatId] = timeGapContext;
       }
 
-      const isOnlineSession = targetChat.status === 'online';
-      const delaySeconds = isOnlineSession
-        ? Math.min(settings.textStackingDelay || 10, 4)
+      const delaySeconds = bypassStacking
+        ? 0
         : (settings.textStackingDelay || 10);
 
       aiResponseTimeoutsRef.current[chatId] = window.setTimeout(async () => {
@@ -2302,6 +2304,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       const targetChat = chatsRef.current.find(c => c.id === chatId);
       if (!targetChat) return;
 
+      cancelPersonaOfflineTimer(chatId);
       const isTargetMe = targetMessage.sender === 'me';
       const authorLabel = isTargetMe ? 'their own' : (targetChat.isGroup ? (targetMessage.senderName || 'another member') : 'your');
       const msgDesc = targetMessage.attachment?.type === 'image' || targetMessage.image
@@ -2338,9 +2341,9 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           clearTimeout(aiResponseTimeoutsRef.current[chatId]);
         }
 
-        const isOnlineSession = targetChat.status === 'online';
+        const isOnlineSession = settings.enableDynamicOnlinePresence && targetChat.status === 'online';
         const delaySeconds = isOnlineSession
-          ? Math.min(settings.textStackingDelay || 10, 4)
+          ? 0
           : (settings.textStackingDelay || 10);
 
         aiResponseTimeoutsRef.current[chatId] = window.setTimeout(async () => {
@@ -2434,6 +2437,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     const settings = settingsRef.current;
     if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
     const chatId = chat.id;
+    cancelPersonaOfflineTimer(chatId);
     aiRespondingChatsRef.current.add(chatId);
     let replied = false;
     let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
@@ -2914,6 +2918,7 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
     const settings = settingsRef.current;
     if (callRef.current && callRef.current.snapshot.status !== 'ended') return;
     if (!group.memberIds?.length) return;
+    cancelPersonaOfflineTimer(group.id);
     aiRespondingChatsRef.current.add(group.id);
     const attempt = await beginPendingAttempt(group.id, updatedHistory, settings.enableTextStacking !== false);
     const deadline = attempt?.deadline;

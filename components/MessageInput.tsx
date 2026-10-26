@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Smile, SendHorizontal, Image as ImageIcon, FileText, X, Paperclip, Camera, MapPin, User, Headphones, BarChart, Calendar, Sparkles, Mic, Square, Sticker, Trash2, Check } from 'lucide-react';
 import { FileAttachment, Message, AppSettings } from '../types';
 import { compressImage } from '../utils/imageCompressor';
-import { formatAudioDuration } from '../utils/audio';
+import { createMicrophoneRecorder, formatAudioDuration } from '../utils/audio';
 import { triggerHaptic } from '../utils/haptics';
 import { EmojiPickerTray } from './EmojiPickerTray';
 
@@ -474,8 +474,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const mediaRecorder = await createMicrophoneRecorder();
+      const stream = mediaRecorder.stream;
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
       setRecordingDuration(0);
@@ -496,7 +496,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
           clearInterval(recordingTimerRef.current);
           recordingTimerRef.current = null;
         }
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || audioChunksRef.current[0]?.type });
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
