@@ -31,8 +31,8 @@ test('media resolver refuses loopback without contacting it', async () => {
   }
 });
 
-test('only the two requested text models are offered', () => {
-  assert.deepEqual(AVAILABLE_MODELS.map(model => model.id).sort(), ['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
+test('only the three requested text models are offered', () => {
+  assert.deepEqual(AVAILABLE_MODELS.map(model => model.id).sort(), ['gemini-3.8-flash', 'gemini-4-carbon', 'gemini-4-hydrogen']);
 });
 import { readFileSync, readdirSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
@@ -273,13 +273,13 @@ test('foreground chat keeps custom-key SDK and built-in proxy routing working', 
   });
   const controller = new AbortController();
   try {
-    const base = { theme: 'dark' as const, shareUserInfo: true, selectedModel: 'gemini-3.5-flash-lite', apiKey: 'fixture-user-key', isVertexUnlocked: true };
+    const base = { theme: 'dark' as const, shareUserInfo: true, selectedModel: 'gemini-4-hydrogen', apiKey: 'fixture-user-key', isVertexUnlocked: true };
     assert.equal(await getGeminiResponse({ name: 'Fixture' }, [{ text: 'Hello', sender: 'me' }], undefined, undefined, { ...base, aiProvider: 'studio' }, undefined, undefined, undefined, controller.signal), 'Custom fixture reply');
-    assert.match(calls[0].url, /generativelanguage.googleapis.com.*gemini-3\.5-flash-lite/);
+    assert.match(calls[0].url, /generativelanguage.googleapis.com.*gemini-4-hydrogen/);
     assert.equal(calls[0].headers.get('x-goog-api-key'), 'fixture-user-key');
     assert.equal(await getGeminiResponse({ name: 'Fixture' }, [{ text: 'Hello', sender: 'me' }], undefined, undefined, { ...base, aiProvider: 'vertex' }), 'Cloud fixture reply');
     assert.equal(calls.at(-1)!.url, '/api/gemini/generate');
     assert.equal(calls.at(-1)!.headers.has('x-vertex-passcode'), false);
-    assert.equal(calls.at(-1)!.body.settings.selectedModel, 'gemini-3.5-flash-lite');
+    assert.equal(calls.at(-1)!.body.settings.selectedModel, 'gemini-4-hydrogen');
   } finally { controller.abort(); fetchMock.mock.restore(); }
 });

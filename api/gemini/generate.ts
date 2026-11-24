@@ -441,7 +441,10 @@ function getInCharacterGlitchMessage(
 }
 
 function resolveVertexModel(selectedModel?: string): string {
-  return selectedModel === 'gemini-3.5-flash-lite' ? selectedModel : 'gemini-3.8-flash';
+  if (selectedModel && ['gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-carbon', 'gemini-3.5-flash-lite'].includes(selectedModel)) {
+    return selectedModel;
+  }
+  return 'gemini-3.8-flash';
 }
 
 /**

@@ -237,7 +237,10 @@ function getVertexClient() {
 }
 
 function resolveVertexModel(selectedModel?: string): string {
-  return selectedModel === 'gemini-3.5-flash-lite' ? selectedModel : 'gemini-3.8-flash';
+  if (selectedModel && ['gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-carbon', 'gemini-3.5-flash-lite'].includes(selectedModel)) {
+    return selectedModel;
+  }
+  return 'gemini-3.8-flash';
 }
 
 function detectDiaryLanguageDirective(
@@ -302,7 +305,7 @@ async function handleVertexDiary(payload: DiaryPayload): Promise<{ ok: boolean; 
   let historyString = '';
 
   if (isSingleDay) {
-    const msgs = (messageHistory || []).slice(-80);
+    const msgs = (messageHistory || []).slice(-400);
     historyString = msgs
       .map(m => formatMessageLine(m))
       .join('\n');
@@ -315,18 +318,18 @@ async function handleVertexDiary(payload: DiaryPayload): Promise<{ ok: boolean; 
       if (msgs.length === 0) continue;
 
       let chosenMsgs: typeof msgs = [];
-      if (msgs.length <= 20) {
+      if (msgs.length <= 100) {
         chosenMsgs = msgs;
       } else {
         // Real-world events must ALWAYS be preserved
         const events = msgs.filter(m => m.isEvent);
         const nonEvents = msgs.filter(m => !m.isEvent);
-        const startChunk = nonEvents.slice(0, 4);
-        const endChunk = nonEvents.slice(-4);
-        const middlePool = nonEvents.slice(4, -4);
+        const startChunk = nonEvents.slice(0, 15);
+        const endChunk = nonEvents.slice(-25);
+        const middlePool = nonEvents.slice(15, -25);
         
         const sortedMiddle = [...middlePool].sort((a, b) => (b.text?.length || 0) - (a.text?.length || 0));
-        const pickedMiddle = sortedMiddle.slice(0, Math.max(0, 10 - events.length));
+        const pickedMiddle = sortedMiddle.slice(0, Math.max(0, 60 - events.length));
 
         chosenMsgs = Array.from(new Set([...events, ...startChunk, ...pickedMiddle, ...endChunk]))
           .sort((a, b) => msgs.indexOf(a) - msgs.indexOf(b));
@@ -457,8 +460,7 @@ PRIVATE RECOLLECTION OF EVENTS BY ${persona.name} (${dateLabel}):`;
   const primaryModel = resolveVertexModel(settings?.selectedModel);
   const fallbackModels = Array.from(new Set([
     primaryModel,
-    'gemini-3.8-flash',
-    'gemini-3.5-flash-lite'
+    'gemini-3.8-flash'
   ]));
 
   let lastError: any = null;

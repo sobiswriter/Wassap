@@ -416,7 +416,7 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
   const prompt = buildSWPrompt(notifData, history, promptOverride);
 
   if ((provider === 'studio' || provider === 'custom') && customApiKey) {
-    const model = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'].includes(notifData.model) ? notifData.model : 'gemini-3.8-flash';
+    const model = ['gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-carbon', 'gemini-3.5-flash-lite'].includes(notifData.model) ? notifData.model : 'gemini-3.8-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${customApiKey}`;
     
 
@@ -454,7 +454,7 @@ const generateSWPersonaReply = async (notifData, history, promptOverride, replyT
       },
       groupContext: notifData.groupContext,
       settings: { ...(notifData.settings || {
-        selectedModel: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'].includes(notifData.model) ? notifData.model : 'gemini-3.8-flash',
+        selectedModel: ['gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-carbon', 'gemini-3.5-flash-lite'].includes(notifData.model) ? notifData.model : 'gemini-3.8-flash',
         useSearchGrounding: notifData.useSearchGrounding,
         shareTimeContext: notifData.shareTimeContext !== false,
         shareCalendarNotes: notifData.shareCalendarNotes,

@@ -1495,6 +1495,8 @@ CRITICAL RULE: Use this as SUBTLE background context only to influence your mood
           text = `[User sent a sticker: "${m.attachment?.name || 'Sticker'}"]`;
         } else if ((m.isGif || m.attachment?.isGif) && !text) {
           text = `[User sent a GIF animation: "${m.attachment?.name || 'GIF'}"]`;
+        } else if (m.attachment?.type === 'video' && !m.isGif) {
+          text = text ? `[User sent a video: "${m.attachment?.name || 'video.mp4'}" with caption: "${text}"]` : `[User sent a video: "${m.attachment?.name || 'video.mp4'}"]`;
         }
 
         const shouldHydrate = mediaIndicesToHydrate.has(sliceIdx);
@@ -2309,7 +2311,13 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
       const authorLabel = isTargetMe ? 'their own' : (targetChat.isGroup ? (targetMessage.senderName || 'another member') : 'your');
       const msgDesc = targetMessage.attachment?.type === 'image' || targetMessage.image
         ? 'photo'
-        : (targetMessage.attachment?.type === 'video' || targetMessage.isGif ? 'GIF' : (targetMessage.attachment?.type === 'audio' || targetMessage.voiceAttachment ? 'voice note' : 'message'));
+        : (targetMessage.attachment?.type === 'video' && !targetMessage.isGif && !targetMessage.attachment?.isGif
+            ? 'video'
+            : (targetMessage.isGif || targetMessage.attachment?.isGif
+                ? 'GIF'
+                : (targetMessage.attachment?.type === 'audio' || targetMessage.voiceAttachment
+                    ? 'voice note'
+                    : 'message')));
       const textPreview = targetMessage.text ? ` ("${targetMessage.text.slice(0, 80)}")` : '';
       
       const reactionPrompt = `[USER REACTION EVENT]: The user just reacted with "${emoji}" to ${authorLabel} ${msgDesc}${textPreview}. This is a social cue, not an instruction to change the topic.`;
@@ -3933,8 +3941,21 @@ Guideline: Reach out naturally. Prioritize the previous conversation context and
           {showUserProfilePanel && (
             <UserProfilePanel
               user={user}
+              chats={chats}
+              settings={settings}
               onClose={() => setShowUserProfilePanel(false)}
               onUpdate={setUser}
+              onRestoreState={(restoredChats, restoredSettings, restoredUser) => {
+                if (Array.isArray(restoredChats)) {
+                  setChats(restoredChats);
+                  if (activeChatId && !restoredChats.some(c => c.id === activeChatId)) {
+                    setActiveChatId(restoredChats[0]?.id || null);
+                  }
+                }
+                if (restoredSettings) setSettings(restoredSettings);
+                if (restoredUser) setUser(restoredUser);
+                setShowUserProfilePanel(false);
+              }}
             />
           )}
           {showGuide && (

@@ -11,6 +11,7 @@ import {
   handleVertexImageExcuse 
 } from './vertexHandler';
 import voicesHandler from '../api/gemini/voices';
+import backupHandler from '../api/gemini/backup';
 import { handleLiveRequest } from '../api/gemini/live';
 
 export async function parseJsonBody<T = any>(req: IncomingMessage & { body?: any }): Promise<T> {
@@ -221,6 +222,7 @@ export async function handleGeminiApiMiddleware(
   }
 
   if (url === '/api/gemini/status') { await statusHandler(req, res); return; }
+  if (url.startsWith('/api/gemini/backup')) { await backupHandler(req, res); return; }
 
   if (url === '/api/giphy/search') {
     res.setHeader('Access-Control-Allow-Origin', '*');

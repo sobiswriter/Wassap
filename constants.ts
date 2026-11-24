@@ -254,8 +254,9 @@ export const COLORS = {
 };
 
 export const AVAILABLE_MODELS = [
-  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
-  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite' },
+  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (Default)' },
+  { id: 'gemini-4-hydrogen', label: 'Gemini 4 Hydrogen (Advanced Reasoning)' },
+  { id: 'gemini-4-carbon', label: 'Gemini 4 Carbon (High Capability)' },
 ];
 
 export const normalizeTextModel = (model?: string): string =>

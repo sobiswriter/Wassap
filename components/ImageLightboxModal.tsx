@@ -6,6 +6,7 @@ interface ImageLightboxModalProps {
   caption?: string;
   senderName?: string;
   timestamp?: string;
+  isVideo?: boolean;
   onClose: () => void;
 }
 
@@ -14,6 +15,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
   caption,
   senderName,
   timestamp,
+  isVideo = false,
   onClose,
 }) => {
   useEffect(() => {
@@ -30,7 +32,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
     e.stopPropagation();
     const link = document.createElement('a');
     link.href = src;
-    link.download = `photo-${Date.now()}.jpg`;
+    link.download = isVideo ? `video-${Date.now()}.mp4` : `photo-${Date.now()}.jpg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -48,7 +50,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
       >
         <div className="flex flex-col text-white">
           <span className="font-semibold text-sm sm:text-base">
-            {senderName || 'Photo'}
+            {senderName || (isVideo ? 'Video' : 'Photo')}
           </span>
           {timestamp && (
             <span className="text-xs text-white/60">{timestamp}</span>
@@ -59,7 +61,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
           <button
             onClick={handleDownload}
             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-            title="Download photo"
+            title={isVideo ? "Download video" : "Download photo"}
           >
             <Download size={20} />
           </button>
@@ -73,17 +75,28 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
         </div>
       </div>
 
-      {/* Main Image Stage */}
+      {/* Main Stage */}
       <div
         className="flex-1 flex items-center justify-center p-2 min-h-0 overflow-hidden"
         onClick={onClose}
       >
-        <img
-          src={src}
-          alt={caption || 'Full screen photo view'}
-          className="max-w-full max-h-[78vh] sm:max-h-[82vh] object-contain rounded-xl shadow-2xl cursor-default transition-all duration-300"
-          onClick={(e) => e.stopPropagation()}
-        />
+        {isVideo ? (
+          <video
+            src={src}
+            controls
+            autoPlay
+            playsInline
+            className="max-w-full max-h-[78vh] sm:max-h-[82vh] object-contain rounded-xl shadow-2xl cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <img
+            src={src}
+            alt={caption || 'Full screen view'}
+            className="max-w-full max-h-[78vh] sm:max-h-[82vh] object-contain rounded-xl shadow-2xl cursor-default transition-all duration-300"
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
       </div>
 
       {/* Bottom Caption Bar */}

@@ -262,7 +262,7 @@ RULES:
 2. Maintain your persona's tone, slang, and speech style.
 3. Keep it strictly 1 short sentence.`;
 
-    const modelToUse = (settings?.selectedModel === 'gemini-3.5-flash-lite' ? settings.selectedModel : 'gemini-3.8-flash');
+    const modelToUse = (settings?.selectedModel && ['gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-carbon'].includes(settings.selectedModel)) ? settings.selectedModel : 'gemini-3.8-flash';
     const response = await ai.models.generateContent({
       model: modelToUse,
       contents: [{ role: 'user', parts: [{ text: excusePrompt }] }],

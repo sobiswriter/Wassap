@@ -345,9 +345,9 @@ Return ONLY a valid JSON object with keys "mode", "user_wants_posed", "caption",
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       try {
-        let modelToUse = (settings?.selectedModel === 'gemini-3.5-flash-lite' ? settings.selectedModel : 'gemini-3.8-flash');
+        let modelToUse = (settings?.selectedModel && ['gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-carbon'].includes(settings.selectedModel)) ? settings.selectedModel : 'gemini-3.8-flash';
         if (attempt > 1) {
-          modelToUse = 'gemini-3.5-flash-lite';
+          modelToUse = 'gemini-3.8-flash';
         }
 
         const response = await ai.models.generateContent({

@@ -15,6 +15,32 @@
 
 ## ⚡ Current State & What Was Just Worked On
 
+### Cloud Save Slots, Gemini 4 Models, Diary Semantic Recollection, Video Messaging & Chat Export (24 November 2026)
+- **Three Supported Text Models**:
+  - Added support for `gemini-3.8-flash`, `gemini-4-hydrogen`, and `gemini-4-carbon` in `constants.ts`, `public/sw.js`, `services/geminiService.ts`, and all serverless endpoints (`api/gemini/generate.ts`, `api/gemini/diary.ts`, `api/gemini/image.ts`, `api/gemini/image-excuse.ts`, `api/gemini/image-synthesize.ts`). Retired references to older models like `gemini-3.5-flash-lite`.
+- **Diary Deep Recollection & Semantic Media**:
+  - Upgraded diary history generator to format media semantically rather than omitting them or overloading with raw binary: transcribed text for voice notes (`[Voice Note (MM:SS)]: "..."`), descriptive captions for photos (`[Shared Photo: "..."]`), videos (`[Shared Video: "..."]`), stickers (`[Sent Sticker: "..."]`), and GIFs (`[Sent GIF: "..."]`).
+  - Expanded single-day message window from 80 to 400 messages (`.slice(-400)`), and multi-day history from 10 to up to 100 messages per day in both frontend and backend handlers (`services/geminiService.ts`, `api/gemini/diary.ts`), allowing full morning-to-night context without running out of tokens or timing out.
+- **Direct Chat Export & ZIP Bundle Generator**:
+  - Implemented zero-dependency universal browser ZIP creator (`utils/zip.ts`) with standard PK archive headers and CRC-32 checksum calculation.
+  - Implemented `utils/exportChat.ts` with options to export chat as clean JSON, or as a complete ZIP bundle containing `chat.json` and all voice messages exported directly from IndexedDB into `audio/*.wav` files.
+  - Added individual WAV download icon to `components/VoiceNotePlayer.tsx`.
+  - Added "Export chat" modal in `components/ChatWindow.tsx` options menu.
+- **Video Messaging Support & Scaled Output Timeouts**:
+  - Enhanced `components/MessageInput.tsx` to accept and distinguish real videos (`video/*`) with `isGif: false`.
+  - Added inline video playback with player controls (`<video controls playsInline>`) in `components/ChatWindow.tsx`, and updated `components/ImageLightboxModal.tsx` for full-screen video playback and `.mp4` downloads.
+  - Scaled TTS timeouts dynamically (up to 55s/60s/65s) for longer voiceovers (>25 seconds of speech, >120 characters) and diary generation (55s) in `api/gemini/tts.ts` and `services/geminiService.ts`, while maintaining 18s default for short text.
+- **Password-Protected Slot-Based Cloud Save**:
+  - Created `/api/gemini/backup` serverless endpoint with origin checking, constant-time SHA-256 passcode validation, and CRUD operations for backup slots (`list`, `save`, `restore`, `delete`).
+  - Added "Cloud Save & Slots" UI to `components/UserProfilePanel.tsx` with passcode lock/unlock, slot listing, metadata (date, message count, persona count, file size), save-as-new-slot modal, one-click restore with confirmation, and slot deletion.
+  - Client-side persistence and local mirroring in `services/cloudBackup.ts`.
+  - Added `.data/` to `.gitignore` to prevent local slot files from being committed.
+- **Verification & Compliance**:
+  - All 88 unit and integration tests passing (`npm test`).
+  - TypeScript type check (`npx tsc --noEmit`) passes with zero errors.
+  - Production build (`npm run build`) builds cleanly.
+  - Strictly respected Rule 1.1: **No `git push` performed**.
+
 ### Microphone recording and dynamic online/fast chat fixes (26 October 2026)
 - Reviewed the clean checkout and recent committed diffs, including background-turn lease handling and visible-app notification suppression; those behaviors remain intact. No commit, branch, PR, push or deployment.
 - Voice notes, voice-replication samples and consent recordings now share `utils/audio.ts:createMicrophoneRecorder`: prefer 48 kHz mono capture without browser echo cancellation, noise suppression or automatic gain, and request 192 kbps encoding using the browser's native codec. Constructor failures release the microphone. Composer blobs preserve the recorder's real MIME type instead of always claiming WebM. Live-call capture retains its existing echo/noise protection and 16 kHz transport; replication still converts to the required 24 kHz WAV.

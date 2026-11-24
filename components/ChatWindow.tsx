@@ -1,10 +1,11 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Search, MoreVertical, CheckCheck, Check, Clock, CircleAlert, Upload, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar, Star, Share2, Phone, Archive, ArchiveRestore } from 'lucide-react';
+import { Search, MoreVertical, CheckCheck, Check, Clock, CircleAlert, Upload, Lock, X, Trash2, Info, Eraser, FileText, UserPlus, File, Download, ArrowLeft, User, CornerDownLeft, Copy, Save, Camera, Mic, ChevronDown, ChevronUp, Calendar, Star, Share2, Phone, Archive, ArchiveRestore, Maximize2 } from 'lucide-react';
 import { Chat, MemoryBubble, Message, AppSettings, UserProfile } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { formatChatDividerLabel, formatDateRangeLabel, getDaysBetween, getMessageDateKey, getMessageTimestampEpoch, isDateInRange, normalizeDateKey, resolveChatMessagesDates, getAppDateKey } from '../utils/dates';
 import { getGeminiDiaryEntry } from '../services/geminiService';
 import { getMedia } from '../utils/storage';
+import { exportChatAsJson, exportChatAsZipBundle } from '../utils/exportChat';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { VoiceNotePlayer } from './VoiceNotePlayer';
 import { ImageLightboxModal } from './ImageLightboxModal';
@@ -152,15 +153,39 @@ const DateMemoryModal: React.FC<{
           systemInstruction: chat.systemInstruction,
           humaneSettings: chat.humaneSettings,
         },
-        capturedMessages.map(m => ({
-          text: m.text,
-          sender: m.sender,
-          senderName: m.senderName,
-          date: m.date || getMessageDateKey(m),
-          timestamp: m.timestamp,
-          isEvent: m.isEvent,
-          eventTitle: m.eventTitle,
-        })),
+        capturedMessages.map(m => {
+          let text = m.text || '';
+          const hasVoice = Boolean(m.voiceAttachment || m.voiceMediaId || (m.attachment?.type === 'audio'));
+          const hasVideo = Boolean(m.attachment?.type === 'video');
+          const hasImage = Boolean(m.image || m.mediaId || (m.attachment?.type === 'image'));
+          const isSticker = Boolean(m.isSticker);
+          const isGif = Boolean(m.isGif || m.attachment?.isGif);
+
+          if (hasVoice) {
+            const durationStr = m.voiceDuration ? `${Math.floor(m.voiceDuration / 60)}:${String(Math.floor(m.voiceDuration % 60)).padStart(2, '0')}` : '';
+            text = `[Voice Note${durationStr ? ` (${durationStr})` : ''}]: "${text || '(spoken audio message)'}"`;
+          } else if (hasVideo) {
+            text = `[Shared Video${m.attachment?.name ? `: "${m.attachment.name}"` : ''}${text ? ` - "${text}"` : ''}]`;
+          } else if (hasImage) {
+            text = text ? `[Shared Photo: "${text}"]` : `[Shared Photo${m.attachment?.name ? `: "${m.attachment.name}"` : ''}]`;
+          } else if (isSticker) {
+            text = `[Sent Sticker: "${m.attachment?.name || 'Sticker'}"]`;
+          } else if (isGif) {
+            text = `[Sent GIF animation: "${m.attachment?.name || 'GIF'}"]`;
+          } else if (m.attachment?.type === 'document') {
+            text = `[Shared Document: "${m.attachment.name}"]`;
+          }
+
+          return {
+            text,
+            sender: m.sender,
+            senderName: m.senderName,
+            date: m.date || getMessageDateKey(m),
+            timestamp: m.timestamp,
+            isEvent: m.isEvent,
+            eventTitle: m.eventTitle,
+          };
+        }),
         normalizedStart,
         normalizedEnd,
         settings,
@@ -330,7 +355,7 @@ const MessageBubble = React.memo<{
   selectionMode?: boolean;
   isConsecutive?: boolean;
   isRecent?: boolean;
-  onOpenImage?: (src: string, caption?: string, senderName?: string, timestamp?: string) => void;
+  onOpenImage?: (src: string, caption?: string, senderName?: string, timestamp?: string, isVideo?: boolean) => void;
 }>(({ message, highlight, isGroup, chatName, chatAvatar, onReply, onRetry, retryDisabled, selected, onToggleSelect, onToggleReaction, selectionMode, isConsecutive, isRecent, onOpenImage }) => {
   const isMe = message.sender === 'me';
   const nameColor = isGroup && !isMe ? MEMBER_COLORS[Math.abs(message.senderName?.length || 0) % MEMBER_COLORS.length] : '';
@@ -598,15 +623,19 @@ const MessageBubble = React.memo<{
 
   const mediaSrc = mediaData || message.image || message.attachment?.data || null;
   const voiceSrc = voiceData || message.voiceAttachment?.data || (message.attachment?.type === 'audio' ? mediaSrc : null);
+  const isRealVideoMessage = Boolean(
+    message.attachment?.type === 'video' && !message.isGif && !message.attachment?.isGif && !message.isSticker
+  );
   const isGifMessage = Boolean(
-    message.isGif ||
-    message.attachment?.isGif ||
-    (message.attachment?.type === 'video' && !message.isSticker) ||
-    (mediaSrc && message.attachment?.name && /\.gif$/i.test(message.attachment.name))
+    !isRealVideoMessage && (
+      message.isGif ||
+      message.attachment?.isGif ||
+      (mediaSrc && message.attachment?.name && /\.gif$/i.test(message.attachment.name))
+    )
   );
   const hasImage = Boolean(mediaSrc && message.attachment?.type !== 'audio');
   const hasVoice = Boolean(voiceSrc);
-  const isMediaMessage = hasImage;
+  const isMediaMessage = hasImage || isRealVideoMessage;
 
   if (message.call) {
     return <div className={`flex ${message.sender === 'me' ? 'justify-end' : 'justify-start'} my-2 px-3`}>
@@ -909,7 +938,8 @@ const MessageBubble = React.memo<{
                     mediaSrc,
                     message.text,
                     isMe ? 'You' : (message.senderName || undefined),
-                    message.timestamp
+                    message.timestamp,
+                    isRealVideoMessage
                   );
                 }}
               >
@@ -917,7 +947,34 @@ const MessageBubble = React.memo<{
                   className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 inline-flex min-h-11 items-center gap-2 rounded-full bg-black/60 px-5 py-2 text-white font-medium disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                   onTouchStart={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()}
                   onClick={event => { event.stopPropagation(); onRetry(message.id); }}><Upload size={20} />Retry</button>}
-                {isGifMessage ? (
+                {isRealVideoMessage ? (
+                  <div className="relative overflow-hidden rounded-lg max-w-[330px] mx-auto bg-black/20 group/vid" onClick={(e) => e.stopPropagation()}>
+                    <video
+                      src={mediaSrc}
+                      controls
+                      playsInline
+                      className="w-full h-auto max-h-[300px] object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Expand video"
+                      title="Expand video"
+                      className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover/vid:opacity-100 transition-opacity hover:bg-black/80 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenImage?.(
+                          mediaSrc,
+                          message.text,
+                          isMe ? 'You' : (message.senderName || undefined),
+                          message.timestamp,
+                          true
+                        );
+                      }}
+                    >
+                      <Maximize2 size={16} />
+                    </button>
+                  </div>
+                ) : isGifMessage ? (
                   <div className="relative overflow-hidden rounded-lg max-w-[220px] max-h-[220px] mx-auto">
                     {message.attachment?.type === 'video' ? (
                       <video
@@ -1170,7 +1227,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     caption?: string;
     senderName?: string;
     timestamp?: string;
+    isVideo?: boolean;
   } | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportProgress, setExportProgress] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1646,6 +1706,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   >
                     <Eraser size={18} className="text-secondary" /> Clear chat
                   </button>
+                  <button
+                    onClick={() => { setShowExportModal(true); setShowMenu(false); }}
+                    className="w-full text-left px-4 py-3 text-[calc(var(--msg-font-size))] text-primary hover:bg-black/5 flex items-center gap-3 transition-colors"
+                  >
+                    <Download size={18} className="text-secondary" /> Export chat
+                  </button>
                   <div className="h-[1px] app-border bg-border mx-2 my-1 opacity-50" />
                   <button
                     onClick={() => { onDeleteChat(); setShowMenu(false); }}
@@ -1738,12 +1804,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 selectionMode={selectedMessageIds.length > 0}
                 isConsecutive={isConsecutive}
                 isRecent={recentMessageIds.has(msg.id)}
-                onOpenImage={(src, caption, senderName, timestamp) => {
+                onOpenImage={(src, caption, senderName, timestamp, isVideo) => {
                   setLightboxImage({
                     src,
                     caption,
                     senderName: senderName || (msg.sender === 'me' ? 'You' : (msg.senderName || chat.name)),
-                    timestamp: timestamp || msg.timestamp
+                    timestamp: timestamp || msg.timestamp,
+                    isVideo
                   });
                 }}
               />
@@ -1770,12 +1837,107 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </button>
       )}
 
+      {showExportModal && (
+        <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="app-panel border app-border shadow-2xl rounded-xl w-full max-w-[420px] overflow-hidden text-primary animate-in fade-in zoom-in-95 duration-150">
+            <div className="app-header border-b app-border px-4 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-[#00a884]/10 text-[#00a884] flex items-center justify-center shrink-0">
+                  <Download size={18} />
+                </div>
+                <div>
+                  <h3 className="text-[calc(var(--msg-font-size)+1px)] font-semibold truncate">
+                    Export Chat
+                  </h3>
+                  <p className="text-[calc(var(--msg-font-size)-3px)] text-secondary truncate">
+                    {chat.name} · {chat.messages.length} messages
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Close export modal"
+                onClick={() => { setShowExportModal(false); setExportProgress(null); }}
+                className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 text-secondary transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <p className="text-[calc(var(--msg-font-size)-1px)] text-secondary">
+                Choose an export format for this conversation:
+              </p>
+
+              {exportProgress && (
+                <div className="p-3 bg-[#00a884]/10 rounded-lg text-xs text-[#00a884] flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin shrink-0" />
+                  <span>{exportProgress}</span>
+                </div>
+              )}
+
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  disabled={Boolean(exportProgress)}
+                  onClick={() => {
+                    exportChatAsJson(chat);
+                    setShowExportModal(false);
+                  }}
+                  className="w-full text-left p-3 rounded-lg border app-border hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-start gap-3 disabled:opacity-50"
+                >
+                  <FileText size={20} className="text-[#00a884] shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-sm block text-primary">Export as JSON</span>
+                    <span className="text-xs text-secondary block">Standalone JSON file containing all messages, transcripts, timestamps and metadata.</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={Boolean(exportProgress)}
+                  onClick={async () => {
+                    try {
+                      setExportProgress('Packing chat and audio voice notes...');
+                      await exportChatAsZipBundle(chat, setExportProgress);
+                      setShowExportModal(false);
+                      setExportProgress(null);
+                    } catch (err) {
+                      console.error('ZIP export failed', err);
+                      setExportProgress('Export failed. Please try JSON export.');
+                    }
+                  }}
+                  className="w-full text-left p-3 rounded-lg border app-border hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-start gap-3 disabled:opacity-50"
+                >
+                  <Archive size={20} className="text-[#00a884] shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-sm block text-primary">Export as ZIP (JSON + Voice Notes)</span>
+                    <span className="text-xs text-secondary block">Complete archive containing chat.json plus all voice note WAV audio files extracted from storage.</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div className="app-header border-t app-border px-4 py-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowExportModal(false); setExportProgress(null); }}
+                className="px-4 py-1.5 rounded-lg text-sm text-secondary hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {lightboxImage && (
         <ImageLightboxModal
           src={lightboxImage.src}
           caption={lightboxImage.caption}
           senderName={lightboxImage.senderName}
           timestamp={lightboxImage.timestamp}
+          isVideo={lightboxImage.isVideo}
           onClose={() => setLightboxImage(null)}
         />
       )}

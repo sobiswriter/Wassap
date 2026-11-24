@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, Pause, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { Play, Pause, FileText, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { formatAudioDuration, generateWaveformBars } from '../utils/audio';
+import { downloadVoiceNoteAudio } from '../utils/exportChat';
 
 // Custom WhatsApp microphone SVG icon
 const WhatsAppMicIcon = ({ size = 13, className = '' }) => (
@@ -266,11 +267,28 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
                 : formatAudioDuration(duration || 0)}
             </span>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  downloadVoiceNoteAudio(src, senderName);
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                className="p-1 text-secondary hover:text-[#00a884] hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors"
+                title="Download voice note (WAV)"
+                aria-label="Download voice note"
+              >
+                <Download size={13} />
+              </button>
+
               {/* WhatsApp Playback Speed Pill */}
               <button
                 type="button"
                 onClick={cyclePlaybackRate}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 className="px-1.5 py-0.5 bg-black/5 dark:bg-white/10 hover:bg-[#00a884]/20 hover:text-[#00a884] rounded text-[10px] font-bold text-secondary transition-colors"
                 title="Change playback speed"
               >

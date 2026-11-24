@@ -446,9 +446,12 @@ export default async function handler(
               }
             };
 
+        // Scale timeout for longer voiceovers (>25s of speech, typically >120 chars) up to 55s, preserving 18s default for short lines
+        const ttsTimeoutMs = (inputText?.length || 0) > 120 || (verbatimWithVocalTags?.length || 0) > 120 ? 55000 : 18000;
+
         const generateConfig: any = {
           responseModalities: ["AUDIO"],
-          httpOptions: { timeout: 18000 },
+          httpOptions: { timeout: ttsTimeoutMs },
           speechConfig: {
             voiceConfig: voiceConfigToUse
           }
@@ -456,7 +459,7 @@ export default async function handler(
 
         let candidateTimer: ReturnType<typeof setTimeout>;
         const candidateTimeout = new Promise<never>((_, reject) =>
-          candidateTimer = setTimeout(() => reject(new Error(`TTS candidate ${modelCandidate} timed out after 18s`)), 18000)
+          candidateTimer = setTimeout(() => reject(new Error(`TTS candidate ${modelCandidate} timed out after ${Math.round(ttsTimeoutMs / 1000)}s`)), ttsTimeoutMs)
         );
 
         let response: any;
@@ -480,7 +483,7 @@ export default async function handler(
                 contents: [{ role: 'user', parts: [{ text: verbatimWithVocalTags, ...((stylePrompt ?? combinedStyle) ? { speechMetadata: { style: stylePrompt ?? combinedStyle } } : {}) }] }],
                 config: {
                   responseModalities: ["AUDIO"],
-          httpOptions: { timeout: 18000 },
+                  httpOptions: { timeout: ttsTimeoutMs },
                   speechConfig: {
                     voiceConfig: { voice: fallbackVoiceName }
                   }

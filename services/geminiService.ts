@@ -361,8 +361,8 @@ async function fetchVertexDiary(payload: any, maxRetries = 1, signal?: AbortSign
     }
 
     try {
-      // 30s timeout on attempt 1, 15s on attempt 2 to give model plenty of thinking and prose generation headroom
-      const perAttemptTimeout = attempt === 1 ? 30000 : 15000;
+      // 55s timeout on attempt 1, 25s on attempt 2 to give model plenty of thinking and long context headroom
+      const perAttemptTimeout = attempt === 1 ? 55000 : 25000;
       const res = await fetchWithTimeout('/api/gemini/diary', {
         method: 'POST',
         headers: {
@@ -425,7 +425,7 @@ async function fetchVertexTTS(payload: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
-      timeoutMs: 22000,
+      timeoutMs: (payload.text?.length || 0) > 120 ? 65000 : 22000,
       signal,
     });
 
@@ -863,7 +863,7 @@ export const getGeminiResponse = async (
         // On retries after a rate limit or server issue, fallback to a lighter model
         let modelToUse = normalizeTextModel(settings?.selectedModel);
         if (attempt > 1) {
-          modelToUse = 'gemini-3.5-flash-lite';
+          modelToUse = 'gemini-3.8-flash';
         }
 
         const response = await ai.models.generateContent({
@@ -991,7 +991,7 @@ export function buildDiaryHistoryAndPrompt(
   let historyString = '';
 
   if (isSingleDay) {
-    const msgs = (messageHistory || []).slice(-80);
+    const msgs = (messageHistory || []).slice(-400);
     historyString = msgs
       .map(m => formatMessageLine(m))
       .join('\n');
@@ -1004,18 +1004,18 @@ export function buildDiaryHistoryAndPrompt(
       if (msgs.length === 0) continue;
 
       let chosenMsgs: typeof msgs = [];
-      if (msgs.length <= 20) {
+      if (msgs.length <= 100) {
         chosenMsgs = msgs;
       } else {
         // Real-world events must ALWAYS be preserved
         const events = msgs.filter(m => m.isEvent);
         const nonEvents = msgs.filter(m => !m.isEvent);
-        const startChunk = nonEvents.slice(0, 4);
-        const endChunk = nonEvents.slice(-4);
-        const middlePool = nonEvents.slice(4, -4);
+        const startChunk = nonEvents.slice(0, 15);
+        const endChunk = nonEvents.slice(-25);
+        const middlePool = nonEvents.slice(15, -25);
         
         const sortedMiddle = [...middlePool].sort((a, b) => (b.text?.length || 0) - (a.text?.length || 0));
-        const pickedMiddle = sortedMiddle.slice(0, Math.max(0, 10 - events.length));
+        const pickedMiddle = sortedMiddle.slice(0, Math.max(0, 60 - events.length));
 
         chosenMsgs = Array.from(new Set([...events, ...startChunk, ...pickedMiddle, ...endChunk]))
           .sort((a, b) => msgs.indexOf(a) - msgs.indexOf(b));
@@ -1220,8 +1220,7 @@ export const getGeminiDiaryEntry = async (
   const primaryModel = normalizeTextModel(settings?.selectedModel);
   const fallbackModels = Array.from(new Set([
     primaryModel,
-    'gemini-3.8-flash',
-    'gemini-3.5-flash-lite'
+    'gemini-3.8-flash'
   ]));
 
   for (let i = 0; i < fallbackModels.length; i++) {
@@ -1353,9 +1352,12 @@ export const generateGeminiVoiceNote = async (
               }
             };
 
+        // Scale timeout for longer voiceovers (>25s of speech, typically >120 chars) up to 60s, preserving 18s default for short lines
+        const ttsTimeoutMs = (inputText?.length || 0) > 120 || (verbatimWithVocalTags?.length || 0) > 120 ? 60000 : 18000;
+
         const generateConfig: any = {
           responseModalities: ["AUDIO"],
-          httpOptions: { timeout: 18000 },
+          httpOptions: { timeout: ttsTimeoutMs },
           abortSignal,
           speechConfig: {
             voiceConfig: voiceConfigToUse
@@ -1364,7 +1366,7 @@ export const generateGeminiVoiceNote = async (
 
         let candidateTimer: ReturnType<typeof setTimeout>;
         const candidateTimeout = new Promise<never>((_, reject) => {
-          const t = candidateTimer = setTimeout(() => reject(new Error(`Studio TTS candidate ${modelCandidate} timed out after 18s`)), 18000);
+          const t = candidateTimer = setTimeout(() => reject(new Error(`Studio TTS candidate ${modelCandidate} timed out after ${Math.round(ttsTimeoutMs / 1000)}s`)), ttsTimeoutMs);
           if (abortSignal) {
             abortSignal.addEventListener('abort', () => {
               clearTimeout(t);
@@ -1395,8 +1397,8 @@ export const generateGeminiVoiceNote = async (
                 contents: [{ role: 'user', parts: [{ text: verbatimWithVocalTags, ...(deliveryStyle ? { speechMetadata: { style: deliveryStyle } } : {}) }] }],
                 config: {
                   responseModalities: ["AUDIO"],
-          httpOptions: { timeout: 18000 },
-          abortSignal,
+                  httpOptions: { timeout: ttsTimeoutMs },
+                  abortSignal,
                   speechConfig: {
                     voiceConfig: { voice: fallbackVoiceName }
                   }
@@ -1680,7 +1682,7 @@ Return ONLY a valid JSON object with keys "mode", "user_wants_posed", "caption",
       try {
         let modelToUse = normalizeTextModel(settings?.selectedModel);
         if (attempt > 1) {
-          modelToUse = 'gemini-3.5-flash-lite';
+          modelToUse = 'gemini-3.8-flash';
         }
 
         const response = await ai.models.generateContent({

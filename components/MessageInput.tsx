@@ -267,21 +267,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
     if (!mediaPreview) return;
     triggerHaptic('send');
     if (mediaPreview.type === 'gif') {
+      const isActualVideo = Boolean(mediaPreview.isVideo);
       onSendMessage(
         previewCaption.trim(),
         {
-          name: mediaPreview.name || (mediaPreview.isVideo ? 'clip.mp4' : 'animation.gif'),
+          name: mediaPreview.name || (isActualVideo ? 'clip.mp4' : 'animation.gif'),
           data: mediaPreview.url,
-          type: mediaPreview.isVideo ? 'video' : 'image',
+          type: isActualVideo ? 'video' : 'image',
           size: 0,
-          isGif: true
+          isGif: !isActualVideo
         },
         replyingTo || undefined,
         false,
         undefined,
         undefined,
         false,
-        true
+        !isActualVideo
       );
     } else {
       onSendMessage(
@@ -428,7 +429,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
   const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'document' | 'audio') => {
     const file = e.target.files?.[0];
     if (file) {
-      if (type === 'image') {
+      const isVideoFile = file.type.startsWith('video/') || file.name.toLowerCase().endsWith('.mp4') || file.name.toLowerCase().endsWith('.webm');
+      if (type === 'image' && !isVideoFile) {
         try {
           const compressedDataUrl = await compressImage(file, 1280, 0.78);
           setStagedAttachment({
@@ -459,7 +461,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
           setStagedAttachment({
             name: file.name,
             data: reader.result as string,
-            type: type,
+            type: isVideoFile ? 'video' : type,
             size: file.size
           });
         }
@@ -918,8 +920,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, activ
 
       {/* Main Input Bar */}
       <div className="composer-bar bg-transparent px-2 py-2 flex items-end gap-2 relative w-full z-40">
-        <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleFileSelection(e, 'image')} />
-        <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileSelection(e, 'image')} />
+        <input type="file" ref={cameraInputRef} className="hidden" accept="image/*,video/*" capture="environment" onChange={(e) => handleFileSelection(e, 'image')} />
+        <input type="file" ref={imageInputRef} className="hidden" accept="image/*,video/*" onChange={(e) => handleFileSelection(e, 'image')} />
         <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.doc,.docx,.txt,.md,.xlsx,.pptx" onChange={(e) => handleFileSelection(e, 'document')} />
         <input type="file" ref={audioInputRef} className="hidden" accept="audio/*" onChange={(e) => handleFileSelection(e, 'audio')} />
         <input type="file" ref={stickerInputRef} className="hidden" accept="image/*,.webp" onChange={handleStickerFileSelection} />
