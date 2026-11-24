@@ -10,6 +10,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/gemini/backup",
+      "destination": "/api/gemini/auth"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },

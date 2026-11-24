@@ -30,8 +30,8 @@
   - Enhanced `components/MessageInput.tsx` to accept and distinguish real videos (`video/*`) with `isGif: false`.
   - Added inline video playback with player controls (`<video controls playsInline>`) in `components/ChatWindow.tsx`, and updated `components/ImageLightboxModal.tsx` for full-screen video playback and `.mp4` downloads.
   - Scaled TTS timeouts dynamically (up to 55s/60s/65s) for longer voiceovers (>25 seconds of speech, >120 characters) and diary generation (55s) in `api/gemini/tts.ts` and `services/geminiService.ts`, while maintaining 18s default for short text.
-- **Password-Protected Slot-Based Cloud Save**:
-  - Created `/api/gemini/backup` serverless endpoint with origin checking, constant-time SHA-256 passcode validation, and CRUD operations for backup slots (`list`, `save`, `restore`, `delete`).
+- **Password-Protected Slot-Based Cloud Save & Vercel 12-Function Hobby Compliance**:
+  - Hosted slot backup operations via `api/gemini/auth.ts` (with Vercel rewrite and local dev routing) with origin checking, constant-time SHA-256 passcode validation, and CRUD operations for backup slots (`list`, `save`, `restore`, `delete`). This keeps the repository at exactly 12 Serverless Functions, strictly abiding by Vercel's Hobby plan 12-function limit without requiring a paid plan.
   - Added "Cloud Save & Slots" UI to `components/UserProfilePanel.tsx` with passcode lock/unlock, slot listing, metadata (date, message count, persona count, file size), save-as-new-slot modal, one-click restore with confirmation, and slot deletion.
   - Client-side persistence and local mirroring in `services/cloudBackup.ts`.
   - Added `.data/` to `.gitignore` to prevent local slot files from being committed.

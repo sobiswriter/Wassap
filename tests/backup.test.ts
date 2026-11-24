@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import backupHandler from '../api/gemini/backup';
+import authHandler from '../api/gemini/auth';
 
 function createMockReqRes(method: string, url: string, body?: any, cookie?: string, headers: Record<string, string> = {}) {
   const req: any = {
@@ -40,7 +40,7 @@ function createMockReqRes(method: string, url: string, body?: any, cookie?: stri
 
 test('backup handler rejects requests with missing or invalid passcode', async () => {
   const { req, res, getResult } = createMockReqRes('GET', '/api/gemini/backup');
-  await backupHandler(req, res);
+  await authHandler(req, res);
   const result = getResult();
   assert.equal(result.status, 401);
   assert.equal(result.data.code, 'LOCKED');
@@ -60,7 +60,7 @@ test('backup handler allows authorized access with passcode header and saves/ret
       undefined,
       { 'x-vertex-passcode': validPasscode }
     );
-    await backupHandler(listReq, listRes);
+    await authHandler(listReq, listRes);
     const listResult = getListResult();
     assert.equal(listResult.status, 200);
     assert.equal(listResult.data.ok, true);
@@ -84,7 +84,7 @@ test('backup handler allows authorized access with passcode header and saves/ret
       undefined,
       { 'x-vertex-passcode': validPasscode }
     );
-    await backupHandler(saveReq, saveRes);
+    await authHandler(saveReq, saveRes);
     const saveResult = getSaveResult();
     assert.equal(saveResult.status, 200);
     assert.equal(saveResult.data.ok, true);
@@ -100,7 +100,7 @@ test('backup handler allows authorized access with passcode header and saves/ret
       undefined,
       { 'x-vertex-passcode': validPasscode }
     );
-    await backupHandler(restoreReq, restoreRes);
+    await authHandler(restoreReq, restoreRes);
     const restoreResult = getRestoreResult();
     assert.equal(restoreResult.status, 200);
     assert.equal(restoreResult.data.ok, true);
@@ -115,7 +115,7 @@ test('backup handler allows authorized access with passcode header and saves/ret
       undefined,
       { 'x-vertex-passcode': validPasscode }
     );
-    await backupHandler(deleteReq, deleteRes);
+    await authHandler(deleteReq, deleteRes);
     const deleteResult = getDeleteResult();
     assert.equal(deleteResult.status, 200);
     assert.equal(deleteResult.data.ok, true);
@@ -128,7 +128,7 @@ test('backup handler allows authorized access with passcode header and saves/ret
       undefined,
       { 'x-vertex-passcode': validPasscode }
     );
-    await backupHandler(invalidReq, invalidRes);
+    await authHandler(invalidReq, invalidRes);
     assert.equal(getInvalidResult().status, 400);
 
     const { req: missingReq, res: missingRes, getResult: getMissingResult } = createMockReqRes(
@@ -138,7 +138,7 @@ test('backup handler allows authorized access with passcode header and saves/ret
       undefined,
       { 'x-vertex-passcode': validPasscode }
     );
-    await backupHandler(missingReq, missingRes);
+    await authHandler(missingReq, missingRes);
     assert.equal(getMissingResult().status, 404);
   } finally {
     delete process.env.VERTEX_PASSCODE;
